@@ -21,6 +21,8 @@ use meter_core::pcapfile::PcapReader;
 use meter_core::pipeline::{Matcher, Pipeline};
 use meter_core::recorder::{Recorder, Side};
 use meter_core::session::{self, FlowMessages};
+use meter_core::damage::DamageEvent;
+use meter_core::entities::Registry;
 use meter_core::{damage, decode, protocol};
 
 #[derive(Parser)]
@@ -87,6 +89,9 @@ enum Cmd {
     Damage {
         /// A session folder or a flow folder
         path: PathBuf,
+        /// Only your own hits (your character is detected automatically)
+        #[arg(long, conflicts_with = "attacker")]
+        mine: bool,
         /// Only events from this attacker entity ID
         #[arg(long)]
         attacker: Option<u64>,
@@ -98,6 +103,11 @@ enum Cmd {
         /// Maximum events to list (the per-attacker summary always covers everything)
         #[arg(long, default_value_t = 50)]
         limit: usize,
+    },
+    /// Show who was identified: your character, named players, and mob types
+    Entities {
+        /// A session folder or a flow folder
+        path: PathBuf,
     },
     /// Find which message types contain a number (as varint, u16 or u32)
     Find {
@@ -174,11 +184,22 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Opcodes { path, side } => opcodes(&path, side),
         Cmd::Damage {
             path,
+            mine,
             attacker,
             target,
             skill,
             limit,
-        } => damage_cmd(&path, attacker, target, skill, limit),
+        } => damage_cmd(
+            &path,
+            DamageFilter {
+                mine,
+                attacker,
+                target,
+                skill,
+            },
+            limit,
+        ),
+        Cmd::Entities { path } => entities_cmd(&path),
         Cmd::Find { path, value, side } => find(&path, value, side),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
     }
@@ -215,9 +236,85 @@ fn opcodes(path: &Path, side: SideArg) -> Result<()> {
     Ok(())
 }
 
-fn damage_cmd(path: &Path, attacker: Option<u64>, target: Option<u64>, skill: Option<u32>, limit: usize) -> Result<()> {
+struct DamageFilter {
+    mine: bool,
+    attacker: Option<u64>,
+    target: Option<u64>,
+    skill: Option<u32>,
+}
+
+struct Scan {
+    registry: Registry,
+    /// (capture time µs, event)
+    events: Vec<(u64, DamageEvent)>,
+    parsed: u64,
+    partial: u64,
+    unreadable: u64,
+}
+
+/// Runs every message through the entity registry in order and collects damage events.
+/// Names often arrive after the first hits, so labels use what's known at the end.
+fn scan_session(path: &Path) -> Result<Scan> {
     let (_, m) = load_messages(path, SideArg::In)?;
-    let t0 = m.messages.first().map(|x| x.ts_us).unwrap_or(0);
+    let mut s = Scan {
+        registry: Registry::default(),
+        events: Vec::new(),
+        parsed: 0,
+        partial: 0,
+        unreadable: 0,
+    };
+    for msg in &m.messages {
+        if msg.opcode != protocol::OPCODE_DAMAGE {
+            s.registry.observe(msg.opcode, &msg.payload);
+            continue;
+        }
+        match damage::parse(&msg.payload) {
+            Some(ev) => {
+                s.parsed += 1;
+                if !ev.fully_parsed {
+                    s.partial += 1;
+                }
+                s.events.push((msg.ts_us, ev));
+            }
+            None => s.unreadable += 1,
+        }
+    }
+    Ok(s)
+}
+
+fn describe_self(r: &Registry) -> String {
+    match (r.self_id(), r.self_name()) {
+        (Some(id), Some(name)) => format!("you: {name} (entity {id})"),
+        (Some(id), None) => format!("you: entity {id} (name arrives on the next zone change or login)"),
+        _ => "you: not identified in this capture".into(),
+    }
+}
+
+/// Fits a label in a column, counting characters rather than bytes.
+fn col(s: &str, width: usize) -> String {
+    let n = s.chars().count();
+    if n > width {
+        let mut t: String = s.chars().take(width - 1).collect();
+        t.push('…');
+        t
+    } else {
+        format!("{s}{}", " ".repeat(width - n))
+    }
+}
+
+fn damage_cmd(path: &Path, filter: DamageFilter, limit: usize) -> Result<()> {
+    let Scan {
+        registry: reg,
+        events,
+        parsed,
+        partial,
+        unreadable: failed,
+    } = scan_session(path)?;
+    println!("{}\n", describe_self(&reg));
+    if filter.mine && reg.self_id().is_none() {
+        bail!("--mine needs your character, which wasn't identified in this capture");
+    }
+    let t0 = events.first().map(|(t, _)| *t).unwrap_or(0);
 
     struct Totals {
         hits: u64,
@@ -227,26 +324,24 @@ fn damage_cmd(path: &Path, attacker: Option<u64>, target: Option<u64>, skill: Op
         last: u64,
     }
     let mut per_attacker: HashMap<u64, Totals> = HashMap::new();
-    let (mut parsed, mut failed, mut partial, mut listed) = (0u64, 0u64, 0u64, 0usize);
+    let mut listed = 0usize;
 
     println!(
-        "{:>9}  {:>8} -> {:<8} {:>10} {:>4} {:>8}  flags",
-        "time (s)", "attacker", "target", "skill", "hit", "damage"
+        "{:>9}  {} -> {} {:>10} {:>4} {:>8}  flags",
+        "time (s)",
+        col("attacker", 18),
+        col("target", 18),
+        "skill",
+        "hit",
+        "damage"
     );
-    for msg in m.messages.iter().filter(|x| x.opcode == protocol::OPCODE_DAMAGE) {
-        let Some(ev) = damage::parse(&msg.payload) else {
-            failed += 1;
-            continue;
-        };
-        parsed += 1;
-        if !ev.fully_parsed {
-            partial += 1;
-        }
+    for (ts, ev) in &events {
         let Some(dmg) = ev.damage else { continue };
         if ev.is_self()
-            || attacker.is_some_and(|a| a != ev.attacker)
-            || target.is_some_and(|t| t != ev.target)
-            || skill.is_some_and(|s| s != ev.skill)
+            || (filter.mine && !reg.is_self(ev.attacker))
+            || filter.attacker.is_some_and(|a| a != ev.attacker)
+            || filter.target.is_some_and(|t| t != ev.target)
+            || filter.skill.is_some_and(|s| s != ev.skill)
         {
             continue;
         }
@@ -254,20 +349,20 @@ fn damage_cmd(path: &Path, attacker: Option<u64>, target: Option<u64>, skill: Op
             hits: 0,
             total: 0,
             max: 0,
-            first: msg.ts_us,
-            last: msg.ts_us,
+            first: *ts,
+            last: *ts,
         });
         t.hits += 1;
         t.total += dmg;
         t.max = t.max.max(dmg);
-        t.last = msg.ts_us;
+        t.last = *ts;
         if listed < limit {
             listed += 1;
             println!(
-                "{:>9.3}  {:>8} -> {:<8} {:>10} {:>4} {:>8}  {:#06x}{}",
-                (msg.ts_us - t0) as f64 / 1e6,
-                ev.attacker,
-                ev.target,
+                "{:>9.3}  {} -> {} {:>10} {:>4} {:>8}  {:#06x}{}",
+                (ts - t0) as f64 / 1e6,
+                col(&reg.label(ev.attacker), 18),
+                col(&reg.label(ev.target), 18),
                 ev.skill,
                 ev.hit,
                 dmg,
@@ -283,11 +378,22 @@ fn damage_cmd(path: &Path, attacker: Option<u64>, target: Option<u64>, skill: Op
     println!("\n0x3804 messages: {parsed} parsed, {partial} only partly decoded, {failed} unreadable\n");
     let mut rows: Vec<_> = per_attacker.into_iter().collect();
     rows.sort_by(|a, b| b.1.total.cmp(&a.1.total));
-    println!("{:>8} {:>6} {:>11} {:>8} {:>9} {:>9}", "attacker", "hits", "total", "max", "active s", "dps");
+    println!(
+        "{} {:>8} {:>6} {:>11} {:>8} {:>9} {:>9}",
+        col("attacker", 20),
+        "entity",
+        "hits",
+        "total",
+        "max",
+        "active s",
+        "dps"
+    );
     for (id, t) in rows.iter().take(15) {
         let secs = ((t.last - t.first) as f64 / 1e6).max(1.0);
+        let marker = if reg.is_self(*id) { "▶ " } else { "  " };
         println!(
-            "{id:>8} {:>6} {:>11} {:>8} {:>9.1} {:>9.0}",
+            "{marker}{} {id:>8} {:>6} {:>11} {:>8} {:>9.1} {:>9.0}",
+            col(&reg.label(*id), 18),
             t.hits,
             t.total,
             t.max,
@@ -295,6 +401,48 @@ fn damage_cmd(path: &Path, attacker: Option<u64>, target: Option<u64>, skill: Op
             t.total as f64 / secs
         );
     }
+    Ok(())
+}
+
+fn entities_cmd(path: &Path) -> Result<()> {
+    let Scan {
+        registry: reg,
+        events,
+        ..
+    } = scan_session(path)?;
+    println!("{}\n", describe_self(&reg));
+
+    let mut damage_by: HashMap<u64, u64> = HashMap::new();
+    for (_, ev) in &events {
+        if let (Some(d), false) = (ev.damage, ev.is_self()) {
+            *damage_by.entry(ev.attacker).or_default() += d;
+        }
+    }
+
+    let mut players: Vec<_> = reg.players().collect();
+    players.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+    println!("players named: {}", players.len());
+    for (id, name) in &players {
+        let dealt = damage_by.get(id).copied().unwrap_or(0);
+        println!("  {} entity {id:>6}   damage dealt {dealt:>10}", col(name, 20));
+    }
+
+    let mut by_type: HashMap<u32, u32> = HashMap::new();
+    for (_, t) in reg.mobs() {
+        *by_type.entry(t).or_default() += 1;
+    }
+    let mut types: Vec<_> = by_type.into_iter().collect();
+    types.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    println!("\nmobs seen: {} ({} types)", reg.mobs().count(), types.len());
+    for (t, n) in types.iter().take(20) {
+        println!("  type {t:>9}  ×{n}");
+    }
+
+    let unnamed = damage_by
+        .keys()
+        .filter(|id| !reg.is_self(**id) && reg.player_name(**id).is_none() && reg.mob_type(**id).is_none())
+        .count();
+    println!("\nattackers with no spawn seen (were already nearby when capture started): {unnamed}");
     Ok(())
 }
 

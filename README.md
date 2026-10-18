@@ -36,8 +36,11 @@ target/release/packet-lab replay captures/<session>/raw.pcap
 # Message types in the game stream (bundles unpacked; game connection picked automatically)
 target/release/packet-lab opcodes captures/<session>
 
-# Damage events, with per-attacker totals and DPS
-target/release/packet-lab damage captures/<session> --attacker 3199
+# Damage events with names, per-attacker totals and DPS (--mine = only your hits)
+target/release/packet-lab damage captures/<session> --mine
+
+# Who was identified: you, nearby players, mob types
+target/release/packet-lab entities captures/<session>
 
 # Which messages contain a number you saw in game?
 target/release/packet-lab find captures/<session> 2674

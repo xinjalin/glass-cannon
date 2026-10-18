@@ -76,9 +76,69 @@ bits `0x02` and `0x04`.
 
 ## Entities
 
-- Your entity ID was 3199 throughout these sessions (one login). It probably changes per
-  login or zone; the meter needs to learn it from a spawn/login message. **Open.**
-- The training dummy was 37109.
+Entity IDs are per login (yours was 10397 in one login and 3199 in the next). The same ID
+space is used by damage events, spawns and the self message.
+
+### Self: opcode `0x364a` (likely)
+
+```text
+varint  your entity ID, then 9 bytes (mostly zero)
+```
+
+Arrives about once per second, and only ever names one entity: you. Seen in all 7 sessions
+across 2 logins, including while in a group. A meter can learn your ID from it within a
+second of starting, even mid-session.
+
+### You appear: opcode `0x3633` (confirmed)
+
+```text
+varint  your entity ID
+5 bytes unknown
+u8      name length, then your character name (UTF-8)
+...     about 2.3 KB more (your full character data)
+```
+
+Sent **at login and after every zone change**, always with the current entity ID. A
+zone change keeps the same entity ID; a re-login gets a new one.
+
+### Another player appears: opcode `0x3645` (confirmed)
+
+Same layout as `0x3633`: entity ID, 5 bytes, length-prefixed UTF-8 name, then 1–2 KB
+more. Latin, Korean and Chinese names seen.
+
+It's sent when a player **comes into view**, and for **everyone nearby right after a zone
+change**. Players already nearby when the capture starts stay unnamed until one of those
+happens.
+
+### Mob / NPC appears: opcode `0x3641` (likely)
+
+```text
+varint  entity ID
+3 bytes unknown
+u32     type ID, e.g. 2400009 (same kind of mob → same ID; 24xxxxx and 29xxxxx seen)
+u8      unknown
+f32 ×3  probably position (x, y, z)
+...     about 100 bytes total
+```
+
+Arrives before the mob's first damage event. **There's no name in it**: the client looks
+names up in its own data files, so a meter needs its own type-ID → name table built from
+our observations. A few messages have a different layout (type field doesn't fit).
+
+### Permanent character ID (guess)
+
+`58 de 03 00` (u32 253528) followed by `00 00 00 c7 09` sits right before
+"NeneneTowawa" in several messages (`0x8a05`, `0x8d57`, party lists). It looks like a
+character ID that survives logins, and `c7 09` may be a server ID.
+
+The training dummy was 37109 in these sessions; it was already loaded before every
+capture, so its spawn message hasn't been seen.
+
+### Not entity data
+
+- `0x9701`: party-finder listings (post titles, leader names). No entity IDs.
+- `0x9702`: one party's member list, keyed by a longer-lived character ID (u32) rather
+  than the entity ID.
 
 ## Skill IDs (guess)
 
@@ -88,7 +148,8 @@ and may be the basic attack. Needs a name table from our own observations.
 
 ## Open questions
 
-1. Which message tells us our own entity ID (and names for other entity IDs)?
+1. Where are class and level in `0x3633`/`0x3645`? (Your character: level 45, 88.36K
+   combat power, title "Vanguard of Atreia" — search for these to find the fields.)
 2. Where did the 286 damage in test D go? Possibly a DoT tick, a shield absorb, or a
    different opcode.
 3. What are `unknown_a`, `unknown_b` and `parts`? Is `parts` a per-tick breakdown or

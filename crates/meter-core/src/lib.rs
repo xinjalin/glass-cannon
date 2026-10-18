@@ -5,6 +5,7 @@
 
 pub mod conns;
 pub mod damage;
+pub mod entities;
 pub mod decode;
 pub mod live;
 pub mod npcap;
