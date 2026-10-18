@@ -1,0 +1,3 @@
+/target
+# Captures hold your own game traffic (and possibly session tokens). Never commit or share them.
+/captures
