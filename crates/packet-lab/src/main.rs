@@ -1,6 +1,6 @@
 //! packet-lab: capture and inspect the game's network traffic for reverse-engineering.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::net::IpAddr;
@@ -19,8 +19,9 @@ use meter_core::live::{self, LiveEvent, LiveOptions};
 use meter_core::npcap::Npcap;
 use meter_core::pcapfile::PcapReader;
 use meter_core::pipeline::{Matcher, Pipeline};
-use meter_core::recorder::Recorder;
-use meter_core::decode;
+use meter_core::recorder::{Recorder, Side};
+use meter_core::session::{self, FlowMessages};
+use meter_core::{damage, decode, protocol};
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -75,6 +76,37 @@ enum Cmd {
         #[arg(long, default_value_t = 32)]
         bytes: usize,
     },
+    /// Count message types (opcodes) in the game stream, after unpacking bundles
+    Opcodes {
+        /// A session folder (the game connection is picked automatically) or a flow folder
+        path: PathBuf,
+        #[arg(long, value_enum, default_value = "in")]
+        side: SideArg,
+    },
+    /// List damage events (opcode 0x3804) and total them per attacker
+    Damage {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        /// Only events from this attacker entity ID
+        #[arg(long)]
+        attacker: Option<u64>,
+        /// Only events on this target entity ID
+        #[arg(long)]
+        target: Option<u64>,
+        #[arg(long)]
+        skill: Option<u32>,
+        /// Maximum events to list (the per-attacker summary always covers everything)
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Find which message types contain a number (as varint, u16 or u32)
+    Find {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        value: u64,
+        #[arg(long, value_enum, default_value = "in")]
+        side: SideArg,
+    },
     /// Hex dump part of a flow's reassembled stream
     Dump {
         flow: PathBuf,
@@ -96,9 +128,13 @@ enum SideArg {
 
 impl SideArg {
     fn as_str(self) -> &'static str {
+        self.side().as_str()
+    }
+
+    fn side(self) -> Side {
         match self {
-            SideArg::In => "in",
-            SideArg::Out => "out",
+            SideArg::In => Side::In,
+            SideArg::Out => Side::Out,
         }
     }
 }
@@ -135,8 +171,182 @@ fn run(cli: Cli) -> Result<()> {
             limit,
             bytes,
         } => chunks(&flow, side, limit, bytes),
+        Cmd::Opcodes { path, side } => opcodes(&path, side),
+        Cmd::Damage {
+            path,
+            attacker,
+            target,
+            skill,
+            limit,
+        } => damage_cmd(&path, attacker, target, skill, limit),
+        Cmd::Find { path, value, side } => find(&path, value, side),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
     }
+}
+
+fn load_messages(path: &Path, side: SideArg) -> Result<(PathBuf, FlowMessages)> {
+    let flow = session::resolve_flow(path)?;
+    let m = session::read_messages(&flow, side.side())?;
+    eprintln!(
+        "{}: {} messages ({} gaps, {} framing resyncs, {} bad bundles)",
+        flow.file_name().unwrap_or_default().to_string_lossy(),
+        m.messages.len(),
+        m.gaps,
+        m.resyncs,
+        m.bad_bundles
+    );
+    Ok((flow, m))
+}
+
+fn opcodes(path: &Path, side: SideArg) -> Result<()> {
+    let (_, m) = load_messages(path, side)?;
+    let mut by_op: HashMap<u16, (u64, u64)> = HashMap::new();
+    for msg in &m.messages {
+        let e = by_op.entry(msg.opcode).or_default();
+        e.0 += 1;
+        e.1 += msg.payload.len() as u64;
+    }
+    let mut rows: Vec<_> = by_op.into_iter().collect();
+    rows.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+    println!("{:>8} {:>8} {:>9}", "opcode", "count", "avg size");
+    for (op, (count, bytes)) in rows {
+        println!("{op:#08x} {count:>8} {:>9.1}", bytes as f64 / count as f64);
+    }
+    Ok(())
+}
+
+fn damage_cmd(path: &Path, attacker: Option<u64>, target: Option<u64>, skill: Option<u32>, limit: usize) -> Result<()> {
+    let (_, m) = load_messages(path, SideArg::In)?;
+    let t0 = m.messages.first().map(|x| x.ts_us).unwrap_or(0);
+
+    struct Totals {
+        hits: u64,
+        total: u64,
+        max: u64,
+        first: u64,
+        last: u64,
+    }
+    let mut per_attacker: HashMap<u64, Totals> = HashMap::new();
+    let (mut parsed, mut failed, mut partial, mut listed) = (0u64, 0u64, 0u64, 0usize);
+
+    println!(
+        "{:>9}  {:>8} -> {:<8} {:>10} {:>4} {:>8}  flags",
+        "time (s)", "attacker", "target", "skill", "hit", "damage"
+    );
+    for msg in m.messages.iter().filter(|x| x.opcode == protocol::OPCODE_DAMAGE) {
+        let Some(ev) = damage::parse(&msg.payload) else {
+            failed += 1;
+            continue;
+        };
+        parsed += 1;
+        if !ev.fully_parsed {
+            partial += 1;
+        }
+        let Some(dmg) = ev.damage else { continue };
+        if ev.is_self()
+            || attacker.is_some_and(|a| a != ev.attacker)
+            || target.is_some_and(|t| t != ev.target)
+            || skill.is_some_and(|s| s != ev.skill)
+        {
+            continue;
+        }
+        let t = per_attacker.entry(ev.attacker).or_insert(Totals {
+            hits: 0,
+            total: 0,
+            max: 0,
+            first: msg.ts_us,
+            last: msg.ts_us,
+        });
+        t.hits += 1;
+        t.total += dmg;
+        t.max = t.max.max(dmg);
+        t.last = msg.ts_us;
+        if listed < limit {
+            listed += 1;
+            println!(
+                "{:>9.3}  {:>8} -> {:<8} {:>10} {:>4} {:>8}  {:#06x}{}",
+                (msg.ts_us - t0) as f64 / 1e6,
+                ev.attacker,
+                ev.target,
+                ev.skill,
+                ev.hit,
+                dmg,
+                ev.flags,
+                if ev.fully_parsed { "" } else { " (partly decoded)" }
+            );
+        }
+    }
+    if listed == limit {
+        println!("... (stopped listing at --limit {limit})");
+    }
+
+    println!("\n0x3804 messages: {parsed} parsed, {partial} only partly decoded, {failed} unreadable\n");
+    let mut rows: Vec<_> = per_attacker.into_iter().collect();
+    rows.sort_by(|a, b| b.1.total.cmp(&a.1.total));
+    println!("{:>8} {:>6} {:>11} {:>8} {:>9} {:>9}", "attacker", "hits", "total", "max", "active s", "dps");
+    for (id, t) in rows.iter().take(15) {
+        let secs = ((t.last - t.first) as f64 / 1e6).max(1.0);
+        println!(
+            "{id:>8} {:>6} {:>11} {:>8} {:>9.1} {:>9.0}",
+            t.hits,
+            t.total,
+            t.max,
+            secs,
+            t.total as f64 / secs
+        );
+    }
+    Ok(())
+}
+
+fn find(path: &Path, value: u64, side: SideArg) -> Result<()> {
+    let (_, m) = load_messages(path, side)?;
+    let mut encodings: Vec<(&str, Vec<u8>)> = vec![("varint", encode_varint(value))];
+    if value <= u16::MAX as u64 {
+        encodings.push(("u16", (value as u16).to_le_bytes().to_vec()));
+    }
+    if value <= u32::MAX as u64 {
+        encodings.push(("u32", (value as u32).to_le_bytes().to_vec()));
+    }
+
+    let mut hits: HashMap<(u16, &str, usize), u64> = HashMap::new();
+    for msg in &m.messages {
+        for (name, pat) in &encodings {
+            let mut from = 0;
+            while let Some(i) = find_bytes(&msg.payload[from..], pat) {
+                *hits.entry((msg.opcode, *name, from + i)).or_default() += 1;
+                from += i + 1;
+            }
+        }
+    }
+    if hits.is_empty() {
+        println!("{value} not found in any message");
+        return Ok(());
+    }
+    let mut rows: Vec<_> = hits.into_iter().collect();
+    rows.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    println!("{:>8} {:>7} {:>8} {:>6}", "opcode", "as", "offset", "count");
+    for ((op, name, off), count) in rows.into_iter().take(25) {
+        println!("{op:#08x} {name:>7} {off:>8} {count:>6}");
+    }
+    println!("(offset = bytes after the opcode)");
+    Ok(())
+}
+
+fn encode_varint(mut v: u64) -> Vec<u8> {
+    let mut out = Vec::new();
+    loop {
+        let b = (v & 0x7f) as u8;
+        v >>= 7;
+        if v == 0 {
+            out.push(b);
+            return out;
+        }
+        out.push(b | 0x80);
+    }
+}
+
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 fn devices() -> Result<()> {

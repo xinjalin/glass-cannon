@@ -32,7 +32,18 @@ target/release/packet-lab dump captures/<session>/flows/<flow> --side in --pos 0
 
 # Re-run reassembly on a capture (e.g. after improving the parser)
 target/release/packet-lab replay captures/<session>/raw.pcap
+
+# Message types in the game stream (bundles unpacked; game connection picked automatically)
+target/release/packet-lab opcodes captures/<session>
+
+# Damage events, with per-attacker totals and DPS
+target/release/packet-lab damage captures/<session> --attacker 3199
+
+# Which messages contain a number you saw in game?
+target/release/packet-lab find captures/<session> 2674
 ```
+
+What's known about the protocol so far is in [docs/protocol.md](docs/protocol.md).
 
 ## Session layout
 
