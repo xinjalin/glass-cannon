@@ -15,9 +15,11 @@ use serde_json::json;
 
 use crate::conns::{self, ProcessInfo};
 use crate::decode;
+use crate::game::GameStreams;
 use crate::npcap::{Capture, Device, Npcap};
 use crate::pipeline::{LiveMatcher, Matcher, Pipeline, PipelineStats};
 use crate::recorder::Recorder;
+use crate::session::TimedMessage;
 
 /// Only TCP/UDP reaches us; the pipeline narrows it to the game's own sockets.
 const CAPTURE_FILTER: &str = "tcp or udp";
@@ -32,6 +34,10 @@ pub struct LiveOptions {
     /// Adapter selectors (index, or substring of name/description). Empty = automatic.
     pub devices: Vec<String>,
     pub duration: Option<Duration>,
+    /// Save the session to `out_dir`.
+    pub record: bool,
+    /// Decode the game stream and emit [`LiveEvent::Messages`].
+    pub decode: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -48,14 +54,17 @@ pub struct LiveStatus {
 pub enum LiveEvent {
     Waiting(String),
     Started {
-        session_dir: PathBuf,
+        /// None when not recording.
+        session_dir: Option<PathBuf>,
         devices: Vec<String>,
         processes: Vec<ProcessInfo>,
     },
     Warning(String),
     Status(LiveStatus),
+    /// Decoded game messages, in order (only with `decode`).
+    Messages(Vec<TimedMessage>),
     Finished {
-        session_dir: PathBuf,
+        session_dir: Option<PathBuf>,
         stats: PipelineStats,
     },
 }
@@ -87,8 +96,9 @@ pub fn select_devices(all: &[Device], selectors: &[String]) -> Vec<Device> {
         .collect()
 }
 
-/// Runs until `stop` is set or `opts.duration` passes. Returns the session folder.
-pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveEvent)) -> Result<PathBuf> {
+/// Runs until `stop` is set or `opts.duration` passes. Returns the session folder,
+/// if recording.
+pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveEvent)) -> Result<Option<PathBuf>> {
     let np = Arc::new(Npcap::load()?);
 
     // 1. Wait for the game and for it to open a connection.
@@ -121,10 +131,10 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
     let all = np.devices()?;
     let chosen = pick_devices(&all, &opts.devices, &local_ips, &mut on_event)?;
 
-    // 3. Session folder.
+    // 3. Session folder, if recording.
     let session_dir = opts
-        .out_dir
-        .join(chrono::Local::now().format("%Y%m%d-%H%M%S").to_string());
+        .record
+        .then(|| opts.out_dir.join(chrono::Local::now().format("%Y%m%d-%H%M%S").to_string()));
     let meta = json!({
         "tool": concat!("packet-lab ", env!("CARGO_PKG_VERSION")),
         "started_us": now_us(),
@@ -134,12 +144,19 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
         "devices": chosen.iter().map(|d| json!({"name": d.name, "description": d.description})).collect::<Vec<_>>(),
         "npcap": np.version(),
     });
-    let rec = Recorder::create(&session_dir, &meta)?;
+    let rec = match &session_dir {
+        Some(dir) => Some(Recorder::create(dir, &meta)?),
+        None => None,
+    };
 
     let mut pids: HashSet<u32> = procs.iter().map(|p| p.pid).collect();
     let mut matcher = snapshot_matcher(&pids)?;
     let mut current = matcher.clone();
     let mut pipeline = Pipeline::new(Matcher::Live(matcher.clone()), rec);
+    let mut game = GameStreams::default();
+    if opts.decode {
+        pipeline.collect_streams();
+    }
 
     // 4. One capture thread per adapter.
     let (tx, rx) = mpsc::sync_channel::<(u64, Vec<u8>)>(65_536);
@@ -187,6 +204,7 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                     failure = Some(e);
                     break;
                 }
+                emit_messages(&mut pipeline, &mut game, &mut on_event);
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
@@ -217,6 +235,8 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                 failure = Some(e);
                 break;
             }
+            // Released held packets and skipped holes can produce data too.
+            emit_messages(&mut pipeline, &mut game, &mut on_event);
         }
         if last_status.elapsed() >= STATUS_EVERY {
             last_status = Instant::now();
@@ -242,6 +262,7 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                         failure = Some(e);
                         break;
                     }
+                    emit_messages(&mut pipeline, &mut game, &mut on_event);
                 }
                 Err(RecvTimeoutError::Timeout) => continue,
                 Err(RecvTimeoutError::Disconnected) => break,
@@ -258,13 +279,30 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
     }
     let stats = pipeline.finish(now_us())?;
     if let Some(e) = failure {
-        return Err(e.context(format!("capture stopped early; partial session in {}", session_dir.display())));
+        return Err(match &session_dir {
+            Some(dir) => e.context(format!("capture stopped early; partial session in {}", dir.display())),
+            None => e.context("capture stopped early"),
+        });
     }
     on_event(LiveEvent::Finished {
         session_dir: session_dir.clone(),
         stats,
     });
     Ok(session_dir)
+}
+
+fn emit_messages(pipeline: &mut Pipeline, game: &mut GameStreams, on_event: &mut impl FnMut(LiveEvent)) {
+    let chunks = pipeline.take_streams();
+    if chunks.is_empty() {
+        return;
+    }
+    let mut messages = Vec::new();
+    for chunk in chunks {
+        game.push(chunk, &mut messages);
+    }
+    if !messages.is_empty() {
+        on_event(LiveEvent::Messages(messages));
+    }
 }
 
 fn pick_devices(

@@ -190,7 +190,7 @@ impl Framer {
 pub(crate) mod tests {
     use super::*;
 
-    pub fn encode_varint(mut v: u64) -> Vec<u8> {
+    pub(crate) fn encode_varint(mut v: u64) -> Vec<u8> {
         let mut out = Vec::new();
         loop {
             let b = (v & 0x7f) as u8;

@@ -6,6 +6,58 @@ admin rights while running, doesn't auto-update, and sends nothing to any server
 Milestone 1 is **packet-lab**, a tool for capturing and inspecting the game's own traffic
 so the packet format can be reverse-engineered from your captures.
 
+## The overlay (Aion Meter)
+
+```bash
+cargo build --release
+```
+
+```bash
+target/release/meter-app.exe
+```
+
+It's an always-on-top, see-through window that starts capturing on its own and waits
+for the game if it isn't running yet. Drag the title bar to move it; drag an edge to
+resize it.
+
+- **Mine / All**: your fight (targets you hit, plus everyone's damage on them) or every
+  player fighting nearby.
+- **Click a player** to see their skill breakdown.
+- **↺** resets; **pin** toggles always-on-top.
+- A fight ends after 15 s without action; the last fight stays on screen until the next.
+- Names appear when players come into view or after a zone change. Players already
+  nearby when the meter starts show as `#ID` until then.
+
+- It opens where you last left it; the first time (or if that monitor is gone) it
+  opens at the right edge of the monitor the game is on.
+
+Options: `--replay <session folder>` plays back a recorded capture (`--speed 10` to
+fast-forward), `--record` also saves the live session to `captures/`.
+
+### Skill names and icons
+
+```bash
+target/release/packet-lab import-skills
+```
+
+This downloads skill names and icons from the open-source
+[NOIA2](https://github.com/ZDYoung0519/NOIA2) project (GPL-3.0) into a `skills` folder
+next to the programs (`target/release/skills`). Its tables use the same skill IDs the game
+sends. The overlay looks there first, then in `%APPDATA%\local.aion-meter\skills\`.
+`cargo clean` deletes it, so run the import again after that.
+`--lang ko|zh-TW|zh-CN` picks another language. The data stays on your machine and isn't
+part of this repository; game names and art belong to NCSoft. The overlay itself never
+goes online.
+
+In a skill breakdown, hover a skill for its ID, or double-click it to name it yourself.
+Your own names survive a re-import.
+
+If skills show as numbers, the status line says why, and `meter.log` in
+`%APPDATA%\local.aion-meter\` records where the overlay looked at startup.
+
+The terminal version is `packet-lab live`; `packet-lab meter <session>` runs the meter
+over a recording.
+
 ## Requirements
 
 - [Npcap](https://npcap.com), installed **without** "Restrict Npcap driver's access to

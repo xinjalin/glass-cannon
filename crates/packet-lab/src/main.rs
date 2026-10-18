@@ -23,7 +23,10 @@ use meter_core::recorder::{Recorder, Side};
 use meter_core::session::{self, FlowMessages};
 use meter_core::damage::DamageEvent;
 use meter_core::entities::Registry;
+use meter_core::meter::{Meter, Scope, Snapshot};
 use meter_core::{damage, decode, protocol};
+
+mod import_skills;
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -104,6 +107,51 @@ enum Cmd {
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
+    /// Live DPS meter in the terminal (Ctrl+C to stop)
+    Live {
+        /// Substring of the game's executable name
+        #[arg(short, long, default_value = "AION2")]
+        process: String,
+        /// Also save the session to --out
+        #[arg(long)]
+        record: bool,
+        #[arg(short, long, default_value = "captures")]
+        out: PathBuf,
+        /// Seconds without player damage that end a fight
+        #[arg(long, default_value_t = 15)]
+        idle: u64,
+        /// Count every player fighting nearby, not just your targets
+        #[arg(long)]
+        everyone: bool,
+        /// Stop automatically after this many seconds
+        #[arg(long)]
+        seconds: Option<u64>,
+    },
+    /// Run the meter over a recorded session and print each fight
+    Meter {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        #[arg(long, default_value_t = 15)]
+        idle: u64,
+        /// Count every player fighting nearby, not just your targets
+        #[arg(long)]
+        everyone: bool,
+        /// Print the final snapshot as JSON (what the overlay receives)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Download skill names and icons for the overlay (from the GPL-3.0 NOIA2 project)
+    ImportSkills {
+        /// Language of the names: en, ko, zh-TW or zh-CN
+        #[arg(long, default_value = "en")]
+        lang: String,
+        /// Names only, no icons
+        #[arg(long)]
+        no_icons: bool,
+        /// Where to save (default: a `skills` folder next to this program)
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Show who was identified: your character, named players, and mob types
     Entities {
         /// A session folder or a flow folder
@@ -173,6 +221,8 @@ fn run(cli: Cli) -> Result<()> {
             out_dir: out,
             devices: device,
             duration: seconds.map(Duration::from_secs),
+            record: true,
+            decode: false,
         }),
         Cmd::Replay { pcap, out, local_ip } => replay(&pcap, &out, local_ip),
         Cmd::Chunks {
@@ -200,6 +250,27 @@ fn run(cli: Cli) -> Result<()> {
             limit,
         ),
         Cmd::Entities { path } => entities_cmd(&path),
+        Cmd::ImportSkills { lang, no_icons, out } => {
+            let dir = match out {
+                Some(d) => d,
+                None => import_skills::default_dir()?,
+            };
+            import_skills::run(&dir, &lang, !no_icons)
+        }
+        Cmd::Live {
+            process,
+            record,
+            out,
+            idle,
+            everyone,
+            seconds,
+        } => live_cmd(process, record, out, idle, everyone, seconds),
+        Cmd::Meter {
+            path,
+            idle,
+            everyone,
+            json,
+        } => meter_cmd(&path, idle, everyone, json),
         Cmd::Find { path, value, side } => find(&path, value, side),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
     }
@@ -404,6 +475,165 @@ fn damage_cmd(path: &Path, filter: DamageFilter, limit: usize) -> Result<()> {
     Ok(())
 }
 
+fn new_meter(idle_s: u64, everyone: bool) -> Meter {
+    let mut m = Meter::new(idle_s * 1_000_000);
+    if everyone {
+        m.set_scope(Scope::Everyone);
+    }
+    m
+}
+
+fn render_meter(snap: &Snapshot) -> String {
+    let mut out = String::new();
+    let you = match (&snap.self_name, snap.self_id) {
+        (Some(n), _) => n.clone(),
+        (None, Some(id)) => format!("entity {id}"),
+        _ => "not identified yet".into(),
+    };
+    out.push_str(&format!("you: {you}\n"));
+    let Some(e) = &snap.encounter else {
+        out.push_str("\nno fight yet — hit something\n");
+        return out;
+    };
+    out.push_str(&format!(
+        "\n{} {:>5.0}s  {}{}  total {}  ({}/s)\n\n",
+        if e.active { "● fighting" } else { "■ ended   " },
+        e.duration_s,
+        e.target.as_deref().unwrap_or("?"),
+        if e.target_count > 1 {
+            format!(" +{} more", e.target_count - 1)
+        } else {
+            String::new()
+        },
+        human_num(e.total_damage),
+        human_num(e.total_dps as u64)
+    ));
+    out.push_str(&format!(
+        "   {} {:>5} {:>9} {:>9} {:>6} {:>5} {:>8}\n",
+        col("player", 18),
+        "class",
+        "dps",
+        "damage",
+        "share",
+        "hits",
+        "max hit"
+    ));
+    for (i, p) in e.players.iter().take(12).enumerate() {
+        let class = p.class_code.map(|c| c.to_string()).unwrap_or_default();
+        out.push_str(&format!(
+            "{:>2}{}{} {:>5} {:>9} {:>9} {:>5.1}% {:>5} {:>8}\n",
+            i + 1,
+            if p.is_self { "▶" } else { " " },
+            col(&p.name, 18),
+            class,
+            human_num(p.dps as u64),
+            human_num(p.damage),
+            p.share * 100.0,
+            p.hits,
+            human_num(p.max_hit)
+        ));
+    }
+    if let Some(me) = e.players.iter().find(|p| p.is_self) {
+        out.push_str("\nyour top skills:\n");
+        for s in me.skills.iter().take(6) {
+            out.push_str(&format!(
+                "   {:>10}  {:>9}  {:>5.1}%  {:>4} hits  max {}\n",
+                s.skill,
+                human_num(s.damage),
+                s.share * 100.0,
+                s.hits,
+                human_num(s.max)
+            ));
+        }
+    }
+    out
+}
+
+fn human_num(n: u64) -> String {
+    match n {
+        0..10_000 => n.to_string(),
+        10_000..1_000_000 => format!("{:.1}K", n as f64 / 1e3),
+        _ => format!("{:.2}M", n as f64 / 1e6),
+    }
+}
+
+fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, everyone: bool, seconds: Option<u64>) -> Result<()> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&stop);
+    ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed)).context("installing Ctrl+C handler")?;
+
+    let opts = LiveOptions {
+        process,
+        out_dir: out,
+        devices: Vec::new(),
+        duration: seconds.map(Duration::from_secs),
+        record,
+        decode: true,
+    };
+    let mut meter = new_meter(idle, everyone);
+    let mut last_render = std::time::Instant::now();
+    let mut status = String::from("starting…");
+    let mut last_wait = String::new();
+    live::run(&opts, &stop, |ev| {
+        match ev {
+            LiveEvent::Waiting(msg) => {
+                if msg != last_wait {
+                    println!("{msg}... (Ctrl+C to cancel)");
+                    last_wait = msg;
+                }
+                return;
+            }
+            LiveEvent::Started { devices, .. } => status = format!("capturing on {}", devices.join(", ")),
+            LiveEvent::Warning(msg) => status = format!("warning: {msg}"),
+            LiveEvent::Status(s) if s.dropped > 0 => {
+                status = format!("capturing — {} packets dropped (numbers may be low)", s.dropped)
+            }
+            LiveEvent::Status(_) => {}
+            LiveEvent::Messages(msgs) => {
+                for m in &msgs {
+                    meter.feed(m.ts_us, m.opcode, &m.payload);
+                }
+            }
+            LiveEvent::Finished { .. } => return,
+        }
+        meter.tick(live::now_us());
+        if last_render.elapsed() >= Duration::from_millis(500) {
+            last_render = std::time::Instant::now();
+            // Clear the screen and draw from the top.
+            print!("\x1b[2J\x1b[H{}\n{status}  (Ctrl+C to stop)\n", render_meter(&meter.snapshot()));
+        }
+    })?;
+    println!("\n{}", render_meter(&meter.snapshot()));
+    Ok(())
+}
+
+fn meter_cmd(path: &Path, idle: u64, everyone: bool, json: bool) -> Result<()> {
+    let (_, m) = load_messages(path, SideArg::In)?;
+    let mut meter = new_meter(idle, everyone);
+    let mut seen = 0;
+    if json {
+        for msg in &m.messages {
+            meter.feed(msg.ts_us, msg.opcode, &msg.payload);
+        }
+        println!("{}", serde_json::to_string_pretty(&meter.snapshot())?);
+        return Ok(());
+    }
+    for msg in &m.messages {
+        meter.tick(msg.ts_us);
+        if meter.encounters_completed() > seen {
+            seen = meter.encounters_completed();
+            println!("── fight {seen} ──\n{}", render_meter(&meter.snapshot()));
+        }
+        meter.feed(msg.ts_us, msg.opcode, &msg.payload);
+    }
+    let snap = meter.snapshot();
+    if snap.encounter.as_ref().is_some_and(|e| e.active) {
+        println!("── fight {} (still going when the capture ended) ──", seen + 1);
+    }
+    println!("{}", render_meter(&snap));
+    Ok(())
+}
+
 fn entities_cmd(path: &Path) -> Result<()> {
     let Scan {
         registry: reg,
@@ -580,10 +810,13 @@ fn capture(opts: LiveOptions) -> Result<()> {
             let names: Vec<String> = processes.iter().map(|p| format!("{} ({})", p.name, p.pid)).collect();
             println!("capturing {}", names.join(", "));
             println!("adapter(s): {}", devices.join(", "));
-            println!("saving to {}", session_dir.display());
+            if let Some(dir) = session_dir {
+                println!("saving to {}", dir.display());
+            }
             println!("press Ctrl+C to stop\n");
         }
         LiveEvent::Warning(msg) => eprintln!("warning: {msg}"),
+        LiveEvent::Messages(_) => {}
         LiveEvent::Status(s) => {
             let drop_note = if s.dropped > 0 {
                 format!("  DROPPED {} (expect gaps)", s.dropped)
@@ -610,8 +843,10 @@ fn capture(opts: LiveOptions) -> Result<()> {
                 human(stats.bytes_out),
                 human(stats.gap_bytes)
             );
-            println!("session: {}", session_dir.display());
-            println!("next: packet-lab chunks \"{}\"", session_dir.join("flows").join("<flow>").display());
+            if let Some(dir) = session_dir {
+                println!("session: {}", dir.display());
+                println!("next: packet-lab damage \"{}\" --mine", dir.display());
+            }
         }
     })?;
     Ok(())
@@ -645,7 +880,7 @@ fn replay(pcap: &Path, out: &Path, mut local_ips: Vec<IpAddr>) -> Result<()> {
         Matcher::Any {
             local_ips: local_ips.into_iter().collect::<HashSet<_>>(),
         },
-        rec,
+        Some(rec),
     );
 
     let mut last_ts = 0;

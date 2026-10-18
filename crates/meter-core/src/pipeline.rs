@@ -132,7 +132,9 @@ type PairKey = (Proto, SocketAddr, SocketAddr);
 struct Flow {
     id: u32,
     proto: Proto,
-    files: FlowFiles,
+    remote: SocketAddr,
+    /// None when not recording to disk.
+    files: Option<FlowFiles>,
     out: HalfStream,
     inn: HalfStream,
     packets: u64,
@@ -150,9 +152,31 @@ pub struct PipelineStats {
     pub flows_open: usize,
 }
 
+/// Reassembled TCP data handed to the live engine, in arrival order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamChunk {
+    pub flow: u32,
+    pub remote: SocketAddr,
+    pub side: Side,
+    pub ts_us: u64,
+    pub kind: ChunkKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChunkKind {
+    /// A new TCP connection (or a capture that started mid-connection).
+    Open,
+    Data(Vec<u8>),
+    /// Bytes the capture missed.
+    Gap(u64),
+    Close,
+}
+
 pub struct Pipeline {
     matcher: Matcher,
-    rec: Recorder,
+    rec: Option<Recorder>,
+    /// Collected for the live engine when enabled.
+    streams: Option<Vec<StreamChunk>>,
     flows: HashMap<FlowKey, Flow>,
     limbo: HashMap<PairKey, VecDeque<(u64, Vec<u8>)>>,
     limbo_bytes: usize,
@@ -161,10 +185,12 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn new(matcher: Matcher, rec: Recorder) -> Self {
+    /// `rec` is where to save the session; `None` keeps everything in memory only.
+    pub fn new(matcher: Matcher, rec: Option<Recorder>) -> Self {
         Self {
             matcher,
             rec,
+            streams: None,
             flows: HashMap::new(),
             limbo: HashMap::new(),
             limbo_bytes: 0,
@@ -173,8 +199,18 @@ impl Pipeline {
         }
     }
 
-    pub fn session_dir(&self) -> &Path {
-        self.rec.dir()
+    pub fn session_dir(&self) -> Option<&Path> {
+        self.rec.as_ref().map(Recorder::dir)
+    }
+
+    /// Starts collecting reassembled TCP data for [`Pipeline::take_streams`].
+    pub fn collect_streams(&mut self) {
+        self.streams.get_or_insert_with(Vec::new);
+    }
+
+    /// Everything collected since the last call.
+    pub fn take_streams(&mut self) -> Vec<StreamChunk> {
+        self.streams.as_mut().map(std::mem::take).unwrap_or_default()
     }
 
     pub fn stats(&self) -> PipelineStats {
@@ -230,11 +266,22 @@ impl Pipeline {
                 };
                 let mut events = Vec::new();
                 half.flush_stale(now_us, &mut events);
-                write_events(&mut flow.files, &mut self.stats, now_us, side, events)?;
+                let out = Outputs {
+                    files: flow.files.as_mut(),
+                    streams: self.streams.as_mut(),
+                    flow: flow.id,
+                    remote: flow.remote,
+                };
+                write_events(out, &mut self.stats, now_us, side, events)?;
             }
-            flow.files.flush()?;
+            if let Some(f) = flow.files.as_mut() {
+                f.flush()?;
+            }
         }
-        self.rec.flush()
+        match self.rec.as_mut() {
+            Some(rec) => rec.flush(),
+            None => Ok(()),
+        }
     }
 
     /// Closes every flow and returns the final counters.
@@ -245,7 +292,10 @@ impl Pipeline {
             self.close_flow(now_us, flow)?;
         }
         let stats = self.stats();
-        self.rec.event(&json!({
+        let Some(rec) = self.rec.as_mut() else {
+            return Ok(stats);
+        };
+        rec.event(&json!({
             "t": now_us,
             "event": "session_end",
             "packets_seen": stats.packets_seen,
@@ -255,7 +305,7 @@ impl Pipeline {
             "gap_bytes": stats.gap_bytes,
             "flows": stats.flows_opened,
         }))?;
-        self.rec.flush()?;
+        rec.flush()?;
         Ok(stats)
     }
 
@@ -276,7 +326,9 @@ impl Pipeline {
     }
 
     fn accept(&mut self, ts_us: u64, ip: &[u8], seg: &Segment, side: Side) -> Result<()> {
-        self.rec.packet(ts_us, ip)?;
+        if let Some(rec) = self.rec.as_mut() {
+            rec.packet(ts_us, ip)?;
+        }
         self.stats.packets_matched += 1;
 
         let (local, remote) = match side {
@@ -306,22 +358,38 @@ impl Pipeline {
         if !self.flows.contains_key(&key) {
             self.next_id += 1;
             let id = self.next_id;
-            let files = self.rec.open_flow(id, proto.as_str(), local, remote)?;
-            self.rec.event(&json!({
-                "t": ts_us,
-                "event": "flow_open",
-                "flow": id,
-                "proto": proto.as_str(),
-                "local": local.to_string(),
-                "remote": remote.to_string(),
-                "dir": files.dir().file_name().map(|n| n.to_string_lossy().into_owned()),
-            }))?;
+            let files = match self.rec.as_mut() {
+                Some(rec) => {
+                    let files = rec.open_flow(id, proto.as_str(), local, remote)?;
+                    rec.event(&json!({
+                        "t": ts_us,
+                        "event": "flow_open",
+                        "flow": id,
+                        "proto": proto.as_str(),
+                        "local": local.to_string(),
+                        "remote": remote.to_string(),
+                        "dir": files.dir().file_name().map(|n| n.to_string_lossy().into_owned()),
+                    }))?;
+                    Some(files)
+                }
+                None => None,
+            };
+            if let (Proto::Tcp, Some(streams)) = (proto, self.streams.as_mut()) {
+                streams.push(StreamChunk {
+                    flow: id,
+                    remote,
+                    side: Side::In,
+                    ts_us,
+                    kind: ChunkKind::Open,
+                });
+            }
             self.stats.flows_opened += 1;
             self.flows.insert(
                 key,
                 Flow {
                     id,
                     proto,
+                    remote,
                     files,
                     out: HalfStream::default(),
                     inn: HalfStream::default(),
@@ -335,7 +403,9 @@ impl Pipeline {
         match seg.transport {
             Transport::Udp => {
                 if !seg.payload.is_empty() {
-                    flow.files.data(ts_us, side, "dgram", None, seg.payload)?;
+                    if let Some(f) = flow.files.as_mut() {
+                        f.data(ts_us, side, "dgram", None, seg.payload)?;
+                    }
                     add_bytes(&mut self.stats, side, seg.payload.len() as u64);
                 }
             }
@@ -346,14 +416,22 @@ impl Pipeline {
                 };
                 let mut events = Vec::new();
                 half.push(ts_us, seq, flags & tcp_flags::SYN != 0, seg.payload, &mut events);
-                write_events(&mut flow.files, &mut self.stats, ts_us, side, events)?;
-                for (bit, name) in [
-                    (tcp_flags::SYN, "syn"),
-                    (tcp_flags::FIN, "fin"),
-                    (tcp_flags::RST, "rst"),
-                ] {
-                    if flags & bit != 0 {
-                        flow.files.mark(ts_us, side, name, json!({ "seq": seq }))?;
+                let out = Outputs {
+                    files: flow.files.as_mut(),
+                    streams: self.streams.as_mut(),
+                    flow: flow.id,
+                    remote: flow.remote,
+                };
+                write_events(out, &mut self.stats, ts_us, side, events)?;
+                if let Some(f) = flow.files.as_mut() {
+                    for (bit, name) in [
+                        (tcp_flags::SYN, "syn"),
+                        (tcp_flags::FIN, "fin"),
+                        (tcp_flags::RST, "rst"),
+                    ] {
+                        if flags & bit != 0 {
+                            f.mark(ts_us, side, name, json!({ "seq": seq }))?;
+                        }
                     }
                 }
             }
@@ -393,9 +471,27 @@ impl Pipeline {
             };
             let mut events = Vec::new();
             half.finish(&mut events);
-            write_events(&mut flow.files, &mut self.stats, ts_us, side, events)?;
+            let out = Outputs {
+                files: flow.files.as_mut(),
+                streams: self.streams.as_mut(),
+                flow: flow.id,
+                remote: flow.remote,
+            };
+            write_events(out, &mut self.stats, ts_us, side, events)?;
         }
-        flow.files.flush()?;
+        if let (Proto::Tcp, Some(streams)) = (flow.proto, self.streams.as_mut()) {
+            streams.push(StreamChunk {
+                flow: flow.id,
+                remote: flow.remote,
+                side: Side::In,
+                ts_us,
+                kind: ChunkKind::Close,
+            });
+        }
+        let Some(files) = flow.files.as_mut() else {
+            return Ok(());
+        };
+        files.flush()?;
         let half_json = |h: &HalfStream| {
             let s = h.stats();
             json!({
@@ -406,7 +502,10 @@ impl Pipeline {
                 "midstream": h.midstream(),
             })
         };
-        self.rec.event(&json!({
+        let Some(rec) = self.rec.as_mut() else {
+            return Ok(());
+        };
+        rec.event(&json!({
             "t": ts_us,
             "event": "flow_close",
             "flow": flow.id,
@@ -425,23 +524,46 @@ fn add_bytes(stats: &mut PipelineStats, side: Side, n: u64) {
     }
 }
 
+/// Where one flow's reassembled data goes: its files, the live outbox, or both.
+struct Outputs<'a> {
+    files: Option<&'a mut FlowFiles>,
+    streams: Option<&'a mut Vec<StreamChunk>>,
+    flow: u32,
+    remote: SocketAddr,
+}
+
 fn write_events(
-    files: &mut FlowFiles,
+    mut out: Outputs,
     stats: &mut PipelineStats,
     ts_us: u64,
     side: Side,
     events: Vec<StreamEvent>,
 ) -> Result<()> {
     for ev in events {
-        match ev {
+        let kind = match ev {
             StreamEvent::Data { offset, bytes } => {
-                files.data(ts_us, side, "data", Some(offset), &bytes)?;
+                if let Some(f) = out.files.as_deref_mut() {
+                    f.data(ts_us, side, "data", Some(offset), &bytes)?;
+                }
                 add_bytes(stats, side, bytes.len() as u64);
+                ChunkKind::Data(bytes)
             }
             StreamEvent::Gap { offset, len } => {
-                files.mark(ts_us, side, "gap", json!({ "off": offset, "len": len }))?;
+                if let Some(f) = out.files.as_deref_mut() {
+                    f.mark(ts_us, side, "gap", json!({ "off": offset, "len": len }))?;
+                }
                 stats.gap_bytes += len;
+                ChunkKind::Gap(len)
             }
+        };
+        if let Some(streams) = out.streams.as_deref_mut() {
+            streams.push(StreamChunk {
+                flow: out.flow,
+                remote: out.remote,
+                side,
+                ts_us,
+                kind,
+            });
         }
     }
     Ok(())
@@ -471,7 +593,7 @@ mod tests {
         let dir = temp_dir("pipeline-any");
         let rec = Recorder::create(&dir, &json!({})).unwrap();
         let local_ips = HashSet::from([IpAddr::from(ME)]);
-        let mut p = Pipeline::new(Matcher::Any { local_ips }, rec);
+        let mut p = Pipeline::new(Matcher::Any { local_ips }, Some(rec));
 
         use tcp_flags::*;
         p.ingest(1, &ipv4_tcp(ME, 50000, SERVER, 7777, 100, SYN, b"")).unwrap();
@@ -501,10 +623,39 @@ mod tests {
     }
 
     #[test]
+    fn streams_outbox_without_recording() {
+        let local_ips = HashSet::from([IpAddr::from(ME)]);
+        let mut p = Pipeline::new(Matcher::Any { local_ips }, None);
+        p.collect_streams();
+
+        use tcp_flags::*;
+        p.ingest(1, &ipv4_tcp(ME, 50000, SERVER, 7777, 100, SYN, b"")).unwrap();
+        p.ingest(2, &ipv4_tcp(SERVER, 7777, ME, 50000, 500, SYN | ACK, b"")).unwrap();
+        // Out of order: reassembly hands the data out in stream order.
+        p.ingest(3, &ipv4_tcp(SERVER, 7777, ME, 50000, 506, ACK, b"!!")).unwrap();
+        p.ingest(4, &ipv4_tcp(SERVER, 7777, ME, 50000, 501, ACK, b"world")).unwrap();
+        p.ingest(5, &ipv4_tcp(ME, 50000, SERVER, 7777, 101, ACK, b"hi")).unwrap();
+
+        let got: Vec<(Side, ChunkKind)> = p.take_streams().into_iter().map(|c| (c.side, c.kind)).collect();
+        assert_eq!(
+            got,
+            vec![
+                (Side::In, ChunkKind::Open),
+                (Side::In, ChunkKind::Data(b"world".to_vec())),
+                (Side::In, ChunkKind::Data(b"!!".to_vec())),
+                (Side::Out, ChunkKind::Data(b"hi".to_vec())),
+            ]
+        );
+        assert!(p.take_streams().is_empty());
+        assert!(p.session_dir().is_none());
+        p.finish(6).unwrap();
+    }
+
+    #[test]
     fn early_packets_are_kept_once_the_connection_is_identified() {
         let dir = temp_dir("pipeline-limbo");
         let rec = Recorder::create(&dir, &json!({})).unwrap();
-        let mut p = Pipeline::new(Matcher::Live(LiveMatcher::default()), rec);
+        let mut p = Pipeline::new(Matcher::Live(LiveMatcher::default()), Some(rec));
 
         use tcp_flags::*;
         let game = 4242;
