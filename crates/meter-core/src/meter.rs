@@ -6,7 +6,8 @@
 //!
 //! An encounter is *your* fight: the targets you hit, and everyone's damage on those
 //! targets (including hits from just before you joined). Players fighting other things
-//! nearby don't count, unless the scope is set to [`Scope::Everyone`].
+//! nearby don't count, unless the scope is set to [`Scope::Everyone`]. [`Scope::Party`]
+//! narrows it to your party or group: the targets any of you hit, and only your damage.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -27,11 +28,14 @@ const LOOKBACK_MAX_EVENTS: usize = 50_000;
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
 const MAX_SKILLS_PER_ROW: usize = 12;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
     /// Targets you hit, and everyone's damage on them.
+    #[default]
     Mine,
+    /// Targets you or your party hit, and only your party's damage. On your own, just you.
+    Party,
     /// All player damage nearby.
     Everyone,
 }
@@ -186,6 +190,8 @@ pub struct Snapshot {
     pub self_name: Option<String>,
     pub self_id: Option<u64>,
     pub scope: Scope,
+    /// People in your party or group, you included (0 when on your own).
+    pub party_size: usize,
     /// The current encounter, or the last one once it has ended.
     pub encounter: Option<EncounterView>,
     pub encounters_completed: u32,
@@ -283,6 +289,9 @@ impl Meter {
         let me = self.registry.self_id();
         let by_me = me == Some(ev.attacker);
         let on_me = me == Some(ev.target);
+        // In party scope, a party member's hit makes the target yours too.
+        let by_party = self.scope == Scope::Party && self.registry.in_party(ev.attacker);
+        let on_party = self.scope == Scope::Party && self.registry.in_party(ev.target);
         let player = self.is_player(ev.attacker, ev.skill);
         // Without knowing who we are yet, every player hit counts.
         let everyone = self.scope == Scope::Everyone || me.is_none();
@@ -297,7 +306,7 @@ impl Meter {
 
         // Does this start or continue your fight?
         let engaged = self.current.as_ref().is_some_and(|e| e.engaged.contains(&ev.target));
-        let relevant = by_me || on_me || engaged || (everyone && player);
+        let relevant = by_me || on_me || by_party || on_party || engaged || (everyone && player);
         if !relevant {
             if player {
                 self.remember(hit);
@@ -317,7 +326,7 @@ impl Meter {
         enc.last_activity_us = enc.last_activity_us.max(ts_us);
         // Only your own hits make a target yours. Before we know who we are, everything
         // is shown, but none of it sticks once we do.
-        if by_me || (self.scope == Scope::Everyone && player) {
+        if by_me || by_party || (self.scope == Scope::Everyone && player) {
             enc.engaged.insert(ev.target);
         }
         if player {
@@ -375,6 +384,7 @@ impl Meter {
             self_name: self.registry.self_name().map(str::to_string),
             self_id: self.registry.self_id(),
             scope: self.scope,
+            party_size: self.registry.party().len(),
             encounter: enc.and_then(|e| self.view(e, active)),
             encounters_completed: self.completed,
         }
@@ -402,11 +412,18 @@ impl Meter {
         let last = counted.iter().map(|(_, t)| t.last_us).max()?;
         let duration_s = ((last - first) as f64 / 1e6).max(1.0);
 
+        // Party scope counts only your party's damage (just yours when on your own).
+        let party_only = self.scope == Scope::Party && self.registry.self_id().is_some();
         let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
         for (_, t) in &counted {
             for (id, p) in &t.players {
-                per_player.entry(*id).or_default().merge(p);
+                if !party_only || self.registry.in_party(*id) {
+                    per_player.entry(*id).or_default().merge(p);
+                }
             }
+        }
+        if per_player.is_empty() {
+            return None;
         }
         let total: u64 = per_player.values().map(|p| p.damage).sum();
 
@@ -481,7 +498,7 @@ fn ratio(part: u64, whole: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::{OPCODE_PLAYER_SPAWN, OPCODE_SELF_SPAWN, OPCODE_SELF_TICK};
+    use crate::entities::{OPCODE_PARTY_ROSTER, OPCODE_PLAYER_SPAWN, OPCODE_SELF_SPAWN, OPCODE_SELF_TICK};
     use crate::protocol::tests::encode_varint;
 
     const S: u64 = 1_000_000;
@@ -555,6 +572,42 @@ mod tests {
         m.set_scope(Scope::Everyone);
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.total_damage, 52_000);
+    }
+
+    /// A `0x9200` party roster with the given names.
+    fn roster(names: &[&str]) -> Vec<u8> {
+        let mut p = vec![0x08, 0x50, 0x05, 0x00];
+        for (i, name) in names.iter().enumerate() {
+            p.extend((100 + i as u32).to_le_bytes());
+            p.extend([0, 0, 0xc7, 0x09, name.len() as u8]);
+            p.extend(name.as_bytes());
+            p.extend([0x24, 0, 0, 0]);
+        }
+        p
+    }
+
+    #[test]
+    fn party_scope_counts_only_the_party() {
+        let mut m = meter_as_me();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(777, "Stranger"));
+        m.feed(0, OPCODE_PARTY_ROSTER, &roster(&["Pingu", "NeneneTowawa"]));
+        m.set_scope(Scope::Party);
+        assert_eq!(m.snapshot().party_size, 2);
+
+        // Our party member starts on a target we never touch: it's still our fight.
+        m.feed(S, OPCODE_DAMAGE, &hit(55555, 15772, 12_010_340, 4000));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(55555, 777, 11_010_340, 9000));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 1000));
+        let e = m.snapshot().encounter.unwrap();
+        let names: Vec<_> = e.players.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["Pingu", "NeneneTowawa"]);
+        assert_eq!(e.total_damage, 5000);
+
+        // Switching back mid-fight keeps the fight's targets, now with everyone's damage.
+        m.set_scope(Scope::Mine);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.players.len(), e.total_damage), (3, 14_000));
     }
 
     #[test]

@@ -46,16 +46,28 @@ body {
 .brand { color: var(--muted); letter-spacing: 0.12em; font-size: 0.9em; }
 .version { flex: 1; color: var(--faint); font-size: 0.9em; }
 
-/* Sections scroll if a large font needs more room than the window has. */
+/* The window is sized to fit everything (settings.js asks for it); this only scrolls
+   when the screen is too small for that. */
 #scroll {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 0.6em;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 0.15em;
+}
+
+/* Two columns, like a table: appearance | status, meter, tools. */
+#columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(26em, 1fr));
+  align-items: start;
+  gap: 0.6em 0.8em;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  min-width: 0;
 }
 
 button {

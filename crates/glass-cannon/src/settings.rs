@@ -1,13 +1,13 @@
-//! The settings pop-out: status checks, options, game data updates, shortcuts.
+//! The settings pop-out: appearance, status checks, meter options, tools.
 
 use std::os::windows::process::CommandExt;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 
+use meter_core::meter::Scope;
 use serde::Serialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, State};
+use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Runtime, State, WebviewWindow};
 
 use crate::store::{Appearance, AppearanceChange};
 use crate::{lock, notify_overlay, restyle_windows, show_overlay, AppState, OVERLAY, SETTINGS};
@@ -16,6 +16,8 @@ use crate::{lock, notify_overlay, restyle_windows, show_overlay, AppState, OVERL
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// Gap between the overlay and the settings window, in logical pixels.
 const GAP: f64 = 10.0;
+/// Space kept free around a window that has to shrink to fit a small screen.
+const SCREEN_MARGIN: f64 = 16.0;
 
 #[derive(Serialize)]
 pub struct Check {
@@ -33,7 +35,9 @@ pub struct SettingsStatus {
     record: bool,
     /// Whether the capture running now is recording (the switch applies on next start).
     recording_now: bool,
-    everyone: bool,
+    scope: Scope,
+    /// People in your party or group, you included (0 when on your own).
+    party_size: usize,
     appearance: Appearance,
 }
 
@@ -68,8 +72,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         d.reload_if_empty();
         match d.skill_count() {
             0 => Check {
-                level: "warn",
-                text: "not downloaded".into(),
+                level: "bad",
+                text: "missing: reinstall from the release zip".into(),
             },
             n => Check {
                 level: "ok",
@@ -85,7 +89,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         data,
         record: s.record,
         recording_now: app.recording_now.load(std::sync::atomic::Ordering::SeqCst),
-        everyone: s.everyone,
+        scope: s.scope,
+        party_size: app.engine.meter().registry().party().len(),
         appearance: s.appearance,
     }
 }
@@ -107,53 +112,6 @@ pub fn set_record(app: State<'_, Arc<AppState>>, record: bool) {
     let mut s = lock(&app.settings);
     s.record = record;
     s.save(&app.config_dir);
-}
-
-/// Runs `packet-lab update-data` (next to this program) and reloads the data.
-#[tauri::command]
-pub async fn update_game_data(app: State<'_, Arc<AppState>>) -> Result<String, String> {
-    let app = Arc::clone(&app);
-    tauri::async_runtime::spawn_blocking(move || refresh_game_data(&app))
-        .await
-        .map_err(|e| e.to_string())?
-}
-
-/// Downloads the game data next to the exe and loads it. The data isn't shipped with the
-/// meter (its sources are GPL-3.0 projects), so this also runs by itself on first start.
-pub fn refresh_game_data(app: &AppState) -> Result<String, String> {
-    app.downloading.store(true, Ordering::SeqCst);
-    let result = download_game_data(&app.exe_dir);
-    if result.is_ok() {
-        lock(&app.data).reload();
-    }
-    app.downloading.store(false, Ordering::SeqCst);
-    result
-}
-
-fn download_game_data(exe_dir: &Path) -> Result<String, String> {
-    let exe = exe_dir.join("packet-lab.exe");
-    if !exe.is_file() {
-        return Err(format!("{} not found next to the meter", exe.display()));
-    }
-    let output = Command::new(&exe)
-        .arg("update-data")
-        .arg("--out")
-        .arg(exe_dir.join("gamedata"))
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|e| format!("couldn't run packet-lab: {e}"))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let reason = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("unknown error");
-        return Err(reason.trim_start_matches("error: ").to_string());
-    }
-    Ok(stdout
-        .lines()
-        .find_map(|l| l.strip_prefix("done: "))
-        .unwrap_or("game data updated")
-        .to_string())
 }
 
 /// Adds "Glass Cannon" to the Desktop and the Start menu.
@@ -204,17 +162,68 @@ pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
     if s.is_visible().unwrap_or(false) {
         return s.hide().map_err(|e| e.to_string());
     }
-    if let (Some(o), Ok(size)) = (handle.get_webview_window(OVERLAY), s.outer_size()) {
-        if let (Ok(pos), Ok(osize), Ok(Some(mon))) = (o.outer_position(), o.outer_size(), o.current_monitor()) {
-            let gap = (GAP * mon.scale_factor()) as i32;
-            // Beside the overlay: to its left if there's room on its monitor, else to its right.
-            let left = pos.x - size.width as i32 - gap;
-            let x = if left >= mon.position().x { left } else { pos.x + osize.width as i32 + gap };
-            let _ = s.set_position(PhysicalPosition::new(x, pos.y));
-        }
-    }
+    place_settings(&handle, &s);
     s.show().map_err(|e| e.to_string())?;
     s.set_focus().map_err(|e| e.to_string())
+}
+
+/// Sizes the settings window to its content. The page asks whenever the font size
+/// changes; on a small screen the window shrinks to fit and its content scrolls.
+#[tauri::command]
+pub fn fit_settings(handle: AppHandle, width: f64, height: f64) -> Result<(), String> {
+    let s = handle.get_webview_window(SETTINGS).ok_or("no settings window")?;
+    let (width, height) = match overlay_monitor(&handle) {
+        Some(m) => {
+            let area = m.work_area().size.to_logical::<f64>(m.scale_factor());
+            (
+                width.min(area.width - 2.0 * SCREEN_MARGIN),
+                height.min(area.height - 2.0 * SCREEN_MARGIN),
+            )
+        }
+        None => (width, height),
+    };
+    s.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+    if s.is_visible().unwrap_or(false) {
+        place_settings(&handle, &s);
+    }
+    Ok(())
+}
+
+/// The monitor the overlay is on (or the primary one).
+fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monitor> {
+    let o = handle.get_webview_window(OVERLAY)?;
+    o.current_monitor().ok().flatten().or_else(|| o.primary_monitor().ok().flatten())
+}
+
+/// Beside the overlay (to its left if it fits, else its right), entirely within the
+/// overlay's monitor, leaving out the taskbar.
+fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
+    let (Some(o), Some(mon)) = (handle.get_webview_window(OVERLAY), overlay_monitor(handle)) else {
+        return;
+    };
+    let (Ok(pos), Ok(osize), Ok(size)) = (o.outer_position(), o.outer_size(), s.outer_size()) else {
+        return;
+    };
+    let area = mon.work_area();
+    let (left_edge, top_edge) = (area.position.x, area.position.y);
+    let right_edge = left_edge + area.size.width as i32;
+    let bottom_edge = top_edge + area.size.height as i32;
+    let (w, h) = (size.width as i32, size.height as i32);
+    let gap = (GAP * mon.scale_factor()) as i32;
+
+    let left = pos.x - w - gap;
+    let right = pos.x + osize.width as i32 + gap;
+    let x = if left >= left_edge {
+        left
+    } else if right + w <= right_edge {
+        right
+    } else {
+        // No room on either side: overlap the overlay rather than leave the screen.
+        right_edge - w
+    };
+    let x = x.clamp(left_edge, (right_edge - w).max(left_edge));
+    let y = pos.y.clamp(top_edge, (bottom_edge - h).max(top_edge));
+    let _ = s.set_position(PhysicalPosition::new(x, y));
 }
 
 #[tauri::command]

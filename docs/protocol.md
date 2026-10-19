@@ -181,8 +181,26 @@ capture, so its spawn message hasn't been seen.
 ### Not entity data
 
 - `0x9701`: party-finder listings (post titles, leader names). No entity IDs.
-- `0x9702`: one party's member list, keyed by a longer-lived character ID (u32) rather
-  than the entity ID.
+
+### Party and group rosters
+
+Used for the meter's *party* scope. Members are listed by name and a longer-lived
+character ID (u32), not by entity ID, so the meter matches them to rows by name.
+
+| opcode   | what                                                  |
+| -------- | ----------------------------------------------------- |
+| `0x9200` | your party's full roster, resent on every join/leave  |
+| `0x9213` | you left the party (`00 00`)                          |
+| `0x9702` | a cross-server group's full roster (expeditions)      |
+| `0x970b` | one member joining that group                         |
+| `0x971d` | you left the group (`00 00`)                          |
+
+Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen), `u8
+length`, UTF-8 name, then level, class, legion name and other fields. Entries aren't at
+fixed offsets, so the meter scans for that shape (`entities::parse_roster`). Seen in the
+"joining a party and leaving a party" capture (5 → 4 members, leave, rejoin with a new
+member, leave) and in the expedition capture (several groups joined and left). A `0x9702`
+without your own name is someone else's group and is ignored.
 
 ## Skill IDs (guess)
 

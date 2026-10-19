@@ -8,10 +8,19 @@ const win = tauri.window.getCurrentWindow();
 
 const POLL_MS = 500;
 const SEGMENTS = 12; // blocks in each meter bar
+const FIT_ROWS = 5; // the window's default height shows this many players
+
+// Whose damage counts; the button cycles through them in this order.
+const SCOPES = ["mine", "party", "everyone"];
+const SCOPE_LABELS = { mine: "mine", party: "party", everyone: "all" };
+const SCOPE_TITLES = {
+  mine: "Your fight: targets you hit, with everyone's damage on them",
+  party: "Your party: targets any of you hit, and only your party's damage",
+  everyone: "Everyone fighting nearby",
+};
 
 const $ = (id) => document.getElementById(id);
 const expanded = new Set(); // player IDs whose skill list is open
-let everyone = false;
 let pinned = true;
 let editing = false; // pause redraws while a name is being typed
 let lastView = null;
@@ -280,9 +289,71 @@ async function openFight(index) {
 
 // ---------------------------------------------------------------- drawing
 
+function drawScope(meter) {
+  const scope = meter.scope;
+  const next = SCOPES[(SCOPES.indexOf(scope) + 1) % SCOPES.length];
+  const b = $("scope");
+  b.textContent = SCOPE_LABELS[scope] || scope;
+  b.classList.toggle("on", scope !== "mine");
+  let title = SCOPE_TITLES[scope] || "";
+  if (scope === "party") {
+    title += meter.party_size > 1 ? ` (${meter.party_size} people)` : " (not in a party: just you)";
+  }
+  b.title = `${title}\nClick for ${SCOPE_LABELS[next]}`;
+}
+
+// How tall the window must be to show `rows` players with the current font and layout:
+// lays out a hidden copy of the panel at its natural height.
+function heightFor(rows) {
+  const panel = $("panel");
+  const copy = panel.cloneNode(true);
+  Object.assign(copy.style, {
+    position: "absolute",
+    visibility: "hidden",
+    left: "0",
+    top: "0",
+    width: `${panel.offsetWidth}px`,
+    height: "auto",
+  });
+  const part = (id) => copy.querySelector(`#${id}`);
+  part("box").style.flex = "none";
+  const list = part("rows");
+  Object.assign(list.style, { flex: "none", overflow: "visible" });
+  list.hidden = false;
+  list.replaceChildren(
+    ...Array.from({ length: rows }, () => {
+      const row = el("li", "row");
+      const line = el("div", "line");
+      line.append(el("span", "rank", "0"));
+      row.append(line);
+      return row;
+    }),
+  );
+  part("totals").hidden = false;
+  part("target").textContent = "x";
+  part("total").textContent = "x";
+  for (const id of ["fights", "empty", "status"]) part(id).hidden = true;
+  document.body.append(copy);
+  const height = Math.ceil(copy.getBoundingClientRect().height);
+  copy.remove();
+  return height;
+}
+
+// Fits the window to FIT_ROWS players: on start (only ever growing a window you made
+// taller), and exactly whenever the font size, time bar or minimal mode changes.
+let fitFor = null;
+function fitHeight(a) {
+  const key = `${a.font_size}|${a.info_bar}|${a.minimal}`;
+  if (key === fitFor) return;
+  const exact = fitFor !== null;
+  fitFor = key;
+  requestAnimationFrame(() => invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact }).catch(() => {}));
+}
+
 function drawStatus(view) {
   const { status, meter } = view;
   const enc = meter.encounter;
+  drawScope(meter);
   $("dot").className = "dot " + (enc && enc.active ? "fighting" : status.phase);
   $("dot").title = status.message;
 
@@ -302,8 +373,7 @@ function drawStatus(view) {
     problem = status.message;
     kind = "error";
   } else if (view.skills_loaded === 0) {
-    const why = view.skills_problem || "use update game data in settings";
-    problem = why.startsWith("downloading") ? why : `no game data: ${why}`;
+    problem = "no game data: extract the whole release zip (the gamedata folder goes next to the exe)";
   } else if (status.dropped > 0) {
     problem = `${status.dropped} packets dropped: numbers may be low`;
   }
@@ -371,6 +441,7 @@ async function refresh() {
     lastView = await invoke("snapshot");
     applyAppearance(lastView.appearance);
     snapSizes();
+    fitHeight(lastView.appearance);
     if (mode === "list") await drawList();
     redraw();
   } catch (e) {
@@ -402,10 +473,8 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("scope").addEventListener("click", async () => {
-  everyone = !everyone;
-  $("scope").textContent = everyone ? "all" : "mine";
-  $("scope").classList.toggle("on", everyone);
-  await invoke("set_everyone", { everyone });
+  const now = lastView ? lastView.meter.scope : "mine";
+  await invoke("set_scope", { scope: SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length] });
   refresh();
 });
 
