@@ -20,6 +20,7 @@ const SCOPE_HINTS = {
 
 let state = null;
 let fitted = "";
+const DEFAULT_FONT = "Cascadia Mono";
 let fitQueued = false;
 
 function setCheck(id, check) {
@@ -68,6 +69,13 @@ function measureAndFit() {
   invoke("fit_settings", { width, height }).catch(() => {});
 }
 
+function el(tag, className, text) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
 function say(text, kind = "") {
   $("message").className = `message ${kind}`;
   $("message").textContent = text;
@@ -92,6 +100,7 @@ function drawAppearance(a) {
     b.setAttribute("aria-checked", String(b.dataset.backdropChoice === a.backdrop));
   }
   $("font-value").textContent = `${a.font_size}px`;
+  $("font-name").textContent = a.font || DEFAULT_FONT;
   $("font-down").disabled = a.font_size <= FONT_MIN;
   $("font-up").disabled = a.font_size >= FONT_MAX;
   // "clear" has no tint to adjust.
@@ -181,6 +190,150 @@ $("record").addEventListener("click", async () => {
   refresh();
 });
 
+// ---------------------------------------------------------------- font picker
+
+let fonts = null; // installed families, loaded when the menu first opens
+let menuItems = []; // the options shown, in order
+let activeIndex = -1;
+
+async function openFontMenu() {
+  if (!fonts) fonts = await invoke("list_fonts").catch(() => []);
+  $("font-menu").hidden = false;
+  $("font-button").setAttribute("aria-expanded", "true");
+  $("font-filter").value = "";
+  drawFontList("");
+  placeFontMenu();
+  $("font-filter").focus();
+}
+
+function closeFontMenu() {
+  if ($("font-menu").hidden) return;
+  $("font-menu").hidden = true;
+  $("font-button").setAttribute("aria-expanded", "false");
+  $("font-button").focus();
+}
+
+// Under the button (or above it if there's more room there), right-aligned with it and
+// inside the window.
+function placeFontMenu() {
+  const menu = $("font-menu");
+  const b = $("font-button").getBoundingClientRect();
+  const margin = 8;
+  const below = innerHeight - b.bottom - margin;
+  const above = b.top - margin;
+  const down = below >= 200 || below >= above;
+  menu.style.maxHeight = `${Math.max(120, (down ? below : above) - 4)}px`;
+  menu.style.top = down ? `${b.bottom + 4}px` : "";
+  menu.style.bottom = down ? "" : `${innerHeight - b.top + 4}px`;
+  const left = Math.min(b.right - menu.offsetWidth, innerWidth - menu.offsetWidth - margin);
+  menu.style.left = `${Math.max(margin, left)}px`;
+}
+
+function drawFontList(filter) {
+  const list = $("font-list");
+  list.replaceChildren();
+  menuItems = [];
+  const q = filter.trim().toLowerCase();
+  const current = state ? state.appearance.font : "";
+  const add = (name, label) => {
+    const item = el("li", "menu-item", label);
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(name === current));
+    // Each font shows in itself (names come from Windows and are checked by the app).
+    if (name) item.style.fontFamily = `"${name}", monospace`;
+    item.addEventListener("click", () => chooseFont(name));
+    item.addEventListener("mousemove", () => setActive(menuItems.indexOf(item), false));
+    list.append(item);
+    menuItems.push(item);
+  };
+  const group = (title) => list.append(el("li", "menu-group", title));
+  if (!q || DEFAULT_FONT.toLowerCase().includes(q)) {
+    group("default");
+    add("", `${DEFAULT_FONT} (built in)`);
+  }
+  // The built-in default is listed once, above.
+  const matches = (fonts || []).filter(
+    (f) => f.name !== DEFAULT_FONT && (!q || f.name.toLowerCase().includes(q)),
+  );
+  const mono = matches.filter((f) => f.mono);
+  const other = matches.filter((f) => !f.mono);
+  if (mono.length) {
+    group("monospace");
+    for (const f of mono) add(f.name, f.name);
+  }
+  if (other.length) {
+    group("other fonts");
+    for (const f of other) add(f.name, f.name);
+  }
+  if (!menuItems.length) list.append(el("li", "menu-empty", "no fonts match"));
+  const selected = menuItems.findIndex((i) => i.getAttribute("aria-selected") === "true");
+  setActive(selected >= 0 ? selected : 0, true);
+}
+
+function setActive(index, scroll) {
+  activeIndex = index;
+  menuItems.forEach((item, i) => item.classList.toggle("active", i === index));
+  if (scroll && menuItems[index]) menuItems[index].scrollIntoView({ block: "nearest" });
+}
+
+function chooseFont(name) {
+  closeFontMenu();
+  setAppearance({ font: name });
+}
+
+$("font-button").addEventListener("click", () => ($("font-menu").hidden ? openFontMenu() : closeFontMenu()));
+$("font-filter").addEventListener("input", (e) => drawFontList(e.target.value));
+$("font-filter").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!menuItems.length) return;
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    setActive((activeIndex + step + menuItems.length) % menuItems.length, true);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (menuItems[activeIndex]) menuItems[activeIndex].click();
+  } else if (e.key === "Escape") {
+    // Only the menu closes, not the settings window.
+    e.preventDefault();
+    e.stopPropagation();
+    closeFontMenu();
+  } else if (e.key === "Tab") {
+    closeFontMenu();
+  }
+});
+document.addEventListener("mousedown", (e) => {
+  if (!$("font-menu").hidden && !e.target.closest("#font-menu, #font-button")) closeFontMenu();
+});
+window.addEventListener("resize", () => {
+  if (!$("font-menu").hidden) placeFontMenu();
+});
+
+// ---------------------------------------------------------------- reset
+
+// Two clicks: the first asks, the second (within a few seconds) resets.
+let resetArmed = null;
+function disarmReset() {
+  clearTimeout(resetArmed);
+  resetArmed = null;
+  $("reset").querySelector(".state").textContent = "[ reset ]";
+}
+$("reset").addEventListener("click", async () => {
+  if (!resetArmed) {
+    $("reset").querySelector(".state").textContent = "[ sure? ]";
+    resetArmed = setTimeout(disarmReset, 3000);
+    return;
+  }
+  disarmReset();
+  try {
+    const a = await invoke("reset_appearance");
+    if (state) state.appearance = a;
+    drawAppearance(a);
+    say("appearance back to the defaults", "ok");
+  } catch (e) {
+    say(String(e), "error");
+  }
+});
+
 $("history").addEventListener("click", () => invoke("open_history").catch((e) => say(String(e), "error")));
 
 $("shortcut").addEventListener("click", async () => {
@@ -193,7 +346,7 @@ $("shortcut").addEventListener("click", async () => {
 
 $("close").addEventListener("click", () => invoke("hide_settings"));
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") invoke("hide_settings");
+  if (e.key === "Escape" && $("font-menu").hidden) invoke("hide_settings");
 });
 
 new ResizeObserver(fitWindow).observe($("columns"));

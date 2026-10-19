@@ -60,6 +60,11 @@
               </span>
             </div>
             <div class="line">
+              <span class="key">font</span>
+              <button id="font-button" type="button" class="select-button" aria-haspopup="listbox"
+                aria-expanded="false" aria-controls="font-menu" title="Choose a font">[<span id="font-name"></span> ▾]</button>
+            </div>
+            <div class="line">
               <span class="key">background</span>
               <span class="choice" role="radiogroup" aria-label="Background">
                 <button type="button" data-backdrop-choice="frosted" title="Blurred glass with a tint">[frosted]</button>
@@ -125,11 +130,21 @@
             <button id="shortcut" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
             </button>
+            <button id="reset" type="button" class="opt" title="Theme, font, colours, background and window size back to the defaults">
+              <span class="key">reset appearance</span><span class="state">[ reset ]</span>
+            </button>
           </fieldset>
 
           <p id="message" class="message" role="status"></p>
         </div>
       </div>
+    </div>
+
+    <!-- The font picker's menu: shown under the font button, over everything else. -->
+    <div id="font-menu" class="menu" hidden>
+      <input id="font-filter" class="menu-filter" type="text" placeholder="search fonts…"
+        spellcheck="false" autocomplete="off" aria-label="Search fonts">
+      <ul id="font-list" class="menu-list" role="listbox" aria-label="Fonts"></ul>
     </div>
 
     <footer id="footer">

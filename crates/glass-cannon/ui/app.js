@@ -9,6 +9,7 @@ const win = tauri.window.getCurrentWindow();
 const POLL_MS = 500;
 const SEGMENTS = 12; // blocks in each meter bar
 const FIT_ROWS = 5; // the window's default height shows this many players
+const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
 
 // Whose damage counts; the button cycles through them in this order.
 const SCOPES = ["mine", "party", "everyone"];
@@ -58,8 +59,9 @@ function timeOfDay(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// Green for a normal connection, amber when it's getting laggy, red when it's bad.
 function pingClass(ms) {
-  return ms < 90 ? "good" : ms < 180 ? "" : ms < 300 ? "high" : "bad";
+  return ms < 200 ? "good" : ms < 300 ? "high" : "bad";
 }
 
 const minimal = () => document.documentElement.classList.contains("minimal");
@@ -342,12 +344,17 @@ function heightFor(rows) {
 // Fits the window to FIT_ROWS players: on start (only ever growing a window you made
 // taller), and exactly whenever the font size, time bar or minimal mode changes.
 let fitFor = null;
+let resetWidth = null; // set by "reset appearance": the width goes back to the default too
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.info_bar}|${a.minimal}`;
+  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}`;
   if (key === fitFor) return;
   const exact = fitFor !== null;
   fitFor = key;
-  requestAnimationFrame(() => invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact }).catch(() => {}));
+  const width = resetWidth;
+  resetWidth = null;
+  requestAnimationFrame(() =>
+    invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width }).catch(() => {}),
+  );
 }
 
 function drawStatus(view) {
@@ -517,6 +524,12 @@ $("pin").addEventListener("click", async () => {
 
 $("min").addEventListener("click", () => win.minimize());
 $("close").addEventListener("click", () => win.close());
+
+// "Reset appearance" in the settings: refit at the default size on the next refresh.
+tauri.event.listen("reset-size", () => {
+  resetWidth = DEFAULT_WIDTH;
+  fitFor = "reset";
+});
 
 // The settings window's "history" opens this window straight on the list.
 tauri.event.listen("show-history", async () => {

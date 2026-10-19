@@ -27,6 +27,7 @@ use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIME
 use meter_core::recorder::Side;
 use meter_core::session;
 
+mod fonts;
 mod gamedata;
 mod placement;
 mod settings;
@@ -362,9 +363,16 @@ fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
 
 /// Sets the overlay's height for five rows (the page measures it for the current font
 /// size and layout). `exact` after a layout change; otherwise only ever grows it, so a
-/// taller window you made yourself stays. Keeps the window on its monitor.
+/// taller window you made yourself stays. `width` (after a reset) sets that too. Keeps
+/// the window on its monitor.
 #[tauri::command]
-fn fit_overlay(handle: AppHandle, app: State<'_, Arc<AppState>>, height: f64, exact: bool) -> Result<(), String> {
+fn fit_overlay(
+    handle: AppHandle,
+    app: State<'_, Arc<AppState>>,
+    height: f64,
+    exact: bool,
+    width: Option<f64>,
+) -> Result<(), String> {
     let w = handle.get_webview_window(OVERLAY).ok_or("no overlay")?;
     let first_run = app.overlay_new.swap(false, Ordering::SeqCst);
     let scale = w.scale_factor().map_err(|e| e.to_string())?;
@@ -374,10 +382,11 @@ fn fit_overlay(handle: AppHandle, app: State<'_, Arc<AppState>>, height: f64, ex
     if let Some(m) = &monitor {
         wanted = wanted.min(m.work_area().size.height as f64 / m.scale_factor() - 20.0);
     }
-    if (wanted - now.height).abs() < 1.0 {
+    let new_width = width.unwrap_or(now.width);
+    if (wanted - now.height).abs() < 1.0 && (new_width - now.width).abs() < 1.0 {
         return Ok(());
     }
-    w.set_size(LogicalSize::new(now.width, wanted)).map_err(|e| e.to_string())?;
+    w.set_size(LogicalSize::new(new_width, wanted)).map_err(|e| e.to_string())?;
     // A taller window mustn't run off the bottom of the screen.
     if let (Some(m), Ok(pos)) = (monitor, w.outer_position()) {
         let area = m.work_area();
@@ -461,6 +470,8 @@ fn main() {
             settings::set_record,
             settings::set_appearance,
             settings::fit_settings,
+            settings::reset_appearance,
+            settings::list_fonts,
             fit_overlay,
             settings::create_shortcuts,
             settings::open_history,

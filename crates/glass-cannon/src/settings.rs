@@ -105,6 +105,24 @@ pub fn set_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>, change: 
     s.appearance.clone()
 }
 
+/// Puts every appearance setting back to its default, and the overlay back to its
+/// default size.
+#[tauri::command]
+pub fn reset_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Appearance {
+    let mut s = lock(&app.settings);
+    s.appearance = Appearance::default();
+    s.save(&app.config_dir);
+    restyle_windows(&handle, &s.appearance);
+    notify_overlay(&handle, "reset-size");
+    s.appearance.clone()
+}
+
+/// Installed font families for the font picker.
+#[tauri::command]
+pub fn list_fonts() -> Vec<crate::fonts::FontFamily> {
+    crate::fonts::installed()
+}
+
 /// Saves the "record fights" choice. Capture is already running, so it applies the next
 /// time the meter starts.
 #[tauri::command]

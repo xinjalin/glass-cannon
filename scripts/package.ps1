@@ -92,7 +92,8 @@ try {
   $archive.Dispose()
 }
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
-"$hash  $stem.zip" | Set-Content -Encoding ascii "$zip.sha256"
+# One LF-terminated line, so `sha256sum -c` accepts it.
+[System.IO.File]::WriteAllText("$zip.sha256", "$hash  $stem.zip`n")
 
 Write-Host "packaged $zip"
 Write-Host "sha256 $hash"

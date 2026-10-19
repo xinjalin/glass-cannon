@@ -74,6 +74,9 @@ pub struct Appearance {
     /// Text size in pixels.
     #[serde(default = "default_font_size")]
     pub font_size: u8,
+    /// An installed font family; empty for the built-in monospace (Cascadia Mono).
+    #[serde(default)]
+    pub font: String,
     /// How opaque the dark tint over the background is, in percent.
     #[serde(default = "default_opacity")]
     pub opacity: u8,
@@ -115,6 +118,7 @@ impl Default for Appearance {
             class_colors: false,
             highlight: default_highlight(),
             font_size: default_font_size(),
+            font: String::new(),
             opacity: default_opacity(),
             backdrop: default_backdrop(),
             minimal: false,
@@ -131,6 +135,7 @@ pub struct AppearanceChange {
     pub bar_color: Option<String>,
     pub highlight: Option<String>,
     pub font_size: Option<u8>,
+    pub font: Option<String>,
     pub opacity: Option<u8>,
     pub backdrop: Option<String>,
     pub minimal: Option<bool>,
@@ -148,6 +153,9 @@ impl Appearance {
         }
         if let Some(h) = c.highlight.filter(|h| HIGHLIGHTS.contains(&h.as_str())) {
             self.highlight = h;
+        }
+        if let Some(f) = c.font.filter(|f| f.is_empty() || crate::fonts::usable_name(f)) {
+            self.font = f;
         }
         if let Some(f) = c.font_size {
             self.font_size = f.clamp(*FONT_SIZES.start(), *FONT_SIZES.end());
@@ -169,6 +177,9 @@ impl Appearance {
     /// Repairs values from a hand-edited or older settings file.
     pub fn sanitized(mut self) -> Self {
         let fixed = Self::default();
+        if !self.font.is_empty() && !crate::fonts::usable_name(&self.font) {
+            self.font = fixed.font.clone();
+        }
         if !THEMES.contains(&self.theme.as_str()) {
             self.theme = fixed.theme;
         }
@@ -436,6 +447,7 @@ mod tests {
             bar_color: Some("amber".into()),
             highlight: Some("all".into()),
             font_size: Some(16),
+            font: Some("Consolas".into()),
             opacity: Some(0),
             backdrop: Some("clear".into()),
             minimal: Some(true),
@@ -466,6 +478,7 @@ mod tests {
             bar_color: Some("plaid".into()),
             highlight: Some("rainbow".into()),
             font_size: Some(99),
+            font: Some("x\"; }".into()),
             opacity: Some(250),
             backdrop: Some("fog".into()),
             ..AppearanceChange::default()
@@ -474,6 +487,7 @@ mod tests {
         assert_eq!(a.bar_color, "theme");
         assert_eq!(a.highlight, "self");
         assert_eq!(a.font_size, 18);
+        assert_eq!(a.font, "");
         assert_eq!(a.opacity, 100);
         assert_eq!(a.backdrop, "frosted");
         // An older settings file without appearance gets the defaults.

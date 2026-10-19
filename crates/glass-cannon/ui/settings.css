@@ -197,6 +197,75 @@ legend {
 .stepper button:disabled { color: var(--faint); cursor: default; background: none; }
 .step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
 
+/* ---------------------------------------------------------------- font picker */
+
+.select-button {
+  max-width: 17em;
+  margin-left: auto;
+  padding: 0 0.15em;
+  overflow: hidden;
+  border-radius: 0.25em;
+  color: var(--accent);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.select-button:hover,
+.select-button[aria-expanded="true"] { background: var(--line-faint); }
+
+/* A framed box like the sections, floating over the window. */
+.menu {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: 19em;
+  padding: 0.35em;
+  border: 1px solid var(--line);
+  border-radius: 0.5em;
+  background: rgba(var(--tint-rgb), 0.97);
+  box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.5);
+}
+.menu-filter {
+  flex: none;
+  margin: 0 0 0.3em;
+  padding: 0.15em 0.35em 0.35em;
+  border: 0;
+  border-bottom: 1px dashed var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-shadow: inherit;
+  outline: none;
+}
+.menu-filter::placeholder { color: var(--faint); }
+.menu-list {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.menu-group {
+  padding: 0.4em 0.45em 0.1em;
+  color: var(--accent);
+  font-size: 0.85em;
+}
+.menu-item {
+  padding: 0.1em 0.45em;
+  overflow: hidden;
+  border-radius: 0.25em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.menu-item.active { background: var(--line-faint); }
+.menu-item[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--ink);
+  text-shadow: none;
+}
+.menu-empty { padding: 0.3em 0.45em; color: var(--faint); }
+
 .hint {
   margin: 0 0.3em 0.3em;
   color: var(--faint);
