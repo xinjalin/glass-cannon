@@ -50,11 +50,14 @@ to keep five in view when you change the font size, the time bar or minimal mode
   full breakdown. **↺** resets; **pin** toggles always-on-top; **×** quits.
 - **≡** opens the **settings** beside the meter (always fully on screen): appearance on
   the left; status (Npcap, game, game data), whose damage counts, record fights (applies
-  the next time you open the meter), fight history and a Desktop/Start-menu shortcut on
-  the right. The window sizes itself to fit. Esc or × hides it.
+  the next time you open the meter), fight history, a Desktop/Start-menu shortcut and
+  **reset appearance** (click twice: everything below, and the window size, back to the
+  defaults) on the right. The window sizes itself to fit. Esc or × hides it.
 - **Appearance** (saved): theme colour (rose, lavender, mint, sky, amber, mono), font
   size (10–18 px; the layout and the meter bars scale with it, the bars in whole pixels so
-  every block and row gap is the same size), highlight just your row or fill every row,
+  every block and row gap is the same size), font (any font installed on your PC, picked
+  from a searchable list with monospace fonts first; Cascadia Mono by default), highlight
+  just your row or fill every row,
   and the bar colour, chosen separately from the theme: follow the theme, each player's
   class, or any of the six colours.
 - **Background**: *frosted* (Windows 11 acrylic, kept on while the meter is unfocused),
@@ -65,7 +68,8 @@ to keep five in view when you change the font size, the time bar or minimal mode
 - **Time & ping bar**: an optional strip along the top with the local time and ping.
 - **Ping**: the header (or the time & ping bar) shows your round trip to the game
   server, measured from the timing of the game's own TCP traffic (the median of the last
-  10 seconds). No extra packets are sent.
+  10 seconds): green under 200 ms, amber under 300 ms, red above. No extra packets are
+  sent.
 - A fight ends after 15 s without action; the last fight stays on screen until the next.
 - **Your character** is recognised the moment you hit a real mob, or at login or a zone
   change. Training dummies don't announce you, so until then the meter shows the name it
