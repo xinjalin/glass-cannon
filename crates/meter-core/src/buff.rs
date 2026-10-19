@@ -82,9 +82,9 @@ pub struct BuffSnapshot {
 
 /// One hit, reduced to what the buff analysis needs.
 ///
-/// `hit == 1` marks the first hit of a cast; follow-up hits of a multi-hit skill are
-/// `hit > 1`, and DoT ticks are `hit == 0`. Only `hit == 1 && !is_dot` events count as a
-/// *cast* when computing uptime, so a multi-hit skill isn't over-counted.
+/// `hit` indexes the hit within a cast (1, 2, 3…), but some skills report every hit with
+/// the same value, so a *cast* is detected by `hit` not increasing from the previous hit
+/// of that skill (see [`cast_starts`]). DoT ticks are `is_dot` with `hit == 0`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SkillHit {
     pub skill: u32,
@@ -199,19 +199,42 @@ impl BuffTracker {
     }
 }
 
+/// Start indices (into `hits`, one skill's hits in time order) of each cast.
+///
+/// A cast begins when `hit` stops increasing from the previous hit of that skill. This
+/// handles both multi-hit skills (1, 2, 3…, then back to 1) and skills whose hits always
+/// report the same value (e.g. always 2). DoT ticks aren't casts.
+fn cast_starts(hits: &[&SkillHit]) -> Vec<usize> {
+    let mut starts = Vec::new();
+    let mut prev: Option<u32> = None;
+    for (i, h) in hits.iter().enumerate() {
+        if h.is_dot {
+            continue;
+        }
+        if prev.is_none_or(|p| h.hit <= p) {
+            starts.push(i);
+        }
+        prev = Some(h.hit);
+    }
+    starts
+}
+
 /// Builds the buffs-per-skill table from one player's hits.
 pub fn buff_breakdown(events: &[SkillHit]) -> BuffBreakdown {
-    // Casts are first hits only: multi-hit follow-ups and DoT ticks aren't separate casts.
-    let mut casts_per_skill: BTreeMap<u32, Vec<&SkillHit>> = BTreeMap::new();
-    for e in events.iter().filter(|e| e.hit == 1 && !e.is_dot) {
-        casts_per_skill.entry(e.skill).or_default().push(e);
+    // Group by skill, keeping time order (events arrive ordered).
+    let mut by_skill: BTreeMap<u32, Vec<&SkillHit>> = BTreeMap::new();
+    for e in events {
+        by_skill.entry(e.skill).or_default().push(e);
     }
 
-    let mut skills: Vec<SkillBuffBreakdown> = Vec::with_capacity(casts_per_skill.len());
-    for (skill, casts) in casts_per_skill {
+    let mut skills: Vec<SkillBuffBreakdown> = Vec::with_capacity(by_skill.len());
+    for (skill, hits) in by_skill {
+        // The representative event of each cast is the hit that starts it.
+        let starts = cast_starts(&hits);
+        let casts: Vec<&SkillHit> = starts.iter().map(|&i| hits[i]).collect();
         let total = casts.len();
-        // Damage counts every hit and tick of the skill, so it lines up with the meter.
-        let damage: u64 = events.iter().filter(|e| e.skill == skill).map(|e| e.damage).sum();
+        // Damage counts every hit and tick, so it lines up with the meter's totals.
+        let damage: u64 = hits.iter().map(|e| e.damage).sum();
 
         let mut always = Vec::new();
         let mut buffs = Vec::new();
@@ -240,30 +263,56 @@ pub fn buff_breakdown(events: &[SkillHit]) -> BuffBreakdown {
     BuffBreakdown { casts, skills }
 }
 
-/// How much of `events` (one skill's hits) happened while `id` was up.
+/// How much of one player's damage happened while `id` was up, across all their skills.
 pub fn buff_overlap(events: &[SkillHit], id: BuffId) -> BuffOverlap {
-    let casts: Vec<&SkillHit> = events.iter().filter(|e| e.hit == 1 && !e.is_dot).collect();
+    let mut by_skill: BTreeMap<u32, Vec<&SkillHit>> = BTreeMap::new();
+    for e in events {
+        by_skill.entry(e.skill).or_default().push(e);
+    }
+
     let mut casts_with = 0usize;
     let mut damage_with = 0u64;
     let mut skill_damage = 0u64;
-    for c in &casts {
-        skill_damage += c.damage;
-        if c.buffs.self_buffs.contains(&id)
-            || c.buffs.party_buffs.contains(&id)
-            || c.buffs.target_debuffs.contains(&id)
-        {
-            casts_with += 1;
-            damage_with += c.damage;
+    let mut skill_casts = 0usize;
+    let mut cast_events: Vec<&SkillHit> = Vec::new();
+
+    for (_, hits) in by_skill {
+        let mut prev: Option<u32> = None;
+        let mut current_has = false;
+        for h in &hits {
+            if h.is_dot {
+                // Ticks ride the current cast; before any cast they count as no-buff.
+                skill_damage += h.damage;
+                if current_has {
+                    damage_with += h.damage;
+                }
+                continue;
+            }
+            if prev.is_none_or(|p| h.hit <= p) {
+                skill_casts += 1;
+                current_has = chip_present(h, id);
+                if current_has {
+                    casts_with += 1;
+                }
+                cast_events.push(*h);
+            }
+            prev = Some(h.hit);
+            skill_damage += h.damage;
+            if current_has {
+                damage_with += h.damage;
+            }
         }
     }
-    let other_buffs = distinct_effects(&casts)
+
+    let other_buffs = distinct_effects(&cast_events)
         .into_iter()
         .filter(|(k, _, _, _)| *k != id)
-        .map(|(k, kind, source, list)| coverage(&casts, k, kind, source, list))
+        .map(|(k, kind, source, list)| coverage(&cast_events, k, kind, source, list))
         .collect();
+
     BuffOverlap {
         casts_with,
-        skill_casts: casts.len(),
+        skill_casts,
         damage_with,
         skill_damage,
         other_buffs,
@@ -302,6 +351,13 @@ fn push_unique(
     if !v.contains(&item) {
         v.push(item);
     }
+}
+
+/// True if `id` is among the effects carried on this hit.
+fn chip_present(h: &SkillHit, id: BuffId) -> bool {
+    h.buffs.self_buffs.contains(&id)
+        || h.buffs.party_buffs.contains(&id)
+        || h.buffs.target_debuffs.contains(&id)
 }
 
 fn coverage(
@@ -447,5 +503,35 @@ mod tests {
         assert_eq!(ov.casts_with, 2);
         assert_eq!(ov.skill_damage, 1000);
         assert_eq!(ov.damage_with, 500);
+    }
+
+    #[test]
+    fn cast_starts_when_hit_does_not_increase() {
+        // Some skills report every hit as `hit == 2` (single-hit skills whose first hit
+        // index never appears). Each event is its own cast, not zero casts.
+        let events = vec![
+            SkillHit { hit: 2, ..hit(1000, 100, &[900], &[]) },
+            SkillHit { hit: 2, ..hit(1000, 100, &[], &[]) },
+        ];
+        let table = buff_breakdown(&events);
+        assert_eq!(table.casts, 2);
+        assert_eq!(table.skills[0].casts, 2);
+        assert_eq!(table.skills[0].buffs[0].percent, 50);
+    }
+
+    #[test]
+    fn hit_reset_starts_a_new_cast() {
+        // 1,2,3 then 1,2 is two casts of a three- then two-hit skill.
+        let events = vec![
+            SkillHit { hit: 1, ..hit(1000, 10, &[], &[]) },
+            SkillHit { hit: 2, ..hit(1000, 20, &[], &[]) },
+            SkillHit { hit: 3, ..hit(1000, 30, &[], &[]) },
+            SkillHit { hit: 1, ..hit(1000, 40, &[], &[]) },
+            SkillHit { hit: 2, ..hit(1000, 50, &[], &[]) },
+        ];
+        let table = buff_breakdown(&events);
+        assert_eq!(table.casts, 2);
+        assert_eq!(table.skills[0].casts, 2);
+        assert_eq!(table.skills[0].damage, 150);
     }
 }

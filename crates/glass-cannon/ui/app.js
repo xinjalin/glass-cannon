@@ -224,9 +224,11 @@ function drawRows(enc) {
       expanded.has(p.id) ? expanded.delete(p.id) : expanded.add(p.id);
       redraw();
     });
-    // Right-click opens the full breakdown in the detail window.
+    // Right-click opens the full breakdown in the detail window (live fights only; the
+    // history view stores only the aggregated rows, not the per-hit events).
     row.addEventListener("contextmenu", (e) => {
       e.preventDefault();
+      if (mode !== "live") return;
       invoke("open_detail", { playerId: p.id }).catch((err) => showError(err));
     });
     list.append(row);

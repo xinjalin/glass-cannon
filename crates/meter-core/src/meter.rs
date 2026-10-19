@@ -438,10 +438,9 @@ impl Meter {
 
     /// Every skill for one player in the current (or last) fight, with no display cap.
     pub fn full_skills(&self, player_id: u64) -> Vec<SkillRow> {
-        let Some(enc) = self.encounter() else { return Vec::new() };
         let mut per_skill: HashMap<u32, SkillStats> = HashMap::new();
         let mut total_damage = 0u64;
-        for h in enc.events.iter().filter(|h| h.attacker == player_id) {
+        for h in self.player_events(player_id) {
             total_damage += h.damage;
             let s = per_skill.entry(h.skill).or_default();
             s.damage += h.damage;
@@ -466,10 +465,8 @@ impl Meter {
 
     /// A player's hits in order, for the rotation timeline.
     pub fn rotation(&self, player_id: u64) -> Vec<RotationEvent> {
-        let Some(enc) = self.encounter() else { return Vec::new() };
-        enc.events
-            .iter()
-            .filter(|h| h.attacker == player_id)
+        self.player_events(player_id)
+            .into_iter()
             .map(|h| RotationEvent {
                 time_us: h.ts_us,
                 skill: h.skill,
@@ -480,31 +477,49 @@ impl Meter {
             .collect()
     }
 
-    /// Every effect span, open spans included, for the buff timeline.
+    /// Every effect span overlapping this fight, clipped to it, open spans included.
     pub fn buff_spans(&self, now_us: u64) -> Vec<BuffSpan> {
-        self.buffs.snapshot(now_us)
+        let Some(enc) = self.encounter() else { return Vec::new() };
+        let Some(start) = enc.events.iter().map(|h| h.ts_us).min() else { return Vec::new() };
+        let end = enc.events.iter().map(|h| h.ts_us).max().unwrap_or(start).max(start);
+        self.buffs
+            .snapshot(now_us)
+            .into_iter()
+            .filter(|s| s.end_us >= start && s.start_us <= end)
+            .map(|s| BuffSpan { start_us: s.start_us.max(start), end_us: s.end_us.min(end), ..s })
+            .collect()
     }
 
     /// The buffs-per-skill table for one player.
     pub fn buffs_per_skill(&self, player_id: u64) -> BuffBreakdown {
-        let Some(enc) = self.encounter() else { return BuffBreakdown::default() };
-        buff_breakdown(&self.skill_hits(enc, player_id))
+        buff_breakdown(&self.player_skill_hits(player_id))
     }
 
     /// One effect's overlap with one player's casts.
     pub fn buff_overlap(&self, player_id: u64, id: BuffId) -> BuffOverlap {
-        let Some(enc) = self.encounter() else { return BuffOverlap::default() };
-        buff_overlap(&self.skill_hits(enc, player_id), id)
+        buff_overlap(&self.player_skill_hits(player_id), id)
     }
 
     fn encounter(&self) -> Option<&Encounter> {
         self.current.as_ref().or(self.last.as_ref())
     }
 
-    fn skill_hits(&self, enc: &Encounter, player_id: u64) -> Vec<SkillHit> {
+    /// A player's counted hits — on targets the view counts, in time order. Hits on
+    /// targets outside the fight (kept only as a late-join lookback) don't count here, so
+    /// the detail totals line up with the row the overlay shows.
+    fn player_events(&self, player_id: u64) -> Vec<&Hit> {
+        let Some(enc) = self.encounter() else { return Vec::new() };
+        let everyone = self.scope == Scope::Everyone || self.registry.self_id().is_none();
         enc.events
             .iter()
             .filter(|h| h.attacker == player_id)
+            .filter(|h| everyone || enc.engaged.contains(&h.target))
+            .collect()
+    }
+
+    fn player_skill_hits(&self, player_id: u64) -> Vec<SkillHit> {
+        self.player_events(player_id)
+            .into_iter()
             .map(|h| SkillHit {
                 skill: h.skill,
                 hit: h.hit,

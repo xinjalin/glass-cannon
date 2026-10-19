@@ -91,7 +91,7 @@ missing from our totals.
 | C (dummy, skill 18040350) | 11096, 10380, 10336 | 11096, 10380 exact; 10338 (likely misread) |
 | D (mobs hitting you) | 435, 490, 386, 286 | 435, 490, 386 exact; **286 not found** |
 
-## Buffs: opcodes `0x382a` / `0x382b` (not yet decoded)
+## Buffs: opcodes `0x382a` / `0x382b` / `0x382c` (not yet decoded)
 
 Needed for the buff timeline and the buffs-per-skill table (`meter-core/src/buff.rs`). The
 opcode numbers come from NOIA2; the payload layout has to be worked out from our own
@@ -108,11 +108,17 @@ What the meter has to pull out of each message:
 One message probably carries an array of these (a snapshot of active effects), so expect to
 loop over entries rather than one per message.
 
+Seen in the dummy capture: `0x382a` (928), `0x382b` (2,855) and `0x382c` (423) messages.
+NOIA2 (GPL-3.0, at the pinned commit) ships buff *names* — `abnormal_ids_full.json` and
+`src-tauri/data/buff_templates.json` — which `packet-lab update-data` can fetch like the
+skill names; the facts themselves still need re-checking against our captures.
+
 How to find the layout with `packet-lab`:
 
 1. `packet-lab capture --process AION2` while you (or a party member) apply a short,
    distinctive self-buff and a debuff on a mob, then wait for each to expire.
-2. `packet-lab opcodes <session>` to confirm which of `0x382a`/`0x382b` is apply vs remove.
+2. `packet-lab opcodes <session>` to confirm what `0x382a`/`0x382b`/`0x382c` each carry
+   (apply, remove, refresh, or a full snapshot).
 3. `packet-lab dump … --side in --pos … --len …` and `packet-lab find <session> <skill id>`
    to locate the buff's skill code and the source/target entity IDs.
 4. Add a `parse_buff` next to `damage::parse`, route it in `Meter::feed` to
