@@ -13,6 +13,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -224,6 +225,8 @@ struct Detail {
     rotation: Vec<RotationEvent>,
     buffs_per_skill: BuffBreakdown,
     buff_spans: Vec<BuffSpan>,
+    /// Buff abnormal id → name, for the buffs shown here.
+    buffs: HashMap<u32, String>,
     appearance: Appearance,
 }
 
@@ -252,9 +255,25 @@ fn detail_state(app: State<'_, Arc<AppState>>) -> Option<Detail> {
             meter.buff_spans(now),
         )
     };
-    lock(&app.data).annotate_skills(&mut skills);
+    let mut buffs: HashMap<u32, String> = HashMap::new();
+    {
+        let data = lock(&app.data);
+        data.annotate_skills(&mut skills);
+        for s in &buff_spans {
+            if let Some(n) = data.buff_name(s.skill) {
+                buffs.entry(s.skill).or_insert_with(|| n.to_string());
+            }
+        }
+        for sb in &buffs_per_skill.skills {
+            for cov in sb.always.iter().chain(&sb.buffs).chain(&sb.debuffs) {
+                if let Some(n) = data.buff_name(cov.id.skill) {
+                    buffs.entry(cov.id.skill).or_insert_with(|| n.to_string());
+                }
+            }
+        }
+    }
     let appearance = lock(&app.settings).appearance.clone();
-    Some(Detail { name, is_self, skills, rotation, buffs_per_skill, buff_spans, appearance })
+    Some(Detail { name, is_self, skills, rotation, buffs_per_skill, buff_spans, buffs, appearance })
 }
 
 #[derive(Clone)]

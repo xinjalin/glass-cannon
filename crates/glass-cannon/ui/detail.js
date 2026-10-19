@@ -36,6 +36,11 @@ function label(names, code) {
   return names.get(code) || String(code);
 }
 
+// Buff abnormal id -> name, from the game data (falls back to the bare id).
+function buffLabel(buffs, code) {
+  return (buffs && buffs[code]) || String(code);
+}
+
 function drawSkills(detail) {
   const names = namesBySkill(detail);
   const table = $("skills-table");
@@ -83,6 +88,7 @@ function drawRotation(detail) {
 
 function drawBuffs(detail) {
   const names = namesBySkill(detail);
+  const buffs = detail.buffs;
   const box = $("buffs-list");
   box.replaceChildren();
   const skills = detail.buffs_per_skill.skills;
@@ -92,27 +98,27 @@ function drawBuffs(detail) {
   }
   for (const sb of skills) {
     box.append(el("div", "skill-head", `${label(names, sb.skill)} · ${sb.casts} casts · ${fmt(sb.damage)} dmg`));
-    const uptime = (b) => `${label(names, b.id.skill)} ${b.percent}%`;
+    const uptime = (b) => `${buffLabel(buffs, b.id.skill)} ${b.percent}%`;
     if (sb.always.length) box.append(el("div", "buffs", `always · ${sb.always.map(uptime).join(" · ")}`));
     if (sb.buffs.length) box.append(el("div", "buffs", `buffs · ${sb.buffs.map(uptime).join(" · ")}`));
     if (sb.debuffs.length) box.append(el("div", "debuffs", `debuffs · ${sb.debuffs.map(uptime).join(" · ")}`));
     if (!sb.always.length && !sb.buffs.length && !sb.debuffs.length) {
-      box.append(el("div", "faint", "no buffs decoded yet"));
+      box.append(el("div", "faint", "no buffs"));
     }
   }
 }
 
 function drawBuffTimeline(detail) {
-  const names = namesBySkill(detail);
+  const buffs = detail.buffs;
   const box = $("bufftimeline-list");
   box.replaceChildren();
   if (!detail.buff_spans.length) {
-    box.append(el("div", "empty", "buffs aren't decoded yet (see docs/protocol.md)"));
+    box.append(el("div", "empty", "no buffs this fight"));
     return;
   }
   const t0 = detail.rotation[0] ? detail.rotation[0].time_us : detail.buff_spans[0].start_us;
   for (const s of detail.buff_spans) {
-    box.append(el("div", "span", `${clock(s.start_us - t0)}–${clock(s.end_us - t0)} · ${label(names, s.skill)}`));
+    box.append(el("div", "span", `${clock(s.start_us - t0)}–${clock(s.end_us - t0)} · ${buffLabel(buffs, s.skill)}`));
   }
 }
 

@@ -249,6 +249,10 @@ and may be the basic attack. Needs a name table from our own observations.
    absorb or a different opcode.
 3. What are `unknown_a`, `unknown_b` and `parts`? Is `parts` a per-tick breakdown or
    something like soul/aggro?
-4. Crit/back/front/perfect/double/parry flags: where are they in `0x3804`? Once decoded
-   they feed the rotation timeline (see `meter::RotationEvent`).
+4. Crit/back/front/perfect/double/parry flags: where are they in `0x3804`? From the dummy
+   capture: `unknown_b` is constant per attacker (a stat), `unknown_a` is constant per
+   (attacker, skill, hit index), and `parts` is `damage / 45` per sub-hit — none is an
+   obvious per-hit flag field. The flags need in-game correlation (note a crit or a back
+   attack while capturing, then find which byte changes), not just the bytes. Once decoded
+   they feed `meter::RotationEvent`.
 5. Opcodes `0x371d`, `0x3600`, `0x3802` are the most frequent; probably movement/state.

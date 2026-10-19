@@ -25,6 +25,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 const SKILLS_FILE: &str = "skills.json";
 const NPCS_FILE: &str = "npcs.json";
+const BUFFS_FILE: &str = "buffs.json";
 const MAX_ICON_BYTES: u64 = 256 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// How often an empty catalog tries the files again.
@@ -56,6 +57,15 @@ struct NpcFile {
     npcs: BTreeMap<u32, Entry>,
 }
 
+/// Buff ("abnormal") names, keyed by the abnormal id the buff messages carry.
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct BuffFile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source: Option<serde_json::Value>,
+    #[serde(default)]
+    buffs: BTreeMap<u32, Entry>,
+}
+
 /// One skill or one mob type.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct Entry {
@@ -85,6 +95,7 @@ pub struct GameData {
     names: Names,
     skills: SkillFile,
     npcs: NpcFile,
+    buffs: BuffFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -101,6 +112,7 @@ impl GameData {
             names_path,
             skills: SkillFile::default(),
             npcs: NpcFile::default(),
+            buffs: BuffFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -124,6 +136,8 @@ impl GameData {
                     self.skills = f;
                     // Mob names are optional (older folders only have skills).
                     self.npcs = read_json::<NpcFile>(&dir.join(NPCS_FILE)).unwrap_or_default();
+                    // Buff names are optional, like mob names.
+                    self.buffs = read_json::<BuffFile>(&dir.join(BUFFS_FILE)).unwrap_or_default();
                     self.problem = None;
                     self.adopt_old_custom_names();
                     self.apply_names();
@@ -162,6 +176,12 @@ impl GameData {
 
     pub fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    /// A buff's name by its abnormal id, when the game data has one.
+    pub fn buff_name(&self, id: u32) -> Option<&str> {
+        let e = self.buffs.buffs.get(&id)?;
+        (!e.name.is_empty()).then_some(e.name.as_str())
     }
 
     /// A skill's entry: its exact ID first, then its base skill (variants differ in the

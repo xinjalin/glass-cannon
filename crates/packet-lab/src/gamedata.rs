@@ -39,6 +39,8 @@ const BRANCH: &str = "main";
 const SKILL_NAMES_DIR: &str = "src/i18n/locales/aion2skills";
 const SKILL_ICONS_DIR: &str = "public/aion2/skill";
 const NPC_NAMES: &str = "npc_names.json";
+/// Buff ("abnormal") names, keyed by the abnormal id the buff messages carry.
+const ABNORMAL_IDS: &str = "abnormal_ids_full.json";
 const MOBS: &str = "src/games/aion2/data/mobs.json";
 const BOSS_IDS: &str = "src-tauri/data/boss_ids.json";
 const CLASS_ICONS_DIR: &str = "public/aion2/class";
@@ -170,9 +172,10 @@ pub fn run(dir: &Path, lang: &str, with_icons: bool, pins: Option<&Path>, bump: 
 
     let skills = update_skills(&src, dir, lang, &files)?;
     let npcs = update_npcs(&src, dir)?;
+    let buffs = update_buffs(&src, dir)?;
     let classes = if with_icons { update_class_icons(&src, dir, &files)? } else { 0 };
 
-    println!("done: {skills} skill names, {npcs} mobs and bosses, {classes} class icons");
+    println!("done: {skills} skill names, {npcs} mobs and bosses, {buffs} buff names, {classes} class icons");
     println!("saved to {}", dir.display());
     Ok(())
 }
@@ -322,6 +325,33 @@ fn update_npcs(src: &Source, dir: &Path) -> Result<usize> {
     });
     write_json(&dir.join("npcs.json"), &json!({ "source": source, "npcs": npcs }))?;
     println!("progress: {named} English mob names, {} bosses, {kept} of your own names kept", bosses.len());
+    Ok(count)
+}
+
+/// NOIA2's buff ("abnormal") names. The source file is Traditional Chinese; the meter
+/// shows it as-is until a per-language source exists.
+fn update_buffs(src: &Source, dir: &Path) -> Result<usize> {
+    println!("progress: buff names");
+    let v = get_json(&src.agent, &src.raw(ABNORMAL_IDS))?;
+    let mut buffs: BTreeMap<u32, Value> = BTreeMap::new();
+    for (id, e) in v["abnormals"].as_object().into_iter().flatten() {
+        let (Ok(num), Some(name)) = (id.parse::<u32>(), e["name"].as_str()) else { continue };
+        buffs.insert(num, json!({ "name": name }));
+    }
+    let count = buffs.len();
+    write_json(
+        &dir.join("buffs.json"),
+        &json!({
+            "source": {
+                "project": format!("https://github.com/{REPO}"),
+                "commit": src.sha,
+                "license": "GPL-3.0",
+                "note": "Buff names from NOIA2's abnormal_ids_full.json (Traditional Chinese).",
+            },
+            "buffs": buffs,
+        }),
+    )?;
+    println!("progress: {count} buff names");
     Ok(count)
 }
 
