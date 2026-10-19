@@ -19,6 +19,7 @@ pub mod reassembly;
 pub mod rtt;
 pub mod recorder;
 pub mod session;
+pub mod timeline;
 mod win;
 
 #[cfg(test)]
