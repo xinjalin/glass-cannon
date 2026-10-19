@@ -1,10 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/meter-core", "crates/packet-lab", "crates/meter-app"]
+members = ["crates/meter-core", "crates/packet-lab", "crates/glass-cannon"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+license = "MIT"
+authors = ["Xinjalin"]
 
 [workspace.dependencies]
 anyhow = "1"

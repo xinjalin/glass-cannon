@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon settings</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>─ settings</span>
+      <span id="version" class="version" data-tauri-drag-region></span>
+      <button id="close" type="button" class="close" title="Close (Esc)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+      </button>
+    </header>
+
+    <div id="scroll">
+      <fieldset class="box">
+        <legend>status</legend>
+        <div class="check" id="check-npcap"><span class="led"></span><span class="key">npcap</span><span class="value">…</span></div>
+        <div class="check" id="check-game"><span class="led"></span><span class="key">aion 2</span><span class="value">…</span></div>
+        <div class="check" id="check-data"><span class="led"></span><span class="key">game data</span><span class="value">…</span></div>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>appearance</legend>
+        <div class="line">
+          <span class="key">theme</span>
+          <span id="themes" class="swatches" role="radiogroup" aria-label="Theme">
+            <button type="button" class="swatch" data-theme-choice="rose" title="rose"></button>
+            <button type="button" class="swatch" data-theme-choice="lavender" title="lavender"></button>
+            <button type="button" class="swatch" data-theme-choice="mint" title="mint"></button>
+            <button type="button" class="swatch" data-theme-choice="sky" title="sky"></button>
+            <button type="button" class="swatch" data-theme-choice="amber" title="amber"></button>
+            <button type="button" class="swatch" data-theme-choice="mono" title="mono"></button>
+          </span>
+        </div>
+        <div class="line">
+          <span class="key">bars</span>
+          <span class="swatches" role="radiogroup" aria-label="Bar colour">
+            <span class="group">
+              <button type="button" class="chip" data-bar-choice="theme" title="Follow the theme">[theme]</button>
+              <button type="button" class="chip" data-bar-choice="class" title="Each player's class colour">[class]</button>
+            </span>
+            <span class="group">
+              <button type="button" class="swatch" data-bar-choice="rose" title="rose"></button>
+              <button type="button" class="swatch" data-bar-choice="lavender" title="lavender"></button>
+              <button type="button" class="swatch" data-bar-choice="mint" title="mint"></button>
+              <button type="button" class="swatch" data-bar-choice="sky" title="sky"></button>
+              <button type="button" class="swatch" data-bar-choice="amber" title="amber"></button>
+              <button type="button" class="swatch" data-bar-choice="mono" title="mono"></button>
+            </span>
+          </span>
+        </div>
+        <div class="line">
+          <span class="key">font size</span>
+          <span class="stepper">
+            <button id="font-down" type="button" title="Smaller">[−]</button>
+            <span id="font-value" class="step-value"></span>
+            <button id="font-up" type="button" title="Larger">[+]</button>
+          </span>
+        </div>
+        <div class="line">
+          <span class="key">background</span>
+          <span class="choice" role="radiogroup" aria-label="Background">
+            <button type="button" data-backdrop-choice="frosted" title="Blurred glass with a tint">[frosted]</button>
+            <button type="button" data-backdrop-choice="tinted" title="A see-through tint, no blur">[tinted]</button>
+            <button type="button" data-backdrop-choice="clear" title="No background at all">[clear]</button>
+          </span>
+        </div>
+        <div class="line">
+          <span class="key">tint</span>
+          <span class="stepper">
+            <button id="opacity-down" type="button" title="More see-through">[−]</button>
+            <span id="opacity-value" class="step-value"></span>
+            <button id="opacity-up" type="button" title="More solid">[+]</button>
+          </span>
+        </div>
+        <div class="line">
+          <span class="key">highlight</span>
+          <span class="choice" role="radiogroup" aria-label="Highlight">
+            <button type="button" data-highlight-choice="self" title="Fill only your row">[you]</button>
+            <button type="button" data-highlight-choice="all" title="Fill every row in its colour">[all]</button>
+          </span>
+        </div>
+        <button id="minimal" type="button" class="opt" aria-pressed="false">
+          <span class="key">minimal mode</span><span class="state">[off]</span>
+        </button>
+        <p class="hint">just the target and bars · drag anywhere · hover for ≡</p>
+        <button id="info-bar" type="button" class="opt" aria-pressed="false">
+          <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
+        </button>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>options</legend>
+        <button id="everyone" type="button" class="opt" aria-pressed="false">
+          <span class="key">show everyone</span><span class="state">[off]</span>
+        </button>
+        <p class="hint">count every player fighting nearby, not just your targets</p>
+        <button id="record" type="button" class="opt" aria-pressed="false">
+          <span class="key">record fights</span><span class="state">[off]</span>
+        </button>
+        <p class="hint" id="record-hint">save packets to the captures folder</p>
+      </fieldset>
+
+      <fieldset class="box">
+        <legend>tools</legend>
+        <button id="update" type="button" class="opt">
+          <span class="key">update game data</span><span class="state">[ run ]</span>
+        </button>
+        <button id="history" type="button" class="opt">
+          <span class="key">fight history</span><span class="state">[ open ]</span>
+        </button>
+        <button id="shortcut" type="button" class="opt">
+          <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
+        </button>
+      </fieldset>
+
+      <p id="message" class="message" role="status"></p>
+    </div>
+
+    <footer>
+      <span><kbd>esc</kbd> close</span>
+      <span class="sign">Xinjalin</span>
+    </footer>
+  </main>
+  <script src="theme.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

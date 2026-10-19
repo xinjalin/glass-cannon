@@ -66,6 +66,23 @@ bits `0x02` and `0x04`.
   `target == attacker`.
 - **Damage you take** shows up with `target` = your entity ID.
 
+## Damage over time: opcode `0x3805` (confirmed)
+
+```text
+varint  target
+u8      flags
+varint  attacker
+varint  unknown
+u32     unknown
+[0x02]  varint damage
+[0x01]  varint unknown
+u32     skill            (absent on some self-effects with flags 0)
+```
+
+997 of 998 messages in our captures parse to the last byte. NOIA2's code reads the skill
+before the damage; in the current client the damage comes first. These ticks used to be
+missing from our totals.
+
 ### Verified against in-game numbers
 
 | Test | Noted in game | Found |
@@ -125,6 +142,33 @@ Arrives before the mob's first damage event. **There's no name in it**: the clie
 names up in its own data files, so a meter needs its own type-ID → name table built from
 our observations. A few messages have a different layout (type field doesn't fit).
 
+### A player engages a mob: opcode `0x8d04` (confirmed)
+
+```text
+varint  mob entity ID
+u32     skill used
+varint  player entity ID
+varint  server
+u8      name length, then the player's name (UTF-8)
+```
+
+Sent when a player first hits a mob, for every player in view, including you. That makes
+it the quickest way to learn your own name without a zone change. It isn't sent for
+training dummies.
+
+### Classes (confirmed)
+
+The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Templar,
+13 Assassin, 14 Ranger, 15 Sorcerer, 16 Elementalist, 17 Cleric, 18 Chanter, 19 Fighter.
+(30xxxxxx are Theostone item effects, not a class.)
+
+### Other messages (from NOIA2, not yet used)
+
+- `0x3656`: your combat power (u32 after the opcode).
+- `0x8d00`: remaining HP of an entity (useful for boss HP %).
+- `0x382a` / `0x382b`: buffs.
+- `0x9101`: field boss timers.
+
 ### Permanent character ID (guess)
 
 `58 de 03 00` (u32 253528) followed by `00 00 00 c7 09` sits right before
@@ -150,8 +194,8 @@ and may be the basic attack. Needs a name table from our own observations.
 
 1. Where are class and level in `0x3633`/`0x3645`? (Your character: level 45, 88.36K
    combat power, title "Vanguard of Atreia" — search for these to find the fields.)
-2. Where did the 286 damage in test D go? Possibly a DoT tick, a shield absorb, or a
-   different opcode.
+2. Where did the 286 damage in test D go? Not a DoT tick (checked); maybe a shield
+   absorb or a different opcode.
 3. What are `unknown_a`, `unknown_b` and `parts`? Is `parts` a per-tick breakdown or
    something like soul/aggro?
 4. Crit flag: is it in `flags`, `unknown_b`, or the `0x02` block?

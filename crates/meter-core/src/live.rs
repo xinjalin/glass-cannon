@@ -24,7 +24,7 @@ use crate::session::TimedMessage;
 /// Only TCP/UDP reaches us; the pipeline narrows it to the game's own sockets.
 const CAPTURE_FILTER: &str = "tcp or udp";
 const REFRESH_EVERY: Duration = Duration::from_millis(500);
-const STATUS_EVERY: Duration = Duration::from_secs(2);
+const STATUS_EVERY: Duration = Duration::from_secs(1);
 
 pub struct LiveOptions {
     /// Case-insensitive substring of the game's executable name.
@@ -48,6 +48,8 @@ pub struct LiveStatus {
     pub game_udp: usize,
     pub received: u64,
     pub dropped: u64,
+    /// Round trip to the game server (needs `decode`, to know which connection it is).
+    pub ping_ms: Option<u32>,
     pub stats: PipelineStats,
 }
 
@@ -247,6 +249,7 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                 game_udp: current.udp_count(),
                 received: counters.iter().map(|c| c.received.load(Ordering::Relaxed)).sum(),
                 dropped: counters.iter().map(|c| c.dropped.load(Ordering::Relaxed)).sum(),
+                ping_ms: game.game_flow().and_then(|f| pipeline.ping_ms(f, now_us())),
                 stats: pipeline.stats(),
             }));
         }

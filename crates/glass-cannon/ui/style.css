@@ -1,0 +1,410 @@
+/* Glass Cannon overlay: frosted glass (Windows blurs what's behind the window), themed
+   accent, monospace, btop-style framed sections. Colours live in theme.css.
+   Sizes are in em so everything scales with the font-size setting. */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Elements with their own display style must still disappear when hidden. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  font-size: var(--fs);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  line-height: 1.35;
+  text-shadow: var(--shadow);
+  overflow: hidden;
+  user-select: none;
+}
+
+#panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  height: 100%;
+  padding: 0 0.65em 0.55em;
+  background: var(--tint);
+}
+
+/* "clear": no tint at all, so the text gets a heavier outline to stay readable. */
+[data-backdrop="clear"] {
+  --tint: transparent;
+  --shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+/* ---------------------------------------------------------------- time & ping strip */
+
+#info {
+  display: none;
+  flex: none;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1em;
+  height: 1.7em;
+  margin: 0 -0.2em -0.4em;
+  padding: 0 0.2em;
+  border-bottom: 1px dashed var(--line-faint);
+  color: var(--muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: grab;
+}
+.info-bar #info { display: flex; }
+.info-bar #ping { display: none; }
+#info-ping { color: var(--accent-2); }
+#info-ping.good { color: var(--ok); }
+#info-ping.high { color: var(--warn); }
+#info-ping.bad { color: var(--bad); }
+
+/* ---------------------------------------------------------------- title bar */
+
+#bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  height: 2.3em;
+  flex: none;
+  cursor: grab;
+  container-type: inline-size;
+}
+/* Narrow window or large text: drop the label so the fight state stays readable. */
+@container (max-width: 34em) {
+  .brand { display: none; }
+}
+
+.brand {
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.dot.capturing { background: var(--accent); }
+.dot.fighting { background: var(--accent); box-shadow: 0 0 0.5em var(--accent); }
+.dot.waiting,
+.dot.starting { background: var(--warn); }
+.dot.error { background: var(--bad); }
+.dot.replay { background: var(--accent-2); }
+
+#fight {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--accent-2);
+}
+
+#ping {
+  flex: none;
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2);
+}
+#ping.good { color: var(--ok); }
+#ping.high { color: var(--warn); }
+#ping.bad { color: var(--bad); }
+
+nav {
+  display: flex;
+  flex: none;
+  gap: 0.1em;
+}
+
+button {
+  display: grid;
+  place-items: center;
+  min-width: 1.75em;
+  height: 1.6em;
+  padding: 0 0.4em;
+  border: 0;
+  border-radius: 0.3em;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+button:hover { background: var(--line-faint); color: var(--text); }
+button:focus-visible { outline: 1px solid var(--accent); }
+button.on { color: var(--accent); }
+button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
+#scope { font-size: 0.9em; }
+#scope.on { background: var(--accent); color: var(--ink); text-shadow: none; }
+
+svg {
+  width: 1.05em;
+  height: 1.05em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(var(--shadow));
+}
+
+/* ---------------------------------------------------------------- framed section */
+
+.box {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0.2em 0.5em 0.5em;
+  border: 1px solid var(--line);
+  border-radius: 0.5em;
+}
+
+legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0 0.5em;
+  color: var(--accent);
+  font-size: 0.9em;
+}
+#clock { color: var(--muted); font-variant-numeric: tabular-nums; }
+.back {
+  min-width: 1.1em;
+  height: 1.3em;
+  padding: 0 0.25em;
+  color: var(--accent);
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+#totals {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  padding: 0.15em 0.3em 0.4em;
+  margin-bottom: 0.3em;
+  color: var(--muted);
+  border-bottom: 1px dashed var(--line-faint);
+}
+#target { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
+#total { flex: none; font-variant-numeric: tabular-nums; }
+
+.boss {
+  flex: none;
+  padding: 0 0.35em;
+  border-radius: 0.25em;
+  background: var(--accent);
+  color: var(--ink);
+  text-shadow: none;
+  font-size: 0.8em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------- player rows */
+
+#rows,
+#fights {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+/* Each row's colour: the bar colour (the theme's accent unless chosen), or its class colour. */
+.row { --row: var(--bar, var(--accent)); cursor: pointer; }
+[data-bars="class"] .row { --row: var(--class, var(--accent)); }
+/* Row height and spacing are whole pixels (set by app.js) so every gap is the same. */
+.row + .row { margin-top: var(--row-gap, 2px); }
+
+.line {
+  display: grid;
+  grid-template-columns: 1.3em minmax(0, 1fr) var(--meter-w, 4.5em) 4.2em 3.3em;
+  align-items: center;
+  gap: 0.5em;
+  height: var(--row-h, 1.95em);
+  padding: 0 0.35em;
+  border-radius: 0.3em;
+}
+.row:hover .line { background: var(--line-faint); }
+
+.rank { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+.who { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dps { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); }
+.share { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.class-icon {
+  flex: none;
+  width: 1.55em;
+  height: 1.55em;
+  border-radius: 0.25em;
+  filter: drop-shadow(var(--shadow));
+}
+.class-icon.blank { width: 0.35em; height: 1.1em; border-radius: 0.1em; background: var(--row); }
+
+/* btop-style segmented meter: a fixed number of blocks, sized in whole pixels by app.js. */
+.meter {
+  display: flex;
+  gap: var(--seg-gap, 2px);
+  height: var(--seg-h, 8px);
+}
+.seg {
+  flex: none;
+  width: var(--seg, 3px);
+  background: var(--line-faint);
+}
+.seg.on { background: var(--row); }
+
+/* A filled row: you (always), or every row with highlight "all". */
+.row.self .line,
+.row.self:hover .line,
+[data-highlight="all"] .row .line {
+  background: var(--row);
+  color: var(--ink);
+  text-shadow: none;
+}
+[data-highlight="all"] .row:hover .line { filter: brightness(1.08); }
+.row.self .dps,
+.row.self .share,
+.row.self .rank,
+[data-highlight="all"] .row .dps,
+[data-highlight="all"] .row .share,
+[data-highlight="all"] .row .rank { color: var(--ink); }
+.row.self .name { font-weight: 700; }
+.row.self .rank { font-size: 0; }
+.row.self .rank::before { content: "»"; font-size: var(--fs); }
+.row.self .seg,
+[data-highlight="all"] .row .seg { background: rgba(27, 15, 17, 0.2); }
+.row.self .seg.on,
+[data-highlight="all"] .row .seg.on { background: var(--ink); }
+.row.self .class-icon,
+[data-highlight="all"] .row .class-icon { filter: none; }
+.row.self .class-icon.blank,
+[data-highlight="all"] .row .class-icon.blank { background: var(--ink); }
+
+/* ---------------------------------------------------------------- skill breakdown */
+
+.skills {
+  margin: 0.15em 0 0.5em 1.8em;
+  padding: 0.3em 0.6em 0.5em;
+  border-left: 1px solid var(--line);
+  font-size: 0.92em;
+}
+.stats { display: flex; flex-wrap: wrap; gap: 0 1em; margin-bottom: 0.25em; color: var(--accent-2); }
+.skill {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.8em 3.4em 2.9em;
+  gap: 0.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+}
+.skill > span:not(:first-child) { text-align: right; }
+.skill.head { color: var(--faint); }
+.skill-label { display: flex; align-items: center; gap: 0.4em; min-width: 0; cursor: text; }
+.skill-icon { flex: none; width: 1.35em; height: 1.35em; border-radius: 0.25em; }
+.skill-icon.blank { background: var(--line-faint); }
+.skill-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
+.skill-name.code { color: var(--faint); }
+
+.name-input {
+  min-width: 0;
+  width: 100%;
+  height: 1.5em;
+  padding: 0 0.3em;
+  border: 1px solid var(--accent);
+  border-radius: 0.25em;
+  background: var(--tint-strong);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+/* ---------------------------------------------------------------- history */
+
+.fight-item {
+  display: grid;
+  grid-template-columns: 1.8em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em;
+  border-radius: 0.3em;
+  cursor: pointer;
+}
+.fight-item:hover { background: var(--line-faint); }
+.fight-no { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+.fight-text { display: flex; flex-direction: column; min-width: 0; }
+.fight-what { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.fight-target { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.fight-dps { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+
+#empty {
+  flex: 1;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------- problems line */
+
+#status {
+  flex: none;
+  padding: 0 0.2em;
+  font-size: 0.9em;
+  color: var(--warn);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#status.error { color: var(--bad); }
+
+/* ---------------------------------------------------------------- minimal mode */
+
+/* Only the target and the bars: no title bar, frame or totals. */
+.minimal #bar,
+.minimal legend,
+.minimal #total { display: none; }
+.minimal #panel { gap: 0.3em; padding: 0.4em 0.45em; }
+.minimal #info { margin: -0.2em 0 0; border-bottom: 0; }
+.minimal .box { padding: 0; border: 0; }
+.minimal #totals { padding: 0 0.35em 0.1em; margin-bottom: 0.1em; border-bottom: 0; }
+
+#float { display: none; }
+.minimal #float {
+  position: fixed;
+  top: 0.3em;
+  right: 0.3em;
+  display: flex;
+  gap: 0.1em;
+  padding: 0.1em;
+  border-radius: 0.35em;
+  background: var(--tint-strong);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.minimal body:hover #float { opacity: 1; }
+
+::-webkit-scrollbar { width: 0.4em; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }

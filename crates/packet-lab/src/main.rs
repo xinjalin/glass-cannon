@@ -26,7 +26,7 @@ use meter_core::entities::Registry;
 use meter_core::meter::{Meter, Scope, Snapshot};
 use meter_core::{damage, decode, protocol};
 
-mod import_skills;
+mod gamedata;
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -140,15 +140,16 @@ enum Cmd {
         #[arg(long)]
         json: bool,
     },
-    /// Download skill names and icons for the overlay (from the GPL-3.0 NOIA2 project)
-    ImportSkills {
+    /// Download skill, mob/boss and class data for the overlay (from the GPL-3.0 NOIA2 project)
+    #[command(alias = "import-skills")]
+    UpdateData {
         /// Language of the names: en, ko, zh-TW or zh-CN
         #[arg(long, default_value = "en")]
         lang: String,
         /// Names only, no icons
         #[arg(long)]
         no_icons: bool,
-        /// Where to save (default: a `skills` folder next to this program)
+        /// Where to save (default: a `gamedata` folder next to this program)
         #[arg(long)]
         out: Option<PathBuf>,
     },
@@ -250,12 +251,12 @@ fn run(cli: Cli) -> Result<()> {
             limit,
         ),
         Cmd::Entities { path } => entities_cmd(&path),
-        Cmd::ImportSkills { lang, no_icons, out } => {
+        Cmd::UpdateData { lang, no_icons, out } => {
             let dir = match out {
                 Some(d) => d,
-                None => import_skills::default_dir()?,
+                None => gamedata::default_dir()?,
             };
-            import_skills::run(&dir, &lang, !no_icons)
+            gamedata::run(&dir, &lang, !no_icons)
         }
         Cmd::Live {
             process,

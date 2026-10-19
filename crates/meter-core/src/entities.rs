@@ -12,6 +12,9 @@ pub const OPCODE_SELF_SPAWN: u16 = 0x3633;
 pub const OPCODE_SELF_TICK: u16 = 0x364a;
 pub const OPCODE_MOB_SPAWN: u16 = 0x3641;
 pub const OPCODE_PLAYER_SPAWN: u16 = 0x3645;
+/// A player engaging a mob: carries the player's entity ID and name. Fires on the first
+/// hit of every real fight (not on training dummies), so it names you without a zone change.
+pub const OPCODE_ENGAGE: u16 = 0x8d04;
 
 /// Bytes between the entity ID and the name length in player/self spawns.
 const SPAWN_NAME_SKIP: usize = 5;
@@ -114,6 +117,22 @@ impl Registry {
                 self.players.insert(id, name.clone());
                 Some(Change::PlayerNamed { id, name })
             }
+            OPCODE_ENGAGE => {
+                let (id, name) = parse_engage(payload)?;
+                if self.is_self(id) {
+                    if self.self_name.as_deref() == Some(&name) {
+                        return None;
+                    }
+                    self.self_name = Some(name.clone());
+                    return Some(Change::SelfIdentified { id, name: Some(name) });
+                }
+                if self.players.get(&id) == Some(&name) {
+                    return None;
+                }
+                self.mobs.remove(&id);
+                self.players.insert(id, name.clone());
+                Some(Change::PlayerNamed { id, name })
+            }
             OPCODE_MOB_SPAWN => {
                 let (id, type_id) = parse_mob_spawn(payload)?;
                 if self.mobs.get(&id) == Some(&type_id) {
@@ -158,6 +177,25 @@ pub fn parse_named_spawn(p: &[u8]) -> Option<(u64, String)> {
     let len = *p.get(i)? as usize;
     i += 1;
     if len == 0 || len > MAX_NAME_BYTES {
+        return None;
+    }
+    let name = std::str::from_utf8(p.get(i..i + len)?).ok()?;
+    if name.chars().any(char::is_control) {
+        return None;
+    }
+    Some((id, name.to_string()))
+}
+
+/// `0x8d04`: varint mob, u32 skill, varint player, varint server, u8 length, UTF-8 name.
+pub fn parse_engage(p: &[u8]) -> Option<(u64, String)> {
+    let mut i = 0;
+    read_varint(p, &mut i)?; // the mob
+    i += 4; // skill used
+    let id = read_varint(p, &mut i)?;
+    read_varint(p, &mut i)?; // server
+    let len = *p.get(i)? as usize;
+    i += 1;
+    if id == 0 || len == 0 || len > MAX_NAME_BYTES {
         return None;
     }
     let name = std::str::from_utf8(p.get(i..i + len)?).ok()?;
@@ -252,6 +290,23 @@ mod tests {
         // Type field far outside the 7-digit range.
         let p = hex("ee a6 02 04 20 00 07 b0 61 66 00");
         assert_eq!(parse_mob_spawn(&p), None);
+    }
+
+    #[test]
+    fn engage_names_us_and_others() {
+        // From the zone-change capture: mob 19776 engaged by us (3199) with 18010340.
+        let mut p = hex("c0 9a 01 e4 d0 12 01 ff 18 c7 09");
+        p.push(12);
+        p.extend_from_slice(b"NeneneTowawa");
+        p.extend(hex("00 00"));
+        assert_eq!(parse_engage(&p), Some((3199, "NeneneTowawa".into())));
+
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_TICK, &hex("ff 18 00"));
+        assert_eq!(r.label(3199), "You (#3199)");
+        r.observe(OPCODE_ENGAGE, &p);
+        assert_eq!(r.label(3199), "NeneneTowawa");
+        assert_eq!(r.self_name(), Some("NeneneTowawa"));
     }
 
     #[test]

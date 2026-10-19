@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="panel">
+    <!-- Optional strip with the local time and ping (settings → time & ping bar). -->
+    <div id="info" data-tauri-drag-region>
+      <span id="info-time" data-tauri-drag-region></span>
+      <span id="info-ping" title="Round trip to the game server" data-tauri-drag-region></span>
+    </div>
+
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>─ glass cannon</span>
+      <span id="dot" class="dot" data-tauri-drag-region></span>
+      <span id="fight" data-tauri-drag-region></span>
+      <span id="ping" title="Round trip to the game server" hidden></span>
+      <nav>
+        <button id="scope" type="button" title="Show only your fight, or everyone fighting nearby">mine</button>
+        <button id="history" type="button" title="Fight history">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.5V8l2.3 1.5M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.5 2.5v2.3h2.3"/></svg>
+        </button>
+        <button id="reset" type="button" title="Reset">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.5v2.8h2.8"/></svg>
+        </button>
+        <button id="settings" type="button" title="Settings">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+        </button>
+        <button id="pin" type="button" class="on" title="Keep on top">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4l-.5 4 2.5 2.5H4L6.5 6zM8 8.5V14"/></svg>
+        </button>
+        <button id="min" type="button" title="Minimise">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h8"/></svg>
+        </button>
+        <button id="close" type="button" class="close" title="Close Glass Cannon">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <fieldset id="box" class="box">
+      <legend id="legend">
+        <button id="back" type="button" class="back" title="Back" hidden>‹</button>
+        <span id="legend-text">fight</span>
+        <span id="clock"></span>
+      </legend>
+      <div id="totals" hidden>
+        <span id="target"></span>
+        <span id="total"></span>
+      </div>
+      <ol id="rows"></ol>
+      <ol id="fights" hidden></ol>
+      <p id="empty">waiting for a fight…</p>
+    </fieldset>
+
+    <!-- Only shown when something needs attention (errors, missing data, dropped packets). -->
+    <div id="status" hidden></div>
+
+    <!-- Minimal mode has no title bar: these appear while the pointer is over the meter. -->
+    <div id="float">
+      <button id="f-back" type="button" class="back" title="Back" hidden>‹</button>
+      <button id="f-settings" type="button" title="Settings">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+      </button>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

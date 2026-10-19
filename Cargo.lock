@@ -1181,6 +1181,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "glass-cannon"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "meter-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+]
+
+[[package]]
 name = "glib"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1898,20 +1910,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "meter-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "meter-core",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
-]
-
-[[package]]
 name = "meter-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2280,7 +2280,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "packet-lab"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",

@@ -1,0 +1,230 @@
+/* Glass Cannon settings: same frosted-glass, themed, monospace style as the overlay.
+   Colours live in theme.css; sizes are in em so the font-size setting scales it. */
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  font-size: var(--fs);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  line-height: 1.4;
+  text-shadow: var(--shadow);
+  overflow: hidden;
+  user-select: none;
+}
+
+#panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 0.8em 0.6em;
+  /* Always tinted enough to read, whatever the overlay's background is set to. */
+  background: rgba(var(--tint-rgb), max(var(--alpha), 0.6));
+}
+
+#bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.6em;
+  height: 2.4em;
+  cursor: grab;
+}
+.brand { color: var(--muted); letter-spacing: 0.12em; font-size: 0.9em; }
+.version { flex: 1; color: var(--faint); font-size: 0.9em; }
+
+/* Sections scroll if a large font needs more room than the window has. */
+#scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.6em;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 0.15em;
+}
+
+button {
+  font: inherit;
+  text-shadow: inherit;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+button:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.close {
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.6em;
+  border-radius: 0.3em;
+}
+.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
+svg {
+  width: 1.05em;
+  height: 1.05em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* btop-style framed sections */
+.box {
+  margin: 0;
+  padding: 0.3em 0.6em 0.5em;
+  border: 1px solid var(--line);
+  border-radius: 0.5em;
+}
+legend {
+  padding: 0 0.5em;
+  color: var(--accent);
+  font-size: 0.9em;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 0.6em 6.2em minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6em;
+  min-height: 1.8em;
+}
+.led { width: 0.5em; height: 0.5em; border-radius: 50%; background: var(--faint); }
+.check.ok .led { background: var(--ok); box-shadow: 0 0 0.4em rgba(168, 230, 189, 0.6); }
+.check.warn .led { background: var(--warn); }
+.check.bad .led { background: var(--bad); }
+.key { color: var(--muted); }
+.value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* "key ............ control" lines; the control drops below the key when there's no room. */
+.line,
+.opt {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.2em 0.6em;
+  width: 100%;
+  min-height: 1.85em;
+  padding: 0 0.3em;
+  border-radius: 0.3em;
+  text-align: left;
+}
+.line .key,
+.opt .key { color: var(--text); white-space: nowrap; }
+.opt .state { color: var(--accent); white-space: nowrap; }
+.opt:hover { background: var(--line-faint); }
+.opt[aria-pressed="true"] .state,
+.choice button[aria-checked="true"],
+.chip[aria-checked="true"] {
+  color: var(--ink);
+  background: var(--accent);
+  text-shadow: none;
+  border-radius: 0.25em;
+}
+.opt[aria-pressed="true"] .state { padding: 0 0.25em; }
+.opt:disabled { cursor: default; }
+.opt:disabled .state { color: var(--faint); }
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35em;
+  margin-left: auto;
+}
+.swatch {
+  width: 1.15em;
+  height: 1.15em;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+  outline-offset: 2px;
+}
+.swatch[data-theme-choice="rose"], .swatch[data-bar-choice="rose"] { --swatch: #f2a8a4; }
+.swatch[data-theme-choice="lavender"], .swatch[data-bar-choice="lavender"] { --swatch: #c8b4f7; }
+.swatch[data-theme-choice="mint"], .swatch[data-bar-choice="mint"] { --swatch: #94dcb9; }
+.swatch[data-theme-choice="sky"], .swatch[data-bar-choice="sky"] { --swatch: #95caf3; }
+.swatch[data-theme-choice="amber"], .swatch[data-bar-choice="amber"] { --swatch: #f1c073; }
+.swatch[data-theme-choice="mono"], .swatch[data-bar-choice="mono"] { --swatch: #dcdcdc; }
+.swatch[aria-checked="true"] { outline: 2px solid var(--text); }
+/* Bar choices wrap as two groups: [theme] [class], then the colours. */
+.swatches .group { display: flex; align-items: center; gap: 0.35em; }
+/* Square swatches for bars, so they read as a different setting from the theme. */
+.swatch[data-bar-choice] { border-radius: 0.2em; }
+.chip { padding: 0 0.15em; border-radius: 0.25em; color: var(--accent); }
+.chip:hover { background: var(--line-faint); }
+
+.stepper,
+.choice { display: flex; align-items: center; gap: 0.2em; margin-left: auto; white-space: nowrap; }
+.stepper button,
+.choice button { color: var(--accent); padding: 0 0.15em; border-radius: 0.25em; }
+.stepper button:hover,
+.choice button:hover { background: var(--line-faint); }
+.stepper button:disabled { color: var(--faint); cursor: default; background: none; }
+.step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
+
+.hint {
+  margin: 0 0.3em 0.3em;
+  color: var(--faint);
+  font-size: 0.9em;
+}
+.hint.warn { color: var(--warn); }
+
+.message {
+  min-height: 1.3em;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.message.error { color: var(--bad); }
+.message.ok { color: var(--ok); }
+
+footer {
+  display: flex;
+  flex: none;
+  justify-content: space-between;
+  gap: 1.2em;
+  padding-top: 0.5em;
+  color: var(--muted);
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sign { color: var(--accent); letter-spacing: 0.08em; font-style: italic; }
+kbd {
+  display: inline-block;
+  padding: 0 0.35em;
+  border-radius: 0.25em;
+  background: var(--accent);
+  color: var(--ink);
+  text-shadow: none;
+  font: inherit;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+::-webkit-scrollbar { width: 0.4em; height: 0; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }

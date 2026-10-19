@@ -1,7 +1,10 @@
 [package]
-name = "meter-app"
+name = "glass-cannon"
+description = "A frosted-glass DPS meter overlay for Aion 2"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+authors.workspace = true
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

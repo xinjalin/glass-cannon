@@ -13,6 +13,8 @@ use anyhow::{bail, Context, Result};
 
 pub const OPCODE_BUNDLE: u16 = 0xffff;
 pub const OPCODE_DAMAGE: u16 = 0x3804;
+/// Damage over time (bleeds, burns, poisons…).
+pub const OPCODE_DOT: u16 = 0x3805;
 
 /// The length field counts 4 more bytes than follow it.
 const LENGTH_BIAS: u64 = 4;

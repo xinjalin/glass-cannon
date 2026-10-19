@@ -10,11 +10,12 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use crate::classes;
 use crate::damage::{self, DamageEvent};
 use crate::entities::{Change, Registry};
-use crate::protocol::OPCODE_DAMAGE;
+use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
 
 /// No activity in your fight for this long ends the encounter.
 pub const DEFAULT_IDLE_TIMEOUT_US: u64 = 15_000_000;
@@ -125,7 +126,7 @@ impl Encounter {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SkillRow {
     pub skill: u32,
     /// Display name, filled in by the app from its skill table (None = unknown).
@@ -139,13 +140,15 @@ pub struct SkillRow {
     pub share: f64,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PlayerRow {
     pub id: u64,
     pub name: String,
     pub is_self: bool,
-    /// First two digits of the player's skill IDs; seems to identify the class.
+    /// First two digits of the player's skill IDs, which identify the class.
     pub class_code: Option<u32>,
+    /// e.g. "Chanter".
+    pub class_name: Option<String>,
     pub damage: u64,
     pub dps: f64,
     /// Fraction of everyone's damage.
@@ -155,7 +158,7 @@ pub struct PlayerRow {
     pub skills: Vec<SkillRow>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EncounterView {
     /// Still in combat (not yet idle).
     pub active: bool,
@@ -164,7 +167,16 @@ pub struct EncounterView {
     pub total_dps: f64,
     /// The most-damaged target.
     pub target: Option<String>,
+    /// Its entity ID, and its mob type when known (for looking up a proper name).
+    pub target_id: Option<u64>,
+    pub target_type: Option<u32>,
+    /// Set by the app when its mob data marks the target as a boss.
+    #[serde(default)]
+    pub target_boss: bool,
     pub target_count: usize,
+    /// Capture time of the first and last counted hit (µs since the Unix epoch).
+    pub start_us: u64,
+    pub end_us: u64,
     /// Highest damage first.
     pub players: Vec<PlayerRow>,
 }
@@ -179,8 +191,17 @@ pub struct Snapshot {
     pub encounters_completed: u32,
 }
 
+/// A fight that has ended, as it looked at the end.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct FinishedFight {
+    pub view: EncounterView,
+    pub self_name: Option<String>,
+}
+
 pub struct Meter {
     registry: Registry,
+    /// Fights that ended since the last [`Meter::take_finished`].
+    finished: Vec<FinishedFight>,
     scope: Scope,
     idle_timeout_us: u64,
     current: Option<Encounter>,
@@ -200,6 +221,7 @@ impl Meter {
     pub fn new(idle_timeout_us: u64) -> Self {
         Self {
             registry: Registry::default(),
+            finished: Vec::new(),
             scope: Scope::Mine,
             idle_timeout_us,
             current: None,
@@ -225,8 +247,20 @@ impl Meter {
         self.scope = scope;
     }
 
+    /// Fights that have ended since the last call, oldest first.
+    pub fn take_finished(&mut self) -> Vec<FinishedFight> {
+        std::mem::take(&mut self.finished)
+    }
+
     /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
+        if opcode == OPCODE_DOT {
+            if let Some(ev) = damage::parse_dot(payload) {
+                self.tick(ts_us);
+                self.on_damage(ts_us, &ev);
+            }
+            return;
+        }
         if opcode != OPCODE_DAMAGE {
             if let Some(Change::Relogin { .. }) = self.registry.observe(opcode, payload) {
                 // Entity IDs from the previous login mean nothing now.
@@ -312,6 +346,12 @@ impl Meter {
     pub fn tick(&mut self, now_us: u64) {
         if let Some(enc) = &self.current {
             if now_us.saturating_sub(enc.last_activity_us) > self.idle_timeout_us {
+                if let Some(view) = self.view(enc, false) {
+                    self.finished.push(FinishedFight {
+                        view,
+                        self_name: self.registry.self_name().map(str::to_string),
+                    });
+                }
                 self.last = self.current.take();
                 self.completed += 1;
             }
@@ -376,18 +416,23 @@ impl Meter {
             .collect();
         players.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.id.cmp(&b.id)));
 
-        let target = counted
+        let main_target = counted
             .iter()
             .max_by_key(|(id, t)| (t.total, std::cmp::Reverse(**id)))
-            .map(|(id, _)| self.registry.label(**id));
+            .map(|(id, _)| **id);
 
         Some(EncounterView {
             active,
             duration_s,
             total_damage: total,
             total_dps: total as f64 / duration_s,
-            target,
+            target: main_target.map(|id| self.registry.label(id)),
+            target_id: main_target,
+            target_type: main_target.and_then(|id| self.registry.mob_type(id)),
+            target_boss: false,
             target_count: counted.len(),
+            start_us: first,
+            end_us: last,
             players,
         })
     }
@@ -407,16 +452,14 @@ impl Meter {
             })
             .collect();
         skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
-        let class_code = skills
-            .iter()
-            .find(|s| s.skill >= PLAYER_SKILL_MIN)
-            .map(|s| s.skill / 1_000_000);
+        let class_code = skills.iter().find_map(|s| classes::class_code_of_skill(s.skill));
         skills.truncate(MAX_SKILLS_PER_ROW);
         PlayerRow {
             id,
             name: self.registry.label(id),
             is_self: self.registry.is_self(id),
             class_code,
+            class_name: class_code.and_then(classes::class_name).map(str::to_string),
             damage: p.damage,
             dps: p.damage as f64 / duration_s,
             share: ratio(p.damage, total),
@@ -491,6 +534,7 @@ mod tests {
         let me = e.players.iter().find(|p| p.is_self).unwrap();
         assert_eq!(me.name, "NeneneTowawa");
         assert_eq!((me.damage, me.dps, me.class_code), (10_000, 1000.0, Some(18)));
+        assert_eq!(me.class_name.as_deref(), Some("Chanter"));
         assert_eq!(me.skills[0].skill, 18_040_350);
         assert_eq!(e.players[1].name, "Other");
         assert_eq!(e.players[1].class_code, Some(12));
@@ -581,11 +625,35 @@ mod tests {
         assert!(!ended.encounter.as_ref().unwrap().active);
         assert_eq!(ended.encounter.unwrap().total_damage, 200);
         assert_eq!(ended.encounters_completed, 1);
+        let finished = m.take_finished();
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].view.total_damage, 200);
+        assert_eq!((finished[0].view.start_us, finished[0].view.end_us), (S, 2 * S));
+        assert_eq!(finished[0].self_name.as_deref(), Some("NeneneTowawa"));
+        assert!(m.take_finished().is_empty());
 
         m.feed(30 * S, OPCODE_DAMAGE, &hit(2, ME, 18_010_340, 50));
         let e = m.snapshot().encounter.unwrap();
         assert!(e.active);
         assert_eq!(e.total_damage, 50);
+    }
+
+    #[test]
+    fn dot_ticks_count() {
+        let mut m = meter_as_me();
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 1000));
+        // A tick from us on the dummy: target, flags 0x0a, attacker, unknown, u32, damage, skill.
+        let mut dot = encode_varint(DUMMY);
+        dot.push(0x0a);
+        dot.extend(encode_varint(ME));
+        dot.extend(encode_varint(1));
+        dot.extend(0u32.to_le_bytes());
+        dot.extend(encode_varint(250));
+        dot.extend(18_730_002u32.to_le_bytes());
+        m.feed(2 * S, OPCODE_DOT, &dot);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.total_damage, 1250);
+        assert!(e.players[0].skills.iter().any(|s| s.skill == 18_730_002));
     }
 
     #[test]

@@ -40,6 +40,8 @@ pub struct DamageEvent {
     pub unknown_b: u64,
     /// Every byte was accounted for. False when unknown flag bits add fields we skip.
     pub fully_parsed: bool,
+    /// A damage-over-time tick (opcode 0x3805) rather than a direct hit.
+    pub is_dot: bool,
 }
 
 impl DamageEvent {
@@ -80,11 +82,55 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
         unknown_a,
         unknown_b,
         fully_parsed: false,
+        is_dot: false,
     };
     // Everything up to the damage value is solid. The rest is best effort: if it
     // doesn't line up, keep the event and mark it as not fully parsed.
     ev.fully_parsed = parse_trailer(p, i, flags, &mut ev.parts) && flags & !KNOWN_FLAGS == 0;
     Some(ev)
+}
+
+/// Parses the payload of an opcode 0x3805 message: one damage-over-time tick.
+///
+/// ```text
+/// varint target, u8 flags, varint attacker, varint unknown, u32 unknown_a,
+/// [flags & 0x02: varint damage], [flags & 0x01: varint unknown],
+/// u32 skill (absent on some self-effects)
+/// ```
+///
+/// Worked out from our own captures (997 of 998 parse exactly). The field order differs
+/// from what some other tools assume, so trust the captures over older notes.
+pub fn parse_dot(p: &[u8]) -> Option<DamageEvent> {
+    let mut i = 0;
+    let target = read_varint(p, &mut i)?;
+    let flags = *p.get(i)? as u16;
+    i += 1;
+    let attacker = read_varint(p, &mut i)?;
+    let unknown_b = read_varint(p, &mut i)?;
+    let unknown_a = u32_at(p, &mut i)?;
+    let damage = if flags & 0x02 != 0 {
+        Some(read_varint(p, &mut i)?)
+    } else {
+        None
+    };
+    if flags & 0x01 != 0 {
+        read_varint(p, &mut i)?;
+    }
+    let skill = if p.len() - i >= 4 { u32_at(p, &mut i)? } else { 0 };
+    Some(DamageEvent {
+        target,
+        attacker,
+        flags,
+        skill,
+        seq: 0,
+        hit: 0,
+        damage,
+        parts: Vec::new(),
+        unknown_a,
+        unknown_b,
+        fully_parsed: i == p.len(),
+        is_dot: true,
+    })
 }
 
 fn parse_trailer(p: &[u8], mut i: usize, flags: u16, parts: &mut Vec<u64>) -> bool {
@@ -214,6 +260,34 @@ mod tests {
         .unwrap();
         assert_eq!(ev.damage, Some(1));
         assert!(!ev.fully_parsed);
+    }
+
+    #[test]
+    fn dot_tick() {
+        // Rafaela (15585), a Cleric, ticking 416 damage with skill 17400000.
+        let ev = parse_dot(&hex("9c c0 02 0a e1 79 02 0b 4b b6 67 a0 03 c0 80 09 01")).unwrap();
+        assert_eq!(ev.attacker, 15585);
+        assert_eq!(ev.damage, Some(416));
+        assert_eq!(ev.skill, 17_400_000);
+        assert!(ev.is_dot && ev.fully_parsed);
+    }
+
+    #[test]
+    fn dot_with_extra_field() {
+        // Flag 0x01 adds a varint after the damage.
+        let ev = parse_dot(&hex("ff 18 0b f5 a1 02 e3 0c 13 b7 a3 6f 8f 06 01 12 cc 1d 01")).unwrap();
+        assert_eq!((ev.target, ev.attacker), (3199, 37109));
+        assert_eq!(ev.damage, Some(783));
+        assert_eq!(ev.skill, 18_730_002);
+        assert!(ev.fully_parsed);
+    }
+
+    #[test]
+    fn dot_without_damage_or_skill() {
+        let ev = parse_dot(&hex("f5 a1 02 00 f5 a1 02 01 0a e1 f5 05")).unwrap();
+        assert_eq!(ev.damage, None);
+        assert_eq!(ev.skill, 0);
+        assert!(ev.fully_parsed);
     }
 
     #[test]

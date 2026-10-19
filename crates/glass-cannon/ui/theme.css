@@ -1,0 +1,72 @@
+/* Shared palette for the overlay and settings. The accent comes from the chosen theme;
+   --fs (font size) and --alpha (tint opacity) are set by theme.js from the settings. */
+
+:root,
+[data-theme="rose"] {
+  --accent: #f2a8a4;
+  --accent-2: #f7cdbb;
+  --tint-rgb: 26, 14, 17;
+}
+[data-theme="lavender"] {
+  --accent: #c8b4f7;
+  --accent-2: #e4d9ff;
+  --tint-rgb: 18, 14, 29;
+}
+[data-theme="mint"] {
+  --accent: #94dcb9;
+  --accent-2: #cff2e0;
+  --tint-rgb: 11, 21, 18;
+}
+[data-theme="sky"] {
+  --accent: #95caf3;
+  --accent-2: #d1e7fb;
+  --tint-rgb: 11, 16, 27;
+}
+[data-theme="amber"] {
+  --accent: #f1c073;
+  --accent-2: #f8ddb1;
+  --tint-rgb: 27, 19, 10;
+}
+[data-theme="mono"] {
+  --accent: #dcdcdc;
+  --accent-2: #ffffff;
+  --tint-rgb: 15, 15, 15;
+}
+
+:root {
+  --fs: 13px;
+  --alpha: 0.62;
+  --tint: rgba(var(--tint-rgb), var(--alpha));
+  --tint-strong: rgba(var(--tint-rgb), 0.85);
+  /* Bright text with a soft shadow stays readable over bright game scenes. */
+  --text: #fff7f3;
+  --muted: rgba(255, 247, 243, 0.8);
+  --faint: rgba(255, 247, 243, 0.58);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --line-faint: color-mix(in srgb, var(--accent) 20%, transparent);
+  --ink: #1b0f11;
+  --ok: #a8e6bd;
+  --warn: #f6d38f;
+  --bad: #ff9393;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+}
+
+/* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */
+[data-bars="rose"] { --bar: #f2a8a4; }
+[data-bars="lavender"] { --bar: #c8b4f7; }
+[data-bars="mint"] { --bar: #94dcb9; }
+[data-bars="sky"] { --bar: #95caf3; }
+[data-bars="amber"] { --bar: #f1c073; }
+[data-bars="mono"] { --bar: #dcdcdc; }
+
+/* Class colours (pastel, so dark text on them stays readable). */
+.c11 { --class: #f2b27c; } /* Gladiator */
+.c12 { --class: #f2908a; } /* Templar */
+.c13 { --class: #c6a9f4; } /* Assassin */
+.c14 { --class: #8fd0f2; } /* Ranger */
+.c15 { --class: #8fe0c4; } /* Sorcerer */
+.c16 { --class: #f3a6d1; } /* Elementalist */
+.c17 { --class: #e8dd8c; } /* Cleric */
+.c18 { --class: #abe39c; } /* Chanter */
+.c19 { --class: #f6aa6e; } /* Fighter */
