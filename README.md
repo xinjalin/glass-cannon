@@ -91,8 +91,10 @@ names (about 9,900, with boss and training-dummy flags) from
 meters. Their tables use the same IDs the game sends. That folder stays under those
 projects' GPL-3.0 licence (its `SOURCES.txt` says which commits it came from); game names
 and art belong to NCSOFT. It isn't in this repository: `scripts/package.ps1` downloads it
-fresh for each release with `packet-lab update-data` (`--lang ko|zh-TW|zh-CN` for other
-skill languages), which also fills a local build's `target/release/gamedata`.
+for each release with `packet-lab update-data`, from the upstream commits pinned in
+[scripts/gamedata-pins.json](scripts/gamedata-pins.json), so every build of a version
+ships the same data. The same command (`--lang ko|zh-TW|zh-CN` for other skill
+languages) fills a local build's `target/release/gamedata`.
 
 Skill and mob names you type yourself are saved in `names.json` (below), so a new
 release's data never overwrites them.
@@ -120,9 +122,24 @@ cargo build --release
 target/release/glass-cannon.exe
 ```
 
-`target/release/packet-lab update-data` fetches the game data for a local build.
-`scripts/package.ps1` builds the release zip into `dist/`, downloading the game data
-into it (or `-GameData <folder>` to use one you have).
+`target/release/packet-lab update-data --pins scripts/gamedata-pins.json` fetches the
+game data for a local build (a few seconds; icons download in parallel).
+`scripts/package.ps1` builds the release zip into `dist/` with the pinned game data
+(`-GameDataCache <folder>` keeps the download and reuses it while the pins don't change;
+`-GameData <folder>` uses a folder as it is).
+
+### Updating the game data
+
+The release's game data only changes when you move the pins. To take the latest NOIA2 and
+RATmeter data:
+
+```bash
+target/release/packet-lab update-data --pins scripts/gamedata-pins.json --bump
+```
+
+That updates `scripts/gamedata-pins.json` (and your local `gamedata`); check the meter
+still names skills and mobs, then commit the pins file. CI keeps the downloaded data in
+its cache, keyed on the pins, so builds only download it again after a bump.
 
 ### Releases
 
@@ -131,11 +148,11 @@ and packages every push and pull request; the zip is kept as a build artifact. T
 a release, bump `version` in `Cargo.toml`, commit, then push a matching tag:
 
 ```bash
-git tag v0.2.0
+git tag vX.Y.Z
 ```
 
 ```bash
-git push origin v0.2.0
+git push origin vX.Y.Z
 ```
 
 The workflow then attaches the zip and its checksum to a new GitHub release.

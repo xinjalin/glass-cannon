@@ -17,11 +17,18 @@
 //! `scripts/package.ps1` runs it to put the data in the release zip; run it yourself to
 //! refresh a local build. The folder is never committed, and the meter itself never goes
 //! online.
+//!
+//! Releases use the upstream commits pinned in `scripts/gamedata-pins.json` (`--pins`),
+//! so every build of a version ships the same data; `--bump` moves the pins to the
+//! latest commits. Without `--pins` it takes the latest commits.
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
@@ -54,6 +61,42 @@ const LANGUAGES: [&str; 4] = ["en", "ko", "zh-TW", "zh-CN"];
 const USER_AGENT: &str = concat!("glass-cannon-update/", env!("CARGO_PKG_VERSION"));
 const MAX_JSON: u64 = 8 << 20;
 const MAX_ICON: u64 = 256 << 10;
+/// Icons download this many at a time.
+const ICON_WORKERS: usize = 8;
+
+/// The upstream commits a release's data comes from (`scripts/gamedata-pins.json`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Pins {
+    /// Why this file exists, for whoever opens it.
+    #[serde(default)]
+    pub note: String,
+    /// NOIA2 commit: skill names and icons, class icons, boss lists.
+    pub noia2: String,
+    /// RATmeter commit: English mob names.
+    pub ratmeter: String,
+}
+
+impl Pins {
+    fn read(path: &Path) -> Result<Self> {
+        let bytes = fs::read(path).with_context(|| format!("can't read {}", path.display()))?;
+        let pins: Pins = serde_json::from_slice(&bytes).with_context(|| format!("{} is not valid", path.display()))?;
+        for sha in [&pins.noia2, &pins.ratmeter] {
+            if sha.len() != 40 || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+                bail!("{}: {sha:?} isn't a full commit hash", path.display());
+            }
+        }
+        Ok(pins)
+    }
+
+    fn write(&self, path: &Path) -> Result<()> {
+        let mut json = serde_json::to_string_pretty(self)?;
+        json.push('\n');
+        fs::write(path, json).with_context(|| format!("writing {}", path.display()))
+    }
+}
+
+const PINS_NOTE: &str = "Upstream commits the release's game data comes from. \
+    Bump with: packet-lab update-data --pins scripts/gamedata-pins.json --bump";
 
 /// A `gamedata` folder next to this program, where the overlay (built into the same
 /// folder) looks first.
@@ -84,7 +127,9 @@ fn latest_commit(agent: &ureq::Agent, repo: &str, branch: &str) -> Result<String
     Ok(commit["sha"].as_str().context("no commit SHA in GitHub's reply")?.to_string())
 }
 
-pub fn run(dir: &Path, lang: &str, with_icons: bool) -> Result<()> {
+/// `pins`: take the upstream commits from this file (or, with `bump`, update the file to
+/// the latest ones first). Without it, the latest commits.
+pub fn run(dir: &Path, lang: &str, with_icons: bool, pins: Option<&Path>, bump: bool) -> Result<()> {
     if !LANGUAGES.contains(&lang) {
         bail!("language must be one of {}", LANGUAGES.join(", "));
     }
@@ -92,9 +137,31 @@ pub fn run(dir: &Path, lang: &str, with_icons: bool) -> Result<()> {
         .timeout(Duration::from_secs(30))
         .user_agent(USER_AGENT)
         .build();
-    // Pin one commit per project so everything comes from a consistent snapshot.
-    let sha = latest_commit(&agent, REPO, BRANCH)?;
-    let rat_sha = latest_commit(&agent, RAT_REPO, RAT_BRANCH)?;
+    // One commit per project, so everything comes from a consistent snapshot.
+    let (sha, rat_sha) = match pins {
+        Some(path) if !bump => {
+            let p = Pins::read(path)?;
+            (p.noia2, p.ratmeter)
+        }
+        _ => {
+            let latest = (latest_commit(&agent, REPO, BRANCH)?, latest_commit(&agent, RAT_REPO, RAT_BRANCH)?);
+            if let Some(path) = pins {
+                let new = Pins {
+                    note: PINS_NOTE.to_string(),
+                    noia2: latest.0.clone(),
+                    ratmeter: latest.1.clone(),
+                };
+                let old = Pins::read(path).ok();
+                if old.as_ref().is_some_and(|o| o.noia2 == new.noia2 && o.ratmeter == new.ratmeter) {
+                    println!("progress: pins already at the latest commits");
+                } else {
+                    new.write(path)?;
+                    println!("progress: updated {}", path.display());
+                }
+            }
+            latest
+        }
+    };
     println!("progress: NOIA2 {}, RATmeter {}", &sha[..12], &rat_sha[..12]);
     let src = Source { agent, sha, rat_sha };
 
@@ -144,24 +211,10 @@ fn update_skills(src: &Source, dir: &Path, lang: &str, files: &HashSet<String>) 
     }
     let kept = keep_custom(&dir.join("skills.json"), "skills", &mut skills);
 
-    let mut wanted: Vec<String> = wanted.into_iter().collect();
-    wanted.sort();
-    let (mut fetched, mut failed) = (0, 0);
-    for (i, f) in wanted.iter().enumerate() {
-        let path = dir.join(f);
-        if !path.is_file() {
-            match get_bytes(&src.agent, &src.raw(&format!("{SKILL_ICONS_DIR}/{f}")), MAX_ICON) {
-                Ok(b) if b.starts_with(b"\x89PNG") => {
-                    fs::write(&path, b)?;
-                    fetched += 1;
-                }
-                _ => failed += 1,
-            }
-        }
-        if (i + 1) % 50 == 0 || i + 1 == wanted.len() {
-            println!("progress: skill icons {}/{}", i + 1, wanted.len());
-        }
-    }
+    // Icons already in the folder are kept; the rest download a few at a time.
+    let mut todo: Vec<String> = wanted.into_iter().filter(|f| !dir.join(f).is_file()).collect();
+    todo.sort();
+    let (fetched, failed) = fetch_icons(src, dir, &todo)?;
     let count = skills.len();
     write_json(
         &dir.join("skills.json"),
@@ -169,6 +222,48 @@ fn update_skills(src: &Source, dir: &Path, lang: &str, files: &HashSet<String>) 
     )?;
     println!("progress: {count} skill names ({lang}); {fetched} new icons, {failed} failed, {kept} of your own names kept");
     Ok(count)
+}
+
+/// Downloads skill icons with a few workers. Returns (fetched, failed); a file that
+/// can't be written stops the run.
+fn fetch_icons(src: &Source, dir: &Path, todo: &[String]) -> Result<(usize, usize)> {
+    let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
+    let fetched = AtomicUsize::new(0);
+    let failed = AtomicUsize::new(0);
+    let write_error: Mutex<Option<anyhow::Error>> = Mutex::new(None);
+    thread::scope(|s| {
+        for _ in 0..ICON_WORKERS.min(todo.len()) {
+            s.spawn(|| {
+                while let Some(f) = todo.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    let url = src.raw(&format!("{SKILL_ICONS_DIR}/{f}"));
+                    match get_bytes(&src.agent, &url, MAX_ICON) {
+                        Ok(b) if b.starts_with(b"\x89PNG") => match fs::write(dir.join(f), b) {
+                            Ok(()) => {
+                                fetched.fetch_add(1, Ordering::Relaxed);
+                            }
+                            Err(e) => {
+                                let mut slot = write_error.lock().unwrap_or_else(|e| e.into_inner());
+                                slot.get_or_insert(anyhow::Error::new(e).context(format!("writing {f}")));
+                                break;
+                            }
+                        },
+                        _ => {
+                            failed.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                    let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    if n.is_multiple_of(50) || n == todo.len() {
+                        println!("progress: skill icons {n}/{}", todo.len());
+                    }
+                }
+            });
+        }
+    });
+    if let Some(e) = write_error.into_inner().unwrap_or_else(|e| e.into_inner()) {
+        return Err(e);
+    }
+    Ok((fetched.into_inner(), failed.into_inner()))
 }
 
 fn update_npcs(src: &Source, dir: &Path) -> Result<usize> {
@@ -330,6 +425,23 @@ fn get_json(agent: &ureq::Agent, url: &str) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pins_must_be_full_commit_hashes() {
+        let dir = std::env::temp_dir().join(format!("pins-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("pins.json");
+        let pins = Pins {
+            note: PINS_NOTE.into(),
+            noia2: "00fa90340cd6e33710b7d9bca7f884a15278204a".into(),
+            ratmeter: "57974f81fd64dfca7e0f9d664765607ca20749c9".into(),
+        };
+        pins.write(&file).unwrap();
+        assert_eq!(Pins::read(&file).unwrap(), pins);
+        fs::write(&file, r#"{ "noia2": "main", "ratmeter": "57974f81fd64dfca7e0f9d664765607ca20749c9" }"#).unwrap();
+        assert!(Pins::read(&file).is_err());
+        fs::remove_dir_all(dir).ok();
+    }
 
     #[test]
     fn icon_names_follow_noia2_convention() {

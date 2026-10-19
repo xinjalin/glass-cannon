@@ -158,6 +158,12 @@ enum Cmd {
         /// Where to save (default: a `gamedata` folder next to this program)
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Use the upstream commits pinned in this file (scripts/gamedata-pins.json)
+        #[arg(long)]
+        pins: Option<PathBuf>,
+        /// Move the pins to the latest upstream commits first
+        #[arg(long, requires = "pins")]
+        bump: bool,
     },
     /// Show who was identified: your character, named players, and mob types
     Entities {
@@ -257,12 +263,18 @@ fn run(cli: Cli) -> Result<()> {
             limit,
         ),
         Cmd::Entities { path } => entities_cmd(&path),
-        Cmd::UpdateData { lang, no_icons, out } => {
+        Cmd::UpdateData {
+            lang,
+            no_icons,
+            out,
+            pins,
+            bump,
+        } => {
             let dir = match out {
                 Some(d) => d,
                 None => gamedata::default_dir()?,
             };
-            gamedata::run(&dir, &lang, !no_icons)
+            gamedata::run(&dir, &lang, !no_icons, pins.as_deref(), bump)
         }
         Cmd::Live {
             process,
