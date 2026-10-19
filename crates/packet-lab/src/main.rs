@@ -300,7 +300,7 @@ fn opcodes(path: &Path, side: SideArg) -> Result<()> {
         e.1 += msg.payload.len() as u64;
     }
     let mut rows: Vec<_> = by_op.into_iter().collect();
-    rows.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+    rows.sort_by_key(|r| std::cmp::Reverse(r.1 .0));
     println!("{:>8} {:>8} {:>9}", "opcode", "count", "avg size");
     for (op, (count, bytes)) in rows {
         println!("{op:#08x} {count:>8} {:>9.1}", bytes as f64 / count as f64);
@@ -449,7 +449,7 @@ fn damage_cmd(path: &Path, filter: DamageFilter, limit: usize) -> Result<()> {
 
     println!("\n0x3804 messages: {parsed} parsed, {partial} only partly decoded, {failed} unreadable\n");
     let mut rows: Vec<_> = per_attacker.into_iter().collect();
-    rows.sort_by(|a, b| b.1.total.cmp(&a.1.total));
+    rows.sort_by_key(|r| std::cmp::Reverse(r.1.total));
     println!(
         "{} {:>8} {:>6} {:>11} {:>8} {:>9} {:>9}",
         col("attacker", 20),
@@ -651,7 +651,7 @@ fn entities_cmd(path: &Path) -> Result<()> {
     }
 
     let mut players: Vec<_> = reg.players().collect();
-    players.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+    players.sort_by_cached_key(|p| p.1.to_lowercase());
     println!("players named: {}", players.len());
     for (id, name) in &players {
         let dealt = damage_by.get(id).copied().unwrap_or(0);

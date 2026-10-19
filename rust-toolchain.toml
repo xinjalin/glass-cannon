@@ -1,0 +1,6 @@
+# The toolchain CI and local builds use. Bump it deliberately (new Clippy versions add
+# lints, and CI treats warnings as errors).
+[toolchain]
+channel = "1.93.0"
+components = ["clippy"]
+profile = "minimal"
