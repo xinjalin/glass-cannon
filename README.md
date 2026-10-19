@@ -1,8 +1,9 @@
 # Glass Cannon
 
-A frosted-glass DPS meter overlay for **Aion 2** on Windows. It reads the game's own network traffic
-(passively, through Npcap), so it never touches the game or its memory. No admin rights
-while running, no hidden scheduled tasks, no silent auto-updates, no telemetry.
+A frosted-glass DPS meter overlay for **Aion 2** on Windows. It reads the game's own
+network traffic (passively, through Npcap), so it never touches the game or its memory.
+No admin rights while running, no hidden scheduled tasks, no auto-updates, and it never
+goes online: everything it needs is in the download.
 
 ![The meter during a boss fight](docs/screenshots/overlay.png)
 
@@ -18,33 +19,39 @@ while running, no hidden scheduled tasks, no silent auto-updates, no telemetry.
 
 1. Install [Npcap](https://npcap.com) (once). Leave **"Restrict Npcap driver's access to
    Administrators only"** unticked, so the meter can run without admin rights.
-2. Download `glass-cannon-vX.Y.Z-windows-x64.zip` from
-   [Releases](../../releases) and extract it to a folder you own (for example
-   `Documents\Glass Cannon`, not `Program Files`: the meter keeps its game data next to
-   the exe). The `.sha256` file next to the zip lets you check the download.
+2. Download `glass-cannon-vX.Y.Z-windows-x64.zip` from [Releases](../../releases) and
+   extract it anywhere, for example `Documents\Glass Cannon`. It holds the meter and its
+   game data (skill, class and mob names and icons). The `.sha256` file next to the zip
+   lets you check the download.
 3. Run `glass-cannon.exe`. The exe isn't code-signed, so Windows SmartScreen may warn the
    first time: **More info → Run anyway**.
 
-On first start the meter downloads the game data it needs for skill, class and mob names
-and icons (about 10 MB from GitHub, see [Game data](#game-data)). It needs Windows 10 or
-11 with the WebView2 runtime (built into Windows 11).
+To update, extract a new release over the old folder; your settings, history and the
+names you typed yourself live elsewhere (see below) and stay. It needs Windows 10 or 11
+with the WebView2 runtime (built into Windows 11).
 
 ## Using the meter
 
 The meter opens and starts capturing straight away, waiting for the game if it isn't
 running yet. It's an always-on-top, frosted-glass window (Windows blurs whatever is behind
 it) in a warm rose, monospace style. It opens where you last left it (the first time: at
-the right edge of the game's monitor).
+the right edge of the game's monitor), tall enough for five players; it resizes itself
+to keep five in view when you change the font size, the time bar or minimal mode.
 
-- **mine / all**: your fight (targets you hit, plus everyone's damage on them) or every
-  player fighting nearby.
+- **mine / party / all** (click to cycle; also in settings):
+  - *mine*: your fight, the targets you hit, with everyone's damage on them.
+  - *party*: your party's or group's fight, the targets any of you hit, with only your
+    party's damage. The meter reads the roster the game sends when you join a party or an
+    expedition group; on your own it's just you.
+  - *all*: every player fighting nearby.
 - **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
   skill or the target to name it yourself.
 - **Clock icon**: fight history. Every finished fight is kept (the last 200), with the
   full breakdown. **↺** resets; **pin** toggles always-on-top; **×** quits.
-- **≡** opens the **settings** beside the meter: status (Npcap, game, game data),
-  appearance, show everyone, record fights (applies the next time you open the meter),
-  update game data, fight history and a Desktop/Start-menu shortcut. Esc or × hides it.
+- **≡** opens the **settings** beside the meter (always fully on screen): appearance on
+  the left; status (Npcap, game, game data), whose damage counts, record fights (applies
+  the next time you open the meter), fight history and a Desktop/Start-menu shortcut on
+  the right. The window sizes itself to fit. Esc or × hides it.
 - **Appearance** (saved): theme colour (rose, lavender, mint, sky, amber, mono), font
   size (10–18 px; the layout and the meter bars scale with it, the bars in whole pixels so
   every block and row gap is the same size), highlight just your row or fill every row,
@@ -57,8 +64,8 @@ the right edge of the game's monitor).
   Drag it from anywhere; hover it for **≡** (settings).
 - **Time & ping bar**: an optional strip along the top with the local time and ping.
 - **Ping**: the header (or the time & ping bar) shows your round trip to the game
-  server, measured from the timing of the game's own TCP traffic (the median of the last 10 seconds). No extra
-  packets are sent.
+  server, measured from the timing of the game's own TCP traffic (the median of the last
+  10 seconds). No extra packets are sent.
 - A fight ends after 15 s without action; the last fight stays on screen until the next.
 - **Your character** is recognised the moment you hit a real mob, or at login or a zone
   change. Training dummies don't announce you, so until then the meter shows the name it
@@ -73,27 +80,24 @@ Recordings (with **record fights** on) go to a `captures` folder next to the exe
 
 ### Game data
 
-The meter downloads it on first start; **update game data** in the settings refreshes it.
-From a terminal:
+The release zip has a `gamedata` folder next to the exe: skill names and icons, class
+icons and boss lists from [NOIA2](https://github.com/ZDYoung0519/NOIA2), and English mob
+names (about 9,900, with boss and training-dummy flags) from
+[RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter), two open-source Aion 2
+meters. Their tables use the same IDs the game sends. That folder stays under those
+projects' GPL-3.0 licence (its `SOURCES.txt` says which commits it came from); game names
+and art belong to NCSOFT. It isn't in this repository: `scripts/package.ps1` downloads it
+fresh for each release with `packet-lab update-data` (`--lang ko|zh-TW|zh-CN` for other
+skill languages), which also fills a local build's `target/release/gamedata`.
 
-```bash
-packet-lab update-data
-```
-
-This downloads data from two open-source (GPL-3.0) Aion 2 meters into
-a `gamedata` folder next to the exe: skill names and icons, class icons and boss lists from
-[NOIA2](https://github.com/ZDYoung0519/NOIA2), and English mob names (about 9,900, with
-boss and training-dummy flags) from [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter). Its tables use
-the same IDs the game sends. `--lang ko|zh-TW|zh-CN` picks another language for skills.
-The data stays on your machine and isn't part of this repository or the release zip
-(see [THIRD_PARTY.md](THIRD_PARTY.md)); game names and art belong to NCSOFT. Apart from
-this download the meter never goes online. Names you typed yourself survive updates.
+Skill and mob names you type yourself are saved in `names.json` (below), so a new
+release's data never overwrites them.
 
 If skills show as numbers, the status line says why, and `meter.log` in
 `%APPDATA%\io.github.xinjalin.glass-cannon\` records where the app looked at startup.
-That folder also holds `settings.json`, `profile.json` (your last-seen name) and
-`history.jsonl`. Settings from before the rename (`%APPDATA%\local.aion-meter`) move
-there on first start.
+That folder also holds `settings.json`, `names.json`, `profile.json` (your last-seen
+name) and `history.jsonl`. Settings from before the rename (`%APPDATA%\local.aion-meter`)
+move there on first start.
 
 The terminal version is `packet-lab live`; `packet-lab meter <session>` runs the meter
 over a recording.
@@ -112,7 +116,9 @@ cargo build --release
 target/release/glass-cannon.exe
 ```
 
-`scripts/package.ps1` builds the release zip into `dist/`.
+`target/release/packet-lab update-data` fetches the game data for a local build.
+`scripts/package.ps1` builds the release zip into `dist/`, downloading the game data
+into it (or `-GameData <folder>` to use one you have).
 
 ### Releases
 
@@ -151,6 +157,9 @@ target/release/packet-lab replay captures/<session>/raw.pcap
 
 # Message types in the game stream (bundles unpacked; game connection picked automatically)
 target/release/packet-lab opcodes captures/<session>
+
+# The meter over a recording (--party or --everyone for the other scopes)
+target/release/packet-lab meter captures/<session> --party
 
 # Damage events with names, per-attacker totals and DPS (--mine = only your hits)
 target/release/packet-lab damage captures/<session> --mine
@@ -194,8 +203,9 @@ git-ignored; don't share captures publicly.
 
 - The packet format is worked out from our own captures. Facts learned from the GPL-3.0
   NOIA2 and RATmeter projects (which message carries what) are re-checked against our captures and
-  implemented independently; their code is never copied, and their data is only
-  downloaded at runtime into a local, untracked folder. Nothing from closed-source meters.
+  implemented independently; their code is never copied. Their data ships unchanged
+  (reformatted) in the release's `gamedata` folder under their GPL-3.0 licence, and is
+  never committed here. Nothing from closed-source meters.
 - Reading your own traffic passively doesn't modify the game, but the game's terms may
   still forbid third-party meters. Use at your own account's risk.
 
