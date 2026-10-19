@@ -91,41 +91,38 @@ missing from our totals.
 | C (dummy, skill 18040350) | 11096, 10380, 10336 | 11096, 10380 exact; 10338 (likely misread) |
 | D (mobs hitting you) | 435, 490, 386, 286 | 435, 490, 386 exact; **286 not found** |
 
-## Buffs: opcodes `0x382a` / `0x382b` / `0x382c` (not yet decoded)
+## Buffs: opcodes `0x382a` / `0x382b` / `0x382c` (decoded)
 
-Needed for the buff timeline and the buffs-per-skill table (`meter-core/src/buff.rs`). The
-opcode numbers come from NOIA2; the payload layout has to be worked out from our own
-captures, the same way `0x3804`/`0x3805` were.
+Worked out from our own captures (the dummy session), not from any other meter.
 
-What the meter has to pull out of each message:
+| opcode   | meaning                                                        |
+|----------|----------------------------------------------------------------|
+| `0x382a` | a buff was applied (or a debuff landed)                         |
+| `0x382b` | a buff's state was refreshed (re-sent periodically while active)|
+| `0x382c` | a buff was removed                                              |
 
-- **target** — the entity the effect is on.
-- **buff skill code** — which effect (the same ID space as damage skills).
-- **source** — the entity that applied it (0 or absent for effects with no caster).
-- **apply vs remove** — whether the effect started or ended. A repeated apply while the
-  same effect is still up is a refresh and just extends the span.
+Layout (server → client, after the opcode):
 
-One message probably carries an array of these (a snapshot of active effects), so expect to
-loop over entries rather than one per message.
+```text
+varint  target        the entity the effect is on (confirmed)
+varint  count/flags   usually 1
+varint  …             apply/remove only; refresh skips this field
+varint  buff id       the "abnormal id" (e.g. 1605, 1173, 106478)
+…                     apply/refresh only: more fields, then a fixed `4e a1 01 00 00`,
+                      then the source entity as a varint
+```
 
-Seen in the dummy capture: `0x382a` (928), `0x382b` (2,855) and `0x382c` (423) messages.
-NOIA2 (GPL-3.0, at the pinned commit) ships buff *names* — `abnormal_ids_full.json` and
-`src-tauri/data/buff_templates.json` — which `packet-lab update-data` can fetch like the
-skill names; the facts themselves still need re-checking against our captures.
-
-How to find the layout with `packet-lab`:
-
-1. `packet-lab capture --process AION2` while you (or a party member) apply a short,
-   distinctive self-buff and a debuff on a mob, then wait for each to expire.
-2. `packet-lab opcodes <session>` to confirm what `0x382a`/`0x382b`/`0x382c` each carry
-   (apply, remove, refresh, or a full snapshot).
-3. `packet-lab dump … --side in --pos … --len …` and `packet-lab find <session> <skill id>`
-   to locate the buff's skill code and the source/target entity IDs.
-4. Add a `parse_buff` next to `damage::parse`, route it in `Meter::feed` to
-   `self.buffs.apply` / `self.buffs.remove`, and keep unit tests with the real captured bytes.
-
-Until that decode lands, `BuffTracker` stays empty and the buff timeline / buffs-per-skill
-views simply show nothing — the damage meter and the rotation timeline work regardless.
+- `meter-core/src/buff.rs::parse_buff` extracts **target**, **buff id** and **source**;
+  the remaining fields (duration, stacks, …) are ignored for now — the meter only needs
+  which effect is on which entity, from whom, and for how long.
+- The buff id is a small "abnormal id" (seen: 21…106478), not an 8-digit damage skill.
+  NOIA2 (GPL-3.0, at the pinned commit) maps these to names in `abnormal_ids_full.json` /
+  `src-tauri/data/buff_templates.json`; that name table still needs wiring in like the skill
+  names.
+- The source follows a fixed `4e a1 01 00 00` marker in apply/refresh; remove messages
+  don't carry one, so spans are keyed by `(target, buff id)`.
+- Unit tests use the real captured bytes: apply/refresh/remove on the player, and a debuff
+  applied by another player.
 
 ## Entities
 
@@ -202,7 +199,7 @@ The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Te
 
 - `0x3656`: your combat power (u32 after the opcode).
 - `0x8d00`: remaining HP of an entity (useful for boss HP %).
-- `0x382a` / `0x382b`: buff apply/remove (see the "Buffs" section; layout not yet decoded).
+- `0x382a` / `0x382b` / `0x382c`: buff apply/refresh/remove (decoded — see the "Buffs" section).
 - `0x9101`: field boss timers.
 
 ### Permanent character ID (guess)

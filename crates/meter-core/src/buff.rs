@@ -10,20 +10,72 @@
 //!   of a hit, so [`buff_breakdown`] and [`buff_overlap`] can answer "which buffs were up
 //!   during which skill" without scanning spans for every cast.
 //!
-//! Naming and layout follow this crate's conventions (`_us` timestamps, `u64` entity ids);
-//! the buff opcode payloads themselves are not decoded here (see `docs/protocol.md`).
+//! Naming and layout follow this crate's conventions (`_us` timestamps, `u64` entity ids).
+//! The buff message layout (`0x382a`/`0x382b`/`0x382c`) is decoded here from our own
+//! captures; see `docs/protocol.md`.
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
+use crate::protocol::read_varint;
+
+/// A buff was applied (`0x382a`).
+pub const OPCODE_BUFF_APPLY: u16 = 0x382a;
+/// A buff's state was refreshed (`0x382b`).
+pub const OPCODE_BUFF_REFRESH: u16 = 0x382b;
+/// A buff was removed (`0x382c`).
+pub const OPCODE_BUFF_REMOVE: u16 = 0x382c;
+
 /// A buff's identity: the buff's skill code and the entity that applied it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BuffId {
-    /// The buff's skill code (the same ID space as `damage::DamageEvent::skill`).
+    /// The buff's id (the "abnormal id" the game uses; maps to a name via the game data).
     pub skill: u32,
     /// The entity that applied the effect.
     pub source: u64,
+}
+
+/// One decoded buff change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuffChange {
+    pub target: u64,
+    pub skill: u32,
+    /// The entity that applied it (0 = unknown, e.g. on remove).
+    pub source: u64,
+    /// True for apply/refresh, false for remove.
+    pub applied: bool,
+}
+
+/// Decodes a buff message (apply, refresh or remove) into a [`BuffChange`].
+///
+/// Layout (worked out from our own captures, see `docs/protocol.md`):
+/// `varint target, varint … , varint …, varint buff_id, …` — the buff id is the 4th varint
+/// for apply/remove and the 3rd for refresh. The source (who applied it) follows a fixed
+/// `4e a1 01 00 00` marker in apply/refresh; remove doesn't carry one.
+pub fn parse_buff(opcode: u16, payload: &[u8]) -> Option<BuffChange> {
+    if !matches!(opcode, OPCODE_BUFF_APPLY | OPCODE_BUFF_REFRESH | OPCODE_BUFF_REMOVE) {
+        return None;
+    }
+    let mut i = 0;
+    let target = read_varint(payload, &mut i)?;
+    read_varint(payload, &mut i)?;
+    if opcode != OPCODE_BUFF_REFRESH {
+        read_varint(payload, &mut i)?;
+    }
+    let skill = read_varint(payload, &mut i)? as u32;
+    let applied = opcode != OPCODE_BUFF_REMOVE;
+    let source = if applied { find_source(payload) } else { 0 };
+    Some(BuffChange { target, skill, source, applied })
+}
+
+fn find_source(payload: &[u8]) -> u64 {
+    const MARKER: [u8; 5] = [0x4e, 0xa1, 0x01, 0x00, 0x00];
+    let Some(idx) = payload.windows(MARKER.len()).position(|w| w == MARKER) else {
+        return 0;
+    };
+    let mut i = idx + MARKER.len();
+    read_varint(payload, &mut i).unwrap_or(0)
 }
 
 /// Whether an effect helps its target or hinders it.
@@ -146,19 +198,23 @@ pub struct BuffOverlap {
 /// Tracks effect spans per `(target, id)` as apply/remove messages arrive.
 #[derive(Debug, Clone, Default)]
 pub struct BuffTracker {
-    open: HashMap<(u64, BuffId), BuffSpan>,
+    /// Open spans keyed by `(target, skill)`. A target can only carry one of each buff id,
+    /// so the source isn't part of the key.
+    open: HashMap<(u64, u32), BuffSpan>,
     closed: Vec<BuffSpan>,
 }
 
 impl BuffTracker {
     /// An effect was applied (or refreshed) on `target` at `ts_us`.
     pub fn apply(&mut self, ts_us: u64, target: u64, skill: u32, source: u64) {
-        let id = BuffId { skill, source };
-        match self.open.get_mut(&(target, id)) {
-            Some(span) => span.end_us = ts_us,
+        match self.open.get_mut(&(target, skill)) {
+            Some(span) => {
+                span.end_us = ts_us;
+                span.source = source;
+            }
             None => {
                 self.open.insert(
-                    (target, id),
+                    (target, skill),
                     BuffSpan { start_us: ts_us, end_us: ts_us, skill, target, source },
                 );
             }
@@ -166,9 +222,8 @@ impl BuffTracker {
     }
 
     /// An effect was removed from `target` at `ts_us`.
-    pub fn remove(&mut self, ts_us: u64, target: u64, skill: u32, source: u64) {
-        let id = BuffId { skill, source };
-        if let Some(mut span) = self.open.remove(&(target, id)) {
+    pub fn remove(&mut self, ts_us: u64, target: u64, skill: u32) {
+        if let Some(mut span) = self.open.remove(&(target, skill)) {
             span.end_us = ts_us;
             self.closed.push(span);
         }
@@ -184,7 +239,9 @@ impl BuffTracker {
 
     /// The effects currently open on `target`.
     pub fn active_on(&self, target: u64) -> impl Iterator<Item = BuffId> + '_ {
-        self.open.keys().filter_map(move |(t, id)| (*t == target).then_some(*id))
+        self.open
+            .iter()
+            .filter_map(move |((t, skill), span)| (*t == target).then_some(BuffId { skill: *skill, source: span.source }))
     }
 
     /// Every span for the buff timeline, open spans included (their `end_us` is `now_us`).
@@ -407,12 +464,16 @@ mod tests {
         SkillHit { hit: 2, ..hit(skill, damage, &[], &[]) }
     }
 
+    fn hex(s: &str) -> Vec<u8> {
+        s.split_whitespace().map(|b| u8::from_str_radix(b, 16).unwrap()).collect()
+    }
+
     #[test]
     fn tracker_applies_refreshes_and_removes() {
         let mut t = BuffTracker::default();
         t.apply(10, 100, 1000, 7);
         t.apply(20, 100, 1000, 7); // refresh
-        t.remove(30, 100, 1000, 7);
+        t.remove(30, 100, 1000);
         assert_eq!(
             t.snapshot(99),
             vec![BuffSpan { start_us: 10, end_us: 30, skill: 1000, target: 100, source: 7 }]
@@ -424,7 +485,7 @@ mod tests {
         let mut t = BuffTracker::default();
         t.apply(10, 100, 1000, 7);
         t.apply(15, 100, 1001, 8);
-        t.remove(20, 100, 1001, 8);
+        t.remove(20, 100, 1001);
         let spans = t.snapshot(50);
         assert_eq!(
             spans,
@@ -444,6 +505,39 @@ mod tests {
         let mut ids: Vec<BuffId> = t.active_on(100).collect();
         ids.sort_by_key(|k| k.skill);
         assert_eq!(ids, vec![BuffId { skill: 1000, source: 7 }, BuffId { skill: 1001, source: 8 }]);
+    }
+
+    #[test]
+    fn parses_apply_refresh_and_remove() {
+        // Real captured bytes (target 3199 = the player).
+        let apply = hex(
+            "ff 18 01 11 c5 0c e8 ef ec 0a 00 00 00 00 00 00 00 00 e6 f7 17 4e a1 01 00 00 \
+             ff 18 01 00 7a dc 99 c7 95 c2 04 c8 00 ed 0d 47",
+        );
+        let ev = parse_buff(OPCODE_BUFF_APPLY, &apply).unwrap();
+        assert_eq!((ev.target, ev.skill, ev.source, ev.applied), (3199, 1605, 3199, true));
+
+        let refresh = hex(
+            "ff 18 13 95 09 d3 ff d2 0a 60 09 00 00 00 00 00 00 33 fc 17 4e a1 01 00 00 \
+             ff 18 0a 95 19 15 01 02 7a dc 99 c7 95 c2 04 c8 00 ed 0d 47",
+        );
+        let ev = parse_buff(OPCODE_BUFF_REFRESH, &refresh).unwrap();
+        assert_eq!((ev.target, ev.skill, ev.source, ev.applied), (3199, 1173, 3199, true));
+
+        let remove = hex("ff 18 01 00 c5 0c 01");
+        let ev = parse_buff(OPCODE_BUFF_REMOVE, &remove).unwrap();
+        assert_eq!((ev.target, ev.skill, ev.source, ev.applied), (3199, 1605, 0, false));
+    }
+
+    #[test]
+    fn parses_debuff_from_another_player() {
+        // Real captured bytes: player 13714 debuffs dummy 38937.
+        let apply = hex(
+            "99 b0 02 01 13 ee bf 06 e5 07 5f 0a 10 27 00 00 00 00 00 00 aa 1a 18 4e a1 01 00 00 \
+             92 6b 0a d4 80 09 01 00 c2 0b 95 c7 69 75 01 c8 81 f5 0d 47",
+        );
+        let ev = parse_buff(OPCODE_BUFF_APPLY, &apply).unwrap();
+        assert_eq!((ev.target, ev.skill, ev.source), (38937, 106478, 13714));
     }
 
     #[test]

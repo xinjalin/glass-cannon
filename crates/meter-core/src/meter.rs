@@ -14,8 +14,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use crate::buff::{
-    buff_breakdown, buff_overlap, BuffBreakdown, BuffId, BuffOverlap, BuffSnapshot, BuffSpan,
-    BuffTracker, SkillHit,
+    buff_breakdown, buff_overlap, parse_buff, BuffBreakdown, BuffId, BuffOverlap, BuffSnapshot,
+    BuffSpan, BuffTracker, SkillHit,
 };
 use crate::classes;
 use crate::damage::{self, DamageEvent};
@@ -287,6 +287,14 @@ impl Meter {
 
     /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
+        if let Some(ev) = parse_buff(opcode, payload) {
+            if ev.applied {
+                self.buffs.apply(ts_us, ev.target, ev.skill, ev.source);
+            } else {
+                self.buffs.remove(ts_us, ev.target, ev.skill);
+            }
+            return;
+        }
         if opcode == OPCODE_DOT {
             if let Some(ev) = damage::parse_dot(payload) {
                 self.tick(ts_us);
