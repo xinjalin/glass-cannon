@@ -134,9 +134,11 @@ pub struct AppearanceChange {
     pub theme: Option<String>,
     pub bar_color: Option<String>,
     pub highlight: Option<String>,
-    pub font_size: Option<u8>,
+    /// Any number: out-of-range sizes are clamped rather than refused.
+    pub font_size: Option<i64>,
     pub font: Option<String>,
-    pub opacity: Option<u8>,
+    /// Any number: clamped to 0-100.
+    pub opacity: Option<i64>,
     pub backdrop: Option<String>,
     pub minimal: Option<bool>,
     pub info_bar: Option<bool>,
@@ -158,10 +160,10 @@ impl Appearance {
             self.font = f;
         }
         if let Some(f) = c.font_size {
-            self.font_size = f.clamp(*FONT_SIZES.start(), *FONT_SIZES.end());
+            self.font_size = f.clamp(i64::from(*FONT_SIZES.start()), i64::from(*FONT_SIZES.end())) as u8;
         }
         if let Some(o) = c.opacity {
-            self.opacity = o.min(*OPACITIES.end());
+            self.opacity = o.clamp(i64::from(*OPACITIES.start()), i64::from(*OPACITIES.end())) as u8;
         }
         if let Some(b) = c.backdrop.filter(|b| BACKDROPS.contains(&b.as_str())) {
             self.backdrop = b;
@@ -489,6 +491,13 @@ mod tests {
         assert_eq!(a.font_size, 18);
         assert_eq!(a.font, "");
         assert_eq!(a.opacity, 100);
+        // A stepper that overshoots below zero (the old 62% default, minus 5s) clamps.
+        a.update(AppearanceChange {
+            opacity: Some(-3),
+            font_size: Some(-1),
+            ..AppearanceChange::default()
+        });
+        assert_eq!((a.opacity, a.font_size), (0, 10));
         assert_eq!(a.backdrop, "frosted");
         // An older settings file without appearance gets the defaults.
         let old: Settings = serde_json::from_str(r#"{ "record": true }"#).unwrap();

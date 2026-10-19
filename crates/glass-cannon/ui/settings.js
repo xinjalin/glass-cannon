@@ -166,12 +166,15 @@ for (const b of document.querySelectorAll("[data-backdrop-choice]")) {
 }
 $("font-down").addEventListener("click", () => setAppearance({ fontSize: state.appearance.font_size - 1 }));
 $("font-up").addEventListener("click", () => setAppearance({ fontSize: state.appearance.font_size + 1 }));
-$("opacity-down").addEventListener("click", () =>
-  setAppearance({ opacity: state.appearance.opacity - OPACITY_STEP }),
-);
-$("opacity-up").addEventListener("click", () =>
-  setAppearance({ opacity: state.appearance.opacity + OPACITY_STEP }),
-);
+// The tint moves in steps of 5, snapping to them first (the default is 62), within 0-100.
+$("opacity-down").addEventListener("click", () => {
+  const o = state.appearance.opacity;
+  setAppearance({ opacity: Math.max(OPACITY_MIN, Math.ceil(o / OPACITY_STEP) * OPACITY_STEP - OPACITY_STEP) });
+});
+$("opacity-up").addEventListener("click", () => {
+  const o = state.appearance.opacity;
+  setAppearance({ opacity: Math.min(OPACITY_MAX, Math.floor(o / OPACITY_STEP) * OPACITY_STEP + OPACITY_STEP) });
+});
 for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }
