@@ -14,9 +14,9 @@
 //!   class_11.webp …    class icons, by class code
 //! ```
 //!
-//! Runs only when you ask (from a terminal or "update game data" in the overlay's settings). The
-//! folder sits next to the programs inside `target/`, is never committed, and the overlay
-//! itself never goes online. Names you typed yourself in the overlay are kept.
+//! `scripts/package.ps1` runs it to put the data in the release zip; run it yourself to
+//! refresh a local build. The folder is never committed, and the meter itself never goes
+//! online.
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -305,11 +305,15 @@ fn icon_file(id: &str) -> Option<String> {
 }
 
 fn get_bytes(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
-    let resp = agent
-        .get(url)
-        .set("Accept", "application/vnd.github+json")
-        .call()
-        .with_context(|| format!("downloading {url}"))?;
+    let mut req = agent.get(url).set("Accept", "application/vnd.github+json");
+    // GitHub's API limits anonymous calls per IP, which shared CI machines run into;
+    // use the workflow's token there.
+    if url.starts_with("https://api.github.com/") {
+        if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+            req = req.set("Authorization", &format!("Bearer {token}"));
+        }
+    }
+    let resp = req.call().with_context(|| format!("downloading {url}"))?;
     let mut bytes = Vec::new();
     resp.into_reader().take(limit + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > limit {

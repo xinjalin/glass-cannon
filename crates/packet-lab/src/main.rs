@@ -123,6 +123,9 @@ enum Cmd {
         /// Count every player fighting nearby, not just your targets
         #[arg(long)]
         everyone: bool,
+        /// Count only your party or group (targets any of you hit)
+        #[arg(long, conflicts_with = "everyone")]
+        party: bool,
         /// Stop automatically after this many seconds
         #[arg(long)]
         seconds: Option<u64>,
@@ -136,6 +139,9 @@ enum Cmd {
         /// Count every player fighting nearby, not just your targets
         #[arg(long)]
         everyone: bool,
+        /// Count only your party or group (targets any of you hit)
+        #[arg(long, conflicts_with = "everyone")]
+        party: bool,
         /// Print the final snapshot as JSON (what the overlay receives)
         #[arg(long)]
         json: bool,
@@ -264,14 +270,16 @@ fn run(cli: Cli) -> Result<()> {
             out,
             idle,
             everyone,
+            party,
             seconds,
-        } => live_cmd(process, record, out, idle, everyone, seconds),
+        } => live_cmd(process, record, out, idle, scope(everyone, party), seconds),
         Cmd::Meter {
             path,
             idle,
             everyone,
+            party,
             json,
-        } => meter_cmd(&path, idle, everyone, json),
+        } => meter_cmd(&path, idle, scope(everyone, party), json),
         Cmd::Find { path, value, side } => find(&path, value, side),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
     }
@@ -476,11 +484,17 @@ fn damage_cmd(path: &Path, filter: DamageFilter, limit: usize) -> Result<()> {
     Ok(())
 }
 
-fn new_meter(idle_s: u64, everyone: bool) -> Meter {
-    let mut m = Meter::new(idle_s * 1_000_000);
-    if everyone {
-        m.set_scope(Scope::Everyone);
+fn scope(everyone: bool, party: bool) -> Scope {
+    match (everyone, party) {
+        (true, _) => Scope::Everyone,
+        (_, true) => Scope::Party,
+        _ => Scope::Mine,
     }
+}
+
+fn new_meter(idle_s: u64, scope: Scope) -> Meter {
+    let mut m = Meter::new(idle_s * 1_000_000);
+    m.set_scope(scope);
     m
 }
 
@@ -558,7 +572,7 @@ fn human_num(n: u64) -> String {
     }
 }
 
-fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, everyone: bool, seconds: Option<u64>) -> Result<()> {
+fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, scope: Scope, seconds: Option<u64>) -> Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&stop);
     ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed)).context("installing Ctrl+C handler")?;
@@ -571,7 +585,7 @@ fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, everyone: bo
         record,
         decode: true,
     };
-    let mut meter = new_meter(idle, everyone);
+    let mut meter = new_meter(idle, scope);
     let mut last_render = std::time::Instant::now();
     let mut status = String::from("starting…");
     let mut last_wait = String::new();
@@ -608,9 +622,9 @@ fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, everyone: bo
     Ok(())
 }
 
-fn meter_cmd(path: &Path, idle: u64, everyone: bool, json: bool) -> Result<()> {
+fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool) -> Result<()> {
     let (_, m) = load_messages(path, SideArg::In)?;
-    let mut meter = new_meter(idle, everyone);
+    let mut meter = new_meter(idle, scope);
     let mut seen = 0;
     if json {
         for msg in &m.messages {

@@ -8,7 +8,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use meter_core::meter::{EncounterView, Snapshot};
+use meter_core::meter::{EncounterView, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Fights kept in memory and shown in the history list.
@@ -38,9 +38,12 @@ pub struct Settings {
     /// Also save each session's packets to `captures/`.
     #[serde(default)]
     pub record: bool,
-    /// Count every player fighting nearby, not just your targets.
+    /// Whose damage counts: your targets ("mine"), your party, or everyone nearby.
     #[serde(default)]
-    pub everyone: bool,
+    pub scope: Scope,
+    /// Older settings files: `true` becomes `scope: "everyone"`.
+    #[serde(default, skip_serializing)]
+    everyone: bool,
     #[serde(default)]
     pub appearance: Appearance,
 }
@@ -195,6 +198,9 @@ impl Settings {
     pub fn load(dir: &Path) -> Self {
         let mut s: Settings = load(&dir.join("settings.json"));
         s.appearance = s.appearance.sanitized();
+        if std::mem::take(&mut s.everyone) && s.scope == Scope::Mine {
+            s.scope = Scope::Everyone;
+        }
         s
     }
 
@@ -375,7 +381,8 @@ mod tests {
         .map(|view| Snapshot {
             self_name: self_name.map(str::to_string),
             self_id: Some(3199),
-            scope: meter_core::meter::Scope::Mine,
+            scope: Scope::Mine,
+            party_size: 0,
             encounter: Some(view),
             encounters_completed: 0,
         })
@@ -438,6 +445,16 @@ mod tests {
         let again = Settings::load(&dir);
         assert!(again.record);
         assert_eq!(again.appearance, s.appearance);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn old_show_everyone_becomes_the_everyone_scope() {
+        let dir = temp_dir("scope");
+        fs::write(dir.join("settings.json"), r#"{ "everyone": true }"#).unwrap();
+        assert_eq!(Settings::load(&dir).scope, Scope::Everyone);
+        fs::write(dir.join("settings.json"), r#"{ "scope": "party" }"#).unwrap();
+        assert_eq!(Settings::load(&dir).scope, Scope::Party);
         fs::remove_dir_all(dir).ok();
     }
 

@@ -3,9 +3,8 @@
 //! The overlay opens and starts capturing straight away. A background engine thread
 //! captures the game's traffic (or replays a recording) and feeds the meter; the overlay
 //! polls `snapshot` to draw it. Finished fights go to a local history. The settings
-//! window (status checks, options, game data, shortcuts) opens from the overlay's menu
-//! button. No admin rights and no network access of its own; "update game data" runs
-//! `packet-lab update-data` when you click it.
+//! window (appearance, status checks, meter options, tools) opens from the overlay's menu
+//! button. No admin rights and no network access: the game data ships in the release.
 //!
 //! Options:
 //!   --replay <session folder>   play back a recorded capture
@@ -21,7 +20,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent};
 
 use meter_core::live::{self, LiveEvent, LiveOptions};
 use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIMEOUT_US};
@@ -106,8 +105,8 @@ pub struct AppState {
     overlay_placed: AtomicBool,
     /// Whether the running capture is saving packets (settings changes apply next start).
     recording_now: AtomicBool,
-    /// Game data is being downloaded.
-    downloading: AtomicBool,
+    /// The overlay wasn't restored from last time, so its first fit sets the height exactly.
+    overlay_new: AtomicBool,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -157,11 +156,7 @@ fn snapshot(app: State<'_, Arc<AppState>>) -> View {
         status: lock(&app.engine.status).clone(),
         meter: snap,
         skills_loaded: data.skill_count(),
-        skills_problem: if app.downloading.load(Ordering::SeqCst) {
-            Some("downloading game data…".into())
-        } else {
-            data.problem().map(str::to_string)
-        },
+        skills_problem: data.problem().map(str::to_string),
         name_remembered,
         history_count: history.len(),
         appearance: lock(&app.settings).appearance.clone(),
@@ -196,13 +191,12 @@ fn reset(app: State<'_, Arc<AppState>>) {
     app.engine.meter().reset();
 }
 
+/// Whose damage counts (mine, party or everyone); saved for next time.
 #[tauri::command]
-fn set_everyone(app: State<'_, Arc<AppState>>, everyone: bool) {
-    app.engine
-        .meter()
-        .set_scope(if everyone { Scope::Everyone } else { Scope::Mine });
+fn set_scope(app: State<'_, Arc<AppState>>, scope: Scope) {
+    app.engine.meter().set_scope(scope);
     let mut s = lock(&app.settings);
-    s.everyone = everyone;
+    s.scope = scope;
     s.save(&app.config_dir);
 }
 
@@ -253,7 +247,7 @@ fn start_engine(app: &Arc<AppState>) {
         return;
     }
     let settings = lock(&app.settings).clone();
-    app.engine.meter().set_scope(if settings.everyone { Scope::Everyone } else { Scope::Mine });
+    app.engine.meter().set_scope(settings.scope);
     app.recording_now.store(settings.record && app.args.replay.is_none(), Ordering::SeqCst);
     app.engine.set_status(Phase::Starting, "starting…");
     let state = Arc::clone(app);
@@ -351,6 +345,7 @@ fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
     if !app.overlay_placed.swap(true, Ordering::SeqCst) {
         let state_file = placement::state_path(&app.config_dir);
         if let Some(placed_at) = placement::place(&window, placement::load(&state_file)) {
+            app.overlay_new.store(true, Ordering::SeqCst);
             // Not restored from last time: move to the game's monitor once it starts.
             let w: WebviewWindow = window.clone();
             thread::spawn(move || {
@@ -362,6 +357,37 @@ fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
     }
     window.show()?;
     window.set_focus()?;
+    Ok(())
+}
+
+/// Sets the overlay's height for five rows (the page measures it for the current font
+/// size and layout). `exact` after a layout change; otherwise only ever grows it, so a
+/// taller window you made yourself stays. Keeps the window on its monitor.
+#[tauri::command]
+fn fit_overlay(handle: AppHandle, app: State<'_, Arc<AppState>>, height: f64, exact: bool) -> Result<(), String> {
+    let w = handle.get_webview_window(OVERLAY).ok_or("no overlay")?;
+    let first_run = app.overlay_new.swap(false, Ordering::SeqCst);
+    let scale = w.scale_factor().map_err(|e| e.to_string())?;
+    let now = w.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+    let mut wanted = if exact || first_run { height } else { now.height.max(height) };
+    let monitor = w.current_monitor().ok().flatten();
+    if let Some(m) = &monitor {
+        wanted = wanted.min(m.work_area().size.height as f64 / m.scale_factor() - 20.0);
+    }
+    if (wanted - now.height).abs() < 1.0 {
+        return Ok(());
+    }
+    w.set_size(LogicalSize::new(now.width, wanted)).map_err(|e| e.to_string())?;
+    // A taller window mustn't run off the bottom of the screen.
+    if let (Some(m), Ok(pos)) = (monitor, w.outer_position()) {
+        let area = m.work_area();
+        let bottom = area.position.y + area.size.height as i32;
+        let tall = (wanted * scale).ceil() as i32;
+        if pos.y + tall > bottom {
+            let y = (bottom - tall).max(area.position.y);
+            let _ = w.set_position(PhysicalPosition::new(pos.x, y));
+        }
+    }
     Ok(())
 }
 
@@ -388,11 +414,10 @@ fn main() {
     let args = parse_args();
     let exe_dir = exe_dir();
     let config_dir = config_dir();
-    let data = GameData::load_first(vec![
-        exe_dir.join("gamedata"),
-        exe_dir.join("skills"),
-        config_dir.join("gamedata"),
-    ]);
+    let data = GameData::load(
+        vec![exe_dir.join("gamedata"), exe_dir.join("skills"), config_dir.join("gamedata")],
+        Some(config_dir.join("names.json")),
+    );
     write_startup_log(&config_dir, &data);
 
     let replay = args.replay.is_some();
@@ -417,7 +442,7 @@ fn main() {
         args,
         overlay_placed: AtomicBool::new(false),
         recording_now: AtomicBool::new(false),
-        downloading: AtomicBool::new(false),
+        overlay_new: AtomicBool::new(false),
     });
 
     tauri::Builder::default()
@@ -425,7 +450,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             snapshot,
             reset,
-            set_everyone,
+            set_scope,
             skill_icon,
             class_icon,
             rename_skill,
@@ -435,7 +460,8 @@ fn main() {
             settings::settings_status,
             settings::set_record,
             settings::set_appearance,
-            settings::update_game_data,
+            settings::fit_settings,
+            fit_overlay,
             settings::create_shortcuts,
             settings::open_history,
             settings::toggle_settings,
@@ -446,15 +472,6 @@ fn main() {
             // The meter is the app: start capturing and show it straight away.
             start_engine(&state);
             show_overlay(app.handle())?;
-            // First start: fetch skill and mob names in the background.
-            if lock(&state.data).skill_count() == 0 {
-                let state = Arc::clone(&state);
-                std::thread::spawn(move || {
-                    if let Err(e) = settings::refresh_game_data(&state) {
-                        append_log(&state.config_dir, &format!("game data download failed: {e}"));
-                    }
-                });
-            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -511,10 +528,3 @@ fn write_startup_log(config_dir: &Path, data: &GameData) {
     let _ = std::fs::write(config_dir.join("meter.log"), log);
 }
 
-/// Adds a line to `meter.log`.
-fn append_log(config_dir: &Path, message: &str) {
-    use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(config_dir.join("meter.log")) {
-        let _ = writeln!(f, "{message}");
-    }
-}

@@ -15,6 +15,16 @@ pub const OPCODE_PLAYER_SPAWN: u16 = 0x3645;
 /// A player engaging a mob: carries the player's entity ID and name. Fires on the first
 /// hit of every real fight (not on training dummies), so it names you without a zone change.
 pub const OPCODE_ENGAGE: u16 = 0x8d04;
+/// Your party's full roster, resent whenever someone joins or leaves.
+pub const OPCODE_PARTY_ROSTER: u16 = 0x9200;
+/// You left the party (or it broke up).
+pub const OPCODE_PARTY_LEFT: u16 = 0x9213;
+/// A cross-server group's full roster (expeditions and other matched groups).
+pub const OPCODE_GROUP_ROSTER: u16 = 0x9702;
+/// One member joining that group.
+pub const OPCODE_GROUP_JOIN: u16 = 0x970b;
+/// You left the group.
+pub const OPCODE_GROUP_LEFT: u16 = 0x971d;
 
 /// Bytes between the entity ID and the name length in player/self spawns.
 const SPAWN_NAME_SKIP: usize = 5;
@@ -23,6 +33,10 @@ const MAX_NAME_BYTES: usize = 64;
 const MOB_TYPE_SKIP: usize = 3;
 /// Mob type IDs seen so far are 7 digits. Anything far outside is a layout we don't know.
 const MOB_TYPE_RANGE: std::ops::RangeInclusive<u32> = 100_000..=99_999_999;
+/// Server IDs seen in rosters are 4 digits (1501..2507 so far).
+const SERVER_RANGE: std::ops::RangeInclusive<u16> = 1000..=9999;
+/// Character names in rosters, in bytes.
+const ROSTER_NAME_BYTES: std::ops::RangeInclusive<usize> = 2..=36;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Change {
@@ -32,6 +46,8 @@ pub enum Change {
     Relogin { old_id: u64, new_id: u64 },
     PlayerNamed { id: u64, name: String },
     MobSeen { id: u64, type_id: u32 },
+    /// Your party or group changed; `members` includes you (0 once you leave).
+    PartyChanged { members: usize },
 }
 
 #[derive(Debug, Default, Clone)]
@@ -40,6 +56,8 @@ pub struct Registry {
     self_name: Option<String>,
     players: HashMap<u64, String>,
     mobs: HashMap<u64, u32>,
+    /// Names in your party or group, you included. Empty when you're on your own.
+    party: Vec<String>,
 }
 
 impl Registry {
@@ -60,6 +78,17 @@ impl Registry {
             return self.self_name.as_deref();
         }
         self.players.get(&id).map(String::as_str)
+    }
+
+    /// Names in your party or group (you included), in roster order.
+    pub fn party(&self) -> &[String] {
+        &self.party
+    }
+
+    /// You, or a player whose name is on your party's roster. Rosters carry names, not
+    /// entity IDs, so a member counts once their name is known.
+    pub fn in_party(&self, id: u64) -> bool {
+        self.is_self(id) || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m == n))
     }
 
     pub fn mob_type(&self, id: u64) -> Option<u32> {
@@ -133,6 +162,35 @@ impl Registry {
                 self.players.insert(id, name.clone());
                 Some(Change::PlayerNamed { id, name })
             }
+            OPCODE_PARTY_ROSTER | OPCODE_GROUP_ROSTER => {
+                let members = parse_roster(payload);
+                // A roster without us is someone else's group (a party-finder post).
+                let ours = match &self.self_name {
+                    Some(me) => members.contains(me),
+                    None => !members.is_empty(),
+                };
+                if !ours || members == self.party {
+                    return None;
+                }
+                self.party = members;
+                Some(Change::PartyChanged { members: self.party.len() })
+            }
+            OPCODE_GROUP_JOIN => {
+                let before = self.party.len();
+                for name in parse_roster(payload) {
+                    if !self.party.contains(&name) {
+                        self.party.push(name);
+                    }
+                }
+                (self.party.len() != before).then_some(Change::PartyChanged { members: self.party.len() })
+            }
+            OPCODE_PARTY_LEFT | OPCODE_GROUP_LEFT => {
+                if self.party.is_empty() {
+                    return None;
+                }
+                self.party.clear();
+                Some(Change::PartyChanged { members: 0 })
+            }
             OPCODE_MOB_SPAWN => {
                 let (id, type_id) = parse_mob_spawn(payload)?;
                 if self.mobs.get(&id) == Some(&type_id) {
@@ -150,9 +208,12 @@ impl Registry {
         match self.self_id {
             Some(old) if old == id => None,
             Some(old) => {
-                // Entity IDs are per login, so everything we knew is stale.
+                // Entity IDs are per login, so everything we knew is stale. The party
+                // isn't keyed by entity ID, so it carries over.
+                let party = std::mem::take(&mut self.party);
                 *self = Registry::default();
                 self.self_id = Some(id);
+                self.party = party;
                 Some(Change::Relogin {
                     old_id: old,
                     new_id: id,
@@ -203,6 +264,43 @@ pub fn parse_engage(p: &[u8]) -> Option<(u64, String)> {
         return None;
     }
     Some((id, name.to_string()))
+}
+
+/// Rosters (`0x9200`, `0x9702`, `0x970b`): each member is a u32 character ID, two zero
+/// bytes, a u16 server ID, a u8 length and the UTF-8 name, among other fields we don't
+/// use. Entries aren't at fixed offsets, so this scans for that shape.
+pub fn parse_roster(p: &[u8]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < p.len() {
+        match roster_entry(p, i) {
+            Some((name, end)) => {
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+                i = end;
+            }
+            None => i += 1,
+        }
+    }
+    names
+}
+
+/// A roster entry starting at `i`: the name and where it ends.
+fn roster_entry(p: &[u8], i: usize) -> Option<(String, usize)> {
+    let head = p.get(i..i + 9)?;
+    if head[4..6] != [0, 0] {
+        return None;
+    }
+    let server = u16::from_le_bytes([head[6], head[7]]);
+    let len = head[8] as usize;
+    if !SERVER_RANGE.contains(&server) || !ROSTER_NAME_BYTES.contains(&len) {
+        return None;
+    }
+    let name = std::str::from_utf8(p.get(i + 9..i + 9 + len)?).ok()?;
+    name.chars()
+        .all(char::is_alphanumeric)
+        .then(|| (name.to_string(), i + 9 + len))
 }
 
 /// `0x364a`: varint entity ID (ours), then mostly zeros.
@@ -327,5 +425,58 @@ mod tests {
         assert_eq!(parse_named_spawn(&hex("01 00 00 00 00 00 03 41 00 42")), None);
         assert_eq!(parse_named_spawn(&hex("01 00 00 00 00 00 00")), None);
         assert_eq!(parse_named_spawn(&hex("01 00 00 00 00 00 05 41 42")), None);
+    }
+
+    /// A roster entry as the game writes it: character ID, 00 00, server, name.
+    fn member(char_id: u32, server: u16, name: &str) -> Vec<u8> {
+        let mut p = char_id.to_le_bytes().to_vec();
+        p.extend([0, 0]);
+        p.extend(server.to_le_bytes());
+        p.push(name.len() as u8);
+        p.extend_from_slice(name.as_bytes());
+        // Level, class and other fields follow.
+        p.extend(hex("24 00 00 00 2d 00 00 00 e7 07 00 00"));
+        p
+    }
+
+    fn roster(members: &[(u32, u16, &str)]) -> Vec<u8> {
+        let mut p = hex("08 50 07 14 00 40 d3 24 9a 05 00 00 00 02 01");
+        for (id, server, name) in members {
+            p.extend(hex("c7 09 c7 09 24"));
+            p.extend(member(*id, *server, name));
+        }
+        p
+    }
+
+    #[test]
+    fn parses_roster_names() {
+        let p = roster(&[(173846, 2503, "\u{7c92}\u{5bfb}\u{6b22}"), (182272, 2503, "Pingu"), (253528, 2503, "NeneneTowawa")]);
+        assert_eq!(parse_roster(&p), ["\u{7c92}\u{5bfb}\u{6b22}", "Pingu", "NeneneTowawa"]);
+        assert!(parse_roster(&hex("00 00 00 00 00 00 00 00 00 00")).is_empty());
+    }
+
+    #[test]
+    fn tracks_party_membership() {
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e2 4f 01 20 a2 01 07", "Pingu", ""));
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e3 4f 01 20 a2 01 07", "Stranger", ""));
+        let p = roster(&[(182272, 2503, "Pingu"), (253528, 2503, "NeneneTowawa")]);
+        assert_eq!(r.observe(OPCODE_PARTY_ROSTER, &p), Some(Change::PartyChanged { members: 2 }));
+        assert!(r.in_party(3659));
+        assert!(r.in_party(10210));
+        assert!(!r.in_party(10211));
+        // Someone else's group (without us) is ignored.
+        let other = roster(&[(1, 2507, "Latifa"), (2, 2507, "Kyle")]);
+        assert_eq!(r.observe(OPCODE_GROUP_ROSTER, &other), None);
+        // A member joins, then we leave.
+        assert_eq!(
+            r.observe(OPCODE_GROUP_JOIN, &member(3, 2504, "Stranger")),
+            Some(Change::PartyChanged { members: 3 })
+        );
+        assert!(r.in_party(10211));
+        assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("00 00")), Some(Change::PartyChanged { members: 0 }));
+        assert!(!r.in_party(10210));
+        assert!(r.in_party(3659));
     }
 }

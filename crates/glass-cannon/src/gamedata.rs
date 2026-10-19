@@ -10,9 +10,9 @@
 //!   class_18.webp  class icons, by class code
 //! ```
 //!
-//! `packet-lab update-data` (or "update game data" in the settings) fills it. Names you
-//! type in the overlay are saved to the same files, marked `custom` so updates keep them.
-//! The overlay itself never downloads anything.
+//! The release ships this folder; `packet-lab update-data` builds it. Names you type in
+//! the overlay are kept apart, in `names.json` in the settings folder, so a new release's
+//! data never overwrites them. The app itself never downloads anything.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -39,6 +39,15 @@ struct SkillFile {
     skills: BTreeMap<u32, Entry>,
 }
 
+/// Your own names for skills and mob types (`names.json` in the settings folder).
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct Names {
+    #[serde(default)]
+    skills: BTreeMap<u32, String>,
+    #[serde(default)]
+    npcs: BTreeMap<u32, String>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct NpcFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -61,7 +70,7 @@ struct Entry {
     /// A training dummy (mobs only).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     dummy: bool,
-    /// Named by you in the overlay.
+    /// Named by you in the overlay (older data folders kept your names in here).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     custom: bool,
 }
@@ -69,8 +78,11 @@ struct Entry {
 pub struct GameData {
     /// Folders to look in, in order.
     candidates: Vec<PathBuf>,
-    /// The folder in use (where renames are saved).
+    /// The folder in use.
     dir: PathBuf,
+    /// Where your own names are saved.
+    names_path: Option<PathBuf>,
+    names: Names,
     skills: SkillFile,
     npcs: NpcFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
@@ -79,11 +91,14 @@ pub struct GameData {
 }
 
 impl GameData {
-    /// Loads from the first folder whose skills file has skills in it.
-    pub fn load_first(candidates: Vec<PathBuf>) -> Self {
+    /// Loads from the first folder whose skills file has skills in it, with your own
+    /// names (from `names_path`) on top.
+    pub fn load(candidates: Vec<PathBuf>, names_path: Option<PathBuf>) -> Self {
         let mut d = Self {
             dir: candidates.first().cloned().unwrap_or_default(),
             candidates,
+            names: names_path.as_deref().and_then(|p| read_json(p).ok()).unwrap_or_default(),
+            names_path,
             skills: SkillFile::default(),
             npcs: NpcFile::default(),
             problem: None,
@@ -93,7 +108,12 @@ impl GameData {
         d
     }
 
-    /// Reads the files again (after an update).
+    #[cfg(test)]
+    fn load_first(candidates: Vec<PathBuf>) -> Self {
+        Self::load(candidates, None)
+    }
+
+    /// Reads the files again.
     pub fn reload(&mut self) {
         self.last_attempt = Some(Instant::now());
         let mut problems = Vec::new();
@@ -105,6 +125,8 @@ impl GameData {
                     // Mob names are optional (older folders only have skills).
                     self.npcs = read_json::<NpcFile>(&dir.join(NPCS_FILE)).unwrap_or_default();
                     self.problem = None;
+                    self.adopt_old_custom_names();
+                    self.apply_names();
                     return;
                 }
                 Ok(_) => problems.push(format!("{} has no skills in it", dir.join(SKILLS_FILE).display())),
@@ -176,18 +198,71 @@ impl GameData {
         }
     }
 
-    /// Names a skill (an empty name clears your name). Saved to skills.json.
+    /// Names a skill (an empty name goes back to the data's name). Saved to names.json.
     pub fn rename_skill(&mut self, skill: u32, name: &str) -> Result<()> {
         let name = check_name(name)?;
-        rename(&mut self.skills.skills, skill, name);
-        self.save(SKILLS_FILE, &self.skills)
+        set_or_clear(&mut self.names.skills, skill, name);
+        self.save_names()
     }
 
-    /// Names a mob type. Saved to npcs.json.
+    /// Names a mob type. Saved to names.json.
     pub fn rename_npc(&mut self, type_id: u32, name: &str) -> Result<()> {
         let name = check_name(name)?;
-        rename(&mut self.npcs.npcs, type_id, name);
-        self.save(NPCS_FILE, &self.npcs)
+        set_or_clear(&mut self.names.npcs, type_id, name);
+        self.save_names()
+    }
+
+    fn save_names(&mut self) -> Result<()> {
+        let Some(path) = &self.names_path else {
+            bail!("no settings folder to save names in");
+        };
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        }
+        let tmp = path.with_extension("json.tmp");
+        fs::write(&tmp, serde_json::to_vec_pretty(&self.names)?)?;
+        fs::rename(&tmp, path)?;
+        // Re-read the data so a cleared name falls back to the original.
+        self.reload();
+        Ok(())
+    }
+
+    /// Older versions saved your names inside the data files (marked `custom`). The first
+    /// time there's no names.json, move them over so a new release's data can't lose them.
+    fn adopt_old_custom_names(&mut self) {
+        let Some(path) = &self.names_path else { return };
+        if path.exists() {
+            return;
+        }
+        let custom = |m: &BTreeMap<u32, Entry>| -> BTreeMap<u32, String> {
+            m.iter()
+                .filter(|(_, e)| e.custom && !e.name.is_empty())
+                .map(|(id, e)| (*id, e.name.clone()))
+                .collect()
+        };
+        let (skills, npcs) = (custom(&self.skills.skills), custom(&self.npcs.npcs));
+        if skills.is_empty() && npcs.is_empty() {
+            return;
+        }
+        self.names.skills.extend(skills);
+        self.names.npcs.extend(npcs);
+        if let Ok(json) = serde_json::to_vec_pretty(&self.names) {
+            let _ = fs::write(path, json);
+        }
+    }
+
+    /// Puts your names over the data's.
+    fn apply_names(&mut self) {
+        for (id, name) in &self.names.skills {
+            let e = self.skills.skills.entry(*id).or_default();
+            e.name = name.clone();
+            e.custom = true;
+        }
+        for (id, name) in &self.names.npcs {
+            let e = self.npcs.npcs.entry(*id).or_default();
+            e.name = name.clone();
+            e.custom = true;
+        }
     }
 
     /// A skill's icon as a `data:` URL, so the page needs no file access.
@@ -201,17 +276,6 @@ impl GameData {
         ["webp", "png"]
             .iter()
             .find_map(|ext| self.icon_data_url(&format!("class_{code}.{ext}")))
-    }
-
-    fn save<T: Serialize>(&self, file: &str, value: &T) -> Result<()> {
-        if self.dir.as_os_str().is_empty() {
-            bail!("no game data folder yet");
-        }
-        fs::create_dir_all(&self.dir).with_context(|| format!("creating {}", self.dir.display()))?;
-        let tmp = self.dir.join(format!("{file}.tmp"));
-        fs::write(&tmp, serde_json::to_vec_pretty(value)?)?;
-        fs::rename(&tmp, self.dir.join(file))?;
-        Ok(())
     }
 
     fn icon_data_url(&self, file: &str) -> Option<String> {
@@ -246,22 +310,11 @@ fn check_name(name: &str) -> Result<&str> {
     Ok(name)
 }
 
-fn rename(map: &mut BTreeMap<u32, Entry>, id: u32, name: &str) {
+fn set_or_clear(map: &mut BTreeMap<u32, String>, id: u32, name: &str) {
     if name.is_empty() {
-        match map.get_mut(&id) {
-            // Keep imported details (icon, boss flag); the next update restores the name.
-            Some(e) if e.icon.is_some() || e.boss || e.dummy => {
-                e.name.clear();
-                e.custom = false;
-            }
-            _ => {
-                map.remove(&id);
-            }
-        }
+        map.remove(&id);
     } else {
-        let e = map.entry(id).or_default();
-        e.name = name.to_string();
-        e.custom = true;
+        map.insert(id, name.to_string());
     }
 }
 
@@ -356,17 +409,39 @@ mod tests {
     }
 
     #[test]
-    fn renames_are_saved_and_marked_custom() {
+    fn your_names_live_apart_from_the_data() {
         let dir = temp_dir("rename");
-        fs::write(dir.join(SKILLS_FILE), r#"{ "source": { "x": 1 }, "skills": { "5": { "name": "Imported" } } }"#).unwrap();
-        let mut d = GameData::load_first(vec![dir.clone()]);
+        let names = dir.join("settings").join("names.json");
+        let skills = r#"{ "source": { "x": 1 }, "skills": { "5": { "name": "Imported" } } }"#;
+        fs::write(dir.join(SKILLS_FILE), skills).unwrap();
+        let mut d = GameData::load(vec![dir.clone()], Some(names.clone()));
         d.rename_skill(5, "Mine").unwrap();
         d.rename_npc(2_400_009, "Drana").unwrap();
-        let skills = fs::read_to_string(dir.join(SKILLS_FILE)).unwrap();
-        assert!(skills.contains("\"Mine\"") && skills.contains("\"custom\": true") && skills.contains("\"x\": 1"));
-        let again = GameData::load_first(vec![dir.clone()]);
+        // The data file is untouched; the names survive a fresh copy of it.
+        assert_eq!(fs::read_to_string(dir.join(SKILLS_FILE)).unwrap(), skills);
+        let again = GameData::load(vec![dir.clone()], Some(names.clone()));
         assert_eq!(again.named_npc_count(), 1);
+        assert_eq!(again.skills.skills[&5].name, "Mine");
+        // Clearing goes back to the data's name.
+        d.rename_skill(5, "").unwrap();
+        assert_eq!(d.skills.skills[&5].name, "Imported");
         assert!(d.rename_skill(1, "line\nbreak").is_err());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn old_custom_names_move_to_names_json() {
+        let dir = temp_dir("adopt");
+        let names = dir.join("names.json");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": { "5": { "name": "Typed", "custom": true }, "6": { "name": "Data" } } }"#,
+        )
+        .unwrap();
+        GameData::load(vec![dir.clone()], Some(names.clone()));
+        let saved: Names = read_json(&names).unwrap();
+        assert_eq!(saved.skills.get(&5).map(String::as_str), Some("Typed"));
+        assert!(!saved.skills.contains_key(&6));
         fs::remove_dir_all(dir).ok();
     }
 
