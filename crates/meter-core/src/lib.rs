@@ -3,6 +3,7 @@
 //!
 //! Everything here runs as a normal user. Nothing is sent anywhere.
 
+pub mod buff;
 pub mod classes;
 pub mod conns;
 pub mod damage;
@@ -19,7 +20,6 @@ pub mod reassembly;
 pub mod rtt;
 pub mod recorder;
 pub mod session;
-pub mod timeline;
 mod win;
 
 #[cfg(test)]

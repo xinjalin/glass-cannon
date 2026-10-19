@@ -37,6 +37,23 @@
         "url": "settings.html",
         "alwaysOnTop": true,
         "skipTaskbar": true
+      },
+      {
+        "label": "detail",
+        "title": "Glass Cannon — player detail",
+        "width": 560,
+        "height": 560,
+        "minWidth": 360,
+        "minHeight": 300,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "center": false,
+        "visible": false,
+        "shadow": true,
+        "url": "detail.html",
+        "alwaysOnTop": true,
+        "skipTaskbar": true
       }
     ],
     "security": {

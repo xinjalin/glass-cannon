@@ -91,6 +91,36 @@ missing from our totals.
 | C (dummy, skill 18040350) | 11096, 10380, 10336 | 11096, 10380 exact; 10338 (likely misread) |
 | D (mobs hitting you) | 435, 490, 386, 286 | 435, 490, 386 exact; **286 not found** |
 
+## Buffs: opcodes `0x382a` / `0x382b` (not yet decoded)
+
+Needed for the buff timeline and the buffs-per-skill table (`meter-core/src/buff.rs`). The
+opcode numbers come from NOIA2; the payload layout has to be worked out from our own
+captures, the same way `0x3804`/`0x3805` were.
+
+What the meter has to pull out of each message:
+
+- **target** — the entity the effect is on.
+- **buff skill code** — which effect (the same ID space as damage skills).
+- **source** — the entity that applied it (0 or absent for effects with no caster).
+- **apply vs remove** — whether the effect started or ended. A repeated apply while the
+  same effect is still up is a refresh and just extends the span.
+
+One message probably carries an array of these (a snapshot of active effects), so expect to
+loop over entries rather than one per message.
+
+How to find the layout with `packet-lab`:
+
+1. `packet-lab capture --process AION2` while you (or a party member) apply a short,
+   distinctive self-buff and a debuff on a mob, then wait for each to expire.
+2. `packet-lab opcodes <session>` to confirm which of `0x382a`/`0x382b` is apply vs remove.
+3. `packet-lab dump … --side in --pos … --len …` and `packet-lab find <session> <skill id>`
+   to locate the buff's skill code and the source/target entity IDs.
+4. Add a `parse_buff` next to `damage::parse`, route it in `Meter::feed` to
+   `self.buffs.apply` / `self.buffs.remove`, and keep unit tests with the real captured bytes.
+
+Until that decode lands, `BuffTracker` stays empty and the buff timeline / buffs-per-skill
+views simply show nothing — the damage meter and the rotation timeline work regardless.
+
 ## Entities
 
 Entity IDs are per login (yours was 10397 in one login and 3199 in the next). The same ID
@@ -166,7 +196,7 @@ The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Te
 
 - `0x3656`: your combat power (u32 after the opcode).
 - `0x8d00`: remaining HP of an entity (useful for boss HP %).
-- `0x382a` / `0x382b`: buffs.
+- `0x382a` / `0x382b`: buff apply/remove (see the "Buffs" section; layout not yet decoded).
 - `0x9101`: field boss timers.
 
 ### Permanent character ID (guess)
@@ -216,5 +246,6 @@ and may be the basic attack. Needs a name table from our own observations.
    absorb or a different opcode.
 3. What are `unknown_a`, `unknown_b` and `parts`? Is `parts` a per-tick breakdown or
    something like soul/aggro?
-4. Crit flag: is it in `flags`, `unknown_b`, or the `0x02` block?
+4. Crit/back/front/perfect/double/parry flags: where are they in `0x3804`? Once decoded
+   they feed the rotation timeline (see `meter::RotationEvent`).
 5. Opcodes `0x371d`, `0x3600`, `0x3802` are the most frequent; probably movement/state.

@@ -224,6 +224,11 @@ function drawRows(enc) {
       expanded.has(p.id) ? expanded.delete(p.id) : expanded.add(p.id);
       redraw();
     });
+    // Right-click opens the full breakdown in the detail window.
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      invoke("open_detail", { playerId: p.id }).catch((err) => showError(err));
+    });
     list.append(row);
   });
 }

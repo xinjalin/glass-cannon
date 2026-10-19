@@ -22,8 +22,9 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent};
 
+use meter_core::buff::{BuffBreakdown, BuffSpan};
 use meter_core::live::{self, LiveEvent, LiveOptions};
-use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIMEOUT_US};
+use meter_core::meter::{EncounterView, Meter, RotationEvent, Scope, SkillRow, Snapshot, DEFAULT_IDLE_TIMEOUT_US};
 use meter_core::recorder::Side;
 use meter_core::session;
 
@@ -40,6 +41,7 @@ use store::{Appearance, Fight, FightSummary, History, Profile, Settings};
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
 const SETTINGS: &str = "settings";
+const DETAIL: &str = "detail";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -108,6 +110,8 @@ pub struct AppState {
     recording_now: AtomicBool,
     /// The overlay wasn't restored from last time, so its first fit sets the height exactly.
     overlay_new: AtomicBool,
+    /// The player the detail window is showing.
+    detail_player: Mutex<Option<u64>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -209,6 +213,48 @@ fn history_list(app: State<'_, Arc<AppState>>) -> Vec<FightSummary> {
 #[tauri::command]
 fn history_fight(app: State<'_, Arc<AppState>>, index: usize) -> Option<EncounterView> {
     lock(&app.history).fight(index).map(|f| f.view.clone())
+}
+
+/// What the detail window shows for one player: full skill list, rotation and buffs.
+#[derive(Serialize)]
+struct Detail {
+    name: String,
+    is_self: bool,
+    skills: Vec<SkillRow>,
+    rotation: Vec<RotationEvent>,
+    buffs_per_skill: BuffBreakdown,
+    buff_spans: Vec<BuffSpan>,
+    appearance: Appearance,
+}
+
+/// Opens the detail window for one player and remembers which player it's showing.
+#[tauri::command]
+fn open_detail(handle: AppHandle, app: State<'_, Arc<AppState>>, player_id: u64) -> Result<(), String> {
+    *lock(&app.detail_player) = Some(player_id);
+    let w = handle.get_webview_window(DETAIL).ok_or("no detail window")?;
+    w.show().map_err(|e| e.to_string())?;
+    w.set_focus().map_err(|e| e.to_string())
+}
+
+/// The detail window's data, for the remembered player.
+#[tauri::command]
+fn detail_state(app: State<'_, Arc<AppState>>) -> Option<Detail> {
+    let player_id = (*lock(&app.detail_player))?;
+    let now = app.engine.now();
+    let (name, is_self, mut skills, rotation, buffs_per_skill, buff_spans) = {
+        let meter = app.engine.meter();
+        (
+            meter.registry().label(player_id),
+            meter.registry().is_self(player_id),
+            meter.full_skills(player_id),
+            meter.rotation(player_id),
+            meter.buffs_per_skill(player_id),
+            meter.buff_spans(now),
+        )
+    };
+    lock(&app.data).annotate_skills(&mut skills);
+    let appearance = lock(&app.settings).appearance.clone();
+    Some(Detail { name, is_self, skills, rotation, buffs_per_skill, buff_spans, appearance })
 }
 
 #[derive(Clone)]
@@ -452,6 +498,7 @@ fn main() {
         overlay_placed: AtomicBool::new(false),
         recording_now: AtomicBool::new(false),
         overlay_new: AtomicBool::new(false),
+        detail_player: Mutex::new(None),
     });
 
     tauri::Builder::default()
@@ -466,6 +513,8 @@ fn main() {
             rename_npc,
             history_list,
             history_fight,
+            open_detail,
+            detail_state,
             settings::settings_status,
             settings::set_record,
             settings::set_appearance,
@@ -508,7 +557,7 @@ fn main() {
 
 /// Applies the background effect, corners and border to both windows.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
-    for label in [OVERLAY, SETTINGS] {
+    for label in [OVERLAY, SETTINGS, DETAIL] {
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }

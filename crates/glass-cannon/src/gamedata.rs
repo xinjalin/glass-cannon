@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
-use meter_core::meter::{EncounterView, Snapshot};
+use meter_core::meter::{EncounterView, SkillRow, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 const SKILLS_FILE: &str = "skills.json";
@@ -180,7 +180,20 @@ impl GameData {
     }
 
     pub fn annotate_view(&self, enc: &mut EncounterView) {
-        for row in enc.players.iter_mut().flat_map(|p| p.skills.iter_mut()) {
+        for player in &mut enc.players {
+            self.annotate_skills(&mut player.skills);
+        }
+        if let Some(e) = enc.target_type.and_then(|t| self.npcs.npcs.get(&t)) {
+            if !e.name.is_empty() {
+                enc.target = Some(e.name.clone());
+            }
+            enc.target_boss = e.boss;
+        }
+    }
+
+    /// Fills in skill names and icon keys on a bare list, for the detail window.
+    pub fn annotate_skills(&self, skills: &mut [SkillRow]) {
+        for row in skills {
             if let Some((key, e)) = self.resolve_skill(row.skill) {
                 if !e.name.is_empty() {
                     row.name = Some(e.name.clone());
@@ -189,12 +202,6 @@ impl GameData {
                     row.icon_key = Some(key);
                 }
             }
-        }
-        if let Some(e) = enc.target_type.and_then(|t| self.npcs.npcs.get(&t)) {
-            if !e.name.is_empty() {
-                enc.target = Some(e.name.clone());
-            }
-            enc.target_boss = e.boss;
         }
     }
 

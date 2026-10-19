@@ -13,6 +13,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
+use crate::buff::{
+    buff_breakdown, buff_overlap, BuffBreakdown, BuffId, BuffOverlap, BuffSnapshot, BuffSpan,
+    BuffTracker, SkillHit,
+};
 use crate::classes;
 use crate::damage::{self, DamageEvent};
 use crate::entities::{Change, Registry};
@@ -41,13 +45,18 @@ pub enum Scope {
 }
 
 /// One player hit, reduced to what the meter needs.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Hit {
     ts_us: u64,
     target: u64,
     attacker: u64,
     skill: u32,
     damage: u64,
+    /// 1, 2, 3… within a multi-hit skill; 0 for DoT ticks.
+    hit: u32,
+    is_dot: bool,
+    /// Effects up on the caster and target at this hit (empty until buffs are decoded).
+    buffs: BuffSnapshot,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -105,6 +114,8 @@ struct Encounter {
     targets: HashMap<u64, TargetLog>,
     /// Targets you have hit.
     engaged: HashSet<u64>,
+    /// Every counted hit in order, for the rotation timeline and buff analysis.
+    events: Vec<Hit>,
 }
 
 impl Encounter {
@@ -113,10 +124,12 @@ impl Encounter {
             last_activity_us: ts_us,
             targets: HashMap::new(),
             engaged: HashSet::new(),
+            events: Vec::new(),
         }
     }
 
     fn record(&mut self, h: &Hit) {
+        self.events.push(h.clone());
         let t = self.targets.entry(h.target).or_insert(TargetLog {
             first_us: h.ts_us,
             last_us: h.ts_us,
@@ -160,6 +173,17 @@ pub struct PlayerRow {
     pub hits: u64,
     pub max_hit: u64,
     pub skills: Vec<SkillRow>,
+}
+
+/// One hit in a player's rotation, as sent to the timeline window.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct RotationEvent {
+    pub time_us: u64,
+    pub skill: u32,
+    /// 1, 2, 3… within a multi-hit skill; 0 for DoT ticks.
+    pub hit: u32,
+    pub damage: u64,
+    pub is_dot: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -214,6 +238,8 @@ pub struct Meter {
     last: Option<Encounter>,
     /// Recent player hits outside any encounter, for late joins.
     lookback: VecDeque<Hit>,
+    /// Effect spans, fed by the buff decoder (empty until `0x382a`/`0x382b` are decoded).
+    buffs: BuffTracker,
     completed: u32,
 }
 
@@ -233,6 +259,7 @@ impl Meter {
             current: None,
             last: None,
             lookback: VecDeque::new(),
+            buffs: BuffTracker::default(),
             completed: 0,
         }
     }
@@ -273,6 +300,7 @@ impl Meter {
                 self.current = None;
                 self.last = None;
                 self.lookback.clear();
+                self.buffs = BuffTracker::default();
             }
             return;
         }
@@ -296,12 +324,28 @@ impl Meter {
         // Without knowing who we are yet, every player hit counts.
         let everyone = self.scope == Scope::Everyone || me.is_none();
 
+        // Snapshot the effects up on the caster and target at this instant. Split caster
+        // effects by who applied them: the caster (self) or anyone else (party).
+        let mut self_buffs = Vec::new();
+        let mut party_buffs = Vec::new();
+        for id in self.buffs.active_on(ev.attacker) {
+            if id.source == ev.attacker {
+                self_buffs.push(id);
+            } else {
+                party_buffs.push(id);
+            }
+        }
+        let target_debuffs: Vec<_> = self.buffs.active_on(ev.target).collect();
+
         let hit = Hit {
             ts_us,
             target: ev.target,
             attacker: ev.attacker,
             skill: ev.skill,
             damage: dmg,
+            hit: ev.hit,
+            is_dot: ev.is_dot,
+            buffs: BuffSnapshot { self_buffs, party_buffs, target_debuffs },
         };
 
         // Does this start or continue your fight?
@@ -340,11 +384,12 @@ impl Meter {
             enc.record(&hit);
             return;
         }
+        let ts_us = hit.ts_us;
         self.lookback.push_back(hit);
         while self
             .lookback
             .front()
-            .is_some_and(|h| hit.ts_us.saturating_sub(h.ts_us) > LOOKBACK_US)
+            .is_some_and(|h| ts_us.saturating_sub(h.ts_us) > LOOKBACK_US)
             || self.lookback.len() > LOOKBACK_MAX_EVENTS
         {
             self.lookback.pop_front();
@@ -372,6 +417,7 @@ impl Meter {
         self.current = None;
         self.last = None;
         self.lookback.clear();
+        self.buffs = BuffTracker::default();
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -388,6 +434,85 @@ impl Meter {
             encounter: enc.and_then(|e| self.view(e, active)),
             encounters_completed: self.completed,
         }
+    }
+
+    /// Every skill for one player in the current (or last) fight, with no display cap.
+    pub fn full_skills(&self, player_id: u64) -> Vec<SkillRow> {
+        let Some(enc) = self.encounter() else { return Vec::new() };
+        let mut per_skill: HashMap<u32, SkillStats> = HashMap::new();
+        let mut total_damage = 0u64;
+        for h in enc.events.iter().filter(|h| h.attacker == player_id) {
+            total_damage += h.damage;
+            let s = per_skill.entry(h.skill).or_default();
+            s.damage += h.damage;
+            s.hits += 1;
+            s.max = s.max.max(h.damage);
+        }
+        let mut skills: Vec<SkillRow> = per_skill
+            .iter()
+            .map(|(skill, s)| SkillRow {
+                skill: *skill,
+                name: None,
+                icon_key: None,
+                damage: s.damage,
+                hits: s.hits,
+                max: s.max,
+                share: ratio(s.damage, total_damage),
+            })
+            .collect();
+        skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
+        skills
+    }
+
+    /// A player's hits in order, for the rotation timeline.
+    pub fn rotation(&self, player_id: u64) -> Vec<RotationEvent> {
+        let Some(enc) = self.encounter() else { return Vec::new() };
+        enc.events
+            .iter()
+            .filter(|h| h.attacker == player_id)
+            .map(|h| RotationEvent {
+                time_us: h.ts_us,
+                skill: h.skill,
+                hit: h.hit,
+                damage: h.damage,
+                is_dot: h.is_dot,
+            })
+            .collect()
+    }
+
+    /// Every effect span, open spans included, for the buff timeline.
+    pub fn buff_spans(&self, now_us: u64) -> Vec<BuffSpan> {
+        self.buffs.snapshot(now_us)
+    }
+
+    /// The buffs-per-skill table for one player.
+    pub fn buffs_per_skill(&self, player_id: u64) -> BuffBreakdown {
+        let Some(enc) = self.encounter() else { return BuffBreakdown::default() };
+        buff_breakdown(&self.skill_hits(enc, player_id))
+    }
+
+    /// One effect's overlap with one player's casts.
+    pub fn buff_overlap(&self, player_id: u64, id: BuffId) -> BuffOverlap {
+        let Some(enc) = self.encounter() else { return BuffOverlap::default() };
+        buff_overlap(&self.skill_hits(enc, player_id), id)
+    }
+
+    fn encounter(&self) -> Option<&Encounter> {
+        self.current.as_ref().or(self.last.as_ref())
+    }
+
+    fn skill_hits(&self, enc: &Encounter, player_id: u64) -> Vec<SkillHit> {
+        enc.events
+            .iter()
+            .filter(|h| h.attacker == player_id)
+            .map(|h| SkillHit {
+                skill: h.skill,
+                hit: h.hit,
+                is_dot: h.is_dot,
+                damage: h.damage,
+                buffs: h.buffs.clone(),
+            })
+            .collect()
     }
 
     fn is_player(&self, id: u64, skill: u32) -> bool {
@@ -455,20 +580,7 @@ impl Meter {
     }
 
     fn row(&self, id: u64, p: &PlayerStats, total: u64, duration_s: f64) -> PlayerRow {
-        let mut skills: Vec<SkillRow> = p
-            .skills
-            .iter()
-            .map(|(skill, s)| SkillRow {
-                skill: *skill,
-                name: None,
-                icon_key: None,
-                damage: s.damage,
-                hits: s.hits,
-                max: s.max,
-                share: ratio(s.damage, p.damage),
-            })
-            .collect();
-        skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
+        let mut skills = skill_rows(p);
         let class_code = skills.iter().find_map(|s| classes::class_code_of_skill(s.skill));
         skills.truncate(MAX_SKILLS_PER_ROW);
         PlayerRow {
@@ -485,6 +597,26 @@ impl Meter {
             skills,
         }
     }
+}
+
+/// A player's skills, most damage first, with no display cap. The inline bar truncates to
+/// [`MAX_SKILLS_PER_ROW`]; the detail window uses this full list.
+fn skill_rows(p: &PlayerStats) -> Vec<SkillRow> {
+    let mut skills: Vec<SkillRow> = p
+        .skills
+        .iter()
+        .map(|(skill, s)| SkillRow {
+            skill: *skill,
+            name: None,
+            icon_key: None,
+            damage: s.damage,
+            hits: s.hits,
+            max: s.max,
+            share: ratio(s.damage, p.damage),
+        })
+        .collect();
+    skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
+    skills
 }
 
 fn ratio(part: u64, whole: u64) -> f64 {
@@ -715,5 +847,29 @@ mod tests {
         m.feed(S, OPCODE_DAMAGE, &hit(1, ME, 18_010_340, 100));
         m.reset();
         assert_eq!(m.snapshot().encounter, None);
+    }
+
+    #[test]
+    fn rotation_full_skills_and_buff_breakdown() {
+        let mut m = meter_as_me();
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 3000));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_040_350, 7000));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 1000));
+
+        let rot = m.rotation(ME);
+        assert_eq!(rot.len(), 3);
+        assert_eq!((rot[0].skill, rot[0].damage), (18_010_340, 3000));
+        assert_eq!((rot[2].skill, rot[2].damage), (18_010_340, 1000));
+
+        // Full list has both skills (no top-N truncation), most damage first.
+        let skills = m.full_skills(ME);
+        assert_eq!(skills.len(), 2);
+        assert_eq!((skills[0].skill, skills[0].damage, skills[0].hits), (18_040_350, 7000, 1));
+        assert_eq!((skills[1].skill, skills[1].damage, skills[1].hits), (18_010_340, 4000, 2));
+
+        // Buffs aren't decoded yet, so every skill shows empty coverage, but casts count.
+        let breakdown = m.buffs_per_skill(ME);
+        assert_eq!(breakdown.casts, 3);
+        assert!(breakdown.skills.iter().all(|s| s.always.is_empty() && s.buffs.is_empty() && s.debuffs.is_empty()));
     }
 }
