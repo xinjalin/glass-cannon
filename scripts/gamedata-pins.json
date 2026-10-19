@@ -1,0 +1,5 @@
+{
+  "note": "Upstream commits the release's game data comes from. Bump with: packet-lab update-data --pins scripts/gamedata-pins.json --bump",
+  "noia2": "00fa90340cd6e33710b7d9bca7f884a15278204a",
+  "ratmeter": "57974f81fd64dfca7e0f9d664765607ca20749c9"
+}

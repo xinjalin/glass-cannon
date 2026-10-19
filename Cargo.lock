@@ -2286,6 +2286,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "meter-core",
+ "serde",
  "serde_json",
  "ureq",
 ]

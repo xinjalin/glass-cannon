@@ -3,13 +3,16 @@
 #   ./scripts/package.ps1            build in release mode, then package
 #   ./scripts/package.ps1 -NoBuild   package what's already in target/release
 #
-# The zip is everything the meter needs: the program, the game data (downloaded fresh
-# from its GPL-3.0 sources by packet-lab, with that licence beside it), the docs and the
-# licences. Npcap isn't included; its licence doesn't allow that, and users install it once.
+# The zip is everything the meter needs: the program, the game data (downloaded by
+# packet-lab from its GPL-3.0 sources at the commits pinned in scripts/gamedata-pins.json,
+# with that licence beside it), the docs and the licences. Npcap isn't included; its
+# licence doesn't allow that, and users install it once.
 #
-#   -GameData <folder>   use an existing game data folder instead of downloading one
+#   -GameData <folder>        use an existing game data folder as it is
+#   -GameDataCache <folder>   keep the downloaded data here and reuse it while the pins
+#                             don't change (CI restores this folder from its cache)
 
-param([switch]$NoBuild, [string]$GameData)
+param([switch]$NoBuild, [string]$GameData, [string]$GameDataCache)
 
 $ErrorActionPreference = 'Stop'
 $Name = 'glass-cannon'
@@ -36,11 +39,24 @@ Copy-Item README.md, LICENSE, THIRD_PARTY.md $stage
 
 # Game data: skill, class and mob names and icons, next to the exe where the meter looks.
 $data = Join-Path $stage 'gamedata'
+$pins = Join-Path $Root 'scripts/gamedata-pins.json'
 if ($GameData) {
   Copy-Item -Recurse $GameData $data
 } else {
-  & (Join-Path $Root 'target/release/packet-lab.exe') update-data --out $data
-  if ($LASTEXITCODE -ne 0) { throw 'downloading the game data failed' }
+  $target = if ($GameDataCache) { $GameDataCache } else { $data }
+  # A copy of the pins in the folder records which commits it holds.
+  $stamp = Join-Path $target '.pins.json'
+  $current = (Test-Path $stamp) -and ((Get-Content -Raw $stamp) -eq (Get-Content -Raw $pins))
+  if ($current) {
+    Write-Host "game data: reusing $target (pins unchanged)"
+  } else {
+    if (Test-Path $stamp) { Remove-Item -Force $stamp }
+    & (Join-Path $Root 'target/release/packet-lab.exe') update-data --pins $pins --out $target
+    if ($LASTEXITCODE -ne 0) { throw 'downloading the game data failed' }
+    Copy-Item $pins $stamp
+  }
+  if ($target -ne $data) { Copy-Item -Recurse $target $data }
+  Remove-Item -Force (Join-Path $data '.pins.json')
 }
 foreach ($f in 'skills.json', 'npcs.json') {
   if (-not (Test-Path (Join-Path $data $f))) { throw "game data is missing $f" }
