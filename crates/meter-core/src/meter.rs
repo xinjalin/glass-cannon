@@ -591,6 +591,7 @@ impl Meter {
     }
 
     fn on_damage(&mut self, ts_us: u64, ev: &DamageEvent) {
+        self.registry.observe_hit(ev.attacker, ev.target, ev.skill);
         let Some(dmg) = ev.damage else { return };
         // Heal-over-time ticks carry the amount healed, not damage.
         if ev.is_heal() {
@@ -625,13 +626,20 @@ impl Meter {
             }
             return;
         }
+        // A summon's hits count for its owner. Hits between a player and their own
+        // summons (a spirit's echo on its owner, Spirit Communion) aren't damage.
+        let by = self.registry.credited(ev.attacker);
+        if by == self.registry.credited(ev.target) {
+            return;
+        }
         let me = self.registry.self_id();
-        let by_me = me == Some(ev.attacker);
+        let by_me = me == Some(by);
         let on_me = me == Some(ev.target);
         // In party scope, a party member's hit makes the target yours too.
-        let by_party = self.scope == Scope::Party && self.registry.in_party(ev.attacker);
+        let by_party = self.scope == Scope::Party && self.registry.in_party(by);
         let on_party = self.scope == Scope::Party && self.registry.in_party(ev.target);
-        let player = self.is_player(ev.attacker, ev.skill);
+        // Spirits attack with mob-style skill IDs, so they're players by their owner.
+        let player = by != ev.attacker || self.is_player(ev.attacker, ev.skill);
         // Without knowing who we are yet, every player hit counts.
         let everyone = self.scope == Scope::Everyone || me.is_none();
 
@@ -820,7 +828,10 @@ impl Meter {
         let hits: Vec<TimelineHit> = e
             .hits
             .iter()
-            .filter(|(h, _)| counted.contains(&h.target) && players.contains(&h.attacker))
+            .filter(|(h, _)| {
+                let by = self.registry.credited(h.attacker);
+                counted.contains(&h.target) && players.contains(&by) && by != self.registry.credited(h.target)
+            })
             .map(|(h, first)| {
                 let mut flags = 0;
                 for (on, bit) in [
@@ -838,7 +849,7 @@ impl Meter {
                 }
                 TimelineHit {
                     t: ms(h.ts_us),
-                    player: h.attacker,
+                    player: self.registry.credited(h.attacker),
                     target: h.target,
                     skill: h.skill,
                     cast: h.cast_id,
@@ -938,10 +949,15 @@ impl Meter {
         // Party scope counts only your party's damage (just yours when on your own).
         let party_only = self.scope == Scope::Party && self.registry.self_id().is_some();
         let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
-        for (_, t) in &counted {
+        for (target, t) in &counted {
             for (id, p) in &t.players {
-                if !party_only || self.registry.in_party(*id) {
-                    per_player.entry(*id).or_default().merge(p);
+                // Summons are folded into their owner (also hits from before we knew).
+                let by = self.registry.credited(*id);
+                if by == self.registry.credited(**target) {
+                    continue;
+                }
+                if !party_only || self.registry.in_party(by) {
+                    per_player.entry(by).or_default().merge(p);
                 }
             }
         }
@@ -1595,5 +1611,59 @@ mod tests {
         m.feed(S, OPCODE_DAMAGE, &hit(1, ME, 18_010_340, 100));
         m.reset();
         assert_eq!(m.snapshot().encounter, None);
+    }
+
+    // 20261020-184817: Elementalist 55's spirit 41727 hits the dummy 20644 with 100028,
+    // echoes onto 55 with 16990002, and 55 casts Spirit Communion (16770001) on it.
+    const SPIRIT_HIT: &str = "a4 a1 01 26 00 ff c5 02 bc 86 01 00 16 03 00 00 02 4f a0 98 00 01 00 00 00 c2 63         ee 35 04 99 01 99 01 99 01 99 01 01 00";
+    const SPIRIT_ECHO: &str = "37 04 00 ff c5 02 32 3f 03 01 17 02 93 af 44 65 01 00 00 00 c2 63 14 01 00";
+    const COMMUNION: &str = "ff c5 02 04 00 37 d1 e3 ff 00 68 02 af fd f4 63 01 00 00 00 c2 63 af 04 01 00";
+
+    #[test]
+    fn spirit_damage_counts_for_its_owner() {
+        use crate::entities::tests::hex;
+        let mut m = Meter::default();
+        m.set_scope(Scope::Everyone);
+        // A hit by an owner's own big skill, recorded before the spirit's owner is known.
+        m.feed(0, OPCODE_DAMAGE, &hit(20644, 41727, 16_110_004, 22_000));
+        m.feed(S / 10, OPCODE_DAMAGE, &hex(SPIRIT_ECHO));
+        m.feed(S, OPCODE_DAMAGE, &hex(SPIRIT_HIT));
+        m.feed(2 * S, OPCODE_DAMAGE, &hex(COMMUNION));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(20644, 55, 16_740_001, 3_000));
+
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.players.len(), 1);
+        let owner = &e.players[0];
+        assert_eq!((owner.id, owner.name.as_str()), (55, "#55"));
+        assert_eq!(owner.class_name.as_deref(), Some("Elementalist"));
+        // The echo (20) and Spirit Communion (559) aren't damage.
+        assert_eq!(owner.damage, 22_000 + 6_894 + 3_000);
+        let skills: Vec<u32> = owner.skills.iter().map(|s| s.skill).collect();
+        assert_eq!(skills, [16_110_004, 100_028, 16_740_001]);
+        assert_eq!((e.target_id, e.target_count), (Some(20644), 1));
+
+        let a = m.analysis(4 * S).unwrap();
+        assert_eq!(a.hits.len(), 3);
+        assert!(a.hits.iter().all(|h| h.player == 55));
+    }
+
+    #[test]
+    fn your_spirit_makes_its_target_yours() {
+        use crate::entities::tests::{hex, SPIRIT_SPAWN};
+        let mut m = meter_as_me();
+        // Spirit 21466 belongs to 1802; make that us.
+        let mut spawn = hex(SPIRIT_SPAWN);
+        let at = spawn.windows(2).position(|w| w == [0x8a, 0x0e]).unwrap();
+        spawn.splice(at..at + 2, encode_varint(ME));
+        let tail = spawn.windows(4).position(|w| w == [0x0a, 0x07, 0x00, 0x00]).unwrap();
+        spawn.splice(tail..tail + 4, (ME as u32).to_le_bytes());
+        m.feed(0, hp::OPCODE_MOB_SPAWN, &spawn);
+        assert_eq!(m.registry().owner_of(21466), Some(ME));
+
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, 21466, 100_044, 1_602));
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.players.len(), 1);
+        assert!(e.players[0].is_self);
+        assert_eq!(e.players[0].damage, 1_602);
     }
 }

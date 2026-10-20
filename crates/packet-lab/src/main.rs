@@ -207,7 +207,7 @@ enum Cmd {
     Messages {
         /// A session folder or a flow folder
         path: PathBuf,
-        /// Opcode in hex, e.g. 8d00
+        /// Opcode in hex, e.g. 8d00, or "all" for every message (with its opcode)
         opcode: String,
         #[arg(long, value_enum, default_value = "in")]
         side: SideArg,
@@ -1265,17 +1265,23 @@ fn hp_cmd(path: &Path, on: Option<u64>, limit: usize) -> Result<()> {
 }
 
 fn messages_cmd(path: &Path, opcode: &str, side: SideArg, limit: usize) -> Result<()> {
-    let op = u16::from_str_radix(opcode.trim_start_matches("0x"), 16)
-        .with_context(|| format!("{opcode} is not a hex opcode"))?;
+    let op = match opcode {
+        "all" => None,
+        _ => Some(
+            u16::from_str_radix(opcode.trim_start_matches("0x"), 16)
+                .with_context(|| format!("{opcode} is not a hex opcode"))?,
+        ),
+    };
     let (_, m) = load_messages(path, side)?;
     let start = m.messages.first().map_or(0, |x| x.ts_us);
-    for (shown, msg) in m.messages.iter().filter(|x| x.opcode == op).enumerate() {
+    for (shown, msg) in m.messages.iter().filter(|x| op.is_none_or(|op| x.opcode == op)).enumerate() {
         if shown == limit {
             println!("…");
             break;
         }
         let t = msg.ts_us.saturating_sub(start) as f64 / 1e6;
-        println!("{t:9.3}  {:>4}  {}", msg.payload.len(), hex(&msg.payload));
+        let tag = if op.is_none() { format!("{:04x}  ", msg.opcode) } else { String::new() };
+        println!("{t:9.3}  {tag}{:>4}  {}", msg.payload.len(), hex(&msg.payload));
     }
     Ok(())
 }
