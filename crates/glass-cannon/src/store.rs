@@ -3,6 +3,7 @@
 //! - `settings.json`  settings choices (record fights, show everyone)
 //! - `profile.json`   your character's last-seen name and class
 //! - `history.jsonl`  finished fights, one per line (newest last)
+//! - `players.json`   names of players seen this login, for when the meter restarts
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -46,7 +47,16 @@ pub struct Settings {
     everyone: bool,
     #[serde(default)]
     pub appearance: Appearance,
+    /// How often the overlay redraws, in milliseconds: one of [`REFRESH_RATES`].
+    #[serde(default)]
+    pub refresh_ms: u32,
+    /// Click-through: the meter ignores the mouse except for its lock button.
+    #[serde(default)]
+    pub locked: bool,
 }
+
+pub const REFRESH_RATES: [u32; 4] = [200, 500, 1000, 2000];
+pub const DEFAULT_REFRESH_MS: u32 = 500;
 
 pub const THEMES: [&str; 6] = ["rose", "lavender", "mint", "sky", "amber", "mono"];
 pub const HIGHLIGHTS: [&str; 2] = ["self", "all"];
@@ -214,11 +224,45 @@ impl Settings {
         if std::mem::take(&mut s.everyone) && s.scope == Scope::Mine {
             s.scope = Scope::Everyone;
         }
+        if !REFRESH_RATES.contains(&s.refresh_ms) {
+            s.refresh_ms = DEFAULT_REFRESH_MS;
+        }
         s
     }
 
     pub fn save(&self, dir: &Path) {
         save(&dir.join("settings.json"), self);
+    }
+}
+
+/// How long remembered player names stay usable. Entity IDs only last a login; this
+/// just stops a very old file from being trusted if your own ID ever came round again.
+const KNOWN_PLAYERS_MAX_AGE_MS: u64 = 12 * 60 * 60 * 1000;
+
+/// Players named during this login. The game names a player only when they come into
+/// view (or you change zone), so without this a restarted meter would show everyone
+/// already around you as a number.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct KnownPlayers {
+    /// Your entity ID when these were seen: entity IDs only hold within one login.
+    pub self_id: u64,
+    pub saved_ms: u64,
+    pub players: std::collections::BTreeMap<u64, String>,
+}
+
+impl KnownPlayers {
+    pub fn load(dir: &Path) -> Self {
+        load(&dir.join("players.json"))
+    }
+
+    pub fn save(&self, dir: &Path) {
+        save(&dir.join("players.json"), self);
+    }
+
+    /// The names, if they're from the login you're in (same entity ID, not too old).
+    pub fn for_login(self, self_id: u64, now_ms: u64) -> Option<std::collections::BTreeMap<u64, String>> {
+        let fresh = now_ms.saturating_sub(self.saved_ms) <= KNOWN_PLAYERS_MAX_AGE_MS;
+        (self.self_id == self_id && fresh && !self.players.is_empty()).then_some(self.players)
     }
 }
 
@@ -457,6 +501,37 @@ mod tests {
             encounters_completed: 0,
         })
         .unwrap()
+    }
+
+    #[test]
+    fn known_players_only_come_back_for_the_same_login() {
+        let dir = temp_dir("players");
+        assert_eq!(KnownPlayers::load(&dir).for_login(3199, 0), None);
+        let k = KnownPlayers {
+            self_id: 3199,
+            saved_ms: 1_000_000,
+            players: [(15772, "Pingu".to_string())].into(),
+        };
+        k.save(&dir);
+        let names = KnownPlayers::load(&dir).for_login(3199, 1_000_000 + 60_000).unwrap();
+        assert_eq!(names.get(&15772).map(String::as_str), Some("Pingu"));
+        // A new login gives you a new entity ID; their IDs changed too.
+        assert_eq!(KnownPlayers::load(&dir).for_login(4100, 1_060_000), None);
+        // Too old to trust.
+        assert_eq!(KnownPlayers::load(&dir).for_login(3199, 1_000_000 + KNOWN_PLAYERS_MAX_AGE_MS + 1), None);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn missing_or_odd_refresh_rates_become_the_default() {
+        let dir = temp_dir("refresh");
+        assert_eq!(Settings::load(&dir).refresh_ms, DEFAULT_REFRESH_MS);
+        fs::write(dir.join("settings.json"), r#"{ "refresh_ms": 7, "locked": true }"#).unwrap();
+        let s = Settings::load(&dir);
+        assert_eq!((s.refresh_ms, s.locked), (DEFAULT_REFRESH_MS, true));
+        fs::write(dir.join("settings.json"), r#"{ "refresh_ms": 2000 }"#).unwrap();
+        assert_eq!(Settings::load(&dir).refresh_ms, 2000);
+        fs::remove_dir_all(dir).ok();
     }
 
     #[test]

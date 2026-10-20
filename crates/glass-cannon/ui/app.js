@@ -1,4 +1,5 @@
-// Glass Cannon overlay. Polls the engine twice a second and redraws.
+// Glass Cannon overlay. Polls the engine (twice a second by default; settings → update
+// rate) and redraws.
 // Player and mob names come from network traffic, so everything is set with
 // textContent, never innerHTML.
 
@@ -6,7 +7,7 @@ const tauri = window.__TAURI__;
 const invoke = tauri.core.invoke;
 const win = tauri.window.getCurrentWindow();
 
-const POLL_MS = 500;
+const DEFAULT_POLL_MS = 500;
 const SEGMENTS = 12; // blocks in each meter bar
 const FIT_ROWS = 5; // the window's default height shows this many players
 const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
@@ -454,11 +455,18 @@ async function refresh() {
     applyAppearance(lastView.appearance);
     snapSizes();
     fitHeight(lastView.appearance);
+    drawLock(lastView.locked);
     if (mode === "list") await drawList();
     redraw();
   } catch (e) {
     showError(e);
   }
+}
+
+// Polls at the rate chosen in the settings, read from each snapshot.
+async function poll() {
+  await refresh();
+  setTimeout(poll, (lastView && lastView.refresh_ms) || DEFAULT_POLL_MS);
 }
 
 // ---------------------------------------------------------------- controls
@@ -483,6 +491,16 @@ $("history").addEventListener("click", async () => {
   else mode = "live";
   redraw();
 });
+
+// Ends the live fight now instead of waiting for it to go quiet.
+async function endFight() {
+  expanded.clear();
+  mode = "live";
+  await invoke("end_fight");
+  refresh();
+}
+$("end-fight").addEventListener("click", endFight);
+$("f-end-fight").addEventListener("click", endFight);
 
 $("reset").addEventListener("click", async () => {
   expanded.clear();
@@ -534,6 +552,37 @@ $("pin").addEventListener("click", async () => {
   await win.setAlwaysOnTop(pinned);
 });
 
+// ---------------------------------------------------------------- lock (click-through)
+
+let locked = false;
+function drawLock(on) {
+  locked = on;
+  document.documentElement.classList.toggle("locked", on);
+  $("lock").title = on
+    ? "Locked: clicks go through to the game. Click to unlock"
+    : "Lock: let clicks through to the game (this button stays clickable)";
+  reportLockRect();
+}
+
+// The app keeps the lock button clickable while the rest lets clicks through, so it
+// needs to know where the button is (in device pixels from the page's top left).
+let lockRectKey = "";
+function reportLockRect() {
+  const r = $("lock").getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const rect = { x: r.left * dpr, y: r.top * dpr, width: r.width * dpr, height: r.height * dpr };
+  const key = Object.values(rect).map(Math.round).join(",");
+  if (key === lockRectKey) return;
+  lockRectKey = key;
+  invoke("lock_button_rect", { rect }).catch(() => {});
+}
+new ResizeObserver(reportLockRect).observe(document.documentElement);
+
+$("lock").addEventListener("click", async () => {
+  await invoke("set_locked", { locked: !locked });
+  refresh();
+});
+
 $("min").addEventListener("click", () => win.minimize());
 $("close").addEventListener("click", () => win.close());
 
@@ -549,5 +598,4 @@ tauri.event.listen("show-history", async () => {
   redraw();
 });
 
-refresh();
-setInterval(refresh, POLL_MS);
+poll();

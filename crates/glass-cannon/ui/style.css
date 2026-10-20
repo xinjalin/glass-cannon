@@ -386,7 +386,8 @@ legend {
 .minimal #bar,
 .minimal legend,
 .minimal #total { display: none; }
-.minimal #panel { gap: 0.3em; padding: 0.4em 0.45em; }
+/* The bottom padding leaves room for the lock button under the last row. */
+.minimal #panel { gap: 0.3em; padding: 0.4em 0.45em 1.25em; }
 .minimal #info { margin: -0.2em 0 0; border-bottom: 0; }
 .minimal .box { padding: 0; border: 0; }
 .minimal #totals { padding: 0 0.35em 0.1em; margin-bottom: 0.1em; border-bottom: 0; }
@@ -405,6 +406,36 @@ legend {
   transition: opacity 0.15s ease;
 }
 .minimal body:hover #float { opacity: 1; }
+
+/* ---------------------------------------------------------------- lock (click-through) */
+
+/* Bottom-right corner. Always laid out (never display: none), so its position can be
+   reported to the app, which keeps it clickable while the rest lets clicks through. */
+#lock {
+  position: fixed;
+  right: 0.2em;
+  bottom: 0.15em;
+  z-index: 10;
+  min-width: 0;
+  width: 1.45em;
+  height: 1.3em;
+  padding: 0;
+  font-size: 0.85em;
+  background: var(--tint-strong);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+#lock svg { width: 1em; height: 1em; }
+#lock .shut { display: none; }
+body:hover #lock { opacity: 0.8; }
+#lock:hover { opacity: 1; }
+.locked #lock { opacity: 0.55; color: var(--accent); }
+.locked #lock:hover { opacity: 1; }
+.locked #lock .open { display: none; }
+.locked #lock .shut { display: block; }
+/* Nothing else reacts while locked (the window doesn't get the mouse anyway, except
+   over the lock, but hover styles could stick from just before). */
+.locked #float { opacity: 0 !important; }
 
 ::-webkit-scrollbar { width: 0.4em; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
