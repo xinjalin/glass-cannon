@@ -633,7 +633,7 @@ function drawSkills() {
   add("double", pct(p.double, p.hits));
 
   const head = el("tr");
-  head.append(th("skill", "name", true));
+  head.append(th("skill", "name", true), th("spec"));
   for (const [label, key] of SKILL_COLUMNS) head.append(th(label, key));
   table.append(head);
   const col = SKILL_COLUMNS.find((c) => c[1] === sort.key);
@@ -649,11 +649,14 @@ function drawSkills() {
     const tr = el("tr");
     const who = el("td", "left");
     const cell = el("div", "cell-name");
-    cell.title = `skill ${id}`;
+    cell.dataset.skill = id;
     cell.append(iconOrBlank(skillIconUrl(id), ""), el("span", "", skillName(id)));
     who.append(cell);
+    const spec = el("td", "muted", specText(id));
+    spec.dataset.skill = id;
     tr.append(
       who,
+      spec,
       barCell(fmt(s.damage), s.damage / top),
       el("td", "", pct(s.damage, p.damage)),
       el("td", "", String(s.casts)),
@@ -806,7 +809,8 @@ function drawFlow(kind) {
       const tr = el("tr");
       const who = el("td", "left");
       const cell = el("div", "cell-name");
-      cell.title = String(key);
+      if (iconOf) cell.dataset.skill = key;
+      else cell.title = String(key);
       if (iconOf) cell.append(iconOrBlank(iconOf(key), ""));
       cell.append(el("span", "", labelOf(key)));
       who.append(cell);
@@ -955,7 +959,7 @@ function drawOpener() {
     const step = el("span", "step");
     if (i) step.append(document.createTextNode("›"));
     const icon = iconOrBlank(skillIconUrl(c.skill), "");
-    icon.title = `${skillName(c.skill)} · ${clock(c.t)} · ${fmt(c.damage)}`;
+    icon.dataset.skill = c.skill;
     step.append(icon);
     box.append(step);
   });
@@ -1033,6 +1037,7 @@ function drawRotation() {
   if (hit) {
     const { c } = hit;
     tip.replaceChildren(el("div", "t-head", `${skillName(c.skill)} · ${clock(c.t)}`));
+    if (specText(c.skill)) tip.append(el("div", "t-row muted", `specialties ${specText(c.skill)}`));
     const row = (a, b) => {
       const r = el("div", "t-row");
       r.append(el("span", "", a), el("span", "", b));
@@ -1247,6 +1252,7 @@ function drawBuffsPerSkill() {
   for (const [id, s] of skills.slice(0, 18)) {
     const card = el("div", "card");
     const head = el("div", "card-head");
+    head.dataset.skill = id;
     head.append(iconOrBlank(skillIconUrl(id), ""), el("span", "name", skillName(id)), el("span", "share", pct(s.damage, p.damage)));
     card.append(head, el("div", "sub", `${s.castTimes.length} casts · ${fmt(s.damage)}`));
     const rows = list.map((lane) => ({ lane, share: s.castTimes.filter((t) => up(lane, t)).length / s.castTimes.length })).filter((r) => r.share > 0);
@@ -1574,6 +1580,118 @@ $("copy-image").addEventListener("click", async () => {
   } catch (e) {
     sayCopied(`couldn't copy: ${e}`);
   }
+});
+
+// ---------------------------------------------------------------- skill tooltips
+
+// What the skill data says about a class skill (null when there's nothing).
+const skillInfo = (id) => (data && data.skill_details && data.skill_details[id]) || null;
+
+// The specialty a spec entry is (1-5, its position in the skill's list).
+const specNumber = (spec) => Math.floor((spec.id % 10000) / 10);
+
+// "3 · 4": the specialties a skill ID shows were chosen ("–" for none, "" for no data).
+function specText(id) {
+  const d = skillInfo(id);
+  if (!d) return "";
+  return d.chosen.length ? d.chosen.join(" · ") : "–";
+}
+
+const seconds = (v) => `${Number(v.toFixed(1))}s`;
+// One number, or [level 1, top level] when it changes with the skill's level.
+function byLevel(v, unit, maxLevel) {
+  if (v == null) return null;
+  if (Array.isArray(v)) return `${unit(v[0])} → ${unit(v[1])} (lv 1 → ${maxLevel || "max"})`;
+  return unit(v);
+}
+
+function buildSkillTip(id) {
+  const tip = $("skill-tip");
+  tip.replaceChildren();
+  const d = skillInfo(id);
+  const head = el("div", "st-head");
+  head.append(iconOrBlank(skillIconUrl(id), ""));
+  const title = el("div", "st-title");
+  title.append(el("div", "st-name", skillName(id)));
+  const kind = d ? [d.class, d.subtype || d.type, d.weapon].filter(Boolean).join(" · ") : "";
+  title.append(el("div", "st-kind", kind || `skill ${id}`));
+  head.append(title);
+  tip.append(head);
+
+  if (d) {
+    const facts = [
+      ["cooldown", byLevel(d.cooldown_s, seconds, d.max_level)],
+      ["cast", byLevel(d.cast_s, seconds, d.max_level)],
+      ["MP", byLevel(d.mp, (n) => fmt(n), d.max_level)],
+      ["range", d.range],
+    ].filter(([, v]) => v);
+    if (facts.length) {
+      const line = el("div", "st-facts");
+      for (const [k, v] of facts) {
+        const f = el("span");
+        f.append(el("span", "k", `${k} `), document.createTextNode(v));
+        line.append(f);
+      }
+      tip.append(line);
+    }
+    if (d.properties) tip.append(el("div", "st-props", d.properties.split(" | ").join(" · ")));
+    if (d.desc) tip.append(el("div", "st-desc", d.desc));
+    if (d.desc_max) tip.append(el("div", "st-desc st-max", `at level ${d.max_level || "max"}: ${d.desc_max}`));
+    if (d.specs && d.specs.length) {
+      tip.append(el("div", "st-group", d.chosen.length ? "SPECIALTIES (✓ = chosen)" : "SPECIALTIES (none chosen)"));
+      for (const spec of d.specs) {
+        const n = specNumber(spec);
+        const chosen = d.chosen.includes(n);
+        const row = el("div", `st-spec${chosen ? " on" : ""}`);
+        row.append(el("span", "st-mark", chosen ? "✓" : String(n)), el("span", "", spec.desc));
+        if (spec.unlock) row.append(el("span", "st-unlock", `lv ${spec.unlock}`));
+        tip.append(row);
+      }
+    }
+  }
+
+  // From this fight: how often the selected player cast it.
+  const s = selectedPlayer() && selectedPlayer().skills.get(id);
+  if (s && s.castTimes.length) {
+    const t = s.castTimes;
+    let shortest = Infinity;
+    for (let i = 1; i < t.length; i++) shortest = Math.min(shortest, t[i] - t[i - 1]);
+    const parts = [`${t.length} cast${t.length === 1 ? "" : "s"}`];
+    if (shortest < Infinity) parts.push(`shortest gap ${gap(shortest)}`);
+    tip.append(el("div", "st-measured", `this fight: ${parts.join(" · ")}`));
+  }
+  tip.append(el("div", "st-note", d ? "The game doesn't send skill levels, so descriptions show level 1." : `skill ${id}: no details in the game data`));
+}
+
+// Any element with data-skill shows the tooltip while the pointer is on it.
+let tipFor = null;
+document.addEventListener("mouseover", (e) => {
+  const host = e.target.closest("[data-skill]");
+  if (!host) return;
+  const id = Number(host.dataset.skill);
+  if (tipFor !== id) {
+    tipFor = id;
+    buildSkillTip(id);
+  }
+  $("skill-tip").hidden = false;
+});
+document.addEventListener("mouseout", (e) => {
+  const host = e.target.closest("[data-skill]");
+  if (host && !host.contains(e.relatedTarget)) {
+    $("skill-tip").hidden = true;
+    tipFor = null;
+  }
+});
+document.addEventListener("mousemove", (e) => {
+  const tip = $("skill-tip");
+  if (tip.hidden) return;
+  const pad = 14;
+  const w = tip.offsetWidth;
+  const h = tip.offsetHeight;
+  const x = e.clientX + pad + w > innerWidth ? e.clientX - pad - w : e.clientX + pad;
+  const y = Math.min(innerHeight - h - 4, e.clientY + pad);
+  tip.style.left = `${Math.max(4, x)}px`;
+  tip.style.top = `${Math.max(4, y)}px`;
 });
 
 $("close").addEventListener("click", () => win.hide());

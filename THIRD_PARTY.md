@@ -3,23 +3,25 @@
 Glass Cannon itself is MIT licensed (see `LICENSE`). It builds on, or works alongside, the
 following, none of which is covered by that licence.
 
-## Game data (shipped in the release, GPL-3.0)
+## Game data (the `gamedata` folder, in this repository and the release)
 
-Skill names and icons, class icons and mob names are in the release zip's `gamedata`
-folder, with the GPL-3.0 licence text (`LICENSE-GPL-3.0.txt`) and a `SOURCES.txt` naming
-the exact commits they came from (pinned in `scripts/gamedata-pins.json`). They're
-downloaded for each release by `scripts/package.ps1` and are **not** in this repository.
-They come from:
+None of the `gamedata` folder is covered by Glass Cannon's MIT licence. The names, text,
+numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 
 - [NOIA2](https://github.com/ZDYoung0519/NOIA2) by ZDYoung0519, GPL-3.0: skill names,
   skill and class icons, boss lists.
 - [RATmeter (AIon2-Dps-Meter)](https://github.com/Kuroukihime/AIon2-Dps-Meter) by
-  Kuroukihime, GPL-3.0: English mob names.
+  Kuroukihime, GPL-3.0: English mob names and extra skill names.
+- [aion2.app](https://aion2.app/db/skills), **no licence**: `skill-details.json`
+  (cooldowns, costs, descriptions, specialties), scraped from its skill database. Its
+  terms don't allow that without permission; it's included at the maintainer's own risk
+  and will be removed on request.
 
-That folder is a separate work shipped alongside the meter (aggregation); it stays under
-its projects' GPL-3.0 licence, not Glass Cannon's MIT licence. The data is published in
-its preferred form (JSON and the original images) in those projects' repositories. The
-underlying names and artwork are from Aion 2 and belong to their owners.
+The NOIA2 and RATmeter files are a separate work alongside the meter (aggregation) and
+stay under their projects' GPL-3.0 licence; the release adds the licence text
+(`LICENSE-GPL-3.0.txt`) and a `SOURCES.txt` naming the exact commits (pinned in
+`scripts/gamedata-pins.json`). Their data is published in its preferred form (JSON and
+the original images) in those projects' repositories.
 
 ## Npcap (installed separately)
 

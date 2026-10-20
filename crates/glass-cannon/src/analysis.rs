@@ -41,6 +41,9 @@ pub struct AnalysisData {
     skills: BTreeMap<u32, SkillMeta>,
     /// Names for effects their skill doesn't name (no skill, or one the data lacks).
     effect_names: BTreeMap<u32, String>,
+    /// For the skill tooltips: each class skill's cooldown, cost, description and
+    /// specialties, with the ones this ID shows were chosen.
+    skill_details: BTreeMap<u32, serde_json::Value>,
     /// Targets the game data marks as bosses.
     bosses: Vec<u64>,
     /// Still going (only the live fight can be).
@@ -155,6 +158,8 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
             SkillMeta { name, icon_key }
         });
     }
+    let skill_details: BTreeMap<u32, serde_json::Value> =
+        skills.keys().filter_map(|id| data.skill_details(*id).map(|d| (*id, d))).collect();
     let mut effect_names = BTreeMap::new();
     for e in &a.effects {
         let named = e.skill.is_some_and(|s| skills.get(&s).is_some_and(|m| m.name.is_some()));
@@ -170,6 +175,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
         analysis: a,
         skills,
         effect_names,
+        skill_details,
         bosses,
         live,
         ended_ms,

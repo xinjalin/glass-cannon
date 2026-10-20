@@ -62,8 +62,11 @@ to keep five in view when you change the font size, the time bar or minimal mode
   - *overview*: DPS, casts, crit, back and front attacks, perfect and double strikes,
     DPS over time for the top players with the target's HP in a strip beneath, and every
     player side by side;
-  - *skills*: every skill with casts, hits, multi-hit, crit, double, perfect, back, front,
-    min, max, average and time between casts (click a column to sort);
+  - *skills*: every skill with the specialties the player chose (read from the skill
+    IDs the game sends), casts, hits, multi-hit, crit, double, perfect, back, front, min,
+    max, average and time between casts (click a column to sort). Hover a skill for its
+    cooldown, cost, range, description and all its specialties, the chosen ones ticked.
+    The game doesn't send skill levels, so descriptions show level 1 (and the top level);
   - *rotation*: your opening casts and a zoomable timeline of every cast by skill
     (crits ringed, back attacks dotted, the target's HP shaded behind). Zoomed in to the
     end of a live fight, the timeline follows it as it happens (**[now]** jumps there);
@@ -123,17 +126,20 @@ Recordings (with **record fights** on) go to a `captures` folder next to the exe
 
 ### Game data
 
-The release zip has a `gamedata` folder next to the exe: skill names and icons, class
-icons and boss lists from [NOIA2](https://github.com/ZDYoung0519/NOIA2), and English mob
-names (about 9,900, with boss and training-dummy flags) from
-[RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter), two open-source Aion 2
-meters. Their tables use the same IDs the game sends. That folder stays under those
-projects' GPL-3.0 licence (its `SOURCES.txt` says which commits it came from); game names
-and art belong to NCSOFT. It isn't in this repository: `scripts/package.ps1` downloads it
-for each release with `packet-lab update-data`, from the upstream commits pinned in
-[scripts/gamedata-pins.json](scripts/gamedata-pins.json), so every build of a version
-ships the same data. The same command (`--lang ko|zh-TW|zh-CN` for other skill
-languages) fills a local build's `target/release/gamedata`.
+The release zip has a `gamedata` folder next to the exe, the same as the repository's
+[gamedata](gamedata) folder:
+
+- skill names and icons, class icons and boss lists from
+  [NOIA2](https://github.com/ZDYoung0519/NOIA2), and English mob names (about 9,900, with
+  boss and training-dummy flags) plus about 2,200 more skill names from
+  [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter), two open-source Aion 2
+  meters, under their GPL-3.0 licence;
+- skill details (cooldowns, costs, descriptions, specialties) scraped from
+  [aion2.app](https://aion2.app/db/skills), without a licence.
+
+None of it is covered by Glass Cannon's MIT licence, and the game's names, text and art
+belong to NCSOFT; [gamedata/README.md](gamedata/README.md) has the details. Their tables
+use the same IDs the game sends.
 
 Skill and mob names you type yourself are saved in `names.json` (below), so a new
 release's data never overwrites them.
@@ -163,24 +169,25 @@ cargo build --release
 target/release/glass-cannon.exe
 ```
 
-`target/release/packet-lab update-data --pins scripts/gamedata-pins.json` fetches the
-game data for a local build (a few seconds; icons download in parallel).
-`scripts/package.ps1` builds the release zip into `dist/` with the pinned game data
-(`-GameDataCache <folder>` keeps the download and reuses it while the pins don't change;
-`-GameData <folder>` uses a folder as it is).
+A build in `target/release` uses the repository's `gamedata` folder.
+`scripts/package.ps1` builds the release zip into `dist/` with that folder.
 
 ### Updating the game data
 
-The release's game data only changes when you move the pins. To take the latest NOIA2 and
-RATmeter data:
+The game data is committed, so builds don't download anything. To take the latest NOIA2
+and RATmeter data (`--lang ko|zh-TW|zh-CN` for other skill languages):
 
 ```bash
-target/release/packet-lab update-data --pins scripts/gamedata-pins.json --bump
+target/release/packet-lab update-data --pins scripts/gamedata-pins.json --bump --out gamedata
 ```
 
-That updates `scripts/gamedata-pins.json` (and your local `gamedata`); check the meter
-still names skills and mobs, then commit the pins file. CI keeps the downloaded data in
-its cache, keyed on the pins, so builds only download it again after a bump.
+That updates `scripts/gamedata-pins.json` and the `gamedata` folder; check the meter still
+names skills and mobs, then commit both. The skill details come from a scrape of
+aion2.app's skill database (a JSON object of skills by ID):
+
+```bash
+target/release/packet-lab skill-details <scrape.json> --scraped <date>
+```
 
 ### Releases
 
@@ -241,6 +248,9 @@ target/release/packet-lab buffs captures/<session> --on 11792
 # Damage events with names, per-attacker totals and DPS (--mine = only your hits)
 target/release/packet-lab damage captures/<session> --mine
 
+# Build gamedata/skill-details.json from a scrape of aion2.app's skill database
+target/release/packet-lab skill-details <scrape.json> --scraped <date>
+
 # Who was identified: you, nearby players, mob types
 target/release/packet-lab entities captures/<session>
 
@@ -280,9 +290,12 @@ git-ignored; don't share captures publicly.
 
 - The packet format is worked out from our own captures. Facts learned from the GPL-3.0
   NOIA2 and RATmeter projects (which message carries what) are re-checked against our captures and
-  implemented independently; their code is never copied. Their data ships unchanged
-  (reformatted) in the release's `gamedata` folder under their GPL-3.0 licence, and is
-  never committed here. Nothing from closed-source meters.
+  implemented independently; their code is never copied. Their data is in the
+  `gamedata` folder (reformatted) under their GPL-3.0 licence. Nothing from closed-source
+  meters.
+- `gamedata/skill-details.json` was scraped from aion2.app, whose terms don't allow that
+  without permission. It's included at the maintainer's own risk and will be removed on
+  request from aion2.app or NCSOFT.
 - Reading your own traffic passively doesn't modify the game, but the game's terms may
   still forbid third-party meters. Use at your own account's risk.
 
