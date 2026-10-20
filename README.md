@@ -55,11 +55,12 @@ to keep five in view when you change the font size, the time bar or minimal mode
 - **Right-click a player** (or the chart icon) to open the **analysis** window on that
   fight, live or from history. It's a full dashboard:
   - *overview*: DPS, casts, crit, back and front attacks, perfect and double strikes,
-    DPS over time for the top players, and every player side by side;
+    DPS over time for the top players with the target's HP in a strip beneath, and every
+    player side by side;
   - *skills*: every skill with casts, hits, multi-hit, crit, double, perfect, back, front,
     min, max, average and time between casts (click a column to sort);
   - *rotation*: your opening casts and a zoomable timeline of every cast by skill
-    (crits ringed, back attacks dotted);
+    (crits ringed, back attacks dotted, the target's HP shaded behind);
   - *buffs*: buffs on you and debuffs on the target over time with their uptime, and
     for each skill the share of its casts that landed with each effect up.
   Filter by target when a fight had several. The newest 50 fights keep their full
@@ -120,7 +121,8 @@ release's data never overwrites them.
 If skills show as numbers, the status line says why, and `meter.log` in
 `%APPDATA%\io.github.xinjalin.glass-cannon\` records where the app looked at startup.
 That folder also holds `settings.json`, `names.json`, `profile.json` (your last-seen
-name) and `history.jsonl`. Settings from before the rename (`%APPDATA%\local.aion-meter`)
+name), `history.jsonl`, `fights` (the full analysis of the newest 50 fights) and
+`window.json` (where you left the meter). Settings from before the rename (`%APPDATA%\local.aion-meter`)
 move there on first start.
 
 The terminal version is `packet-lab live`; `packet-lab meter <session>` runs the meter
@@ -163,7 +165,9 @@ its cache, keyed on the pins, so builds only download it again after a bump.
 
 GitHub Actions ([.github/workflows/build.yml](.github/workflows/build.yml)) lints, tests
 and packages every push and pull request; the zip is kept as a build artifact. To publish
-a release, bump `version` in `Cargo.toml`, commit, then push a matching tag:
+a release, bump `version` in `Cargo.toml`, write what's new in `docs/releases/vX.Y.Z.md`
+(optional; it goes above GitHub's list of merged pull requests), commit, then push a
+matching tag:
 
 ```bash
 git tag vX.Y.Z
