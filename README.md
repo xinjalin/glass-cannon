@@ -51,9 +51,10 @@ to keep five in view when you change the font size, the time bar or minimal mode
     expedition group; on your own it's just you.
   - *all*: every player fighting nearby.
 - **dmg / heal / taken** (the button by the fight clock; in minimal mode, hover): what
-  the rows show. *heal* is healing done (heals over time, credited to whoever applied
-  the effect; direct heals aren't decoded yet), *taken* is the damage players took from
-  mobs. Saved for next time.
+  the rows show. *heal* is healing done: heals over time (credited to whoever applied
+  the effect) and heals players cast on themselves, counted by the HP they restored;
+  direct heals on other players haven't been seen yet. *taken* is the damage players
+  took from mobs. Saved for next time.
 - **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
   skill or the target to name it yourself.
 - **Right-click a player** (or the chart icon) to open the **analysis** window on that

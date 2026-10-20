@@ -141,7 +141,20 @@ name the training dummy (37109) as attacker and the player as target. The meter 
 heal to the `source` of the effect instance the tick carries (from `0x382a`), which in
 `…185504` gives `18730002` to the Chanter (8355) who applied it. Heals on other players
 are in our captures too (Elementalist `16190040`, Cleric `17090xxx` "Light of
-Regeneration"). Direct heals (one-off, not over time) haven't been seen yet.
+Regeneration").
+
+**Heals a player casts on themselves** come as a `0x3804` "hit" with `target ==
+attacker` and an amount (flags `0x0004`), e.g. Cleric Healing Light `17100010`. In test D
+the Cleric Rafaela (15585) sat at 16,381 HP; a mob hit her for 745 (→ 15,636), then
+Healing Light "for 1047" put her back to exactly 16,381 in the same millisecond: the
+amount is the heal before the max-HP cap. Shields look the same (Sorcerer Steel Barrier
+`15160007`, one event of exactly 30,000) but never raise HP. Across our captures, 13
+self-targeted skills raised HP at least once (Healing Light, Radiant Recovery, Radiant
+Benediction, Blood Absorption, Protection Armor…); the meter counts a self-heal only
+when the player's next `0x8d00` (within 50 ms) shows a rise, and counts the rise.
+`1010000` "Restore HP" is natural regeneration and isn't counted; mobs and summoned
+spirits use `1699xxxx` creature skills on themselves. `packet-lab damage --self-target`
+lists these events. Heals cast on *other* players haven't been seen yet.
 
 **Damage taken**: mob hits on players are ordinary `0x3804` damage events with a player
 as `target` (flags `0x0006`); test D has 71 of them across 6 players.

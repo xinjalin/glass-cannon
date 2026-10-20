@@ -28,6 +28,12 @@ const LOOKBACK_US: u64 = 30_000_000;
 const LOOKBACK_MAX_EVENTS: usize = 50_000;
 /// Player skill IDs are 8 digits (class prefix + skill); mob skills are 7.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
+/// Skills summoned creatures (and some mobs) use: 8 digits like a class skill, but not one.
+const CREATURE_SKILLS: std::ops::Range<u32> = 16_990_000..17_000_000;
+/// How long a self-heal waits for the HP update that shows what it restored. In our
+/// captures that update follows it in the same millisecond; anything later is something
+/// else (regeneration, a tick).
+const SELF_HEAL_WAIT_US: u64 = 50_000;
 const MAX_SKILLS_PER_ROW: usize = 12;
 /// HP samples are kept this long, so a long boss fight still has its whole HP line.
 const HP_KEEP_US: u64 = 60 * 60_000_000;
@@ -430,6 +436,11 @@ struct EntityHp {
 }
 
 impl HpLog {
+    /// The entity's latest HP, if we've had one.
+    fn last(&self, entity: u64) -> Option<u64> {
+        self.entities.get(&entity)?.samples.back().map(|(_, hp)| *hp)
+    }
+
     fn record(&mut self, ts_us: u64, entity: u64, hp: u64, max: Option<u64>) {
         let e = self.entities.entry(entity).or_default();
         e.max = e.max.max(hp).max(max.unwrap_or(0));
@@ -482,6 +493,8 @@ pub struct Meter {
     /// Buffs and debuffs on everything in view.
     effects: EffectTracker,
     hp: HpLog,
+    /// Self-heals (or shields: they look the same) waiting for an HP update.
+    pending_heals: VecDeque<Hit>,
     completed: u32,
 }
 
@@ -503,6 +516,7 @@ impl Meter {
             lookback: VecDeque::new(),
             effects: EffectTracker::default(),
             hp: HpLog::default(),
+            pending_heals: VecDeque::new(),
             completed: 0,
         }
     }
@@ -540,7 +554,11 @@ impl Meter {
         }
         if opcode == hp::OPCODE_HP {
             if let Some(u) = hp::parse_hp(payload) {
+                let before = self.hp.last(u.entity);
                 self.hp.record(ts_us, u.entity, u.hp, None);
+                if let Some(rise) = before.and_then(|b| u.hp.checked_sub(b)).filter(|r| *r > 0) {
+                    self.settle_self_heal(ts_us, u.entity, rise);
+                }
             }
             return;
         }
@@ -588,6 +606,23 @@ impl Meter {
             return;
         }
         if ev.is_self() {
+            // A heal a player casts on themselves (Healing Light, Blood Absorption…) comes
+            // as a hit on themselves, and so does a shield (Steel Barrier). Only a heal
+            // raises HP, so it waits for the HP update and counts what that restored.
+            // Natural regeneration (Restore HP, 1010000) and items aren't player skills,
+            // and mobs and summoned spirits use the 1699xxxx creature skills on themselves.
+            let creature = CREATURE_SKILLS.contains(&ev.skill);
+            if ev.skill >= PLAYER_SKILL_MIN && !creature && self.is_player(ev.attacker, ev.skill) {
+                while self
+                    .pending_heals
+                    .front()
+                    .is_some_and(|h| ts_us.saturating_sub(h.ts_us) > SELF_HEAL_WAIT_US)
+                {
+                    self.pending_heals.pop_front();
+                }
+                self.pending_heals
+                    .push_back(Hit::flow(ts_us, ev.attacker, ev.target, ev.skill, dmg));
+            }
             return;
         }
         let me = self.registry.self_id();
@@ -653,6 +688,22 @@ impl Meter {
             enc.record(&hit);
         } else if on_player {
             enc.taken.push(hit);
+        }
+    }
+
+    /// HP rose by `rise`: if `entity` just healed themselves, that's what the heal did.
+    fn settle_self_heal(&mut self, ts_us: u64, entity: u64, rise: u64) {
+        let Some(i) = self
+            .pending_heals
+            .iter()
+            .position(|h| h.target == entity && ts_us.saturating_sub(h.ts_us) <= SELF_HEAL_WAIT_US)
+        else {
+            return;
+        };
+        let mut heal = self.pending_heals.remove(i).expect("index from position");
+        heal.damage = heal.damage.min(rise);
+        if let Some(enc) = self.current.as_mut() {
+            enc.heals.push(heal);
         }
     }
 
@@ -1463,6 +1514,14 @@ mod tests {
         assert!(e.players[0].skills.iter().any(|s| s.skill == 18_730_002));
     }
 
+    /// An HP update (0x8d00): entity, mask 0x02, one u64 stat: 0 (HP).
+    fn hp_update(entity: u64, hp: u64) -> Vec<u8> {
+        let mut p = encode_varint(entity);
+        p.extend([0x02, 1, 0]);
+        p.extend(hp.to_le_bytes());
+        p
+    }
+
     /// A heal-over-time tick (0x3805, flags 0x0b): target, flags, healer, instance, u32,
     /// amount, the 0x01 varint, skill.
     fn heal(target: u64, healer: u64, skill: u32, amount: u64) -> Vec<u8> {
@@ -1492,22 +1551,35 @@ mod tests {
         m.feed(3 * S, OPCODE_DAMAGE, &hit(15772, MOB, 100_018, 999));
         // Your Recuperation, Pingu's chant on you, and a stranger healing a stranger.
         m.feed(4 * S, OPCODE_DOT, &heal(ME, ME, 18_120_120, 976));
+        // A heal you cast on yourself comes as a hit on yourself, then HP rises: it counts
+        // what HP rose by (600 of 1000; the rest was overheal). A shield looks the same but
+        // HP doesn't rise. Regeneration and creature skills don't count.
+        m.feed(4 * S, hp::OPCODE_HP, &hp_update(ME, 5000));
+        m.feed(4 * S + 10, OPCODE_DAMAGE, &hit(ME, ME, 18_170_010, 1000));
+        m.feed(4 * S + 10, hp::OPCODE_HP, &hp_update(ME, 5600));
+        m.feed(4 * S + 300_000, OPCODE_DAMAGE, &hit(ME, ME, 18_720_001, 700));
+        m.feed(4 * S + 600_000, OPCODE_DAMAGE, &hit(ME, ME, 1_010_000, 500));
+        m.feed(4 * S + 600_000, hp::OPCODE_HP, &hp_update(ME, 6100));
+        m.feed(4 * S + 700_000, OPCODE_DAMAGE, &hit(MOB, MOB, 16_990_004, 9_999));
         m.feed(5 * S, OPCODE_DOT, &heal(ME, 15772, 18_730_002, 200));
         m.feed(5 * S, OPCODE_DOT, &heal(2787, 2787, 17_090_140, 700));
 
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.total_damage, 1000, "heals and hits on you aren't damage dealt");
         let healing: Vec<(&str, u64)> = e.healing.iter().map(|p| (p.name.as_str(), p.damage)).collect();
-        assert_eq!(healing, [("NeneneTowawa", 976), ("Pingu", 200)]);
-        assert_eq!(e.total_healing, 1176);
+        assert_eq!(healing, [("NeneneTowawa", 1576), ("Pingu", 200)]);
+        assert_eq!(e.total_healing, 1776);
         assert_eq!(e.healing[1].skills[0].skill, 18_730_002);
+        let self_heal = e.healing[0].skills.iter().find(|s| s.skill == 18_170_010).unwrap();
+        assert_eq!(self_heal.damage, 600, "what HP rose by, not the 1000 the message said");
+        assert!(!e.healing[0].skills.iter().any(|s| s.skill == 18_720_001), "a shield isn't a heal");
         assert_eq!(e.taken.len(), 1);
         assert_eq!((e.taken[0].id, e.taken[0].damage, e.total_taken), (ME, 800, 800));
         assert_eq!(e.taken[0].skills[0].skill, 100_018);
         assert_eq!(e.taken[0].class_code, Some(18), "class from your damage, not the mob's skill");
 
         let a = m.analysis(6 * S).unwrap();
-        assert_eq!(a.heals.len(), 2);
+        assert_eq!(a.heals.len(), 3);
         assert_eq!(a.taken.iter().map(|h| (h.t, h.damage)).collect::<Vec<_>>(), [(1000, 500), (2000, 300)]);
         assert!(a.names.contains_key(&MOB));
 

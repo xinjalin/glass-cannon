@@ -26,7 +26,7 @@ const VIEWS = ["damage", "healing", "taken"];
 const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken" };
 const VIEW_TITLES = {
   damage: "Damage dealt",
-  healing: "Healing done (heals over time; direct heals aren't decoded yet)",
+  healing: "Healing done (heals over time and self-heals)",
   taken: "Damage taken from mobs",
 };
 // The words for a row's amount in each view.
