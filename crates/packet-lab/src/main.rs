@@ -103,6 +103,9 @@ enum Cmd {
         target: Option<u64>,
         #[arg(long)]
         skill: Option<u32>,
+        /// Only events an entity aims at itself (left out otherwise: buffs, self-heals)
+        #[arg(long)]
+        self_target: bool,
         /// Maximum events to list (the per-attacker summary always covers everything)
         #[arg(long, default_value_t = 50)]
         limit: usize,
@@ -285,6 +288,7 @@ fn run(cli: Cli) -> Result<()> {
             attacker,
             target,
             skill,
+            self_target,
             limit,
         } => damage_cmd(
             &path,
@@ -293,6 +297,7 @@ fn run(cli: Cli) -> Result<()> {
                 attacker,
                 target,
                 skill,
+                self_target,
             },
             limit,
         ),
@@ -376,6 +381,7 @@ struct DamageFilter {
     attacker: Option<u64>,
     target: Option<u64>,
     skill: Option<u32>,
+    self_target: bool,
 }
 
 struct Scan {
@@ -472,7 +478,7 @@ fn damage_cmd(path: &Path, filter: DamageFilter, limit: usize) -> Result<()> {
     );
     for (ts, ev) in &events {
         let Some(dmg) = ev.damage else { continue };
-        if ev.is_self()
+        if ev.is_self() != filter.self_target
             || (filter.mine && !reg.is_self(ev.attacker))
             || filter.attacker.is_some_and(|a| a != ev.attacker)
             || filter.target.is_some_and(|t| t != ev.target)

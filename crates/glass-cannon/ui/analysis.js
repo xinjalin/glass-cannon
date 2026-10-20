@@ -23,7 +23,9 @@ let stamp = "";
 let tab = "overview";
 let target = null; // null = every target
 let sort = { key: "damage", dir: -1 };
-const zoom = { rotation: null, buffs: null }; // [t0, t1] in ms, or null = fit
+// Each timeline's zoom: null = the whole fight, or { a, span } in ms. `follow` keeps a
+// window that reaches the newest data pinned to it, so a live fight scrolls into view.
+const zoom = { rotation: null, buffs: null };
 let derived = null;
 
 // ---------------------------------------------------------------- helpers
@@ -818,38 +820,70 @@ function drawFlow(kind) {
 
 // ---------------------------------------------------------------- timelines (shared)
 
+const timelineEnd = () => Math.max(1000, derived.endMs);
+
 function viewWindow(which) {
-  const end = Math.max(1000, derived.endMs);
-  return zoom[which] || [0, end];
+  const end = timelineEnd();
+  const z = zoom[which];
+  if (!z) return [0, end];
+  const a = z.follow ? Math.max(0, end - z.span) : z.a;
+  return [a, a + z.span];
+}
+
+// A window [a, a + span]; it follows the live edge when it ends there.
+function setWindow(which, a, span) {
+  const end = timelineEnd();
+  if (span >= end) {
+    zoom[which] = null;
+    return;
+  }
+  a = Math.max(0, Math.min(end - span, a));
+  // Within a few pixels' worth of the end counts as at the end.
+  zoom[which] = { a, span, follow: a + span >= end - span * 0.01 };
 }
 
 function zoomBy(which, factor, centreFrac = 0.5) {
-  const end = Math.max(1000, derived.endMs);
+  const end = timelineEnd();
   if (!factor) {
     zoom[which] = null;
   } else {
     const [t0, t1] = viewWindow(which);
     const centre = t0 + (t1 - t0) * centreFrac;
-    let span = Math.min(end, Math.max(2000, (t1 - t0) * factor));
-    let a = centre - span * centreFrac;
-    a = Math.max(0, Math.min(end - span, a));
-    zoom[which] = span >= end ? null : [a, a + span];
+    const span = Math.min(end, Math.max(2000, (t1 - t0) * factor));
+    setWindow(which, centre - span * centreFrac, span);
   }
   render();
 }
 
 function panBy(which, dxFrac) {
-  const end = Math.max(1000, derived.endMs);
   const [t0, t1] = viewWindow(which);
   const span = t1 - t0;
-  if (span >= end) return;
-  const a = Math.max(0, Math.min(end - span, t0 - dxFrac * span));
-  zoom[which] = [a, a + span];
+  if (span >= timelineEnd()) return;
+  setWindow(which, t0 - dxFrac * span, span);
   render();
+}
+
+// The newest part of the fight at the current zoom (or the last 30 s), followed live.
+function jumpToNow(which) {
+  const end = timelineEnd();
+  const span = zoom[which] ? zoom[which].span : Math.min(end, 30000);
+  setWindow(which, end - span, span);
+  render();
+}
+
+// "following" while a zoomed window is pinned to a live fight's newest data.
+function drawFollow(which) {
+  const z = zoom[which];
+  const on = !!(z && z.follow && data.live);
+  const mark = document.querySelector(`[data-follow-state="${which}"]`);
+  if (mark) mark.hidden = !on;
 }
 
 for (const b of document.querySelectorAll("[data-zoom]")) {
   b.addEventListener("click", () => zoomBy(b.dataset.zoom, Number(b.dataset.step)));
+}
+for (const b of document.querySelectorAll("[data-now]")) {
+  b.addEventListener("click", () => jumpToNow(b.dataset.now));
 }
 
 // Wheel zoom and drag pan on a timeline canvas.
@@ -1259,9 +1293,11 @@ function render() {
   } else if (tab === "rotation") {
     drawOpener();
     drawRotation();
+    drawFollow("rotation");
   } else if (tab === "buffs") {
     drawBuffTimeline();
     drawBuffsPerSkill();
+    drawFollow("buffs");
   } else if (tab === "healing" || tab === "taken") {
     drawFlow(tab);
   }
@@ -1280,11 +1316,16 @@ function setTarget(id) {
   render();
 }
 
+// How long the last full fetch and redraw took: a long live fight is fetched less often
+// so the window never spends more than about a tenth of its time on it.
+let loadMs = 0;
+
 async function load(force) {
   try {
     const s = await invoke("analysis_stamp", { fight: selection.fight });
     if (!force && s === stamp) return;
     stamp = s;
+    const started = performance.now();
     const d = await invoke("analysis_data", { fight: selection.fight });
     data = d || null;
     if (data) {
@@ -1298,6 +1339,7 @@ async function load(force) {
       }
     }
     render();
+    loadMs = performance.now() - started;
   } catch (e) {
     $("fight-label").textContent = String(e);
   }
@@ -1331,6 +1373,209 @@ for (const k of ["healing", "taken"]) {
   });
 }
 
+// ---------------------------------------------------------------- copy (Discord)
+
+const COPY_ROWS = 10;
+
+// Columns a string takes in a monospace font: CJK and other wide characters take two.
+function displayWidth(s) {
+  let w = 0;
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    w += c >= 0x1100 && (c <= 0x115f || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xfe30 && c <= 0xfe4f) || (c >= 0xff00 && c <= 0xff60) || (c >= 0xffe0 && c <= 0xffe6) || c >= 0x20000) ? 2 : 1;
+  }
+  return w;
+}
+
+// Cuts to `width` columns, then pads to exactly that.
+function fitColumns(s, width) {
+  let out = "";
+  for (const ch of s) {
+    if (displayWidth(out + ch) > width) break;
+    out += ch;
+  }
+  return out + " ".repeat(width - displayWidth(out));
+}
+
+function fightTitle() {
+  const v = data.view;
+  const boss = v.target_boss || (v.target_id != null && data.bosses.includes(v.target_id)) ? "BOSS " : "";
+  const more = v.target_count > 1 ? ` +${v.target_count - 1}` : "";
+  return `${boss}${name(v.target_id) || v.target || "?"}${more}`;
+}
+
+function fightWhen() {
+  return new Date(data.ended_ms || Date.now()).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+// The fight as a Discord message: a title line and a monospace table in a code block.
+function summaryText() {
+  const v = data.view;
+  const rows = v.players.slice(0, COPY_ROWS);
+  const nameW = Math.min(18, Math.max(6, ...rows.map((p) => displayWidth(name(p.id)))));
+  const lines = [];
+  lines.push(` #  ${fitColumns("player", nameW)}     dps   damage  share   crit`);
+  rows.forEach((p, i) => {
+    const crit = p.hits ? `${Math.round((p.outcomes.crits / p.hits) * 100)}%` : "–";
+    lines.push(
+      `${String(i + 1).padStart(2)}  ${fitColumns(name(p.id), nameW)}  ${fmt(p.dps).padStart(6)}  ${fmt(p.damage).padStart(7)}  ${`${(p.share * 100).toFixed(1)}%`.padStart(5)}  ${crit.padStart(5)}`,
+    );
+  });
+  if (v.players.length > rows.length) lines.push(`    … and ${v.players.length - rows.length} more`);
+  const extra = [];
+  if (v.total_healing) extra.push(`healing ${fmt(v.total_healing)} (most: ${name(v.healing[0].id)})`);
+  if (v.total_taken) extra.push(`taken ${fmt(v.total_taken)} (most: ${name(v.taken[0].id)})`);
+  if (extra.length) lines.push("", extra.join(" · "));
+  const head = `**${fightTitle()}** · ${clock(v.duration_s * 1000)} · ${fmt(v.total_damage)} damage · ${fmt(v.total_dps)}/s · ${fightWhen()}`;
+  return `${head}\n\`\`\`\n${lines.join("\n")}\n\`\`\`\n-# Glass Cannon`;
+}
+
+// ---------------------------------------------------------------- copy (image card)
+
+// A summary card: title, the players as bars, and DPS over time for the top five.
+async function summaryImage() {
+  const v = data.view;
+  const rows = v.players.slice(0, 8);
+  const W = 760;
+  const pad = 24;
+  const rowH = 30;
+  const chartH = 150;
+  const H = pad + 64 + rows.length * rowH + 22 + chartH + 40 + pad;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  const mono = css("--mono");
+  const text = css("--text");
+  const muted = css("--muted");
+  const accent = css("--accent");
+
+  ctx.fillStyle = `rgb(${css("--tint-rgb")})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = css("--line");
+  ctx.lineWidth = 1;
+  roundRect(ctx, 0.5, 0.5, W - 1, H - 1, 10);
+  ctx.stroke();
+
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = accent;
+  ctx.font = `12px ${mono}`;
+  ctx.fillText("─ glass cannon", pad, pad + 10);
+  ctx.textAlign = "right";
+  ctx.fillStyle = muted;
+  ctx.fillText(fightWhen(), W - pad, pad + 10);
+  ctx.textAlign = "left";
+  ctx.fillStyle = text;
+  ctx.font = `bold 20px ${mono}`;
+  ctx.fillText(fightTitle(), pad, pad + 38);
+  ctx.font = `13px ${mono}`;
+  ctx.fillStyle = muted;
+  const extra = [v.total_healing ? `healing ${fmt(v.total_healing)}` : "", v.total_taken ? `taken ${fmt(v.total_taken)}` : ""].filter(Boolean).join(" · ");
+  ctx.fillText(`${clock(v.duration_s * 1000)} · ${fmt(v.total_damage)} damage · ${fmt(v.total_dps)}/s${extra ? ` · ${extra}` : ""}`, pad, pad + 58);
+
+  // Player bars.
+  const top = rows.length ? rows[0].dps || 1 : 1;
+  const nameX = pad + 26;
+  const barX = pad + 230;
+  const barW = W - barX - pad - 150;
+  let y = pad + 76;
+  rows.forEach((p, i) => {
+    ctx.fillStyle = muted;
+    ctx.font = `13px ${mono}`;
+    ctx.fillText(String(i + 1), pad, y + 19);
+    ctx.fillStyle = p.is_self ? accent : text;
+    ctx.font = `${p.is_self ? "bold " : ""}14px ${mono}`;
+    ctx.fillText(clipText(ctx, name(p.id), barX - nameX - 10), nameX, y + 19);
+    ctx.fillStyle = css("--line-faint");
+    roundRect(ctx, barX, y + 8, barW, 14, 3);
+    ctx.fill();
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = p.is_self ? 1 : 0.55;
+    roundRect(ctx, barX, y + 8, Math.max(4, (barW * p.dps) / top), 14, 3);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = text;
+    ctx.textAlign = "right";
+    ctx.font = `14px ${mono}`;
+    ctx.fillText(`${fmt(p.dps)}/s`, W - pad - 60, y + 19);
+    ctx.fillStyle = muted;
+    ctx.fillText(`${(p.share * 100).toFixed(0)}%`, W - pad, y + 19);
+    ctx.textAlign = "left";
+    y += rowH;
+  });
+
+  // DPS over time for the top five (the same lines as the overview).
+  y += 22;
+  const series = perSecondSeries(data.hits, data.view.players.slice(0, MAX_SERIES).map((p) => p.id), (h) => h.player);
+  let max = 1;
+  for (const s of series) for (const val of s.dps) max = Math.max(max, val);
+  const seconds = series.length ? series[0].dps.length : 1;
+  const left = pad;
+  const right = W - pad;
+  const x = (s) => left + ((right - left) * s) / Math.max(1, seconds - 1);
+  const yv = (val) => y + chartH - (chartH * val) / max;
+  ctx.strokeStyle = css("--line-faint");
+  ctx.beginPath();
+  ctx.moveTo(left, y + chartH + 0.5);
+  ctx.lineTo(right, y + chartH + 0.5);
+  ctx.stroke();
+  for (const s of series) {
+    ctx.strokeStyle = s.colour;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    s.dps.forEach((val, i) => (i ? ctx.lineTo(x(i), yv(val)) : ctx.moveTo(x(i), yv(val))));
+    ctx.stroke();
+  }
+  ctx.fillStyle = muted;
+  ctx.font = `11px ${mono}`;
+  ctx.fillText(`dps over time · peak ${fmt(max)}/s`, left, y - 6);
+  // Legend: a line in each colour, then the name.
+  let lx = left;
+  const ly = y + chartH + 26;
+  ctx.font = `12px ${mono}`;
+  for (const s of series) {
+    ctx.fillStyle = s.colour;
+    ctx.fillRect(lx, ly - 5, 14, 2);
+    ctx.fillStyle = muted;
+    const label = clipText(ctx, name(s.id), 110);
+    ctx.fillText(label, lx + 20, ly);
+    lx += 20 + ctx.measureText(label).width + 22;
+  }
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
+let copiedTimer = null;
+function sayCopied(message) {
+  $("copied").textContent = message;
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => ($("copied").textContent = ""), 2500);
+}
+
+$("copy-text").addEventListener("click", async () => {
+  if (!data) return;
+  try {
+    await navigator.clipboard.writeText(summaryText());
+    sayCopied("copied: paste it in Discord");
+  } catch (e) {
+    sayCopied(`couldn't copy: ${e}`);
+  }
+});
+
+$("copy-image").addEventListener("click", async () => {
+  if (!data) return;
+  try {
+    // The item takes the promise, so the copy keeps the click's permission.
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": summaryImage() })]);
+    sayCopied("image copied: paste it in Discord");
+  } catch (e) {
+    sayCopied(`couldn't copy: ${e}`);
+  }
+});
+
 $("close").addEventListener("click", () => win.hide());
 $("max").addEventListener("click", () => win.toggleMaximize());
 document.addEventListener("keydown", (e) => {
@@ -1358,7 +1603,10 @@ tauri.event.listen("analysis-select", (e) => {
 (async () => {
   selection = await invoke("analysis_selection").catch(() => selection);
   await load(true);
-  setInterval(() => {
-    if (selection.fight == null) load(false);
-  }, POLL_MS);
+  // Live fights refresh every second, or less often when a refresh is costly.
+  const poll = async () => {
+    if (selection.fight == null && !document.hidden) await load(false);
+    setTimeout(poll, Math.min(5000, Math.max(POLL_MS, loadMs * 10)));
+  };
+  setTimeout(poll, POLL_MS);
 })();
