@@ -146,6 +146,7 @@ struct View {
     /// How often the overlay should ask again, in milliseconds.
     refresh_ms: u32,
     locked: bool,
+    meter_view: store::MeterView,
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
@@ -191,6 +192,7 @@ fn snapshot(app: State<'_, Arc<AppState>>) -> View {
         appearance: settings.appearance,
         refresh_ms: settings.refresh_ms,
         locked: settings.locked,
+        meter_view: settings.meter_view,
     }
 }
 
@@ -222,6 +224,14 @@ fn remember_players(app: &AppState, meter: &mut Meter) -> Option<KnownPlayers> {
 fn end_fight(app: State<'_, Arc<AppState>>) {
     let now = app.engine.now();
     app.engine.meter().end_fight(now);
+}
+
+/// What the meter's rows show (damage, healing or damage taken); saved for next time.
+#[tauri::command]
+fn set_meter_view(app: State<'_, Arc<AppState>>, view: store::MeterView) {
+    let mut s = lock(&app.settings);
+    s.meter_view = view;
+    s.save(&app.config_dir);
 }
 
 /// How often the overlay redraws (one of the set rates); saved for next time.
@@ -541,6 +551,7 @@ fn main() {
             snapshot,
             reset,
             end_fight,
+            set_meter_view,
             set_refresh,
             clickthrough::set_locked,
             clickthrough::lock_button_rect,

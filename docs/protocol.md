@@ -135,6 +135,17 @@ tick, no amount) then `0x0b`, healing 976, 651, 326, 1 as your HP filled; the ti
 carry the buff's instance ID. Damage ticks use `0x0a`/`0x08`. Across all captures, flag
 `0x01` only appears on heals, so the meter doesn't count those ticks as damage.
 
+The `attacker` of a heal tick is the entity the effect sits on, not always the healer.
+Chanter skill `18730002` is a debuff on the mob that heals whoever hits it: its ticks
+name the training dummy (37109) as attacker and the player as target. The meter credits a
+heal to the `source` of the effect instance the tick carries (from `0x382a`), which in
+`…185504` gives `18730002` to the Chanter (8355) who applied it. Heals on other players
+are in our captures too (Elementalist `16190040`, Cleric `17090xxx` "Light of
+Regeneration"). Direct heals (one-off, not over time) haven't been seen yet.
+
+**Damage taken**: mob hits on players are ordinary `0x3804` damage events with a player
+as `target` (flags `0x0006`); test D has 71 of them across 6 players.
+
 997 of 998 messages in our captures parse to the last byte. NOIA2's code reads the skill
 before the damage; in the current client the damage comes first. These ticks used to be
 missing from our totals.

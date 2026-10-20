@@ -196,7 +196,9 @@ table.grid {
 
 .chart { position: relative; width: 100%; }
 .chart canvas { display: block; width: 100%; }
-#dps-chart { height: 15em; }
+#dps-chart,
+#healing-chart,
+#taken-chart { height: 15em; }
 #dps-chart.has-hp { height: calc(15em + 22px); }
 .timeline canvas { cursor: grab; }
 .timeline canvas:active { cursor: grabbing; }
@@ -232,6 +234,13 @@ table.grid {
 .swatch-mark { display: inline-block; width: 0.9em; height: 0.6em; border-radius: 0.15em; margin-left: 0.6em; }
 .swatch-mark.buff { background: var(--buff); }
 .swatch-mark.debuff { background: var(--debuff); }
+
+/* ---------------------------------------------------------------- healing / taken */
+
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8em; }
+@media (max-width: 900px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+.grid.others { margin-top: 0.6em; }
+.flow-note { margin: 0; }
 
 /* ---------------------------------------------------------------- opener */
 

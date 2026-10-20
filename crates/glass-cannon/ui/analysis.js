@@ -377,11 +377,16 @@ const canvasFont = (scale = 0.85) => `${Math.round(fontPx() * scale)}px ${css("-
 
 // Per-second damage for the top players, as a 5 s trailing average.
 function dpsSeries() {
+  return perSecondSeries(derived.hits, derived.order.slice(0, MAX_SERIES), (h) => h.player);
+}
+
+// Per-second amounts for each of `ids` (who an event belongs to: `keyOf`), as a 5 s
+// trailing average. Colours go by position in `ids`.
+function perSecondSeries(events, ids, keyOf) {
   const seconds = Math.max(1, Math.ceil(derived.endMs / 1000) + 1);
-  const ids = derived.order.slice(0, MAX_SERIES);
   return ids.map((id, i) => {
     const perSec = new Float64Array(seconds);
-    for (const h of derived.hits) if (h.player === id) perSec[Math.min(seconds - 1, Math.floor(h.t / 1000))] += h.damage;
+    for (const h of events) if (keyOf(h) === id) perSec[Math.min(seconds - 1, Math.floor(h.t / 1000))] += h.damage;
     const dps = new Float64Array(seconds);
     let sum = 0;
     for (let s = 0; s < seconds; s++) {
@@ -396,13 +401,16 @@ function dpsSeries() {
 let dpsHover = null;
 
 function drawDpsChart() {
-  const box = $("dps-chart");
+  drawSeriesChart($("dps-chart"), $("dps-legend"), dpsSeries(), dpsHover, derived.hp);
+}
+
+// A per-second line chart (one line per series) with a crosshair tooltip at `hover`
+// (x in the canvas), and the target's HP in a strip underneath when given.
+function drawSeriesChart(box, legendBox, series, hover, hp) {
   const canvas = box.querySelector("canvas");
-  const hp = derived.hp;
   box.classList.toggle("has-hp", !!hp);
   const { ctx, width, height } = setupCanvas(canvas, box.clientHeight || 200);
   ctx.clearRect(0, 0, width, height);
-  const series = dpsSeries();
   const left = 4.5 * fontPx();
   // The target's HP gets its own strip under the plot: same time axis, its own 0-100%.
   const strip = hp ? HP_STRIP_H : 0;
@@ -434,7 +442,12 @@ function drawDpsChart() {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const tstep = timeStep(seconds * 1000, right - left) / 1000;
-  for (let s = 0; s < seconds; s += tstep) ctx.fillText(clock(s * 1000), x(s), bottom + strip + 6);
+  for (let s = 0; s < seconds; s += tstep) {
+    // The last label sits inside the plot rather than off its edge.
+    const near = x(s) > right - 2 * fontPx();
+    ctx.textAlign = near ? "right" : "center";
+    ctx.fillText(clock(s * 1000), near ? right : x(s), bottom + strip + 6);
+  }
 
   if (hp) {
     const sTop = bottom + 5;
@@ -465,8 +478,8 @@ function drawDpsChart() {
 
   // Crosshair and tooltip.
   const tip = box.querySelector(".tooltip");
-  if (dpsHover != null && series.length) {
-    const s = Math.max(0, Math.min(seconds - 1, Math.round(((dpsHover - left) / (right - left)) * (seconds - 1))));
+  if (hover != null && series.length) {
+    const s = Math.max(0, Math.min(seconds - 1, Math.round(((hover - left) / (right - left)) * (seconds - 1))));
     ctx.strokeStyle = css("--muted");
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -498,7 +511,7 @@ function drawDpsChart() {
     tip.hidden = true;
   }
 
-  const legend = $("dps-legend");
+  const legend = legendBox;
   legend.replaceChildren();
   for (const s of series) {
     const item = el("span", "item");
@@ -664,6 +677,144 @@ $("skills-table").addEventListener("click", (e) => {
   sort = h.dataset.key === sort.key ? { key: sort.key, dir: -sort.dir } : { key: h.dataset.key, dir: h.dataset.key === "name" ? 1 : -1 };
   drawSkills();
 });
+
+// ---------------------------------------------------------------- healing / taken
+
+const flowHover = { healing: null, taken: null };
+const flowPick = { healing: null, taken: null }; // the row shown in detail
+const FLOW = {
+  // Heals: rows are healers (`player`); "healed" lists who they healed.
+  healing: { rowOf: (h) => h.player, otherOf: (h) => h.target, unit: "healed", rate: "hps", others: "healed", skill: "heal" },
+  // Damage taken: rows are who took it (`target`); "hit by" lists the mobs (`player`).
+  taken: { rowOf: (h) => h.target, otherOf: (h) => h.player, unit: "taken", rate: "per s", others: "hit by", skill: "skill" },
+};
+
+function flowEvents(kind) {
+  const all = data[kind === "healing" ? "heals" : "taken"] || [];
+  // The target filter picks the mob for damage taken; heals aren't on a target.
+  return kind === "taken" && target != null ? all.filter((h) => h.player === target) : all;
+}
+
+// Totals per key: amount, events and biggest, plus per-skill and per-other breakdowns.
+function flowStats(events, keyOf, otherOf) {
+  const rows = new Map();
+  for (const h of events) {
+    const k = keyOf(h);
+    let r = rows.get(k);
+    if (!r) {
+      r = { amount: 0, n: 0, max: 0, skills: new Map(), others: new Map() };
+      rows.set(k, r);
+    }
+    r.amount += h.damage;
+    r.n += 1;
+    r.max = Math.max(r.max, h.damage);
+    for (const [map, key] of [[r.skills, h.skill], [r.others, otherOf(h)]]) {
+      const s = map.get(key) || { amount: 0, n: 0, max: 0 };
+      s.amount += h.damage;
+      s.n += 1;
+      s.max = Math.max(s.max, h.damage);
+      map.set(key, s);
+    }
+  }
+  return rows;
+}
+
+function drawFlow(kind) {
+  const f = FLOW[kind];
+  const events = flowEvents(kind);
+  const stats = flowStats(events, f.rowOf, f.otherOf);
+  const order = [...stats.keys()].sort((a, b) => stats.get(b).amount - stats.get(a).amount);
+  const total = order.reduce((a, k) => a + stats.get(k).amount, 0);
+  const secs = derived.durationMs / 1000;
+  if (!stats.has(flowPick[kind])) {
+    flowPick[kind] = stats.has(selection.player) ? selection.player : order[0] ?? null;
+  }
+  const pick = flowPick[kind];
+  const row = stats.get(pick);
+  const viewRows = data.view[kind] || [];
+  const classOf = (id) => (viewRows.find((r) => r.id === id) || data.view.players.find((r) => r.id === id) || {}).class_code;
+
+  const tiles = $(`${kind}-tiles`);
+  tiles.replaceChildren(
+    tile(`total ${f.unit}`, fmt(total), `${fmt(total / secs)}/s over ${clock(derived.durationMs)}`),
+    tile(order.length === 1 ? (kind === "healing" ? "healer" : "player hit") : kind === "healing" ? "healers" : "players hit", String(order.length), order.length ? `most: ${name(order[0])}` : "none"),
+  );
+  if (row) {
+    tiles.append(
+      tile(name(pick), fmt(row.amount), `${pct(row.amount, total)} · ${fmt(row.amount / secs)}/s`),
+      tile("biggest", fmt(row.max), `${row.n} ${kind === "healing" ? "ticks" : "hits"}`),
+    );
+  }
+
+  drawSeriesChart(
+    $(`${kind}-chart`),
+    $(`${kind}-legend`),
+    perSecondSeries(events, order.slice(0, MAX_SERIES), f.rowOf),
+    flowHover[kind],
+    null,
+  );
+
+  const table = $(`${kind}-table`);
+  table.replaceChildren();
+  const head = el("tr");
+  head.append(th("#"), th(kind === "healing" ? "healer" : "player", null, true), th(f.rate), th(f.unit), th("share"), th(kind === "healing" ? "ticks" : "hits"), th("max"));
+  table.append(head);
+  const top = order.length ? stats.get(order[0]).amount : 1;
+  order.forEach((id, i) => {
+    const s = stats.get(id);
+    const tr = el("tr", `clickable${id === pick ? " selected" : ""}`);
+    const who = el("td", "left");
+    const cell = el("div", "cell-name");
+    cell.append(iconOrBlank(classIconUrl(classOf(id)), ""), el("span", "", name(id)));
+    who.append(cell);
+    tr.append(
+      el("td", "muted", String(i + 1)),
+      who,
+      barCell(fmt(s.amount / secs), s.amount / top),
+      el("td", "", fmt(s.amount)),
+      el("td", "", pct(s.amount, total)),
+      el("td", "", String(s.n)),
+      el("td", "", fmt(s.max)),
+    );
+    tr.addEventListener("click", () => {
+      flowPick[kind] = id;
+      drawFlow(kind);
+    });
+    table.append(tr);
+  });
+  if (!order.length) {
+    const tr = el("tr");
+    const td = el("td", "muted left", kind === "healing" ? "no healing in this fight" : "no damage taken in this fight");
+    td.colSpan = 7;
+    tr.append(td);
+    table.append(tr);
+  }
+
+  $(`${kind}-detail-legend`).textContent = row ? `${name(pick)} · by ${f.skill}` : "details";
+  const breakdown = (tableId, map, labelOf, iconOf, firstHeader) => {
+    const t = $(tableId);
+    t.replaceChildren();
+    if (!row) return;
+    const h = el("tr");
+    h.append(th(firstHeader, null, true), th(f.unit), th("share"), th(kind === "healing" ? "ticks" : "hits"), th("max"));
+    t.append(h);
+    const entries = [...map.entries()].sort((a, b) => b[1].amount - a[1].amount);
+    const best = entries.length ? entries[0][1].amount : 1;
+    for (const [key, s] of entries) {
+      const tr = el("tr");
+      const who = el("td", "left");
+      const cell = el("div", "cell-name");
+      cell.title = String(key);
+      if (iconOf) cell.append(iconOrBlank(iconOf(key), ""));
+      cell.append(el("span", "", labelOf(key)));
+      who.append(cell);
+      tr.append(who, barCell(fmt(s.amount), s.amount / best), el("td", "", pct(s.amount, row.amount)), el("td", "", String(s.n)), el("td", "", fmt(s.max)));
+      t.append(tr);
+    }
+  };
+  breakdown(`${kind}-skills`, row ? row.skills : new Map(), skillName, skillIconUrl, kind === "healing" ? "heal" : "skill");
+  breakdown(`${kind}-others`, row ? row.others : new Map(), name, null, f.others);
+}
 
 // ---------------------------------------------------------------- timelines (shared)
 
@@ -1111,6 +1262,8 @@ function render() {
   } else if (tab === "buffs") {
     drawBuffTimeline();
     drawBuffsPerSkill();
+  } else if (tab === "healing" || tab === "taken") {
+    drawFlow(tab);
   }
 }
 
@@ -1166,13 +1319,25 @@ $("dps-chart").querySelector("canvas").addEventListener("mouseleave", () => {
   drawDpsChart();
 });
 
+for (const k of ["healing", "taken"]) {
+  const canvas = $(`${k}-chart`).querySelector("canvas");
+  canvas.addEventListener("mousemove", (e) => {
+    flowHover[k] = e.offsetX;
+    drawFlow(k);
+  });
+  canvas.addEventListener("mouseleave", () => {
+    flowHover[k] = null;
+    drawFlow(k);
+  });
+}
+
 $("close").addEventListener("click", () => win.hide());
 $("max").addEventListener("click", () => win.toggleMaximize());
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") win.hide();
   const n = Number(e.key);
-  if (n >= 1 && n <= 4 && !e.ctrlKey && !e.altKey) {
-    tab = ["overview", "skills", "rotation", "buffs"][n - 1];
+  if (n >= 1 && n <= 6 && !e.ctrlKey && !e.altKey) {
+    tab = ["overview", "skills", "rotation", "buffs", "healing", "taken"][n - 1];
     render();
   }
 });
