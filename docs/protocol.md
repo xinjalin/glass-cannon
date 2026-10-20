@@ -189,14 +189,27 @@ happens.
 varint  entity ID
 3 bytes unknown
 u32     type ID, e.g. 2400009 (same kind of mob → same ID; 24xxxxx and 29xxxxx seen)
-u8      unknown
-f32 ×3  probably position (x, y, z)
+u8      flags             0x40, 0x08 seen; 0x08 adds 12 bytes (below)
+u8      unknown (always 0x02)
+f32 ×4  probably position (x, y, z) and heading
+u16     unknown
+[0x08]  12 bytes          probably a second position (where it's walking to?)
+u8      1 alive, 0 a corpse
+varint  hp                (confirmed, see 0x8d00)
+varint  max hp            (confirmed, see 0x8d00)
 ...     about 100 bytes total
 ```
 
 Arrives before the mob's first damage event. **There's no name in it**: the client looks
 names up in its own data files, so a meter needs its own type-ID → name table built from
-our observations. A few messages have a different layout (type field doesn't fit).
+our observations. A few messages have a different layout (type field doesn't fit): named
+NPCs have `1f 00 01`, a length-prefixed name, then the type.
+
+HP and max HP read for 418 of the 437 spawns in our captures; the other 19 are named NPCs.
+Every one of the 99 spawns later followed by `0x8d00` updates has all of them at or below
+its max. Mobs in the open world were all 119,700 max; a mob that comes into view mid-fight
+says so (test D, mob 17151: `e3 d6 04 94 a7 07` = 76,643 of 119,700), and corpses come
+in as `00`, HP 0.
 
 ### A player engages a mob: opcode `0x8d04` (confirmed)
 
@@ -221,7 +234,6 @@ The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Te
 ### Other messages (from NOIA2, not yet used)
 
 - `0x3656`: your combat power (u32 after the opcode).
-- `0x8d00`: remaining HP of an entity (useful for boss HP %).
 - `0x9101`: field boss timers.
 - `0x3822`: about 14.5 s after each Recuperation cast; probably "skill ready again".
 
@@ -257,6 +269,48 @@ fixed offsets, so the meter scans for that shape (`entities::parse_roster`). See
 "joining a party and leaving a party" capture (5 → 4 members, leave, rejoin with a new
 member, leave) and in the expedition capture (several groups joined and left). A `0x9702`
 without your own name is someone else's group and is ignored.
+
+## HP: opcode `0x8d00` (confirmed)
+
+NOIA2's notes call this "remaining HP of an entity". Worked out again from our captures:
+
+```text
+varint  entity
+u8      mask
+[0x01]  u8 n, n × (u8 stat, u32 value)     stats 1, 3, 4, 6, 8, 10–13 seen; unknown
+[0x02]  u8 n, n × (u8 stat, u64 value)     stat 0 = current HP; stat 7 unknown
+```
+
+All 11,377 messages in the 19 captures parse to the last byte with this layout (mask
+`0x02` 10,329, `0x01` 1,019, `0x03` 29). Sent for every entity in view whose stats change:
+mobs, training dummies, other players and you. `packet-lab hp <session>` walks a capture
+and compares each entity's HP drops with the damage (`0x3804` and `0x3805`, heals left
+out) that landed on it in between; `--on <entity>` lists them.
+
+- **Players** lose exactly the damage dealt: 97 drops in the captures match the hits
+  1:1 (e.g. you in test D, hit for 435, 490, 386 by mobs).
+- **Mobs and dummies** lose **4.5 HP per point of damage shown**. Test D, mob 47144:
+
+  | hit | HP before → after | fell |
+  |---|---|---|
+  | 402 | 115,448 → 113,639 | 1,809 = 4.5 × 402 |
+  | 2,626 | 113,639 → 101,818 | 11,821 (4.5 × 2,626 = 11,817) |
+  | 3,130 | 101,818 → 87,733 | 14,085 = 4.5 × 3,130 |
+  | 1,400 | 68,505 → 62,205 | 6,300 = 4.5 × 1,400 |
+  | 2,752 (the kill) | 2,899 → 0 | 2,899 (overkill) |
+
+  Across the 84 mobs that died in our captures, 749 of their 895 HP drops are 4.5× the
+  damage within 0.5%, and 84 more are the killing blow (overkill). The other 62 haven't
+  been looked at one by one. Damage values themselves match the game's numbers (see
+  above), so it's HP that's in other units; the meter only shows the fraction of max HP.
+- **HP reaches 0 when a mob dies**: 88 entities in our captures: 85 mobs in test D, test E
+  and the zone change capture, and 3 small objects with 6 HP in the party capture (hit for
+  1 each, and their HP fell 1 at a time to 0).
+- **Training dummies** have 119,700 max, never go below 1, and jump back to 119,700 soon
+  after reaching it, so their HP line is a sawtooth.
+- **Max HP** isn't in this message. It's in the mob's spawn (`0x3641`, above): mob 31865
+  spawned at 119,700 of 119,700, and its first `0x8d00`, after a 556 hit, said 117,198
+  = 119,700 − 4.5 × 556. For anything without a spawn, the meter uses the highest HP seen.
 
 ## Buffs and debuffs: opcodes `0x382a` / `0x382b` / `0x382c` (confirmed)
 
@@ -304,3 +358,6 @@ and may be the basic attack. Needs a name table from our own observations.
 5. `result` values 0, 1, 6 and `special` bits 0x01, 0x02, 0x10, 0x20, 0x40, 0x80: what
    are they? (0x80 is common on hits players take: block? shield?)
 6. Opcodes `0x371d`, `0x3600` are among the most frequent; probably movement/state.
+7. Why do mobs lose 4.5 HP per point of damage? Is it the same for bosses and in dungeons?
+8. `0x8d00`'s u32 stats and u64 stat 7: one of them is probably MP (stat 3 on you counts
+   down by 500 at a time).

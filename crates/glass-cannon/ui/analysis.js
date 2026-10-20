@@ -12,6 +12,7 @@ const SMOOTH_S = 5; // DPS-over-time trailing average
 const OPENER_CASTS = 24;
 const LANE_H = 28;
 const AXIS_H = 26;
+const HP_STRIP_H = 22; // target HP strip under the DPS chart
 const HIT = { CRIT: 0x01, BACK: 0x02, FRONT: 0x04, PERFECT: 0x08, DOUBLE: 0x10, DOT: 0x20, FIRST: 0x40 };
 
 const $ = (id) => document.getElementById(id);
@@ -198,7 +199,68 @@ function derive() {
   }
   // Players in the full fight's order, so each keeps its colour whatever the filter.
   const order = data.view.players.map((p) => p.id).filter((id) => players.has(id));
-  return { hits, players, order, durationMs, casts, endMs: data.view.duration_s * 1000 };
+  return { hits, players, order, durationMs, casts, endMs: data.view.duration_s * 1000, hp: targetHp() };
+}
+
+// The chosen target's HP (or the main target's) as a fraction of its max, or null when
+// the game sent none. Mob HP isn't in damage units, so only the fraction is shown.
+function targetHp() {
+  const id = target ?? data.view.target_id;
+  const h = (data.target_hp || []).find((x) => x.target === id);
+  if (!h || !h.max || !h.samples.length) return null;
+  return { id, points: h.samples.map((s) => ({ t: s.t, f: Math.min(1, s.hp / h.max) })) };
+}
+
+// HP is a step function: the last sample at or before `t` (null before the first one).
+function hpAt(hp, t) {
+  let at = null;
+  for (const p of hp.points) {
+    if (p.t > t) break;
+    at = p;
+  }
+  return at;
+}
+
+const hpText = (p) => (p ? `${(p.f * 100).toFixed(1)}%` : "–");
+
+// Draws HP as a recessive stepped area between y(1) (full) and y(0) (dead), from its first
+// sample to `tEnd`. The caller clips to the plot.
+function drawHpArea(ctx, hp, x, y, tEnd, fillAlpha, lineColour) {
+  const pts = hp.points;
+  const last = pts[pts.length - 1];
+  const xEnd = x(Math.max(last.t, tEnd));
+  const steps = () =>
+    pts.forEach((p, i) => {
+      if (i) ctx.lineTo(x(p.t), y(pts[i - 1].f));
+      else ctx.moveTo(x(p.t), y(p.f));
+      ctx.lineTo(x(p.t), y(p.f));
+    });
+  ctx.save();
+  ctx.beginPath();
+  steps();
+  ctx.lineTo(xEnd, y(last.f));
+  ctx.lineTo(xEnd, y(0));
+  ctx.lineTo(x(pts[0].t), y(0));
+  ctx.closePath();
+  ctx.fillStyle = css("--muted");
+  ctx.globalAlpha = fillAlpha;
+  ctx.fill();
+  ctx.beginPath();
+  steps();
+  ctx.lineTo(xEnd, y(last.f));
+  ctx.strokeStyle = lineColour;
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function hpTooltipRow(tip, hp, t) {
+  const row = el("div", "t-row");
+  const label = el("span");
+  label.append(el("span", "hp-swatch"), document.createTextNode(`hp · ${name(hp.id)}`));
+  row.append(label, el("span", "", hpText(hpAt(hp, t))));
+  tip.append(row);
 }
 
 function selectedPlayer() {
@@ -336,11 +398,15 @@ let dpsHover = null;
 function drawDpsChart() {
   const box = $("dps-chart");
   const canvas = box.querySelector("canvas");
+  const hp = derived.hp;
+  box.classList.toggle("has-hp", !!hp);
   const { ctx, width, height } = setupCanvas(canvas, box.clientHeight || 200);
   ctx.clearRect(0, 0, width, height);
   const series = dpsSeries();
   const left = 4.5 * fontPx();
-  const bottom = height - AXIS_H;
+  // The target's HP gets its own strip under the plot: same time axis, its own 0-100%.
+  const strip = hp ? HP_STRIP_H : 0;
+  const bottom = height - AXIS_H - strip;
   const right = width - 8;
   const top = 8;
   let max = 1;
@@ -368,7 +434,25 @@ function drawDpsChart() {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const tstep = timeStep(seconds * 1000, right - left) / 1000;
-  for (let s = 0; s < seconds; s += tstep) ctx.fillText(clock(s * 1000), x(s), bottom + 6);
+  for (let s = 0; s < seconds; s += tstep) ctx.fillText(clock(s * 1000), x(s), bottom + strip + 6);
+
+  if (hp) {
+    const sTop = bottom + 5;
+    const sBottom = bottom + strip;
+    const sy = (f) => sBottom - (sBottom - sTop) * f;
+    ctx.strokeStyle = css("--line-faint");
+    ctx.strokeRect(left + 0.5, Math.round(sTop) + 0.5, right - left - 1, sBottom - sTop);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = css("--faint");
+    ctx.fillText("hp", left - 6, (sTop + sBottom) / 2);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, sTop, right - left, sBottom - sTop);
+    ctx.clip();
+    drawHpArea(ctx, hp, (t) => x(t / 1000), sy, derived.endMs, 0.28, css("--faint"));
+    ctx.restore();
+  }
 
   for (const s of series) {
     ctx.strokeStyle = s.colour;
@@ -387,7 +471,7 @@ function drawDpsChart() {
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(Math.round(x(s)) + 0.5, top);
-    ctx.lineTo(Math.round(x(s)) + 0.5, bottom);
+    ctx.lineTo(Math.round(x(s)) + 0.5, bottom + strip);
     ctx.stroke();
     tip.replaceChildren(el("div", "t-head", clock(s * 1000)));
     const rows = series.map((ser) => ({ ser, v: ser.dps[s] })).sort((a, b) => b.v - a.v);
@@ -407,6 +491,7 @@ function drawDpsChart() {
       row.append(label, el("span", "", `${fmt(v)}/s`));
       tip.append(row);
     }
+    if (hp) hpTooltipRow(tip, hp, s * 1000);
     tip.hidden = false;
     placeTooltip(tip, box, x(s), top + 10);
   } else {
@@ -722,12 +807,15 @@ function drawRotation() {
     ctx.fillText(clipText(ctx, skillName(skill), gutter - icon - 16), icon + 10, yMid);
   });
 
-  rotationLayout = { lanes, x, gutter, marks: [] };
+  rotationLayout = { lanes, x, gutter, plotBottom, t0, t1, width, marks: [] };
   const laneOf = new Map(lanes.map((s, i) => [s, i]));
   ctx.save();
   ctx.beginPath();
   ctx.rect(gutter, 0, width - gutter, plotBottom);
   ctx.clip();
+  // The target's HP behind the lanes: full at the top, dead at the bottom.
+  const hp = derived.hp;
+  if (hp && lanes.length) drawHpArea(ctx, hp, x, (f) => plotBottom - (plotBottom - 2) * f, derived.endMs, 0.07, css("--line-faint"));
   for (const c of casts) {
     const lane = laneOf.get(c.skill);
     if (lane == null || c.t < t0 - 2000 || c.t > t1 + 2000) continue;
@@ -769,11 +857,26 @@ function drawRotation() {
     row("hits", String(c.hits));
     row("crit", c.crit ? "yes" : "no");
     row("position", c.back ? "back" : c.front ? "front" : "side");
+    if (derived.hp) hpTooltipRow(tip, derived.hp, c.t);
     tip.hidden = false;
     placeTooltip(tip, box, hit.cx, hit.cy + 12);
+  } else if (derived.hp && rotationHover && inRotationPlot(rotationHover)) {
+    // Between casts: the time and the target's HP there.
+    const [mx, my] = rotationHover;
+    const L = rotationLayout;
+    const t = L.t0 + ((L.t1 - L.t0) * (mx - L.gutter)) / (L.width - 8 - L.gutter);
+    tip.replaceChildren(el("div", "t-head", clock(t)));
+    hpTooltipRow(tip, derived.hp, t);
+    tip.hidden = false;
+    placeTooltip(tip, box, mx, my + 12);
   } else {
     tip.hidden = true;
   }
+}
+
+function inRotationPlot([mx, my]) {
+  const L = rotationLayout;
+  return L && mx >= L.gutter && mx <= L.width - 8 && my >= 0 && my <= L.plotBottom;
 }
 
 function nearestMark(marks, [mx, my]) {

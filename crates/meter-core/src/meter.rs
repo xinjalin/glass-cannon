@@ -17,6 +17,7 @@ use crate::buffs::EffectTracker;
 use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
 use crate::entities::{Change, Registry};
+use crate::hp;
 use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
 
 /// No activity in your fight for this long ends the encounter.
@@ -28,6 +29,10 @@ const LOOKBACK_MAX_EVENTS: usize = 50_000;
 /// Player skill IDs are 8 digits (class prefix + skill); mob skills are 7.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
 const MAX_SKILLS_PER_ROW: usize = 12;
+/// HP samples are kept this long, so a long boss fight still has its whole HP line.
+const HP_KEEP_US: u64 = 60 * 60_000_000;
+/// How often (in samples) entities that haven't changed HP for that long are forgotten.
+const HP_PRUNE_EVERY: u32 = 4096;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -339,6 +344,82 @@ pub struct Analysis {
     pub names: BTreeMap<u64, String>,
     /// Mob types of the targets, for looking up proper names.
     pub mob_types: BTreeMap<u64, u32>,
+    /// HP over the fight for each counted target the game sent HP for.
+    #[serde(default)]
+    pub target_hp: Vec<TargetHp>,
+}
+
+/// A target's HP during a fight (from `0x8d00`). Mob and dummy HP isn't in damage units:
+/// it falls by 4.5 per point of damage, so only the fraction of `max` is meaningful.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TargetHp {
+    pub target: u64,
+    /// From the mob's spawn, or the highest HP seen.
+    pub max: u64,
+    /// Oldest first; the first one is at 0 when the target's HP was known before the fight.
+    pub samples: Vec<HpPoint>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct HpPoint {
+    /// Milliseconds from the fight's first counted hit.
+    pub t: u32,
+    pub hp: u64,
+}
+
+/// Every entity's HP over time (`0x8d00`), and its max HP when known.
+#[derive(Debug, Default)]
+struct HpLog {
+    entities: HashMap<u64, EntityHp>,
+    since_prune: u32,
+}
+
+#[derive(Debug, Default)]
+struct EntityHp {
+    /// From the mob's spawn, or the highest HP seen.
+    max: u64,
+    /// (capture time µs, HP), oldest first.
+    samples: VecDeque<(u64, u64)>,
+}
+
+impl HpLog {
+    fn record(&mut self, ts_us: u64, entity: u64, hp: u64, max: Option<u64>) {
+        let e = self.entities.entry(entity).or_default();
+        e.max = e.max.max(hp).max(max.unwrap_or(0));
+        e.samples.push_back((ts_us, hp));
+        while e.samples.front().is_some_and(|(t, _)| ts_us.saturating_sub(*t) > HP_KEEP_US) {
+            e.samples.pop_front();
+        }
+        self.since_prune += 1;
+        if self.since_prune >= HP_PRUNE_EVERY {
+            self.since_prune = 0;
+            self.entities
+                .retain(|_, e| e.samples.back().is_some_and(|(t, _)| ts_us.saturating_sub(*t) <= HP_KEEP_US));
+        }
+    }
+
+    /// The entity's HP during `start..=end`, in ms from `start`. The last sample before
+    /// the fight is moved to 0, so the line starts where the target stood.
+    fn during(&self, entity: u64, start: u64, end: u64) -> Option<TargetHp> {
+        let e = self.entities.get(&entity)?;
+        let before = e.samples.iter().take_while(|(t, _)| *t < start).last();
+        let ms = |us: u64| (us.saturating_sub(start) / 1000).min(u64::from(u32::MAX)) as u32;
+        let samples: Vec<HpPoint> = before
+            .map(|(_, hp)| HpPoint { t: 0, hp: *hp })
+            .into_iter()
+            .chain(
+                e.samples
+                    .iter()
+                    .filter(|(t, _)| (start..=end).contains(t))
+                    .map(|(t, hp)| HpPoint { t: ms(*t), hp: *hp }),
+            )
+            .collect();
+        (!samples.is_empty()).then_some(TargetHp {
+            target: entity,
+            max: e.max,
+            samples,
+        })
+    }
 }
 
 pub struct Meter {
@@ -353,6 +434,7 @@ pub struct Meter {
     lookback: VecDeque<Hit>,
     /// Buffs and debuffs on everything in view.
     effects: EffectTracker,
+    hp: HpLog,
     completed: u32,
 }
 
@@ -373,6 +455,7 @@ impl Meter {
             last: None,
             lookback: VecDeque::new(),
             effects: EffectTracker::default(),
+            hp: HpLog::default(),
             completed: 0,
         }
     }
@@ -408,6 +491,17 @@ impl Meter {
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }
+        if opcode == hp::OPCODE_HP {
+            if let Some(u) = hp::parse_hp(payload) {
+                self.hp.record(ts_us, u.entity, u.hp, None);
+            }
+            return;
+        }
+        if opcode == hp::OPCODE_MOB_SPAWN {
+            if let Some((entity, now, max)) = hp::parse_spawn_hp(payload) {
+                self.hp.record(ts_us, entity, now, Some(max));
+            }
+        }
         if opcode == OPCODE_DOT {
             if let Some(ev) = damage::parse_dot(payload) {
                 self.tick(ts_us);
@@ -422,6 +516,7 @@ impl Meter {
                 self.last = None;
                 self.lookback.clear();
                 self.effects.clear();
+                self.hp = HpLog::default();
             }
             return;
         }
@@ -639,12 +734,15 @@ impl Meter {
                 mob_types.insert(*id, t);
             }
         }
+        let mut target_hp: Vec<TargetHp> = counted.iter().filter_map(|id| self.hp.during(*id, start, end)).collect();
+        target_hp.sort_by_key(|h| h.target);
         Some(Analysis {
             view,
             hits,
             effects,
             names,
             mob_types,
+            target_hp,
         })
     }
 
@@ -892,6 +990,55 @@ mod tests {
         let e = &a.effects[0];
         assert_eq!((e.start, e.end, e.before, e.open), (0, 5000, true, false));
         assert_eq!((e.target, e.source, e.skill), (ME, ME, Some(18_120_120)));
+    }
+
+    /// A real `0x8d00` for the dummy (38937, from 20261020-184342) with its HP replaced.
+    fn dummy_hp(hp: u64) -> Vec<u8> {
+        let mut p = vec![0x99, 0xb0, 0x02, 0x02, 0x01, 0x00];
+        p.extend(hp.to_le_bytes());
+        p
+    }
+
+    #[test]
+    fn analysis_keeps_target_hp_clipped_to_the_fight() {
+        let mut m = meter_as_me();
+        m.feed(S, hp::OPCODE_HP, &dummy_hp(119_700));
+        m.feed(8 * S, hp::OPCODE_HP, &dummy_hp(110_000));
+        m.feed(10 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 1000, 7, 2, None, 0));
+        m.feed(10 * S + 100_000, hp::OPCODE_HP, &dummy_hp(105_500));
+        m.feed(12 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 1000, 8, 2, None, 0));
+        m.feed(12 * S + 100_000, hp::OPCODE_HP, &dummy_hp(101_000));
+        // Someone else's mob, never part of the fight.
+        m.feed(12 * S, hp::OPCODE_HP, &[0xe1, 0x79, 0x02, 0x01, 0x00, 0xfc, 0x3f, 0, 0, 0, 0, 0, 0]);
+        m.tick(40 * S);
+        // After the fight.
+        m.feed(41 * S, hp::OPCODE_HP, &dummy_hp(119_700));
+
+        let a = m.analysis(41 * S).unwrap();
+        assert_eq!(a.target_hp.len(), 1);
+        let h = &a.target_hp[0];
+        assert_eq!((h.target, h.max), (DUMMY, 119_700));
+        let points: Vec<(u32, u64)> = h.samples.iter().map(|p| (p.t, p.hp)).collect();
+        // The last value before the fight starts the line; nothing after its last hit.
+        assert_eq!(points, [(0, 110_000), (100, 105_500)]);
+        assert_eq!(m.take_finished()[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
+    }
+
+    #[test]
+    fn spawn_gives_a_mobs_max_hp() {
+        let mut m = meter_as_me();
+        // Mob 17151 comes into view hurt (from test D): 76,643 of 119,700.
+        let spawn = [
+            0xff, 0x85, 0x01, 0x05, 0x20, 0x00, 0x02, 0x9f, 0x24, 0x00, 0x40, 0x02, 0xcc, 0x98, 0xa6, 0xc7, 0xd3, 0xef,
+            0xaa, 0xc7, 0x00, 0xd4, 0xe1, 0x46, 0x15, 0xdd, 0x3f, 0x43, 0x70, 0x88, 0x01, 0xe3, 0xd6, 0x04, 0x94, 0xa7,
+            0x07, 0x64, 0x00, 0x00, 0x00,
+        ];
+        m.feed(S, crate::entities::OPCODE_MOB_SPAWN, &spawn);
+        assert_eq!(m.registry().mob_type(17151), Some(2_400_002));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(17151, ME, 18_010_340, 7586));
+        let a = m.analysis(2 * S).unwrap();
+        let h = &a.target_hp[0];
+        assert_eq!((h.target, h.max, h.samples[0].hp), (17151, 119_700, 76_643));
     }
 
     #[test]

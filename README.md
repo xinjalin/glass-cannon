@@ -201,6 +201,15 @@ target/release/packet-lab opcodes captures/<session>
 # casts, hits, crit, back/front, perfect, double strike and multi-hit
 target/release/packet-lab meter captures/<session> --party
 
+# The last fight as the analysis window gets it (JSON)
+target/release/packet-lab meter captures/<session> --analysis
+
+# Every message of one type, with its time and payload in hex
+target/release/packet-lab messages captures/<session> 8d00
+
+# HP updates checked against the damage on each entity (--on <id> lists one entity's)
+target/release/packet-lab hp captures/<session>
+
 # Buff and debuff spans (who, what, from whom, how long), optionally on one entity
 target/release/packet-lab buffs captures/<session> --on 11792
 

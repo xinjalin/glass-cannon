@@ -153,6 +153,9 @@ enum Cmd {
         /// Print the final snapshot as JSON (what the overlay receives)
         #[arg(long)]
         json: bool,
+        /// Print the last fight's analysis as JSON (what the analysis window receives)
+        #[arg(long, conflicts_with = "json")]
+        analysis: bool,
     },
     /// Download skill, mob/boss and class data for the overlay (from the GPL-3.0 NOIA2 project)
     #[command(alias = "import-skills")]
@@ -185,6 +188,29 @@ enum Cmd {
         value: u64,
         #[arg(long, value_enum, default_value = "in")]
         side: SideArg,
+    },
+    /// Check HP updates (0x8d00) against the damage that lands on each entity
+    Hp {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        /// List this entity's HP samples and the hits on it in order
+        #[arg(long)]
+        on: Option<u64>,
+        /// Maximum lines to list with --on
+        #[arg(long, default_value_t = 200)]
+        limit: usize,
+    },
+    /// List every message of one type with its time and payload in hex
+    Messages {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        /// Opcode in hex, e.g. 8d00
+        opcode: String,
+        #[arg(long, value_enum, default_value = "in")]
+        side: SideArg,
+        /// Maximum messages to list
+        #[arg(long, default_value_t = 200)]
+        limit: usize,
     },
     /// Hex dump part of a flow's reassembled stream
     Dump {
@@ -299,9 +325,17 @@ fn run(cli: Cli) -> Result<()> {
             everyone,
             party,
             json,
-        } => meter_cmd(&path, idle, scope(everyone, party), json),
+            analysis,
+        } => meter_cmd(&path, idle, scope(everyone, party), json, analysis),
         Cmd::Buffs { path, on } => buffs_cmd(&path, on),
         Cmd::Find { path, value, side } => find(&path, value, side),
+        Cmd::Hp { path, on, limit } => hp_cmd(&path, on, limit),
+        Cmd::Messages {
+            path,
+            opcode,
+            side,
+            limit,
+        } => messages_cmd(&path, &opcode, side, limit),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
     }
 }
@@ -677,10 +711,19 @@ fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, scope: Scope
     Ok(())
 }
 
-fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool) -> Result<()> {
+fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -> Result<()> {
     let (_, m) = load_messages(path, SideArg::In)?;
     let mut meter = new_meter(idle, scope);
     let mut seen = 0;
+    if analysis {
+        for msg in &m.messages {
+            meter.tick(msg.ts_us);
+            meter.feed(msg.ts_us, msg.opcode, &msg.payload);
+        }
+        let now = m.messages.last().map_or(0, |msg| msg.ts_us);
+        println!("{}", serde_json::to_string_pretty(&meter.analysis(now))?);
+        return Ok(());
+    }
     if json {
         for msg in &m.messages {
             meter.feed(msg.ts_us, msg.opcode, &msg.payload);
@@ -1076,6 +1119,157 @@ fn chunks(flow: &Path, side: Option<SideArg>, limit: usize, bytes: usize) -> Res
             println!("... (stopped at --limit {limit})");
             break;
         }
+    }
+    Ok(())
+}
+
+/// Walks the stream in order. Between two HP samples of an entity, its HP should fall by
+/// the damage (0x3804 and 0x3805, heals excluded) that landed on it in between.
+fn hp_cmd(path: &Path, on: Option<u64>, limit: usize) -> Result<()> {
+    let (_, m) = load_messages(path, SideArg::In)?;
+    let start = m.messages.first().map_or(0, |x| x.ts_us);
+    #[derive(Default)]
+    struct Track {
+        samples: u64,
+        last: Option<u64>,
+        since: u64,
+        hits_since: u64,
+        exact: u64,
+        rises: u64,
+        other: u64,
+        min: u64,
+        max: u64,
+        fell: u64,
+        fell_damage: u64,
+        at_ratio: u64,
+        spawn_max: Option<u64>,
+        zero_at: Option<u64>,
+    }
+    let mut tracks: HashMap<u64, Track> = HashMap::new();
+    let mut listed = 0usize;
+    for msg in &m.messages {
+        let t = msg.ts_us.saturating_sub(start) as f64 / 1e6;
+        let hit = match msg.opcode {
+            protocol::OPCODE_DAMAGE => damage::parse(&msg.payload),
+            protocol::OPCODE_DOT => damage::parse_dot(&msg.payload),
+            meter_core::hp::OPCODE_MOB_SPAWN => {
+                let Some((e, hp, max)) = meter_core::hp::parse_spawn_hp(&msg.payload) else { continue };
+                if on == Some(e) && listed < limit {
+                    println!("{t:9.3}  HP {hp:>9}  of {max} (spawn)");
+                    listed += 1;
+                }
+                let tr = tracks.entry(e).or_insert(Track { min: u64::MAX, ..Default::default() });
+                tr.spawn_max = Some(max);
+                tr.last = Some(hp);
+                tr.since = 0;
+                tr.hits_since = 0;
+                continue;
+            }
+            meter_core::hp::OPCODE_HP => {
+                let Some(u) = meter_core::hp::parse_hp(&msg.payload) else { continue };
+                let tr = tracks.entry(u.entity).or_insert(Track { min: u64::MAX, ..Default::default() });
+                let verdict = match tr.last {
+                    None => "first",
+                    Some(prev) if prev.checked_sub(u.hp) == Some(tr.since) && tr.hits_since > 0 => {
+                        tr.exact += 1;
+                        "= damage"
+                    }
+                    Some(prev) if u.hp > prev => {
+                        tr.rises += 1;
+                        "rise"
+                    }
+                    Some(prev) if prev == u.hp && tr.hits_since == 0 => "same",
+                    Some(prev) if u.hp > 1 && tr.hits_since > 0 => {
+                        tr.fell += prev - u.hp;
+                        tr.fell_damage += tr.since;
+                        // Mobs and dummies lose 4.5 HP per point of damage shown.
+                        let scaled = tr.since as f64 * 4.5;
+                        if ((prev - u.hp) as f64 - scaled).abs() <= scaled * 0.005 {
+                            tr.at_ratio += 1;
+                        }
+                        tr.other += 1;
+                        "differs"
+                    }
+                    Some(_) => {
+                        tr.other += 1;
+                        "differs"
+                    }
+                };
+                if on == Some(u.entity) && listed < limit {
+                    let drop = tr.last.map_or(0, |p| p as i64 - u.hp as i64);
+                    println!(
+                        "{t:9.3}  HP {:>9}  fell {drop:>8}  damage since {:>8} ({} hits)  {verdict}",
+                        u.hp, tr.since, tr.hits_since
+                    );
+                    listed += 1;
+                }
+                tr.samples += 1;
+                tr.min = tr.min.min(u.hp);
+                tr.max = tr.max.max(u.hp);
+                if u.hp == 0 && tr.zero_at.is_none() {
+                    tr.zero_at = Some(msg.ts_us.saturating_sub(start) / 1000);
+                }
+                tr.last = Some(u.hp);
+                tr.since = 0;
+                tr.hits_since = 0;
+                continue;
+            }
+            _ => continue,
+        };
+        let Some(ev) = hit else { continue };
+        let Some(dmg) = ev.damage else { continue };
+        if ev.is_heal() {
+            continue;
+        }
+        if let Some(tr) = tracks.get_mut(&ev.target) {
+            tr.since += dmg;
+            tr.hits_since += 1;
+        }
+        if on == Some(ev.target) && listed < limit {
+            println!("{t:9.3}      {:>9}  hit by #{} skill {} for {dmg}", "", ev.attacker, ev.skill);
+            listed += 1;
+        }
+    }
+    if on.is_some() {
+        return Ok(());
+    }
+    let mut rows: Vec<_> = tracks.into_iter().filter(|(_, t)| t.samples > 1).collect();
+    rows.sort_by_key(|(_, t)| std::cmp::Reverse(t.samples));
+    println!(
+        "{:>8} {:>7} {:>9} {:>9} {:>9} {:>8} {:>6} {:>8} {:>6} {:>6}  died",
+        "entity", "samples", "min", "max", "spawn max", "=damage", "rises", "differs", "×4.5", "ratio"
+    );
+    for (e, t) in rows {
+        let died = t.zero_at.map_or(String::new(), |ms| format!("at {:.1}s", ms as f64 / 1000.0));
+        let ratio = if t.fell_damage > 0 {
+            format!("{:.3}", t.fell as f64 / t.fell_damage as f64)
+        } else {
+            String::new()
+        };
+        println!(
+            "{e:>8} {:>7} {:>9} {:>9} {:>9} {:>8} {:>6} {:>8} {:>6} {ratio:>6}  {died}",
+            t.samples,
+            t.min,
+            t.max,
+            t.spawn_max.map_or(String::new(), |m| m.to_string()),
+            t.exact, t.rises, t.other, t.at_ratio
+        );
+    }
+    Ok(())
+}
+
+fn messages_cmd(path: &Path, opcode: &str, side: SideArg, limit: usize) -> Result<()> {
+    let op = u16::from_str_radix(opcode.trim_start_matches("0x"), 16)
+        .with_context(|| format!("{opcode} is not a hex opcode"))?;
+    let (_, m) = load_messages(path, side)?;
+    let start = m.messages.first().map_or(0, |x| x.ts_us);
+    for (shown, msg) in m.messages.iter().filter(|x| x.opcode == op).enumerate() {
+        if shown == limit {
+            println!("…");
+            break;
+        }
+        let t = msg.ts_us.saturating_sub(start) as f64 / 1e6;
+        println!("{t:9.3}  {:>4}  {}", msg.payload.len(), hex(&msg.payload));
     }
     Ok(())
 }

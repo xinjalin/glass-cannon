@@ -10,6 +10,7 @@ pub mod conns;
 pub mod damage;
 pub mod entities;
 pub mod game;
+pub mod hp;
 pub mod decode;
 pub mod live;
 pub mod meter;

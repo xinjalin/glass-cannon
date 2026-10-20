@@ -535,6 +535,7 @@ mod tests {
             effects: Vec::new(),
             names: Default::default(),
             mob_types: Default::default(),
+            target_hp: Vec::new(),
         };
         for ended_ms in 1..=(DETAILS_LIMIT as u64 + 2) {
             details.save(ended_ms, &analysis);
