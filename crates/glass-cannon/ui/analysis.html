@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon analysis</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="analysis.css">
+</head>
+<body>
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>─ analysis</span>
+      <span id="fight-label" class="fight-label" data-tauri-drag-region></span>
+      <span id="live" class="live" hidden>● live</span>
+      <span class="grow" data-tauri-drag-region></span>
+      <button id="max" type="button" class="win-button" title="Maximise">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg>
+      </button>
+      <button id="close" type="button" class="win-button close" title="Close (Esc)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+      </button>
+    </header>
+
+    <div id="toolbar">
+      <div id="players" class="chips" role="radiogroup" aria-label="Player"></div>
+      <div class="target-pick">
+        <span class="key">target</span>
+        <div id="targets" class="chips" role="radiogroup" aria-label="Target"></div>
+      </div>
+    </div>
+
+    <nav id="tabs" role="tablist" aria-label="Views">
+      <button type="button" role="tab" data-tab="overview">[overview]</button>
+      <button type="button" role="tab" data-tab="skills">[skills]</button>
+      <button type="button" role="tab" data-tab="rotation">[rotation]</button>
+      <button type="button" role="tab" data-tab="buffs">[buffs]</button>
+    </nav>
+
+    <div id="scroll">
+      <p id="empty" class="empty">no fight to analyse yet</p>
+
+      <section id="tab-overview" class="tab" hidden>
+        <div id="tiles" class="tiles"></div>
+        <fieldset class="box">
+          <legend>dps over time <span class="note">· 5 s average · top 5 players</span></legend>
+          <div id="dps-chart" class="chart">
+            <canvas></canvas>
+            <div class="tooltip" hidden></div>
+          </div>
+          <div id="dps-legend" class="legend"></div>
+        </fieldset>
+        <fieldset class="box">
+          <legend>players <span class="note">· click to analyse</span></legend>
+          <table id="players-table" class="grid"></table>
+        </fieldset>
+      </section>
+
+      <section id="tab-skills" class="tab" hidden>
+        <fieldset class="box">
+          <legend id="skills-legend">skills</legend>
+          <div id="skills-summary" class="summary"></div>
+          <table id="skills-table" class="grid sortable"></table>
+        </fieldset>
+      </section>
+
+      <section id="tab-rotation" class="tab" hidden>
+        <fieldset class="box">
+          <legend>opener <span class="note">· first 24 casts</span></legend>
+          <div id="opener" class="opener"></div>
+        </fieldset>
+        <fieldset class="box">
+          <legend>skill rotation <span class="note">· scroll to zoom · drag to pan</span></legend>
+          <div class="chart-tools">
+            <button type="button" data-zoom="rotation" data-step="0.5">[+]</button>
+            <button type="button" data-zoom="rotation" data-step="2">[−]</button>
+            <button type="button" data-zoom="rotation" data-step="0">[fit]</button>
+            <span class="note">ring = crit · dot = back attack</span>
+          </div>
+          <div id="rotation" class="chart timeline">
+            <canvas></canvas>
+            <div class="tooltip" hidden></div>
+          </div>
+        </fieldset>
+      </section>
+
+      <section id="tab-buffs" class="tab" hidden>
+        <fieldset class="box">
+          <legend>buff timeline</legend>
+          <div class="chart-tools">
+            <button type="button" data-zoom="buffs" data-step="0.5">[+]</button>
+            <button type="button" data-zoom="buffs" data-step="2">[−]</button>
+            <button type="button" data-zoom="buffs" data-step="0">[fit]</button>
+            <span class="legend inline">
+              <span class="swatch-mark buff"></span><span id="buffs-on-label">on the player</span>
+              <span class="swatch-mark debuff"></span><span id="debuffs-on-label">on the target</span>
+            </span>
+          </div>
+          <div id="buff-timeline" class="chart timeline">
+            <canvas></canvas>
+            <div class="tooltip" hidden></div>
+          </div>
+        </fieldset>
+        <fieldset class="box">
+          <legend>buffs per skill <span class="note">· share of each skill's casts that landed with the effect up</span></legend>
+          <div id="buffs-per-skill" class="cards"></div>
+        </fieldset>
+      </section>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="analysis.js"></script>
+</body>
+</html>

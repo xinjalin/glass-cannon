@@ -208,7 +208,7 @@ pub fn fit_settings(handle: AppHandle, width: f64, height: f64) -> Result<(), St
 }
 
 /// The monitor the overlay is on (or the primary one).
-fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monitor> {
+pub(crate) fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monitor> {
     let o = handle.get_webview_window(OVERLAY)?;
     o.current_monitor().ok().flatten().or_else(|| o.primary_monitor().ok().flatten())
 }

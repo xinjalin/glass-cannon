@@ -37,6 +37,21 @@
         "url": "settings.html",
         "alwaysOnTop": true,
         "skipTaskbar": true
+      },
+      {
+        "label": "analysis",
+        "title": "Glass Cannon analysis",
+        "width": 1200,
+        "height": 780,
+        "minWidth": 760,
+        "minHeight": 480,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "center": false,
+        "visible": false,
+        "shadow": true,
+        "url": "analysis.html"
       }
     ],
     "security": {

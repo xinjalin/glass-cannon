@@ -224,6 +224,11 @@ function drawRows(enc) {
       expanded.has(p.id) ? expanded.delete(p.id) : expanded.add(p.id);
       redraw();
     });
+    // Right-click: the full analysis of this fight, on this player.
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openAnalysis(p.id);
+    });
     list.append(row);
   });
 }
@@ -465,6 +470,13 @@ async function goBack() {
 }
 $("back").addEventListener("click", goBack);
 $("f-back").addEventListener("click", goBack);
+
+// The analysis window, on the fight shown here (a saved one in history mode).
+function openAnalysis(player) {
+  const fight = mode === "fight" ? fightIndex : null;
+  invoke("open_analysis", { fight, player }).catch(showError);
+}
+$("analysis").addEventListener("click", () => openAnalysis(null));
 
 $("history").addEventListener("click", async () => {
   if (mode === "live") await showList();

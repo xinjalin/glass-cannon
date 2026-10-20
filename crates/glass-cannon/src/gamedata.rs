@@ -179,6 +179,23 @@ impl GameData {
         }
     }
 
+    /// A skill's name and icon key (for skills outside a view, e.g. the timelines).
+    pub fn skill_meta(&self, skill: u32) -> (Option<String>, Option<u32>) {
+        match self.resolve_skill(skill) {
+            Some((key, e)) => (
+                (!e.name.is_empty()).then(|| e.name.clone()),
+                e.icon.is_some().then_some(key),
+            ),
+            None => (None, None),
+        }
+    }
+
+    /// A mob type's name and boss flag.
+    pub fn npc(&self, type_id: u32) -> Option<(String, bool)> {
+        let e = self.npcs.npcs.get(&type_id)?;
+        (!e.name.is_empty()).then(|| (e.name.clone(), e.boss))
+    }
+
     pub fn annotate_view(&self, enc: &mut EncounterView) {
         for row in enc.players.iter_mut().flat_map(|p| p.skills.iter_mut()) {
             if let Some((key, e)) = self.resolve_skill(row.skill) {

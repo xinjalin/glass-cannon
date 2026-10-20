@@ -9,7 +9,7 @@
 //! nearby don't count, unless the scope is set to [`Scope::Everyone`]. [`Scope::Party`]
 //! narrows it to your party or group: the targets any of you hit, and only your damage.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
@@ -169,6 +169,8 @@ struct Encounter {
     engaged: HashSet<u64>,
     /// Each attacker's latest cast ID per skill: a new ID is a new cast.
     last_cast: HashMap<(u64, u32), u8>,
+    /// Every recorded hit in order, for the analysis views.
+    hits: Vec<(Hit, bool)>,
 }
 
 impl Encounter {
@@ -178,6 +180,7 @@ impl Encounter {
             targets: HashMap::new(),
             engaged: HashSet::new(),
             last_cast: HashMap::new(),
+            hits: Vec::new(),
         }
     }
 
@@ -194,6 +197,7 @@ impl Encounter {
         t.last_us = t.last_us.max(h.ts_us);
         t.total += h.damage;
         t.players.entry(h.attacker).or_default().add(h, new_cast);
+        self.hits.push((*h, new_cast));
     }
 }
 
@@ -276,6 +280,65 @@ pub struct Snapshot {
 pub struct FinishedFight {
     pub view: EncounterView,
     pub self_name: Option<String>,
+    /// Everything the analysis views need, kept with the fight's history.
+    pub analysis: Option<Analysis>,
+}
+
+/// One counted hit, for the rotation and buff views. Times are milliseconds from the
+/// fight's first counted hit.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct TimelineHit {
+    pub t: u32,
+    pub player: u64,
+    pub target: u64,
+    pub skill: u32,
+    /// The cast it belongs to (see [`TimelineHit::FIRST`]).
+    pub cast: u8,
+    pub damage: u64,
+    /// [`TimelineHit::CRIT`] and the other bits below.
+    pub flags: u8,
+    /// Hits it stands for: a multi-hit's parts, otherwise 1.
+    pub n: u8,
+}
+
+impl TimelineHit {
+    pub const CRIT: u8 = 0x01;
+    pub const BACK: u8 = 0x02;
+    pub const FRONT: u8 = 0x04;
+    pub const PERFECT: u8 = 0x08;
+    pub const DOUBLE: u8 = 0x10;
+    pub const DOT: u8 = 0x20;
+    /// The first hit of a cast (casts are counted on these).
+    pub const FIRST: u8 = 0x40;
+}
+
+/// A buff or debuff during the fight, on a player or a counted target. Times are
+/// milliseconds from the fight's first counted hit, clipped to the fight.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TimelineEffect {
+    pub start: u32,
+    pub end: u32,
+    /// Already up when the fight started.
+    pub before: bool,
+    /// Still up when the fight ended (or now, while it's going).
+    pub open: bool,
+    pub target: u64,
+    pub source: u64,
+    pub skill: Option<u32>,
+    pub effect: u32,
+}
+
+/// One fight in full: every player's skills (not capped), every counted hit and the
+/// effects on the people involved.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Analysis {
+    pub view: EncounterView,
+    pub hits: Vec<TimelineHit>,
+    pub effects: Vec<TimelineEffect>,
+    /// Display names for every entity mentioned (players, targets, effect sources).
+    pub names: BTreeMap<u64, String>,
+    /// Mob types of the targets, for looking up proper names.
+    pub mob_types: BTreeMap<u64, u32>,
 }
 
 pub struct Meter {
@@ -453,6 +516,7 @@ impl Meter {
                     self.finished.push(FinishedFight {
                         view,
                         self_name: self.registry.self_name().map(str::to_string),
+                        analysis: self.analyse(enc, false, now_us),
                     });
                 }
                 self.last = self.current.take();
@@ -491,13 +555,117 @@ impl Meter {
             || (r.mob_type(id).is_none() && skill >= PLAYER_SKILL_MIN)
     }
 
-    fn view(&self, e: &Encounter, active: bool) -> Option<EncounterView> {
-        let everyone = self.scope == Scope::Everyone || self.registry.self_id().is_none();
-        let counted: Vec<(&u64, &TargetLog)> = e
-            .targets
+    /// Changes whenever the fight shown by [`Meter::analysis`] does: (fights finished, hits
+    /// in the current or last fight).
+    pub fn analysis_stamp(&self) -> (u32, usize) {
+        let hits = self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.hits.len());
+        (self.completed, hits)
+    }
+
+    /// The current fight (or the last one) in full, for the analysis window.
+    pub fn analysis(&self, now_us: u64) -> Option<Analysis> {
+        let (enc, active) = match (&self.current, &self.last) {
+            (Some(e), _) => (e, true),
+            (None, Some(e)) => (e, false),
+            (None, None) => return None,
+        };
+        self.analyse(enc, active, now_us)
+    }
+
+    fn analyse(&self, e: &Encounter, active: bool, now_us: u64) -> Option<Analysis> {
+        let view = self.view_capped(e, active, None)?;
+        let start = view.start_us;
+        let end = if active { now_us.max(view.end_us) } else { view.end_us };
+        let ms = |us: u64| (us.saturating_sub(start) / 1000).min(u64::from(u32::MAX)) as u32;
+        let counted = self.counted_targets(e);
+        let players: HashSet<u64> = view.players.iter().map(|p| p.id).collect();
+
+        let hits: Vec<TimelineHit> = e
+            .hits
             .iter()
-            .filter(|(id, _)| everyone || e.engaged.contains(id))
+            .filter(|(h, _)| counted.contains(&h.target) && players.contains(&h.attacker))
+            .map(|(h, first)| {
+                let mut flags = 0;
+                for (on, bit) in [
+                    (h.crit, TimelineHit::CRIT),
+                    (h.position == Position::Back, TimelineHit::BACK),
+                    (h.position == Position::Front, TimelineHit::FRONT),
+                    (h.perfect, TimelineHit::PERFECT),
+                    (h.double, TimelineHit::DOUBLE),
+                    (h.is_dot, TimelineHit::DOT),
+                    (*first, TimelineHit::FIRST),
+                ] {
+                    if on {
+                        flags |= bit;
+                    }
+                }
+                TimelineHit {
+                    t: ms(h.ts_us),
+                    player: h.attacker,
+                    target: h.target,
+                    skill: h.skill,
+                    cast: h.cast_id,
+                    damage: h.damage,
+                    flags,
+                    n: h.hit_count.min(255) as u8,
+                }
+            })
             .collect();
+
+        let involved: HashSet<u64> = players.iter().chain(counted.iter()).copied().collect();
+        let effects: Vec<TimelineEffect> = self
+            .effects
+            .spans(start, end)
+            .into_iter()
+            .filter(|s| involved.contains(&s.target))
+            .map(|s| TimelineEffect {
+                start: ms(s.start_us),
+                end: ms(s.end_us.unwrap_or(end).min(end)),
+                before: s.start_us < start,
+                open: s.end_us.is_none_or(|e| e > end),
+                target: s.target,
+                source: s.source,
+                skill: s.skill,
+                effect: s.effect,
+            })
+            .collect();
+
+        let mut names = BTreeMap::new();
+        let mut mob_types = BTreeMap::new();
+        let mentioned = involved.iter().chain(effects.iter().map(|e| &e.source));
+        for id in mentioned {
+            names.insert(*id, self.registry.label(*id));
+            if let Some(t) = self.registry.mob_type(*id) {
+                mob_types.insert(*id, t);
+            }
+        }
+        Some(Analysis {
+            view,
+            hits,
+            effects,
+            names,
+            mob_types,
+        })
+    }
+
+    /// The targets a fight counts: the ones you engaged, or every one in Everyone scope.
+    fn counted_targets(&self, e: &Encounter) -> HashSet<u64> {
+        let everyone = self.scope == Scope::Everyone || self.registry.self_id().is_none();
+        e.targets
+            .keys()
+            .filter(|id| everyone || e.engaged.contains(id))
+            .copied()
+            .collect()
+    }
+
+    fn view(&self, e: &Encounter, active: bool) -> Option<EncounterView> {
+        self.view_capped(e, active, Some(MAX_SKILLS_PER_ROW))
+    }
+
+    /// The summary of a fight; each player's skill list is cut to `skill_cap` if given.
+    fn view_capped(&self, e: &Encounter, active: bool, skill_cap: Option<usize>) -> Option<EncounterView> {
+        let counted_ids = self.counted_targets(e);
+        let counted: Vec<(&u64, &TargetLog)> = e.targets.iter().filter(|(id, _)| counted_ids.contains(id)).collect();
         if counted.is_empty() {
             return None;
         }
@@ -523,7 +691,7 @@ impl Meter {
 
         let mut players: Vec<PlayerRow> = per_player
             .iter()
-            .map(|(id, p)| self.row(*id, p, total, duration_s))
+            .map(|(id, p)| self.row(*id, p, total, duration_s, skill_cap))
             .collect();
         players.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.id.cmp(&b.id)));
 
@@ -548,7 +716,7 @@ impl Meter {
         })
     }
 
-    fn row(&self, id: u64, p: &PlayerStats, total: u64, duration_s: f64) -> PlayerRow {
+    fn row(&self, id: u64, p: &PlayerStats, total: u64, duration_s: f64, skill_cap: Option<usize>) -> PlayerRow {
         let mut skills: Vec<SkillRow> = p
             .skills
             .iter()
@@ -566,7 +734,9 @@ impl Meter {
             .collect();
         skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
         let class_code = skills.iter().find_map(|s| classes::class_code_of_skill(s.skill));
-        skills.truncate(MAX_SKILLS_PER_ROW);
+        if let Some(cap) = skill_cap {
+            skills.truncate(cap);
+        }
         PlayerRow {
             id,
             name: self.registry.label(id),
@@ -673,6 +843,55 @@ mod tests {
         assert_eq!(me.outcomes, want);
         assert_eq!(me.skills[0].outcomes, want);
         assert_eq!((me.skills[0].hits, me.skills[0].min, me.skills[0].max), (4, 1000, 4000));
+    }
+
+    #[test]
+    fn analysis_keeps_every_hit_with_its_outcome() {
+        let mut m = meter_as_me();
+        m.feed(10 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 1000, 7, 2, Some((0, 2)), 0));
+        m.feed(10 * S + 300_000, OPCODE_DAMAGE, &hit_full(18_010_340, 1700, 7, 3, Some((0, 1)), 0));
+        m.feed(12 * S, OPCODE_DAMAGE, &hit_full(18_020_340, 4000, 8, 2, Some((0x08, 0)), 4));
+        // Someone at the next dummy isn't part of your fight.
+        m.feed(11 * S, OPCODE_DAMAGE, &hit(55555, 777, 11_010_340, 9000));
+        let a = m.analysis(13 * S).unwrap();
+        assert_eq!(a.hits.len(), 3);
+        assert_eq!((a.hits[0].t, a.hits[1].t, a.hits[2].t), (0, 300, 2000));
+        assert_eq!(a.hits[0].flags, TimelineHit::FRONT | TimelineHit::FIRST);
+        assert_eq!(a.hits[1].flags, TimelineHit::CRIT | TimelineHit::BACK);
+        assert_eq!(a.hits[2].flags, TimelineHit::DOUBLE | TimelineHit::FIRST);
+        assert_eq!(a.hits[2].n, 4);
+        assert_eq!(a.names.get(&ME).map(String::as_str), Some("NeneneTowawa"));
+        // The view isn't capped: every skill is there.
+        assert_eq!(a.view.players[0].skills.len(), 2);
+    }
+
+    #[test]
+    fn analysis_includes_effects_in_the_fight() {
+        let mut m = meter_as_me();
+        // An 8 s buff on you, applied before the fight and removed during it.
+        let mut apply = encode_varint(ME);
+        apply.push(1);
+        apply.push(0x13);
+        apply.extend(encode_varint(2093));
+        apply.extend(181_200_101u32.to_le_bytes());
+        apply.extend(8000u64.to_le_bytes());
+        apply.extend(0u64.to_le_bytes());
+        apply.extend(encode_varint(ME));
+        apply.push(0x0d);
+        apply.extend(18_120_120u32.to_le_bytes());
+        m.feed(9 * S, crate::buffs::OPCODE_BUFF_APPLY, &apply);
+        m.feed(10 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 1000, 7, 2, None, 0));
+        let mut remove = encode_varint(ME);
+        remove.extend([1, 0]);
+        remove.extend(encode_varint(2093));
+        remove.push(1);
+        m.feed(15 * S, crate::buffs::OPCODE_BUFF_REMOVE, &remove);
+        m.feed(16 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 1000, 8, 2, None, 0));
+        let a = m.analysis(16 * S).unwrap();
+        assert_eq!(a.effects.len(), 1);
+        let e = &a.effects[0];
+        assert_eq!((e.start, e.end, e.before, e.open), (0, 5000, true, false));
+        assert_eq!((e.target, e.source, e.skill), (ME, ME, Some(18_120_120)));
     }
 
     #[test]

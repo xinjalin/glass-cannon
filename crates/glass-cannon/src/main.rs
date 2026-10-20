@@ -27,6 +27,7 @@ use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIME
 use meter_core::recorder::Side;
 use meter_core::session;
 
+mod analysis;
 mod fonts;
 mod gamedata;
 mod placement;
@@ -35,11 +36,12 @@ mod store;
 mod style;
 
 use gamedata::GameData;
-use store::{Appearance, Fight, FightSummary, History, Profile, Settings};
+use store::{Appearance, Fight, FightDetails, FightSummary, History, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
 const SETTINGS: &str = "settings";
+const ANALYSIS: &str = "analysis";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -98,6 +100,12 @@ pub struct AppState {
     engine: Arc<Engine>,
     data: Mutex<GameData>,
     history: Mutex<History>,
+    /// Full analyses of recent fights.
+    details: FightDetails,
+    /// What the analysis window shows.
+    analysis_selection: Mutex<analysis::Selection>,
+    /// The analysis window has been sized and placed once.
+    analysis_placed: AtomicBool,
     profile: Mutex<Profile>,
     settings: Mutex<Settings>,
     config_dir: PathBuf,
@@ -149,6 +157,9 @@ fn snapshot(app: State<'_, Arc<AppState>>) -> View {
             profile.name_self_row(&mut view, name);
         }
         let ended_ms = view.end_us / 1000;
+        if let Some(analysis) = &f.analysis {
+            app.details.save(ended_ms, analysis);
+        }
         history.push(Fight { ended_ms, self_name, view });
     }
     data.annotate(&mut snap);
@@ -203,7 +214,7 @@ fn set_scope(app: State<'_, Arc<AppState>>, scope: Scope) {
 
 #[tauri::command]
 fn history_list(app: State<'_, Arc<AppState>>) -> Vec<FightSummary> {
-    lock(&app.history).summaries()
+    lock(&app.history).summaries(&app.details)
 }
 
 #[tauri::command]
@@ -444,6 +455,9 @@ fn main() {
         }),
         data: Mutex::new(data),
         history: Mutex::new(History::load(&config_dir)),
+        details: FightDetails::new(&config_dir),
+        analysis_selection: Mutex::new(analysis::Selection::default()),
+        analysis_placed: AtomicBool::new(false),
         profile: Mutex::new(Profile::load(&config_dir)),
         settings: Mutex::new(Settings::load(&config_dir)),
         config_dir,
@@ -470,6 +484,10 @@ fn main() {
             settings::set_record,
             settings::set_appearance,
             settings::fit_settings,
+            analysis::open_analysis,
+            analysis::analysis_selection,
+            analysis::analysis_stamp,
+            analysis::analysis_data,
             settings::reset_appearance,
             settings::list_fonts,
             fit_overlay,
@@ -508,7 +526,7 @@ fn main() {
 
 /// Applies the background effect, corners and border to both windows.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
-    for label in [OVERLAY, SETTINGS] {
+    for label in [OVERLAY, SETTINGS, ANALYSIS] {
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }
