@@ -201,7 +201,9 @@ fn update_skills(src: &Source, dir: &Path, lang: &str, files: &HashSet<String>) 
         let (Ok(num), Some(name)) = (id.parse::<u32>(), name.as_str()) else {
             continue;
         };
-        let icon = icon_file(id).filter(|f| files.contains(&format!("{SKILL_ICONS_DIR}/{f}")));
+        let icon = icon_files(id)
+            .into_iter()
+            .find(|f| files.contains(&format!("{SKILL_ICONS_DIR}/{f}")));
         let mut entry = json!({ "name": name });
         if let Some(f) = icon {
             wanted.insert(f.clone());
@@ -389,14 +391,21 @@ fn write_json(path: &Path, v: &Value) -> Result<()> {
     Ok(())
 }
 
-/// NOIA2 names icons after 6-digit IDs as-is, otherwise after the first four digits.
-fn icon_file(id: &str) -> Option<String> {
-    let code = match id.len() {
-        6 => id,
-        n if n >= 4 => &id[..4],
-        _ => return None,
-    };
-    Some(format!("{code}.png"))
+/// The icon files NOIA2 may have for a skill, best first: one for the exact ID; for a
+/// Theostone (listed by its 8-digit effect ID, 30010151), the 7-digit skill ID the game
+/// sends (3001015); then its usual naming: 6-digit IDs as they are, otherwise the first
+/// four digits (shared by a whole skill family).
+fn icon_files(id: &str) -> Vec<String> {
+    let mut names = vec![id.to_string()];
+    if id.len() == 8 && id.starts_with("30") {
+        names.push(id[..7].to_string());
+    }
+    match id.len() {
+        6 => {}
+        n if n >= 4 => names.push(id[..4].to_string()),
+        _ => return Vec::new(),
+    }
+    names.into_iter().map(|n| format!("{n}.png")).collect()
 }
 
 fn get_bytes(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
@@ -445,9 +454,11 @@ mod tests {
 
     #[test]
     fn icon_names_follow_noia2_convention() {
-        assert_eq!(icon_file("18010340").as_deref(), Some("1801.png"));
-        assert_eq!(icon_file("100010").as_deref(), Some("100010.png"));
-        assert_eq!(icon_file("17"), None);
+        assert_eq!(icon_files("18010340"), ["18010340.png", "1801.png"]);
+        assert_eq!(icon_files("100010"), ["100010.png"]);
+        assert!(icon_files("17").is_empty());
+        // Theostones: their own icon (named by the 7-digit skill ID) before the shared one.
+        assert_eq!(icon_files("30010151"), ["30010151.png", "3001015.png", "3001.png"]);
     }
 
     #[test]

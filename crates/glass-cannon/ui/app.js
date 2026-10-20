@@ -484,10 +484,21 @@ function redraw() {
   if (none) $("empty").textContent = meterView() === "healing" ? "no healing in this fight" : "no damage taken in this fight";
 }
 
+// The last snapshot as text: when a new one is the same (no fight going on), the panel
+// isn't rebuilt.
+let lastKey = "";
+let drawnMode = "";
+
 async function refresh() {
   if (editing) return;
   try {
-    lastView = await invoke("snapshot");
+    const view = await invoke("snapshot");
+    const key = JSON.stringify(view);
+    const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
+    lastKey = key;
+    drawnMode = `${mode}/${fightIndex}`;
+    lastView = view;
+    if (same) return;
     applyAppearance(lastView.appearance);
     snapSizes();
     fitHeight(lastView.appearance);

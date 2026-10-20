@@ -65,12 +65,15 @@ to keep five in view when you change the font size, the time bar or minimal mode
   - *skills*: every skill with casts, hits, multi-hit, crit, double, perfect, back, front,
     min, max, average and time between casts (click a column to sort);
   - *rotation*: your opening casts and a zoomable timeline of every cast by skill
-    (crits ringed, back attacks dotted, the target's HP shaded behind);
+    (crits ringed, back attacks dotted, the target's HP shaded behind). Zoomed in to the
+    end of a live fight, the timeline follows it as it happens (**[now]** jumps there);
   - *buffs*: buffs on you and debuffs on the target over time with their uptime, and
     for each skill the share of its casts that landed with each effect up;
   - *healing* and *taken*: healing done and damage taken over time, per player, with
     each player's heals (or the mob skills that hit them) and who they healed (or which
     mobs hit them).
+  **[copy text]** puts a summary on the clipboard for Discord (a table of the players);
+  **[copy image]** copies a summary card with the players and their DPS over time.
   Filter by target when a fight had several. The newest 50 fights keep their full
   analysis; older ones keep the summary.
 - **Clock icon**: fight history. Every finished fight is kept (the last 200), with the

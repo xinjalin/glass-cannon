@@ -67,6 +67,8 @@ button {
 button:hover { background: var(--line-faint); color: var(--text); }
 button:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .win-button { display: grid; place-items: center; width: 1.9em; height: 1.6em; }
+.copy { color: var(--accent); font-size: 0.9em; white-space: nowrap; }
+.copied { color: var(--muted); font-size: 0.85em; white-space: nowrap; }
 .close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 
@@ -205,6 +207,7 @@ table.grid {
 .chart-tools { display: flex; align-items: center; gap: 0.3em; padding-bottom: 0.4em; }
 .chart-tools button { color: var(--accent); }
 .chart-tools .note { margin-left: 0.8em; }
+.following { margin-left: 0.6em; color: var(--accent); font-size: 0.85em; }
 
 .tooltip {
   position: absolute;
