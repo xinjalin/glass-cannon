@@ -211,6 +211,54 @@ its max. Mobs in the open world were all 119,700 max; a mob that comes into view
 says so (test D, mob 17151: `e3 d6 04 94 a7 07` = 76,643 of 119,700), and corpses come
 in as `00`, HP 0.
 
+### Summoned creatures and their owners (confirmed 2026-10-20)
+
+Elementalist spirits, Cleric servants and Sorcerer summons arrive as mob spawns
+(`0x3641`; spirits have types `2920xxx`) and attack in their own name, with their own
+entity IDs. Before this, a spirit showed up as its own unnamed "#ID" Elementalist row, and
+most of its damage was lost: its basic attacks use 6-digit skills (`100014` … `100055`),
+which the meter took for mob skills.
+
+Every spawn has, after eight `ff` bytes and the u64 `80 75 d5 2a bb 03 00 00` (ms since
+the epoch: 2100-01-01 00:00 KST, i.e. "never"), a varint entity ID:
+
+```text
+ff ×8, u64 "never"
+varint  who        the mob itself; for an Elementalist spirit, its owner
+u8                 01 for mobs; 02..14 for spirits
+u8      flags      02 on summons
+12 bytes           probably a position (3 × f32)
+summon tail:       07 02 06 u32 owner      (Cleric/Sorcerer summons, Elementalist spirits)
+                or 07 02 01 / 09 01 / 08 01 u32 owner   (other spirits)
+```
+
+- **Spirits** (header `5f 10 00`, `1f 10 00`, `1d 10 00`): `who` is the owner, and the
+  same ID comes again as a u32 within the next 24 bytes. 138 spawns in 16 captures; every
+  one whose owner fought belongs to a player with Elementalist (16xxxxxx) skills, and in
+  the `5f` form a server ID and the owner's name follow (`c7 09 06 "PUNION"`, owner 3826
+  in test B). E.g. `20261020-184039`, spirits 49775, 25691, 38651 → 55; `…185747`, spirit
+  21466 → 1802 (`8a 0e` … `07 02 06 0a 07 00 00`).
+- **Other summons**: `who` is the summon itself, and `07 02 06 u32` after the position
+  names the owner. 12 spawns: Cleric servants (skills 17150xxx) → Clerics (40634 →
+  Morzetic 14637 in `…184817`; 36037 → 6910 and 54599 → 3600 in test D), Sorcerer
+  summons (15280xxx) 39405, 45749 → Sorcerer 14632 in `…190034`.
+- Ordinary mobs have their own ID as `who`, or no mark at all (287 spawns, none with an owner).
+
+A spirit that was summoned before the capture started has no spawn. Its owner shows in
+its hits instead: these skills from a spirit land **only on its owner** — 16990002/3
+after each basic attack (damage 20), 16107000, 16257000 and 16780002–16780006: 610 hits
+by spirits with a known owner, every one on that owner. Spirits without a spawn use them
+on exactly one entity each, always an Elementalist (12 spirits in 7 captures, e.g. 41727
+→ 55 in `…184817`, 65 times). Owners also cast Spirit Communion (16770001) on their spirits.
+
+The spirits' 6-digit hits are real damage: 101 of 108 that landed alone on a training
+dummy between two `0x8d00` updates took 4.5 × the damage off its HP (see HP below).
+
+The meter credits a summon's hits to its owner (the owner's skill list shows the
+summon's skills), and leaves out hits between a player and their own summons (the echoes
+and Spirit Communion). A spirit's hits before its first echo can't be placed: in
+`…184817` that's 1 hit of 38.
+
 ### A player engages a mob: opcode `0x8d04` (confirmed)
 
 ```text
@@ -371,3 +419,6 @@ and may be the basic attack. Needs a name table from our own observations.
 7. Why do mobs lose 4.5 HP per point of damage? Is it the same for bosses and in dungeons?
 8. `0x8d00`'s u32 stats and u64 stat 7: one of them is probably MP (stat 3 on you counts
    down by 500 at a time).
+9. Summon spawns: what are the byte after the owner (02..14) and the `07 02 06` /
+   `07 02 01` / `09 01` tags? A spirit that's already out when the meter starts and never
+   uses an echo skill (e.g. `#39331` in `…184039`, one hit) still gets its own row.

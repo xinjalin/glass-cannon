@@ -37,6 +37,24 @@ const MOB_TYPE_RANGE: std::ops::RangeInclusive<u32> = 100_000..=99_999_999;
 const SERVER_RANGE: std::ops::RangeInclusive<u16> = 1000..=9999;
 /// Character names in rosters, in bytes.
 const ROSTER_NAME_BYTES: std::ops::RangeInclusive<usize> = 2..=36;
+/// In mob spawns: eight `ff` bytes and a u64 time (2100-01-01 KST, "never"), followed by
+/// the summoner's entity ID for Elementalist spirits and the mob's own ID otherwise.
+const SUMMON_MARK: [u8; 16] = [
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80, 0x75, 0xd5, 0x2a, 0xbb, 0x03, 0x00, 0x00,
+];
+/// Bytes after the varint following [`SUMMON_MARK`] in which a spirit's owner appears
+/// again as a u32.
+const SUMMON_OWNER_ECHO: usize = 24;
+/// Other summons (Cleric, Sorcerer): u8, u8 `0x02`, 12 bytes (a position), then this tag
+/// and the owner as a u32.
+const SUMMON_OWNER_TAG: [u8; 3] = [0x07, 0x02, 0x06];
+const SUMMON_OWNER_TAG_AT: usize = 14;
+/// Skills a spirit only ever uses on its owner (each basic attack also lands on the owner
+/// as 16990002/3, for example), so a spirit summoned before the meter started still finds
+/// its owner. In our captures, every use by a spirit with a known owner hit that owner.
+const SPIRIT_ECHO_SKILLS: [u32; 9] = [
+    16_107_000, 16_257_000, 16_780_002, 16_780_003, 16_780_004, 16_780_005, 16_780_006, 16_990_002, 16_990_003,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Change {
@@ -46,6 +64,8 @@ pub enum Change {
     Relogin { old_id: u64, new_id: u64 },
     PlayerNamed { id: u64, name: String },
     MobSeen { id: u64, type_id: u32 },
+    /// A summoned creature (spirit, servant) and the player it belongs to.
+    SummonSeen { id: u64, owner: u64 },
     /// Your party or group changed; `members` includes you (0 once you leave).
     PartyChanged { members: usize },
 }
@@ -56,6 +76,8 @@ pub struct Registry {
     self_name: Option<String>,
     players: HashMap<u64, String>,
     mobs: HashMap<u64, u32>,
+    /// Summoned creatures and who summoned them.
+    owners: HashMap<u64, u64>,
     /// Names in your party or group, you included. Empty when you're on your own.
     party: Vec<String>,
 }
@@ -93,6 +115,33 @@ impl Registry {
 
     pub fn mob_type(&self, id: u64) -> Option<u32> {
         self.mobs.get(&id).copied()
+    }
+
+    /// The player who summoned this creature, if it is one.
+    pub fn owner_of(&self, id: u64) -> Option<u64> {
+        self.owners.get(&id).copied()
+    }
+
+    /// Who a hit by `id` counts for: the summoner for a summoned creature, else `id`.
+    pub fn credited(&self, id: u64) -> u64 {
+        self.owner_of(id).unwrap_or(id)
+    }
+
+    /// Learns a spirit's owner from a hit with one of [`SPIRIT_ECHO_SKILLS`]. Only needed
+    /// for spirits summoned before we saw their spawn.
+    pub fn observe_hit(&mut self, attacker: u64, target: u64, skill: u32) -> Option<Change> {
+        if !SPIRIT_ECHO_SKILLS.contains(&skill)
+            || attacker == target
+            || self.owners.contains_key(&attacker)
+            || self.player_name(attacker).is_some()
+            || self.is_self(attacker)
+            || self.mobs.contains_key(&target)
+            || self.owners.contains_key(&target)
+        {
+            return None;
+        }
+        self.owners.insert(attacker, target);
+        Some(Change::SummonSeen { id: attacker, owner: target })
     }
 
     pub fn players(&self) -> impl Iterator<Item = (u64, &str)> {
@@ -152,6 +201,7 @@ impl Registry {
                     return None;
                 }
                 self.mobs.remove(&id);
+                self.owners.remove(&id);
                 self.players.insert(id, name.clone());
                 Some(Change::PlayerNamed { id, name })
             }
@@ -168,6 +218,7 @@ impl Registry {
                     return None;
                 }
                 self.mobs.remove(&id);
+                self.owners.remove(&id);
                 self.players.insert(id, name.clone());
                 Some(Change::PlayerNamed { id, name })
             }
@@ -201,13 +252,22 @@ impl Registry {
                 Some(Change::PartyChanged { members: 0 })
             }
             OPCODE_MOB_SPAWN => {
-                let (id, type_id) = parse_mob_spawn(payload)?;
-                if self.mobs.get(&id) == Some(&type_id) {
-                    return None;
-                }
+                // Summons with a named layout have no type we can read, but still an owner.
+                let summon = parse_summon_owner(payload);
+                let mob = parse_mob_spawn(payload);
+                let id = summon.map(|(id, _)| id).or(mob.map(|(id, _)| id))?;
                 self.players.remove(&id);
-                self.mobs.insert(id, type_id);
-                Some(Change::MobSeen { id, type_id })
+                let owner_changed = match summon {
+                    Some((_, owner)) => self.owners.insert(id, owner) != Some(owner),
+                    // An entity ID can be reused by something that isn't a summon.
+                    None => self.owners.remove(&id).is_some(),
+                };
+                let type_changed = mob.is_some_and(|(_, t)| self.mobs.insert(id, t) != Some(t));
+                match (summon, mob) {
+                    (Some((id, owner)), _) if owner_changed => Some(Change::SummonSeen { id, owner }),
+                    (_, Some((id, type_id))) if type_changed => Some(Change::MobSeen { id, type_id }),
+                    _ => None,
+                }
             }
             _ => None,
         }
@@ -327,11 +387,37 @@ pub fn parse_mob_spawn(p: &[u8]) -> Option<(u64, u32)> {
     MOB_TYPE_RANGE.contains(&type_id).then_some((id, type_id))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// `0x3641` of a summoned creature: (its entity ID, its summoner's). Two layouts:
+///
+/// - Elementalist spirits: [`SUMMON_MARK`] is followed by the owner's varint entity ID
+///   (other mobs have their own ID there), and the same ID comes again as a u32 a few
+///   bytes later.
+/// - Other summons: their own ID after the mark, then u8, u8 `0x02`, 12 bytes,
+///   `07 02 06` and the owner as a u32.
+pub fn parse_summon_owner(p: &[u8]) -> Option<(u64, u64)> {
+    let mut i = 0;
+    let id = read_varint(p, &mut i)?;
+    let mut j = p.windows(SUMMON_MARK.len()).position(|w| w == SUMMON_MARK)? + SUMMON_MARK.len();
+    let who = read_varint(p, &mut j)?;
+    if who != id {
+        let echo = u32::try_from(who).ok()?.to_le_bytes();
+        let after = p.get(j..p.len().min(j + SUMMON_OWNER_ECHO))?;
+        return after.windows(4).any(|w| w == echo).then_some((id, who));
+    }
+    let tag = p.get(j + SUMMON_OWNER_TAG_AT..j + SUMMON_OWNER_TAG_AT + 7)?;
+    if *p.get(j + 1)? != 0x02 || tag[..3] != SUMMON_OWNER_TAG {
+        return None;
+    }
+    let owner = u64::from(u32::from_le_bytes(tag[3..7].try_into().ok()?));
+    (owner != 0 && owner != id).then_some((id, owner))
+}
 
-    fn hex(s: &str) -> Vec<u8> {
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::protocol::tests::encode_varint;
+
+    pub(crate) fn hex(s: &str) -> Vec<u8> {
         s.split_whitespace()
             .map(|b| u8::from_str_radix(b, 16).unwrap())
             .collect()
@@ -487,5 +573,73 @@ mod tests {
         assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("00 00")), Some(Change::PartyChanged { members: 0 }));
         assert!(!r.in_party(10210));
         assert!(r.in_party(3659));
+    }
+
+    /// Spirit 21466 spawning for player 1802 (`20261020-185747`, 32.3 s).
+    pub(crate) const SPIRIT_SPAWN: &str = "da a7 01 1f 10 00 c7 8e 2c 00 40 02 80 c2 99 c7 40 08 05 c8 00 1f 0e 47         45 04 18 43 1a 6c 01 d0 6f d0 6f 6f 0c 00 00 6f 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 d4 3d 02 00         64 00 00 00 f0 49 02 00 01 00 00 00 00 00 00 00 a0 86 01 00 00 00 00 00 87 69 09 00 01 02 01 11 01 ac 31         9a 09 ff ff ff ff ff ff ff ff 80 75 d5 2a bb 03 00 00 8a 0e 0f 02 60 49 99 c7 43 f8 04 c8 00 e6 0d 47 07         02 06 0a 07 00 00 02 cd 00 fa 05 00 00 d0 00 73 01 00 00 2d 00 00 00 e5 1d 03 00 00";
+
+    /// Morzetic's (14637) Cleric servant 40634, named layout (`20261020-184817`, 0 s).
+    const SERVANT_SPAWN: &str = "ba bd 02 5f 00 01 08 4d 6f 72 7a 65 74 69 63 ca 90 2c 00 40 02 80 96 98 c7         40 3a 05 c8 00 e6 0d 47 66 8d 13 43 ed 68 01 9e 96 01 9e 96 01 8f 12 00 00 8f 12 00 00 00 00 00 00 00 00         00 00 00 00 00 00 d4 3d 02 00 64 00 00 00 f0 49 02 00 01 00 00 00 00 00 00 00 a0 86 01 00 00 00 00 00 a0         9b 0a 00 01 02 01 11 01 81 96 98 00 ff ff ff ff ff ff ff ff 80 75 d5 2a bb 03 00 00 ba bd 02 01 02 80 96         98 c7 40 3a 05 c8 00 e6 0d 47 07 02 06 2d 39 00 00 38 00 00 00 00 00 c7 09 09 42 4f 52 41 50 41 4e 44 41         02 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 cd 00 ff 07 00 00 d0 00 6d 01 00 00 2d 00 00 00         00";
+
+    /// An ordinary mob, 35692 of type 2340352 (`20261018-183523`): its own ID after the mark.
+    const MOB_SPAWN: &str = "ec 96 02 04 20 00 00 b6 23 00 00 02 cb 18 d0 43 79 8d de c4 00 30 52 46 00 10         ef 42 00 55 01 af 24 af 24 64 00 00 00 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 64 00         00 00 64 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 06 01 11 01 81 96 98 00 ff         ff ff ff ff ff ff ff 80 75 d5 2a bb 03 00 00 ec 96 02 01 00 cb 18 d0 43 79 8d de c4 00 30 52 46 06 00 14         00 00 00 ab f2 e5 6b 00";
+
+    #[test]
+    fn spirit_spawn_names_its_owner() {
+        let p = hex(SPIRIT_SPAWN);
+        assert_eq!(parse_summon_owner(&p), Some((21466, 1802)));
+        let mut r = Registry::default();
+        assert_eq!(r.observe(OPCODE_MOB_SPAWN, &p), Some(Change::SummonSeen { id: 21466, owner: 1802 }));
+        assert_eq!(r.owner_of(21466), Some(1802));
+        assert_eq!(r.credited(21466), 1802);
+        assert_eq!(r.credited(1802), 1802);
+        assert_eq!(r.mob_type(21466), Some(2_920_135));
+        // The same spawn again changes nothing.
+        assert_eq!(r.observe(OPCODE_MOB_SPAWN, &p), None);
+    }
+
+    #[test]
+    fn other_summons_name_their_owner_after_the_position() {
+        let p = hex(SERVANT_SPAWN);
+        assert_eq!(parse_summon_owner(&p), Some((40634, 14637)));
+        let mut r = Registry::default();
+        r.observe(OPCODE_MOB_SPAWN, &p);
+        assert_eq!(r.owner_of(40634), Some(14637));
+        // A named layout: no type we can read.
+        assert_eq!(r.mob_type(40634), None);
+    }
+
+    #[test]
+    fn ordinary_mobs_have_no_owner() {
+        let p = hex(MOB_SPAWN);
+        assert_eq!(parse_summon_owner(&p), None);
+        assert_eq!(parse_mob_spawn(&p), Some((35692, 2_340_352)));
+        // A spirit's ID taken over by a mob loses its owner.
+        let mut spirit = hex(SPIRIT_SPAWN);
+        spirit.splice(0..3, encode_varint(35692));
+        let mut r = Registry::default();
+        r.observe(OPCODE_MOB_SPAWN, &spirit);
+        assert_eq!(r.owner_of(35692), Some(1802));
+        r.observe(OPCODE_MOB_SPAWN, &p);
+        assert_eq!(r.owner_of(35692), None);
+        // Truncated before the owner's echo: not trusted.
+        assert_eq!(parse_summon_owner(&hex(SPIRIT_SPAWN)[..128]), None);
+    }
+
+    #[test]
+    fn spirit_hits_on_its_owner_name_the_owner() {
+        // 20261020-184817: spirit 41727 (summoned before the capture) hits 55 with 16990002
+        // after each basic attack.
+        let mut r = Registry::default();
+        assert_eq!(r.observe_hit(41727, 20644, 100_028), None);
+        assert_eq!(r.observe_hit(41727, 41727, 16_990_002), None);
+        assert_eq!(r.observe_hit(41727, 55, 16_990_002), Some(Change::SummonSeen { id: 41727, owner: 55 }));
+        assert_eq!(r.observe_hit(41727, 55, 16_990_002), None);
+        assert_eq!(r.credited(41727), 55);
+        // Never for named players, or onto mobs.
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("fd 63 15 b0 a4 00 07", "Player", ""));
+        assert_eq!(r.observe_hit(12797, 55, 16_107_000), None);
+        r.observe(OPCODE_MOB_SPAWN, &hex(MOB_SPAWN));
+        assert_eq!(r.observe_hit(9, 35692, 16_107_000), None);
     }
 }
