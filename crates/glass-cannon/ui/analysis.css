@@ -68,6 +68,7 @@ button:hover { background: var(--line-faint); color: var(--text); }
 button:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .win-button { display: grid; place-items: center; width: 1.9em; height: 1.6em; }
 .copy { color: var(--accent); font-size: 0.9em; white-space: nowrap; }
+.copy:disabled { color: var(--faint); cursor: default; background: transparent; }
 .copied { color: var(--muted); font-size: 0.85em; white-space: nowrap; }
 .close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
@@ -130,6 +131,8 @@ svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-wi
   border-radius: 0.5em;
 }
 legend { padding: 0 0.5em; color: var(--accent); font-size: 0.9em; }
+/* A wide table scrolls inside its box (narrow window) rather than pushing the page sideways. */
+.box:has(> table.grid) { overflow-x: auto; }
 
 /* ---------------------------------------------------------------- stat tiles */
 

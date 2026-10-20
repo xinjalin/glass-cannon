@@ -59,9 +59,23 @@ pub fn save<R: Runtime>(window: &Window<R>, path: &Path) {
 pub fn place<R: Runtime>(window: &WebviewWindow<R>, saved: Option<Placement>) -> Option<PhysicalPosition<i32>> {
     let monitors = window.available_monitors().unwrap_or_default();
     if let Some(p) = saved {
-        if monitors.iter().any(|m| overlaps(m, &p)) {
-            let _ = window.set_size(PhysicalSize::new(p.width, p.height));
-            let _ = window.set_position(PhysicalPosition::new(p.x, p.y));
+        // Back where it was, pulled fully onto the screen it's mostly on (a screen can
+        // have changed size, or the window been left half off it).
+        let r = crate::layout::Rect::new(p.x, p.y, p.width as i32, p.height as i32);
+        let home = monitors
+            .iter()
+            .filter(|m| overlaps(m, &p))
+            .max_by_key(|m| r.overlap(&crate::settings::work_area(m)));
+        if let Some(m) = home {
+            let r = crate::layout::keep_inside(r, crate::settings::work_area(m));
+            // Saved as the window's outside; set_size takes the inside, so take off the frame
+            // (or the meter would grow by it every time it opens).
+            let frame = match (window.outer_size(), window.inner_size()) {
+                (Ok(o), Ok(i)) => (o.width as i32 - i.width as i32, o.height as i32 - i.height as i32),
+                _ => (0, 0),
+            };
+            let _ = window.set_size(PhysicalSize::new((r.w - frame.0).max(1) as u32, (r.h - frame.1).max(1) as u32));
+            let _ = window.set_position(PhysicalPosition::new(r.x, r.y));
             return None;
         }
     }

@@ -8,15 +8,18 @@ use std::sync::Arc;
 
 use meter_core::meter::Analysis;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::settings::overlay_monitor;
+use crate::layout::Side;
+use crate::settings::{outer_rect, overlay_monitor, place_beside, work_area};
 use crate::store::Appearance;
 use crate::{lock, AppState, ANALYSIS};
 
 /// Default window size in logical pixels; smaller screens get less.
 const WIDTH: f64 = 1200.0;
 const HEIGHT: f64 = 780.0;
+/// As in tauri.conf.json: the smallest the window can be.
+const MIN: (f64, f64) = (760.0, 480.0);
 
 /// Which fight and player the window shows.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -64,25 +67,46 @@ pub fn open_analysis(
     let selection = Selection { fight, player };
     *lock(&app.analysis_selection) = selection;
     let w = handle.get_webview_window(ANALYSIS).ok_or("no analysis window")?;
-    // The first time, size it to the screen and put it in the middle of the overlay's monitor.
-    if !app.analysis_placed.swap(true, Ordering::SeqCst) {
-        if let Some(m) = overlay_monitor(&handle) {
-            let scale = m.scale_factor();
-            let area = m.work_area();
-            let max = area.size.to_logical::<f64>(scale);
-            let size = LogicalSize::new(WIDTH.min(max.width - 40.0), HEIGHT.min(max.height - 40.0));
-            let _ = w.set_size(size);
-            let phys = size.to_physical::<i32>(scale);
-            let x = area.position.x + (area.size.width as i32 - phys.width) / 2;
-            let y = area.position.y + (area.size.height as i32 - phys.height) / 2;
-            let _ = w.set_position(PhysicalPosition::new(x, y));
-        }
-    }
+    place(&handle, &w, !app.analysis_placed.swap(true, Ordering::SeqCst));
     w.show().map_err(|e| e.to_string())?;
     let _ = w.unminimize();
     let _ = w.set_focus();
     let _ = w.emit("analysis-select", selection);
     Ok(())
+}
+
+/// Beside the meter on its monitor: the first time at the default size, and again later
+/// whenever it would cover the meter or isn't fully on a screen (a monitor was unplugged,
+/// the meter moved). Otherwise it stays where you put it, at the size you gave it.
+fn place(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
+    let (Some(o), Some(mon), Some(now)) = (handle.get_webview_window(crate::OVERLAY), overlay_monitor(handle), outer_rect(w))
+    else {
+        return;
+    };
+    let Some(meter) = outer_rect(&o) else { return };
+    let on_screen = w
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .any(|m| now.inside(&work_area(m)));
+    if !first && on_screen && now.overlap(&meter) == 0 {
+        return;
+    }
+    // The default size, or bigger if you made it bigger (a window shrunk to fit one screen
+    // gets its size back on a roomier one).
+    let scale = mon.scale_factor();
+    let default = ((WIDTH * scale) as i32, (HEIGHT * scale) as i32);
+    let size = if first { default } else { (now.w.max(default.0), now.h.max(default.1)) };
+    // The side of the meter with more room first.
+    let area = work_area(&mon);
+    let room_left = meter.x - area.x;
+    let room_right = area.x + area.w - (meter.x + meter.w);
+    let sides = if room_left >= room_right {
+        [Side::Left, Side::Right, Side::Below, Side::Above]
+    } else {
+        [Side::Right, Side::Left, Side::Below, Side::Above]
+    };
+    place_beside(handle, w, size, MIN, &sides);
 }
 
 /// What the window should show (it asks when it first loads).

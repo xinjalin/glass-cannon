@@ -74,6 +74,11 @@ function fmt(n) {
   return Math.round(n).toLocaleString("en-US");
 }
 
+// Per-second rates: small ones (a little healing) keep a decimal instead of showing 0.
+function fmtRate(n) {
+  return n > 0 && n < 10 ? n.toFixed(1) : fmt(n);
+}
+
 function clock(s) {
   const t = Math.floor(s);
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
@@ -247,7 +252,7 @@ function drawRows(enc) {
       el("span", "rank", String(i + 1)),
       who,
       meter,
-      el("span", "dps", fmt(p.dps)),
+      el("span", "dps", fmtRate(p.dps)),
       el("span", "share", `${(p.share * 100).toFixed(0)}%`),
     );
     row.append(line);
@@ -283,7 +288,7 @@ function drawTotals(enc) {
     : null;
   const view = meterView();
   const total = view === "damage" ? enc.total_damage : (view === "healing" ? enc.total_healing : enc.total_taken) || 0;
-  $("total").textContent = `${fmt(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
+  $("total").textContent = `${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";

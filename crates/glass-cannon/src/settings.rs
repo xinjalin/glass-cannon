@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use meter_core::meter::Scope;
 use serde::Serialize;
-use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Runtime, State, WebviewWindow};
+use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, PhysicalSize, Runtime, State, WebviewWindow};
+
+use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
 use crate::{lock, notify_overlay, restyle_windows, show_overlay, AppState, OVERLAY, SETTINGS};
@@ -18,6 +20,9 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const GAP: f64 = 10.0;
 /// Space kept free around a window that has to shrink to fit a small screen.
 const SCREEN_MARGIN: f64 = 16.0;
+/// The smallest the settings window gets to fit beside the meter (logical pixels); its
+/// content scrolls.
+const MIN_SETTINGS: (f64, f64) = (420.0, 320.0);
 
 #[derive(Serialize)]
 pub struct Check {
@@ -233,35 +238,56 @@ pub(crate) fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monit
     o.current_monitor().ok().flatten().or_else(|| o.primary_monitor().ok().flatten())
 }
 
-/// Beside the overlay (to its left if it fits, else its right), entirely within the
-/// overlay's monitor, leaving out the taskbar.
+/// Beside the overlay (its left if there's room, else its right, below or above),
+/// entirely within the overlay's monitor, leaving out the taskbar. On a screen too small
+/// for that it shrinks (its content scrolls) before it would cover the meter.
 fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
-    let (Some(o), Some(mon)) = (handle.get_webview_window(OVERLAY), overlay_monitor(handle)) else {
-        return;
-    };
-    let (Ok(pos), Ok(osize), Ok(size)) = (o.outer_position(), o.outer_size(), s.outer_size()) else {
-        return;
-    };
-    let area = mon.work_area();
-    let (left_edge, top_edge) = (area.position.x, area.position.y);
-    let right_edge = left_edge + area.size.width as i32;
-    let bottom_edge = top_edge + area.size.height as i32;
-    let (w, h) = (size.width as i32, size.height as i32);
-    let gap = (GAP * mon.scale_factor()) as i32;
+    let Some(size) = s.outer_size().ok() else { return };
+    let size = (size.width as i32, size.height as i32);
+    place_beside(handle, s, size, MIN_SETTINGS, &[Side::Left, Side::Right, Side::Below, Side::Above]);
+}
 
-    let left = pos.x - w - gap;
-    let right = pos.x + osize.width as i32 + gap;
-    let x = if left >= left_edge {
-        left
-    } else if right + w <= right_edge {
-        right
-    } else {
-        // No room on either side: overlap the overlay rather than leave the screen.
-        right_edge - w
+/// Puts `w` (wanting `size` physical pixels, shrinkable to `min` logical ones) beside the
+/// overlay on its monitor, in the order of `sides`. Returns false when the overlay or its
+/// monitor can't be found.
+pub(crate) fn place_beside<R: Runtime>(
+    handle: &AppHandle<R>,
+    w: &WebviewWindow<R>,
+    size: (i32, i32),
+    min: (f64, f64),
+    sides: &[Side],
+) -> bool {
+    let (Some(o), Some(mon)) = (handle.get_webview_window(OVERLAY), overlay_monitor(handle)) else {
+        return false;
     };
-    let x = x.clamp(left_edge, (right_edge - w).max(left_edge));
-    let y = pos.y.clamp(top_edge, (bottom_edge - h).max(top_edge));
-    let _ = s.set_position(PhysicalPosition::new(x, y));
+    let (Some(meter), Some(area)) = (outer_rect(&o), Some(work_area(&mon))) else {
+        return false;
+    };
+    let scale = mon.scale_factor();
+    let gap = (GAP * scale) as i32;
+    let min = ((min.0 * scale) as i32, (min.1 * scale) as i32);
+    let r = layout::beside(area, meter, size, min, gap, sides);
+    let (Ok(outer), Ok(inner)) = (w.outer_size(), w.inner_size()) else { return false };
+    if (r.w, r.h) != (outer.width as i32, outer.height as i32) {
+        // Sizes here are the window's outside; set_size takes the inside, so take off the
+        // frame (or every placement would grow the window by it).
+        let frame = (outer.width as i32 - inner.width as i32, outer.height as i32 - inner.height as i32);
+        let _ = w.set_size(PhysicalSize::new((r.w - frame.0).max(1) as u32, (r.h - frame.1).max(1) as u32));
+    }
+    let _ = w.set_position(PhysicalPosition::new(r.x, r.y));
+    true
+}
+
+/// A window's outer rectangle in physical pixels.
+pub(crate) fn outer_rect<R: Runtime>(w: &WebviewWindow<R>) -> Option<Rect> {
+    let (p, s) = (w.outer_position().ok()?, w.outer_size().ok()?);
+    Some(Rect::new(p.x, p.y, s.width as i32, s.height as i32))
+}
+
+/// A monitor's work area (the screen less the taskbar) in physical pixels.
+pub(crate) fn work_area(m: &Monitor) -> Rect {
+    let a = m.work_area();
+    Rect::new(a.position.x, a.position.y, a.size.width as i32, a.size.height as i32)
 }
 
 #[tauri::command]
