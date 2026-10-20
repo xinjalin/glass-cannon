@@ -238,6 +238,41 @@ table.grid {
 .swatch-mark.buff { background: var(--buff); }
 .swatch-mark.debuff { background: var(--debuff); }
 
+/* ---------------------------------------------------------------- skill tooltip */
+
+[data-skill] { cursor: help; }
+.skill-tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  width: min(26em, calc(100vw - 2em));
+  padding: 0.55em 0.7em;
+  border: 1px solid var(--line);
+  border-radius: 0.45em;
+  background: rgba(var(--tint-rgb), 0.98);
+  box-shadow: 0 0.3em 1.2em rgba(0, 0, 0, 0.5);
+  font-size: 0.9em;
+  line-height: 1.35;
+  white-space: normal;
+}
+.st-head { display: flex; align-items: center; gap: 0.55em; margin-bottom: 0.4em; }
+.st-head img, .st-head .blank { width: 2.1em; height: 2.1em; border-radius: 0.3em; flex: none; }
+.st-head .blank { background: var(--line-faint); }
+.st-name { color: var(--accent-2); font-size: 1.05em; }
+.st-kind { color: var(--muted); font-size: 0.85em; }
+.st-facts { display: flex; flex-wrap: wrap; gap: 0.1em 1em; margin-bottom: 0.25em; font-variant-numeric: tabular-nums; }
+.st-facts .k { color: var(--muted); }
+.st-props { color: var(--faint); font-size: 0.85em; margin-bottom: 0.35em; }
+.st-desc { margin: 0.3em 0; white-space: pre-line; }
+.st-max { color: var(--muted); font-size: 0.85em; }
+.st-group { margin-top: 0.5em; color: var(--faint); font-size: 0.8em; letter-spacing: 0.05em; }
+.st-spec { display: grid; grid-template-columns: 1.2em minmax(0, 1fr) auto; gap: 0.4em; color: var(--faint); font-size: 0.9em; }
+.st-spec.on { color: var(--text); }
+.st-spec.on .st-mark { color: var(--accent); }
+.st-unlock { color: var(--faint); font-size: 0.85em; }
+.st-measured { margin-top: 0.5em; color: var(--muted); font-size: 0.85em; }
+.st-note { margin-top: 0.2em; color: var(--faint); font-size: 0.78em; }
+
 /* ---------------------------------------------------------------- healing / taken */
 
 .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8em; }

@@ -506,7 +506,13 @@ fn main() {
     let exe_dir = exe_dir();
     let config_dir = config_dir();
     let data = GameData::load(
-        vec![exe_dir.join("gamedata"), exe_dir.join("skills"), config_dir.join("gamedata")],
+        vec![
+            exe_dir.join("gamedata"),
+            exe_dir.join("skills"),
+            config_dir.join("gamedata"),
+            // A build from the repository (target/release): the repository's own copy.
+            exe_dir.join("../../gamedata"),
+        ],
         Some(config_dir.join("names.json")),
     );
     write_startup_log(&config_dir, &data);

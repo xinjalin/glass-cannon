@@ -1,6 +1,7 @@
-//! Skill names and icons, mob/boss names and class icons, from the first of these folders
-//! that has them: `gamedata` next to the program, `skills` next to the program (older
-//! layout), then the app's settings folder.
+//! Skill names and icons, mob/boss names, class icons and skill details, from the first of
+//! these folders that has them: `gamedata` next to the program, `skills` next to the
+//! program (older layout), the app's settings folder, then the repository's `gamedata`
+//! (for a build in `target/release`).
 //!
 //! ```text
 //! <folder>\
@@ -8,9 +9,11 @@
 //!   npcs.json      { "npcs":   { "2400009":  { "name": "…", "boss": true } } }
 //!   1801.png …     skill icons
 //!   class_18.webp  class icons, by class code
+//!   skill-details.json  { "skills": { "18010000": { "cooldown_s": 15, "specs": […] } } }
 //! ```
 //!
-//! The release ships this folder; `packet-lab update-data` builds it. Names you type in
+//! The release ships this folder (the repository's `gamedata`); `packet-lab update-data`
+//! and `packet-lab skill-details` build it. Names you type in
 //! the overlay are kept apart, in `names.json` in the settings folder, so a new release's
 //! data never overwrites them. The app itself never downloads anything.
 
@@ -25,6 +28,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 const SKILLS_FILE: &str = "skills.json";
 const NPCS_FILE: &str = "npcs.json";
+const DETAILS_FILE: &str = "skill-details.json";
 const MAX_ICON_BYTES: u64 = 256 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// Theostone (item) skills as the game sends them: 7 digits starting 30.
@@ -39,6 +43,13 @@ struct SkillFile {
     source: Option<serde_json::Value>,
     #[serde(default)]
     skills: BTreeMap<u32, Entry>,
+}
+
+/// Skill details by base skill ID, kept as they are in the file (the page shows them).
+#[derive(Debug, Default, Deserialize)]
+struct DetailsFile {
+    #[serde(default)]
+    skills: BTreeMap<u32, serde_json::Value>,
 }
 
 /// Your own names for skills and mob types (`names.json` in the settings folder).
@@ -87,6 +98,8 @@ pub struct GameData {
     names: Names,
     skills: SkillFile,
     npcs: NpcFile,
+    /// Cooldowns, costs, descriptions and specialties by base skill ID (optional).
+    details: DetailsFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -103,6 +116,7 @@ impl GameData {
             names_path,
             skills: SkillFile::default(),
             npcs: NpcFile::default(),
+            details: DetailsFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -124,8 +138,9 @@ impl GameData {
                 Ok(f) if !f.skills.is_empty() => {
                     self.dir = dir.clone();
                     self.skills = f;
-                    // Mob names are optional (older folders only have skills).
+                    // Mob names and skill details are optional (older folders only have skills).
                     self.npcs = read_json::<NpcFile>(&dir.join(NPCS_FILE)).unwrap_or_default();
+                    self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
                     self.problem = None;
                     self.adopt_old_custom_names();
                     self.apply_names();
@@ -209,6 +224,27 @@ impl GameData {
             ),
             None => (None, None),
         }
+    }
+
+    /// What the data says about a player skill (cooldown, cost, description, its
+    /// specialties), with the specialties this ID shows were chosen. A class skill's ID is
+    /// its base skill plus the chosen specialties' numbers in its thousands, hundreds and
+    /// tens digits, smallest first: Onslaught 18010000 with specialties 3 and 4 is
+    /// 18010340. The last digit tells apart parts of one skill (chains, extra hits).
+    pub fn skill_details(&self, skill: u32) -> Option<serde_json::Value> {
+        if !(10_000_000..100_000_000).contains(&skill) {
+            return None;
+        }
+        let base = skill - skill % 10_000;
+        let mut info = self.details.skills.get(&base)?.clone();
+        let tail = skill % 10_000;
+        let chosen: Vec<u32> = [tail / 1000, tail / 100 % 10, tail / 10 % 10]
+            .into_iter()
+            .filter(|d| *d > 0)
+            .collect();
+        info["base"] = serde_json::json!(base);
+        info["chosen"] = serde_json::json!(chosen);
+        Some(info)
     }
 
     /// A mob type's name and boss flag.
@@ -458,6 +494,26 @@ mod tests {
         assert_eq!(d.effect_meta(231), (None, None));
         // Only Theostone-range skills get the extra digit.
         assert_eq!(d.skill_meta(1_833_000), (None, None));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn skill_ids_carry_their_specialties() {
+        let dir = temp_dir("details");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18010000": { "name": "Onslaught" } } }"#).unwrap();
+        fs::write(
+            dir.join(DETAILS_FILE),
+            r#"{ "skills": { "18010000": { "name": "Onslaught", "specs": [ { "id": 18010030 } ] } } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // Captured as cast: specialties 3 and 4.
+        let info = d.skill_details(18_010_340).unwrap();
+        assert_eq!(info["base"], 18_010_000);
+        assert_eq!(info["chosen"], serde_json::json!([3, 4]));
+        assert_eq!(d.skill_details(18_010_000).unwrap()["chosen"], serde_json::json!([]));
+        assert!(d.skill_details(18_020_340).is_none(), "no details for that skill");
+        assert!(d.skill_details(3_001_015).is_none(), "not a class skill");
         fs::remove_dir_all(dir).ok();
     }
 

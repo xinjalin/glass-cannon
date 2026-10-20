@@ -1,0 +1,26 @@
+# Game data
+
+Skill, class and mob names, icons and skill details for Glass Cannon's overlay and
+analysis window. The release zip ships this folder next to the program.
+
+**This folder is not covered by Glass Cannon's MIT licence.** The names, text, numbers
+and artwork are Aion 2 game data and belong to NCSOFT. It comes from three places:
+
+| file | from | licence |
+| --- | --- | --- |
+| `skills.json` (names), skill and class icons, `npcs.json` (bosses) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) | GPL-3.0 |
+| `npcs.json` (English mob names), extra names in `skills.json` | [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter) | GPL-3.0 |
+| `skill-details.json` (cooldowns, costs, descriptions, specialties) | [aion2.app](https://aion2.app/db/skills), compiled from NCSOFT's data | none: used without a licence |
+
+The NOIA2 and RATmeter data stays under their GPL-3.0 licence (the release includes
+`LICENSE-GPL-3.0.txt`); the exact upstream commits are in `scripts/gamedata-pins.json` and
+in each file's `source` field. `skill-details.json` was scraped from aion2.app, whose
+terms don't allow that without permission; it's here at the maintainer's own risk and
+will be removed on request from aion2.app or NCSOFT.
+
+## Updating
+
+- Names and icons: `packet-lab update-data --pins scripts/gamedata-pins.json --out gamedata`
+  (add `--bump` to move to the latest upstream commits), then commit the folder.
+- Skill details: `packet-lab skill-details <scrape.json> --scraped <date>` from a fresh
+  scrape of aion2.app's skill database.

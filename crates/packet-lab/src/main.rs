@@ -27,6 +27,7 @@ use meter_core::meter::{Meter, Scope, Snapshot};
 use meter_core::{damage, decode, protocol};
 
 mod gamedata;
+mod skill_details;
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -179,6 +180,17 @@ enum Cmd {
         #[arg(long, requires = "pins")]
         bump: bool,
     },
+    /// Build gamedata/skill-details.json (tooltips: cooldowns, costs, descriptions,
+    /// specialties) from a scrape of aion2.app's skill database
+    SkillDetails {
+        /// The scrape: a JSON object of skills by ID, as aion2.app's pages carry them
+        input: PathBuf,
+        #[arg(long, default_value = "gamedata/skill-details.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Show who was identified: your character, named players, and mob types
     Entities {
         /// A session folder or a flow folder
@@ -315,6 +327,7 @@ fn run(cli: Cli) -> Result<()> {
             };
             gamedata::run(&dir, &lang, !no_icons, pins.as_deref(), bump)
         }
+        Cmd::SkillDetails { input, out, scraped } => skill_details::run(&input, &out, &scraped),
         Cmd::Live {
             process,
             record,

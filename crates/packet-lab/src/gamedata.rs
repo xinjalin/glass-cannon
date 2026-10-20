@@ -45,6 +45,8 @@ const CLASS_ICONS_DIR: &str = "public/aion2/class";
 const RAT_REPO: &str = "Kuroukihime/AIon2-Dps-Meter";
 const RAT_BRANCH: &str = "master";
 const RAT_MOBS: &str = "AionDpsMeter.Core/GameData/Assets/mobs.json";
+/// English skill names from the global client: about 2,200 that NOIA2 doesn't have.
+const RAT_SKILLS: &str = "AionDpsMeter.Core/GameData/Assets/skills.json";
 /// Class code (first two digits of a class's skill IDs) → NOIA2's class icon name.
 const CLASS_ICONS: [(u32, &str); 9] = [
     (11, "gladiator"),
@@ -211,6 +213,29 @@ fn update_skills(src: &Source, dir: &Path, lang: &str, files: &HashSet<String>) 
         }
         skills.insert(num, entry);
     }
+    // In English, RATmeter's names fill the gaps (spirit attacks, item effects, …).
+    let mut extra = 0;
+    if lang == "en" {
+        let rat = get_json(&src.agent, &src.rat_raw(RAT_SKILLS))?;
+        for (id, name) in rat.as_object().into_iter().flatten() {
+            let (Ok(num), Some(name)) = (id.parse::<u32>(), name.as_str()) else {
+                continue;
+            };
+            if name.is_empty() || skills.contains_key(&num) {
+                continue;
+            }
+            let mut entry = json!({ "name": name });
+            if let Some(f) = icon_files(id)
+                .into_iter()
+                .find(|f| files.contains(&format!("{SKILL_ICONS_DIR}/{f}")))
+            {
+                wanted.insert(f.clone());
+                entry["icon"] = json!(f);
+            }
+            skills.insert(num, entry);
+            extra += 1;
+        }
+    }
     let kept = keep_custom(&dir.join("skills.json"), "skills", &mut skills);
 
     // Icons already in the folder are kept; the rest download a few at a time.
@@ -218,11 +243,16 @@ fn update_skills(src: &Source, dir: &Path, lang: &str, files: &HashSet<String>) 
     todo.sort();
     let (fetched, failed) = fetch_icons(src, dir, &todo)?;
     let count = skills.len();
-    write_json(
-        &dir.join("skills.json"),
-        &json!({ "source": source_note(src, lang), "skills": skills }),
-    )?;
-    println!("progress: {count} skill names ({lang}); {fetched} new icons, {failed} failed, {kept} of your own names kept");
+    let mut source = source_note(src, lang);
+    if extra > 0 {
+        source["extra_names"] = json!({
+            "project": format!("https://github.com/{RAT_REPO}"),
+            "commit": src.rat_sha,
+            "license": "GPL-3.0",
+        });
+    }
+    write_json(&dir.join("skills.json"), &json!({ "source": source, "skills": skills }))?;
+    println!("progress: {count} skill names ({lang}, {extra} from RATmeter); {fetched} new icons, {failed} failed, {kept} of your own names kept");
     Ok(count)
 }
 
@@ -428,7 +458,9 @@ fn get_bytes(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
 
 fn get_json(agent: &ureq::Agent, url: &str) -> Result<Value> {
     let bytes = get_bytes(agent, url, MAX_JSON)?;
-    serde_json::from_slice(&bytes).with_context(|| format!("{url} isn't valid JSON"))
+    // Some files (RATmeter's) start with a UTF-8 byte order mark.
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
+    serde_json::from_slice(bytes).with_context(|| format!("{url} isn't valid JSON"))
 }
 
 #[cfg(test)]
