@@ -197,6 +197,7 @@ table.grid {
 .chart { position: relative; width: 100%; }
 .chart canvas { display: block; width: 100%; }
 #dps-chart { height: 15em; }
+#dps-chart.has-hp { height: calc(15em + 22px); }
 .timeline canvas { cursor: grab; }
 .timeline canvas:active { cursor: grabbing; }
 .chart-tools { display: flex; align-items: center; gap: 0.3em; padding-bottom: 0.4em; }
@@ -221,6 +222,7 @@ table.grid {
 .tooltip .t-head { color: var(--accent-2); margin-bottom: 0.2em; }
 .tooltip .t-row { display: flex; justify-content: space-between; gap: 1.2em; }
 .tooltip .t-row span:first-child { color: var(--muted); display: inline-flex; align-items: center; gap: 0.4em; }
+.tooltip .hp-swatch { display: inline-block; width: 0.9em; height: 0.6em; border-top: 1px solid var(--faint); background: color-mix(in srgb, var(--muted) 28%, transparent); }
 .tooltip .dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; }
 
 .legend { display: flex; flex-wrap: wrap; gap: 0.3em 1.2em; padding-top: 0.4em; color: var(--muted); }
