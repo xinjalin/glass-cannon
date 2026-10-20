@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The overlay and settings windows: our own commands, events, and moving, closing, minimising, hiding and pinning windows. No network, file system or shell access from the pages.",
+  "description": "The overlay, settings and analysis windows: our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
   "windows": [
     "main",
-    "settings"
+    "settings",
+    "analysis"
   ],
   "permissions": [
     "core:default",
@@ -13,6 +14,8 @@
     "core:window:allow-minimize",
     "core:window:allow-set-always-on-top",
     "core:window:allow-hide",
-    "core:window:allow-show"
+    "core:window:allow-show",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-unminimize"
   ]
 }

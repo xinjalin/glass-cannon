@@ -13,7 +13,13 @@ goes online: everything it needs is in the download.
 
 ![Settings beside the meter](docs/screenshots/settings.png)
 
-<sub>Screenshots use example data; the player names are made up.</sub>
+![Fight analysis: overview](docs/screenshots/analysis-overview.png)
+
+| Rotation | Buffs |
+| --- | --- |
+| ![Skill rotation timeline](docs/screenshots/analysis-rotation.png) | ![Buff timeline and buffs per skill](docs/screenshots/analysis-buffs.png) |
+
+<sub>Overlay screenshots use example data with made-up names; the analysis screenshots are a real training-dummy test (players shown by entity ID).</sub>
 
 ## Install
 
@@ -46,6 +52,18 @@ to keep five in view when you change the font size, the time bar or minimal mode
   - *all*: every player fighting nearby.
 - **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
   skill or the target to name it yourself.
+- **Right-click a player** (or the chart icon) to open the **analysis** window on that
+  fight, live or from history. It's a full dashboard:
+  - *overview*: DPS, casts, crit, back and front attacks, perfect and double strikes,
+    DPS over time for the top players, and every player side by side;
+  - *skills*: every skill with casts, hits, multi-hit, crit, double, perfect, back, front,
+    min, max, average and time between casts (click a column to sort);
+  - *rotation*: your opening casts and a zoomable timeline of every cast by skill
+    (crits ringed, back attacks dotted);
+  - *buffs*: buffs on you and debuffs on the target over time with their uptime, and
+    for each skill the share of its casts that landed with each effect up.
+  Filter by target when a fight had several. The newest 50 fights keep their full
+  analysis; older ones keep the summary.
 - **Clock icon**: fight history. Every finished fight is kept (the last 200), with the
   full breakdown. **↺** resets; **pin** toggles always-on-top; **×** quits.
 - **≡** opens the **settings** beside the meter (always fully on screen): appearance on

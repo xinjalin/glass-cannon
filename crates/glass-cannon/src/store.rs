@@ -8,7 +8,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use meter_core::meter::{EncounterView, Scope, Snapshot};
+use meter_core::meter::{Analysis, EncounterView, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Fights kept in memory and shown in the history list.
@@ -284,6 +284,60 @@ impl Profile {
     }
 }
 
+/// Fights kept with their full analysis (the rest of the history keeps its summary).
+const DETAILS_LIMIT: usize = 50;
+
+/// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
+pub struct FightDetails {
+    dir: PathBuf,
+}
+
+impl FightDetails {
+    pub fn new(config_dir: &Path) -> Self {
+        Self {
+            dir: config_dir.join("fights"),
+        }
+    }
+
+    fn path(&self, ended_ms: u64) -> PathBuf {
+        self.dir.join(format!("{ended_ms}.json"))
+    }
+
+    pub fn save(&self, ended_ms: u64, analysis: &Analysis) {
+        if fs::create_dir_all(&self.dir).is_err() {
+            return;
+        }
+        if let Ok(json) = serde_json::to_vec(analysis) {
+            let tmp = self.dir.join(format!("{ended_ms}.json.tmp"));
+            if fs::write(&tmp, json).is_ok() {
+                let _ = fs::rename(&tmp, self.path(ended_ms));
+            }
+        }
+        self.prune();
+    }
+
+    pub fn load(&self, ended_ms: u64) -> Option<Analysis> {
+        serde_json::from_slice(&fs::read(self.path(ended_ms)).ok()?).ok()
+    }
+
+    pub fn has(&self, ended_ms: u64) -> bool {
+        self.path(ended_ms).is_file()
+    }
+
+    /// Keeps the newest [`DETAILS_LIMIT`] files.
+    fn prune(&self) {
+        let Ok(entries) = fs::read_dir(&self.dir) else { return };
+        let mut stamps: Vec<u64> = entries
+            .filter_map(|e| e.ok()?.file_name().to_str()?.strip_suffix(".json")?.parse().ok())
+            .collect();
+        stamps.sort_unstable();
+        let excess = stamps.len().saturating_sub(DETAILS_LIMIT);
+        for ended_ms in &stamps[..excess] {
+            let _ = fs::remove_file(self.path(*ended_ms));
+        }
+    }
+}
+
 /// A finished fight, as saved.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fight {
@@ -305,6 +359,8 @@ pub struct FightSummary {
     pub total_dps: f64,
     pub players: usize,
     pub my_dps: Option<f64>,
+    /// A full analysis is saved for it (the newest fights only).
+    pub has_details: bool,
 }
 
 pub struct History {
@@ -344,8 +400,8 @@ impl History {
         self.fights.len()
     }
 
-    /// Newest first.
-    pub fn summaries(&self) -> Vec<FightSummary> {
+    /// Newest first. `details` says which fights have a saved analysis.
+    pub fn summaries(&self, details: &FightDetails) -> Vec<FightSummary> {
         self.fights
             .iter()
             .enumerate()
@@ -359,6 +415,7 @@ impl History {
                 total_dps: f.view.total_dps,
                 players: f.view.players.len(),
                 my_dps: f.view.players.iter().find(|p| p.is_self).map(|p| p.dps),
+                has_details: details.has(f.ended_ms),
             })
             .collect()
     }
@@ -432,7 +489,7 @@ mod tests {
         }
         let again = History::load(&dir);
         assert_eq!(again.len(), 3);
-        let list = again.summaries();
+        let list = again.summaries(&FightDetails::new(&dir));
         assert_eq!(list[0].ended_ms, 2);
         assert_eq!(list[0].index, 2);
         assert_eq!(list[0].my_dps, Some(10.0));
@@ -459,6 +516,32 @@ mod tests {
         let again = Settings::load(&dir);
         assert!(again.record);
         assert_eq!(again.appearance, s.appearance);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn fight_details_are_saved_and_pruned() {
+        let dir = temp_dir("details");
+        let details = FightDetails::new(&dir);
+        let view: EncounterView = serde_json::from_value(serde_json::json!({
+            "active": false, "duration_s": 10.0, "total_damage": 5, "total_dps": 0.5,
+            "target": null, "target_id": null, "target_type": null, "target_count": 1,
+            "start_us": 0, "end_us": 10, "players": []
+        }))
+        .unwrap();
+        let analysis = Analysis {
+            view,
+            hits: Vec::new(),
+            effects: Vec::new(),
+            names: Default::default(),
+            mob_types: Default::default(),
+        };
+        for ended_ms in 1..=(DETAILS_LIMIT as u64 + 2) {
+            details.save(ended_ms, &analysis);
+        }
+        assert!(!details.has(1) && !details.has(2));
+        assert!(details.has(3));
+        assert_eq!(details.load(DETAILS_LIMIT as u64 + 2), Some(analysis));
         fs::remove_dir_all(dir).ok();
     }
 
