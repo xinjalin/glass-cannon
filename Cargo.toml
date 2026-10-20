@@ -12,3 +12,8 @@ authors = ["Xinjalin"]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[workspace.lints.clippy]
+# A lock guard in an `if let` or `match` scrutinee lives through the whole block; locking
+# the same mutex again inside it deadlocks (it froze the app in 0.4.0's first build).
+significant_drop_in_scrutinee = "warn"

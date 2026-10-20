@@ -115,12 +115,18 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
     };
 
     // Your name, if the game hasn't sent it this session.
-    if let Some(name) = lock(&app.profile).name.clone() {
-        lock(&app.profile).name_self_row(&mut a.view, &name);
+    // One guard: a lock in the `if let` itself would be held through the block, and taking
+    // it again there would wait on ourselves forever (this runs on the UI thread).
+    let profile = lock(&app.profile);
+    if let Some(name) = &profile.name {
+        profile.name_self_row(&mut a.view, name);
         for p in a.view.players.iter().filter(|p| p.is_self) {
             a.names.insert(p.id, p.name.clone());
         }
     }
+    // Released before `data`: the tick locks data then profile, so holding both here in
+    // the other order could deadlock with it.
+    drop(profile);
 
     let data = lock(&app.data);
     data.annotate_view(&mut a.view);

@@ -13,3 +13,6 @@ serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
 ureq = "2"
+
+[lints]
+workspace = true
