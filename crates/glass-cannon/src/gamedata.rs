@@ -164,6 +164,11 @@ impl GameData {
         self.reload();
     }
 
+    /// Skills with details (cooldown, cost, description, specialties) for the tooltips.
+    pub fn detail_count(&self) -> usize {
+        self.details.skills.len()
+    }
+
     pub fn skill_count(&self) -> usize {
         self.skills.skills.len()
     }

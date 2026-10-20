@@ -130,6 +130,7 @@ async function refresh() {
     setCheck("check-npcap", state.npcap);
     setCheck("check-game", state.game);
     setCheck("check-data", state.data);
+    setCheck("check-details", state.details);
     drawAppearance(state.appearance);
     drawScope(state.scope, state.party_size);
     for (const b of document.querySelectorAll("[data-refresh-choice]")) {

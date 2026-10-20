@@ -5,7 +5,7 @@ network traffic (passively, through Npcap), so it never touches the game or its 
 No admin rights while running, no hidden scheduled tasks, no auto-updates, and it never
 goes online: everything it needs is in the download.
 
-![The meter during a boss fight](docs/screenshots/overlay.png)
+![The meter in a fight with eight players](docs/screenshots/overlay.png)
 
 | Skill breakdown | Minimal mode, class-coloured bars |
 | --- | --- |
@@ -15,11 +15,15 @@ goes online: everything it needs is in the download.
 
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
 
+![Skills with each player's specialties, and a skill's tooltip](docs/screenshots/analysis-skills.png)
+
 | Rotation | Buffs |
 | --- | --- |
 | ![Skill rotation timeline](docs/screenshots/analysis-rotation.png) | ![Buff timeline and buffs per skill](docs/screenshots/analysis-buffs.png) |
 
-<sub>Overlay screenshots use example data with made-up names; the analysis screenshots are a real training-dummy test (players shown by entity ID).</sub>
+![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png)
+
+<sub>All screenshots are real fights at training dummies, replayed from recordings; other players' names (and the dummies') are made up.</sub>
 
 ## Install
 

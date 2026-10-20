@@ -639,6 +639,7 @@ fn write_startup_log(config_dir: &Path, data: &GameData) {
     log += &line("data dir", data.dir().display().to_string());
     log += &line("skills loaded", data.skill_count().to_string());
     log += &line("mob names", data.named_npc_count().to_string());
+    log += &line("skill details", data.detail_count().to_string());
     if let Some(p) = data.problem() {
         log += &line("data problem", p.to_string());
     }

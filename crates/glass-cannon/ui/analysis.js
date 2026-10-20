@@ -930,7 +930,10 @@ function drawTimeAxis(ctx, x0, x1, y, t0, t1) {
     ctx.moveTo(Math.round(x) + 0.5, 0);
     ctx.lineTo(Math.round(x) + 0.5, y);
     ctx.stroke();
-    ctx.fillText(clock(t), x, y + 6);
+    // A label at the right edge sits inside the plot rather than off it.
+    const near = x > x1 - 2 * fontPx();
+    ctx.textAlign = near ? "right" : "center";
+    ctx.fillText(clock(t), near ? x1 : x, y + 6);
   }
 }
 

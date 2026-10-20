@@ -32,6 +32,8 @@ pub struct SettingsStatus {
     npcap: Check,
     game: Check,
     data: Check,
+    /// Skill details for the analysis window's tooltips.
+    details: Check,
     record: bool,
     /// Whether the capture running now is recording (the switch applies on next start).
     recording_now: bool,
@@ -69,10 +71,10 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
             text: "not running".into(),
         },
     };
-    let data = {
+    let (data, details) = {
         let mut d = lock(&app.data);
         d.reload_if_empty();
-        match d.skill_count() {
+        let data = match d.skill_count() {
             0 => Check {
                 level: "bad",
                 text: "missing: reinstall from the release zip".into(),
@@ -81,7 +83,20 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
                 level: "ok",
                 text: format!("{} skills · {} mobs", thousands(n), thousands(d.named_npc_count())),
             },
-        }
+        };
+        // Cooldowns, descriptions and specialties for the analysis tooltips: the meter
+        // works without them, so a missing file is only a warning.
+        let details = match d.detail_count() {
+            0 => Check {
+                level: "warn",
+                text: "missing: no skill tooltips".into(),
+            },
+            n => Check {
+                level: "ok",
+                text: format!("{} skills", thousands(n)),
+            },
+        };
+        (data, details)
     };
     let s = lock(&app.settings).clone();
     SettingsStatus {
@@ -89,6 +104,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         npcap,
         game,
         data,
+        details,
         record: s.record,
         recording_now: app.recording_now.load(std::sync::atomic::Ordering::SeqCst),
         scope: s.scope,

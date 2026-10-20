@@ -46,11 +46,23 @@ let fightView = null;
 const skillIcons = new Map(); // icon key -> data URL (null while loading / missing)
 const classIcons = new Map(); // class code -> data URL (null while loading / missing)
 
+// Icons load in the background; one that arrives redraws the panel (refreshes skip
+// redrawing while the fight doesn't change, so it wouldn't show up otherwise).
+let iconRedraw = false;
 function cached(map, key, command, args) {
   if (!map.has(key)) {
     map.set(key, null);
     invoke(command, args)
-      .then((url) => map.set(key, url))
+      .then((url) => {
+        map.set(key, url);
+        if (url && !iconRedraw) {
+          iconRedraw = true;
+          requestAnimationFrame(() => {
+            iconRedraw = false;
+            if (!editing) redraw();
+          });
+        }
+      })
       .catch(() => {});
   }
   return map.get(key);
