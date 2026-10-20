@@ -66,9 +66,15 @@ to keep five in view when you change the font size, the time bar or minimal mode
   Filter by target when a fight had several. The newest 50 fights keep their full
   analysis; older ones keep the summary.
 - **Clock icon**: fight history. Every finished fight is kept (the last 200), with the
-  full breakdown. **↺** resets; **pin** toggles always-on-top; **×** quits.
+  full breakdown. **▷|** ends the fight now (your next hit starts a new one, without
+  waiting for the fight to go quiet); **↺** resets; **pin** toggles always-on-top; **×**
+  quits.
+- **Lock** (bottom-right corner, or *click-through* in the settings): clicks go through
+  the meter to the game. While it's locked, the lock button is the only part of the meter
+  that takes the mouse; click it to unlock. It stays locked next time you open the meter.
 - **≡** opens the **settings** beside the meter (always fully on screen): appearance on
-  the left; status (Npcap, game, game data), whose damage counts, record fights (applies
+  the left; status (Npcap, game, game data), whose damage counts, how often the meter
+  updates (0.2–2 s; 0.5 s by default), click-through, record fights (applies
   the next time you open the meter), fight history, a Desktop/Start-menu shortcut and
   **reset appearance** (click twice: everything below, and the window size, back to the
   defaults) on the right. The window sizes itself to fit. Esc or × hides it.
@@ -94,7 +100,10 @@ to keep five in view when you change the font size, the time bar or minimal mode
   change. Training dummies don't announce you, so until then the meter shows the name it
   saw last time (if your class matches), marked "(remembered)".
 - Other players are named when they come into view, after a zone change, or when they
-  start fighting a mob. Classes come from their skills. Mobs are named from their type,
+  start fighting a mob: the game sends no other name for them. So players who were
+  already around you when you opened the meter show as `#ID` until one of those happens
+  (a teleport or zone change names everyone nearby). The meter remembers names for the
+  rest of your login, so restarting it doesn't lose them. Classes come from their skills. Mobs are named from their type,
   which the game only sends when a mob appears: mobs that were already there when the
   meter started show as `#ID` until you meet fresh ones.
 
@@ -121,8 +130,9 @@ release's data never overwrites them.
 If skills show as numbers, the status line says why, and `meter.log` in
 `%APPDATA%\io.github.xinjalin.glass-cannon\` records where the app looked at startup.
 That folder also holds `settings.json`, `names.json`, `profile.json` (your last-seen
-name), `history.jsonl`, `fights` (the full analysis of the newest 50 fights) and
-`window.json` (where you left the meter). Settings from before the rename (`%APPDATA%\local.aion-meter`)
+name), `history.jsonl`, `fights` (the full analysis of the newest 50 fights),
+`players.json` (names of players seen this login) and `window.json` (where you left the
+meter). Settings from before the rename (`%APPDATA%\local.aion-meter`)
 move there on first start.
 
 The terminal version is `packet-lab live`; `packet-lab meter <session>` runs the meter

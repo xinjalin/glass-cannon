@@ -14,7 +14,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -28,6 +28,7 @@ use meter_core::recorder::Side;
 use meter_core::session;
 
 mod analysis;
+mod clickthrough;
 mod fonts;
 mod gamedata;
 mod placement;
@@ -36,7 +37,7 @@ mod store;
 mod style;
 
 use gamedata::GameData;
-use store::{Appearance, Fight, FightDetails, FightSummary, History, Profile, Settings};
+use store::{Appearance, Fight, FightDetails, FightSummary, History, KnownPlayers, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
@@ -116,6 +117,14 @@ pub struct AppState {
     recording_now: AtomicBool,
     /// The overlay wasn't restored from last time, so its first fit sets the height exactly.
     overlay_new: AtomicBool,
+    /// Click-through is on (the meter only answers on its lock button).
+    locked: AtomicBool,
+    /// Where the overlay's lock button is.
+    lock_button: Mutex<Option<clickthrough::ButtonRect>>,
+    /// Player names saved by an earlier run, until we know whether they're from this login.
+    known_players: Mutex<Option<KnownPlayers>>,
+    /// How many named players were last saved to `players.json`.
+    players_saved: AtomicUsize,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -134,17 +143,24 @@ struct View {
     name_remembered: bool,
     history_count: usize,
     appearance: Appearance,
+    /// How often the overlay should ask again, in milliseconds.
+    refresh_ms: u32,
+    locked: bool,
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
 #[tauri::command]
 fn snapshot(app: State<'_, Arc<AppState>>) -> View {
     let now = app.engine.now();
-    let (mut snap, finished) = {
+    let (mut snap, finished, known) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
-        (meter.snapshot(), meter.take_finished())
+        let known = remember_players(&app, &mut meter);
+        (meter.snapshot(), meter.take_finished(), known)
     };
+    if let Some(k) = known {
+        k.save(&app.config_dir);
+    }
     let mut data = lock(&app.data);
     data.reload_if_empty();
     let mut profile = lock(&app.profile);
@@ -164,6 +180,7 @@ fn snapshot(app: State<'_, Arc<AppState>>) -> View {
     }
     data.annotate(&mut snap);
     let name_remembered = profile.apply(&mut snap);
+    let settings = lock(&app.settings).clone();
     View {
         status: lock(&app.engine.status).clone(),
         meter: snap,
@@ -171,8 +188,52 @@ fn snapshot(app: State<'_, Arc<AppState>>) -> View {
         skills_problem: data.problem().map(str::to_string),
         name_remembered,
         history_count: history.len(),
-        appearance: lock(&app.settings).appearance.clone(),
+        appearance: settings.appearance,
+        refresh_ms: settings.refresh_ms,
+        locked: settings.locked,
     }
+}
+
+/// Names players from the last run of the meter if it was in this login, and returns
+/// the names to save when more have been learned. Not for replays: their entity IDs are
+/// from another login.
+fn remember_players(app: &AppState, meter: &mut Meter) -> Option<KnownPlayers> {
+    if app.args.replay.is_some() {
+        return None;
+    }
+    let self_id = meter.registry().self_id()?;
+    let now_ms = live::now_us() / 1000;
+    let saved = lock(&app.known_players).take();
+    if let Some(saved) = saved {
+        if let Some(names) = saved.for_login(self_id, now_ms) {
+            meter.remember_names(names);
+        }
+    }
+    let count = meter.registry().players().count();
+    (app.players_saved.swap(count, Ordering::SeqCst) != count).then(|| KnownPlayers {
+        self_id,
+        saved_ms: now_ms,
+        players: meter.registry().players().map(|(id, n)| (id, n.to_string())).collect(),
+    })
+}
+
+/// Ends the fight now; the next hit starts a new one.
+#[tauri::command]
+fn end_fight(app: State<'_, Arc<AppState>>) {
+    let now = app.engine.now();
+    app.engine.meter().end_fight(now);
+}
+
+/// How often the overlay redraws (one of the set rates); saved for next time.
+#[tauri::command]
+fn set_refresh(app: State<'_, Arc<AppState>>, ms: u32) -> Result<(), String> {
+    if !store::REFRESH_RATES.contains(&ms) {
+        return Err(format!("unsupported refresh rate {ms} ms"));
+    }
+    let mut s = lock(&app.settings);
+    s.refresh_ms = ms;
+    s.save(&app.config_dir);
+    Ok(())
 }
 
 /// One skill's icon as a data URL, fetched the first time the overlay shows it.
@@ -441,6 +502,7 @@ fn main() {
     write_startup_log(&config_dir, &data);
 
     let replay = args.replay.is_some();
+    let known_players = KnownPlayers::load(&config_dir);
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
             meter: Mutex::new(Meter::default()),
@@ -466,13 +528,22 @@ fn main() {
         overlay_placed: AtomicBool::new(false),
         recording_now: AtomicBool::new(false),
         overlay_new: AtomicBool::new(false),
+        locked: AtomicBool::new(false),
+        lock_button: Mutex::new(None),
+        known_players: Mutex::new(Some(known_players)),
+        players_saved: AtomicUsize::new(0),
     });
+    state.locked.store(lock(&state.settings).locked, Ordering::SeqCst);
 
     tauri::Builder::default()
         .manage(Arc::clone(&state))
         .invoke_handler(tauri::generate_handler![
             snapshot,
             reset,
+            end_fight,
+            set_refresh,
+            clickthrough::set_locked,
+            clickthrough::lock_button_rect,
             set_scope,
             skill_icon,
             class_icon,
@@ -501,6 +572,7 @@ fn main() {
             // The meter is the app: start capturing and show it straight away.
             start_engine(&state);
             show_overlay(app.handle())?;
+            clickthrough::watch(app.handle().clone(), Arc::clone(&state));
             Ok(())
         })
         .on_window_event(|window, event| {

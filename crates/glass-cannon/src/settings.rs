@@ -39,6 +39,8 @@ pub struct SettingsStatus {
     /// People in your party or group, you included (0 when on your own).
     party_size: usize,
     appearance: Appearance,
+    refresh_ms: u32,
+    locked: bool,
 }
 
 #[tauri::command]
@@ -92,6 +94,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         scope: s.scope,
         party_size: app.engine.meter().registry().party().len(),
         appearance: s.appearance,
+        refresh_ms: s.refresh_ms,
+        locked: s.locked,
     }
 }
 

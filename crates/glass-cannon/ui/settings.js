@@ -132,6 +132,11 @@ async function refresh() {
     setCheck("check-data", state.data);
     drawAppearance(state.appearance);
     drawScope(state.scope, state.party_size);
+    for (const b of document.querySelectorAll("[data-refresh-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(Number(b.dataset.refreshChoice) === state.refresh_ms));
+    }
+    setToggle("locked", state.locked);
     setToggle("record", state.record);
     // Capture is already running, so a changed choice applies next time.
     const pending = state.record !== state.recording_now;
@@ -187,6 +192,18 @@ for (const b of document.querySelectorAll("[data-scope-choice]")) {
     refresh();
   });
 }
+
+for (const b of document.querySelectorAll("[data-refresh-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_refresh", { ms: Number(b.dataset.refreshChoice) }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
+
+$("locked").addEventListener("click", async () => {
+  await invoke("set_locked", { locked: !(state && state.locked) });
+  refresh();
+});
 
 $("record").addEventListener("click", async () => {
   await invoke("set_record", { record: !(state && state.record) });

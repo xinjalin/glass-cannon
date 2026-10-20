@@ -903,8 +903,13 @@ let buffHover = null;
 let buffLayout = null;
 const buffGutter = () => 17 * fontPx();
 
+// The skill's name, else the effect's own (from its ID), else the bare number.
 function effectLabel(e) {
-  return e.skill != null ? skillName(e.skill) : `effect ${e.effect}`;
+  const skill = e.skill != null && data.skills[e.skill];
+  if (skill && skill.name) return skill.name;
+  const named = data.effect_names && data.effect_names[e.effect];
+  if (named) return named;
+  return e.skill != null ? String(e.skill) : `effect ${e.effect}`;
 }
 
 // Lanes of effect spans: on the player (buffs), then on the target (debuffs).

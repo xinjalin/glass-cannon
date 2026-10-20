@@ -27,6 +27,8 @@ const SKILLS_FILE: &str = "skills.json";
 const NPCS_FILE: &str = "npcs.json";
 const MAX_ICON_BYTES: u64 = 256 * 1024;
 const MAX_NAME_CHARS: usize = 60;
+/// Theostone (item) skills as the game sends them: 7 digits starting 30.
+const THEOSTONE_SKILLS: std::ops::RangeInclusive<u32> = 3_000_000..=3_099_999;
 /// How often an empty catalog tries the files again.
 const RELOAD_EVERY: Duration = Duration::from_secs(5);
 
@@ -165,11 +167,30 @@ impl GameData {
     }
 
     /// A skill's entry: its exact ID first, then its base skill (variants differ in the
-    /// last digits, e.g. 11100048 -> 11100000).
+    /// last digits, e.g. 11100048 -> 11100000). Theostones come in as 7 digits (3001015)
+    /// but the data lists them by their effect ID, one digit longer (30010151).
     fn resolve_skill(&self, id: u32) -> Option<(u32, &Entry)> {
-        [id, id - id % 100, id - id % 10_000]
+        let theostone = THEOSTONE_SKILLS.contains(&id).then(|| id * 10 + 1);
+        [Some(id), Some(id - id % 100), Some(id - id % 10_000), theostone]
             .into_iter()
+            .flatten()
             .find_map(|k| self.skills.skills.get(&k).map(|e| (k, e)))
+    }
+
+    /// An effect's name and icon key, for buffs and debuffs that don't say which skill
+    /// they came from. Effect IDs are a skill ID and one more digit (Recuperation 18120010
+    /// → 181200101), and some are in the data as they are (Theostones).
+    pub fn effect_meta(&self, effect: u32) -> (Option<String>, Option<u32>) {
+        let found = self
+            .skills
+            .skills
+            .get(&effect)
+            .map(|e| (effect, e))
+            .or_else(|| (effect >= 10_000_000).then(|| self.resolve_skill(effect / 10)).flatten());
+        match found {
+            Some((key, e)) => ((!e.name.is_empty()).then(|| e.name.clone()), e.icon.is_some().then_some(key)),
+            None => (None, None),
+        }
     }
 
     /// Fills in skill names and icon keys, and the target's name and boss flag.
@@ -408,6 +429,34 @@ mod tests {
         assert_eq!(v.players[0].skills[1].name, None);
         assert_eq!(v.target.as_deref(), Some("Hardened Drana"));
         assert!(v.target_boss);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn theostones_and_effects_are_named_from_the_data() {
+        let dir = temp_dir("effects");
+        fs::write(dir.join("3001.png"), b"png").unwrap();
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": {
+                "30010151": { "name": "Theostone: Santras's Secret", "icon": "3001.png" },
+                "18330000": { "name": "Marchutan's Wrath" },
+                "18120010": { "name": "Recuperation" }
+            } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        let theostone = (Some("Theostone: Santras's Secret".to_string()), Some(30_010_151));
+        // From our captures: skill 3001015 applies effect 30010151.
+        assert_eq!(d.skill_meta(3_001_015), theostone);
+        assert_eq!(d.effect_meta(30_010_151), theostone);
+        // Effects without a skill: the effect ID less its last digit is the skill.
+        assert_eq!(d.effect_meta(183_300_071).0.as_deref(), Some("Marchutan's Wrath"));
+        assert_eq!(d.effect_meta(181_200_101).0.as_deref(), Some("Recuperation"));
+        // System effects have short IDs and no name.
+        assert_eq!(d.effect_meta(231), (None, None));
+        // Only Theostone-range skills get the extra digit.
+        assert_eq!(d.skill_meta(1_833_000), (None, None));
         fs::remove_dir_all(dir).ok();
     }
 

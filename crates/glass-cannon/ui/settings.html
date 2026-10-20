@@ -116,6 +116,19 @@
               </span>
             </div>
             <p class="hint" id="scope-hint"></p>
+            <div class="line">
+              <span class="key">update rate</span>
+              <span class="choice" role="radiogroup" aria-label="How often the meter updates">
+                <button type="button" data-refresh-choice="200" title="Five times a second">[0.2s]</button>
+                <button type="button" data-refresh-choice="500" title="Twice a second (default)">[0.5s]</button>
+                <button type="button" data-refresh-choice="1000" title="Once a second">[1s]</button>
+                <button type="button" data-refresh-choice="2000" title="Every two seconds">[2s]</button>
+              </span>
+            </div>
+            <button id="locked" type="button" class="opt" aria-pressed="false">
+              <span class="key">click-through</span><span class="state">[off]</span>
+            </button>
+            <p class="hint">clicks pass through to the game · unlock with the lock at the bottom right</p>
             <button id="record" type="button" class="opt" aria-pressed="false">
               <span class="key">record fights</span><span class="state">[off]</span>
             </button>

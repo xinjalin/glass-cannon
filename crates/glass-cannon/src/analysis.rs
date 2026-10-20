@@ -39,6 +39,8 @@ pub struct AnalysisData {
     analysis: Analysis,
     /// Names and icons for every skill in the hits, rows and effects.
     skills: BTreeMap<u32, SkillMeta>,
+    /// Names for effects their skill doesn't name (no skill, or one the data lacks).
+    effect_names: BTreeMap<u32, String>,
     /// Targets the game data marks as bosses.
     bosses: Vec<u64>,
     /// Still going (only the live fight can be).
@@ -152,11 +154,21 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
             SkillMeta { name, icon_key }
         });
     }
+    let mut effect_names = BTreeMap::new();
+    for e in &a.effects {
+        let named = e.skill.is_some_and(|s| skills.get(&s).is_some_and(|m| m.name.is_some()));
+        if !named && !effect_names.contains_key(&e.effect) {
+            if let (Some(name), _) = data.effect_meta(e.effect) {
+                effect_names.insert(e.effect, name);
+            }
+        }
+    }
     drop(data);
     let appearance = lock(&app.settings).appearance.clone();
     Some(AnalysisData {
         analysis: a,
         skills,
+        effect_names,
         bosses,
         live,
         ended_ms,

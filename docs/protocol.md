@@ -341,6 +341,16 @@ Evidence from the live tests (`packet-lab buffs <session> --on <entity>`):
   entity as `source`, and yours didn't land while theirs was up (same debuff, one at a
   time).
 
+### Effect IDs and names
+
+An effect ID is the ID of the skill behind it with one more digit: Recuperation's
+`18120010` gives `181200101`; Theostone skill `3001015` gives `30010151`. That's how
+effects without a skill (kind `0x11`, e.g. `183300071`, family 1833 Marchutan's Wrath)
+get a name. Theostone skills arrive as 7 digits (`3001013`, `3001015`, `3001016` seen in
+our captures), but the game data lists them by their effect ID (`30010151` "Theostone:
+Santras's Secret"): in `…190034`, skill `3001015` applied effect `30010151` on 20644.
+Short IDs like `231` are system effects with no name.
+
 ## Skill IDs (guess)
 
 The 8-digit IDs look structured: `18 01 034 0`, `18 02 034 0`, `18 04 035 0`. Possibly

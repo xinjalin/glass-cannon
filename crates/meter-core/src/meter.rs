@@ -605,18 +605,35 @@ impl Meter {
 
     /// Ends the current encounter if it has been idle too long. Call periodically.
     pub fn tick(&mut self, now_us: u64) {
-        if let Some(enc) = &self.current {
-            if now_us.saturating_sub(enc.last_activity_us) > self.idle_timeout_us {
-                if let Some(view) = self.view(enc, false) {
-                    self.finished.push(FinishedFight {
-                        view,
-                        self_name: self.registry.self_name().map(str::to_string),
-                        analysis: self.analyse(enc, false, now_us),
-                    });
-                }
-                self.last = self.current.take();
-                self.completed += 1;
-            }
+        let idle = self
+            .current
+            .as_ref()
+            .is_some_and(|enc| now_us.saturating_sub(enc.last_activity_us) > self.idle_timeout_us);
+        if idle {
+            self.end_fight(now_us);
+        }
+    }
+
+    /// Ends the current encounter now, as if it had gone idle: it goes to the finished
+    /// fights and stays on show, and the next hit starts a new one.
+    pub fn end_fight(&mut self, now_us: u64) {
+        let Some(enc) = &self.current else { return };
+        if let Some(view) = self.view(enc, false) {
+            self.finished.push(FinishedFight {
+                view,
+                self_name: self.registry.self_name().map(str::to_string),
+                analysis: self.analyse(enc, false, now_us),
+            });
+        }
+        self.last = self.current.take();
+        self.completed += 1;
+    }
+
+    /// Names players we were told about earlier (e.g. before the meter restarted, in the
+    /// same login). Names the game sends always win over these.
+    pub fn remember_names(&mut self, names: impl IntoIterator<Item = (u64, String)>) {
+        for (id, name) in names {
+            self.registry.remember(id, name);
         }
     }
 
@@ -1229,6 +1246,48 @@ mod tests {
         let e = m.snapshot().encounter.unwrap();
         assert!(e.active);
         assert_eq!(e.total_damage, 50);
+    }
+
+    #[test]
+    fn ending_a_fight_now_finishes_it_and_the_next_hit_starts_fresh() {
+        let mut m = meter_as_me();
+        m.end_fight(S); // nothing to end
+        assert!(m.take_finished().is_empty());
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 100));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 100));
+        m.end_fight(3 * S);
+        let shown = m.snapshot();
+        assert!(!shown.encounter.as_ref().unwrap().active);
+        assert_eq!(shown.encounters_completed, 1);
+        let finished = m.take_finished();
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].view.total_damage, 200);
+        assert!(finished[0].analysis.is_some());
+
+        // A second later, well inside the idle timeout, the same target starts a new fight.
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 50));
+        let e = m.snapshot().encounter.unwrap();
+        assert!(e.active);
+        assert_eq!(e.total_damage, 50);
+        assert_eq!(e.start_us, 4 * S);
+    }
+
+    #[test]
+    fn remembered_names_fill_gaps_but_never_override_the_game() {
+        let mut m = meter_as_me();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.remember_names([
+            (15772, "Old name".to_string()),
+            (2787, "Remembered".to_string()),
+            (ME, "Not me".to_string()),
+        ]);
+        let r = m.registry();
+        assert_eq!(r.player_name(15772), Some("Pingu"));
+        assert_eq!(r.player_name(2787), Some("Remembered"));
+        assert_eq!(r.player_name(ME), Some("NeneneTowawa"));
+        // A fresh name from the game replaces a remembered one.
+        m.feed(S, OPCODE_PLAYER_SPAWN, &spawn(2787, "Renamed"));
+        assert_eq!(m.registry().player_name(2787), Some("Renamed"));
     }
 
     #[test]

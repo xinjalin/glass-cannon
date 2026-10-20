@@ -120,6 +120,15 @@ impl Registry {
         format!("#{id}")
     }
 
+    /// Names a player from an earlier record, unless the game has already said who (or
+    /// what) that entity is.
+    pub fn remember(&mut self, id: u64, name: String) {
+        if self.is_self(id) || self.mobs.contains_key(&id) {
+            return;
+        }
+        self.players.entry(id).or_insert(name);
+    }
+
     /// Updates from one message. Returns what changed, if anything.
     pub fn observe(&mut self, opcode: u16, payload: &[u8]) -> Option<Change> {
         match opcode {
