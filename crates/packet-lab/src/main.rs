@@ -130,6 +130,14 @@ enum Cmd {
         #[arg(long)]
         seconds: Option<u64>,
     },
+    /// List buff and debuff spans in a recorded session (who, what, from whom, how long)
+    Buffs {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        /// Only effects on this entity
+        #[arg(long)]
+        on: Option<u64>,
+    },
     /// Run the meter over a recorded session and print each fight
     Meter {
         /// A session folder or a flow folder
@@ -292,6 +300,7 @@ fn run(cli: Cli) -> Result<()> {
             party,
             json,
         } => meter_cmd(&path, idle, scope(everyone, party), json),
+        Cmd::Buffs { path, on } => buffs_cmd(&path, on),
         Cmd::Find { path, value, side } => find(&path, value, side),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
     }
@@ -561,19 +570,53 @@ fn render_meter(snap: &Snapshot) -> String {
         ));
     }
     if let Some(me) = e.players.iter().find(|p| p.is_self) {
-        out.push_str("\nyour top skills:\n");
-        for s in me.skills.iter().take(6) {
+        let o = &me.outcomes;
+        out.push_str(&format!(
+            "\nyou: {} casts, {} hits ({} counting multi-hit parts)\n",
+            o.casts, me.hits, o.multi_hits
+        ));
+        out.push_str(&format!("   {}\n", outcome_line(o, me.hits)));
+        out.push_str(&format!(
+            "\n   {:>10}  {:>9} {:>6} {:>5} {:>5} {:>6} {:>6}  {:>6} {:>6} {:>6} {:>6} {:>6}  {:>7} {:>7}\n",
+            "skill", "damage", "share", "casts", "hits", "multi", "crit", "double", "perf", "back", "front", "", "min", "max"
+        ));
+        for s in me.skills.iter() {
+            let o = &s.outcomes;
+            let pct = |n: u64| format!("{:5.1}%", n as f64 * 100.0 / s.hits.max(1) as f64);
             out.push_str(&format!(
-                "   {:>10}  {:>9}  {:>5.1}%  {:>4} hits  max {}\n",
+                "   {:>10}  {:>9} {:>5.1}% {:>5} {:>5} {:>6} {:>6}  {:>6} {:>6} {:>6} {:>6} {:>6}  {:>7} {:>7}\n",
                 s.skill,
                 human_num(s.damage),
                 s.share * 100.0,
+                o.casts,
                 s.hits,
+                pct(o.multi),
+                pct(o.crits),
+                pct(o.double),
+                pct(o.perfect),
+                pct(o.back),
+                pct(o.front),
+                "",
+                human_num(s.min),
                 human_num(s.max)
             ));
         }
     }
     out
+}
+
+/// "crit 46.0%  back 37.7%  front 25.7%  perfect 19.2%  double 4.9%", out of `hits`.
+fn outcome_line(o: &meter_core::meter::Outcomes, hits: u64) -> String {
+    let pct = |n: u64| n as f64 * 100.0 / hits.max(1) as f64;
+    format!(
+        "crit {:.1}%  back {:.1}%  front {:.1}%  perfect {:.1}%  double {:.1}%  multi {:.1}%",
+        pct(o.crits),
+        pct(o.back),
+        pct(o.front),
+        pct(o.perfect),
+        pct(o.double),
+        pct(o.multi)
+    )
 }
 
 fn human_num(n: u64) -> String {
@@ -658,6 +701,43 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool) -> Result<()> {
         println!("── fight {} (still going when the capture ended) ──", seen + 1);
     }
     println!("{}", render_meter(&snap));
+    Ok(())
+}
+
+fn buffs_cmd(path: &Path, on: Option<u64>) -> Result<()> {
+    let (_, m) = load_messages(path, SideArg::In)?;
+    let mut effects = meter_core::buffs::EffectTracker::default();
+    for msg in &m.messages {
+        effects.feed(msg.ts_us, msg.opcode, &msg.payload);
+    }
+    let Some(t0) = m.messages.first().map(|msg| msg.ts_us) else {
+        bail!("no messages in this session");
+    };
+    let t1 = m.messages.last().map_or(t0, |msg| msg.ts_us);
+    let spans: Vec<_> = effects
+        .spans(t0, t1)
+        .into_iter()
+        .filter(|s| on.is_none_or(|id| s.target == id))
+        .collect();
+    println!("{} effect spans{}", spans.len(), on.map(|id| format!(" on {id}")).unwrap_or_default());
+    println!("{:>8} {:>8} {:>7}  {:>8} {:>10} {:>10} {:>8}", "start", "end", "length", "target", "skill", "effect", "source");
+    let secs = |us: u64| format!("{:.2}s", us.saturating_sub(t0) as f64 / 1e6);
+    for s in spans {
+        let (end, len) = match s.end_us {
+            Some(e) => (secs(e), format!("{:.2}s", (e - s.start_us) as f64 / 1e6)),
+            None => ("(open)".into(), String::new()),
+        };
+        println!(
+            "{:>8} {:>8} {:>7}  {:>8} {:>10} {:>10} {:>8}",
+            secs(s.start_us),
+            end,
+            len,
+            s.target,
+            s.skill.map(|k| k.to_string()).unwrap_or_else(|| "-".into()),
+            s.effect,
+            s.source
+        );
+    }
     Ok(())
 }
 

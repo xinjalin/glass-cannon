@@ -45,14 +45,17 @@ varint  target            entity ID (confirmed)
 u16     flags             bitmask, see below (confirmed)
 varint  attacker          entity ID (confirmed)
 u32     skill             e.g. 18010340 (confirmed; same skill → same ID)
-u16     seq               increments per event (likely)
-[0x02]  3 bytes           unknown
+u8      cast_id           the attacker's cast; shared by all its hits (confirmed)
+u8      result            2 normal, 3 critical (confirmed); 0, 1, 6 rare, unknown
+[0x02]  u8 special        0x04 perfect, 0x08 double strike (confirmed); others unknown
+        u8                always 0 so far
+        u8 position       0 side, 1 back, 2 front (confirmed)
 u32     unknown_a
-u32     hit               1, 2, 3… within a multi-hit skill (likely)
+u32     hit               1, 2, 3… within a multi-hit cast; some skills start at 2
 varint  unknown_b         constant per attacker for a while (guess: level/stat related)
 [0x04]  varint damage     (confirmed against 10 noted in-game numbers)
 [0x10, without 0x02] 1 byte
-[0x20]  varint n, n × varint parts   values ≈ damage / 45 (meaning unknown)
+[0x20]  varint n, n × varint parts   a multi-hit's pieces when n ≥ 2 (confirmed)
 [0x100] u8, varint        unknown; appears on events without damage
 u16     hit echo          same as `hit` (likely)
 [0x400] u16               unknown
@@ -65,19 +68,72 @@ bits `0x02` and `0x04`.
 - **No damage field** (bit `0x04` clear): buffs, ticks and effects, often with
   `target == attacker`.
 - **Damage you take** shows up with `target` = your entity ID.
+- **The `0x02` block is optional**: hits from the side with no perfect or double strike
+  leave it out (and so have no `0x02` flag).
 
-## Damage over time: opcode `0x3805` (confirmed)
+### Hit outcomes (confirmed 2026-10-20)
+
+Worked out on the training dummy, one variable at a time, from our own captures:
+
+| test (capture) | what changed | what moved |
+|---|---|---|
+| Onslaught ×10 in front (`20261020-184342`) | — | position byte 2 on every hit |
+| Onslaught ×10 from behind (`…184550`) | position | position byte 1 on all 29 hits |
+| Onslaught ×10 from the side (`…184817`) | position | position 0; block usually absent |
+| any | — | `result` 3 ⇒ that hit does ≈ 1.7× (crit); `special` 0x08 ⇒ exactly 2× |
+
+`cast_id` groups hits: each Onslaught cast's two hits share one, each Resonance Crush
+cast's five hits share one, and every cast seen in hits has a matching cast message
+(`0x3802`, below) with the same caster, skill and ID (153 of 153 in the reference fight).
+It counts up and wraps at 255. Count casts with it, not with `hit`: some skills' hits
+never have `hit = 1`.
+
+Then a normal 90-second rotation (`…190034`) recorded alongside another meter's
+per-skill table for the same fight, used only as an answer key. Our numbers match it
+exactly, in total and for every skill:
+
+| | that meter | ours |
+|---|---|---|
+| damage / casts | 2.34M / 154 | 2,342,182 / 154 |
+| crit / back / front | 46.0% / 37.7% / 25.7% | 46.0% / 37.7% / 25.7% |
+| perfect / double | 19.2% / 4.9% | 19.2% (`0x04`) / 4.9% (`0x08`) |
+| hits / multi-hit | 606 hits; Multi% per skill | 265 events, 606 counting parts; hits with ≥ 2 parts match its Multi% for all 10 skills |
+| min / max per skill | e.g. 13.4K / 54.2K | 13,374 / 54,196 |
+
+Parry hasn't been seen yet (dummies don't parry); it's probably another `special` bit.
+`special` 0x80 is common on hits players take and isn't identified yet.
+
+## Casts: opcode `0x3802` (confirmed)
+
+```text
+varint  caster
+u8      flags             bits add fields after the target
+u32     skill             mob skills are 6–7 digits, player skills 8
+u8      cast_id           same as the cast's hits in 0x3804
+u8      ?
+varint  target
+…
+```
+
+Sent for every cast in view, players' and mobs'.
+
+## Damage and heals over time: opcode `0x3805` (confirmed)
 
 ```text
 varint  target
-u8      flags
+u8      flags            0x02 amount present; 0x01 heal (see below)
 varint  attacker
-varint  unknown
+varint  instance         the effect's instance ID (as in 0x382a/0x382c)
 u32     unknown
-[0x02]  varint damage
+[0x02]  varint amount    damage, or healing when 0x01 is set
 [0x01]  varint unknown
 u32     skill            (absent on some self-effects with flags 0)
 ```
+
+**Heals**: Recuperation (an 8 s heal over time) ticked every ~2 s with flags `0x09` (first
+tick, no amount) then `0x0b`, healing 976, 651, 326, 1 as your HP filled; the ticks
+carry the buff's instance ID. Damage ticks use `0x0a`/`0x08`. Across all captures, flag
+`0x01` only appears on heals, so the meter doesn't count those ticks as damage.
 
 997 of 998 messages in our captures parse to the last byte. NOIA2's code reads the skill
 before the damage; in the current client the damage comes first. These ticks used to be
@@ -166,8 +222,8 @@ The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Te
 
 - `0x3656`: your combat power (u32 after the opcode).
 - `0x8d00`: remaining HP of an entity (useful for boss HP %).
-- `0x382a` / `0x382b`: buffs.
 - `0x9101`: field boss timers.
+- `0x3822`: about 14.5 s after each Recuperation cast; probably "skill ready again".
 
 ### Permanent character ID (guess)
 
@@ -202,6 +258,35 @@ fixed offsets, so the meter scans for that shape (`entities::parse_roster`). See
 member, leave) and in the expedition capture (several groups joined and left). A `0x9702`
 without your own name is someone else's group and is ignored.
 
+## Buffs and debuffs: opcodes `0x382a` / `0x382b` / `0x382c` (confirmed)
+
+```text
+entry:  u8 kind          0x13 (has a skill) or 0x11 (no skill: system effects)
+        varint instance  one application on one target
+        u32 effect       9 digits starting with the skill family (Recuperation 181200101)
+        u64 duration_ms
+        u64 time_ms      server time, ms since the Unix epoch
+        varint source    who applied it
+        u8
+        [0x13] u32 skill
+        …                tail of varying length
+
+0x382a  apply:        varint target, varint count (always 1 so far), entry
+0x382b  still active: varint target, entry      (about once a second per long effect)
+0x382c  removed:      varint target, varint count, then per effect
+                      00 varint instance u8
+                   or 07 varint instance u8 varint source u32 skill u32
+```
+
+Evidence from the live tests (`packet-lab buffs <session> --on <entity>`):
+
+- Recuperation (8 s, self) ×3 (`…185504`): each apply has `duration 8000`, and a remove
+  for the same instance arrives 8.0–8.1 s later. Each cast also applies a 200 ms effect.
+- Earth's Promise (5 s debuff on the dummy, `…185747`): spans of 4.9–5.1 s, `duration
+  5000`. Another Chanter was hitting the same dummy: their applications show their
+  entity as `source`, and yours didn't land while theirs was up (same debuff, one at a
+  time).
+
 ## Skill IDs (guess)
 
 The 8-digit IDs look structured: `18 01 034 0`, `18 02 034 0`, `18 04 035 0`. Possibly
@@ -214,7 +299,8 @@ and may be the basic attack. Needs a name table from our own observations.
    combat power, title "Vanguard of Atreia" — search for these to find the fields.)
 2. Where did the 286 damage in test D go? Not a DoT tick (checked); maybe a shield
    absorb or a different opcode.
-3. What are `unknown_a`, `unknown_b` and `parts`? Is `parts` a per-tick breakdown or
-   something like soul/aggro?
-4. Crit flag: is it in `flags`, `unknown_b`, or the `0x02` block?
-5. Opcodes `0x371d`, `0x3600`, `0x3802` are the most frequent; probably movement/state.
+3. What are `unknown_a` and `unknown_b`?
+4. Parry: probably another `special` bit; needs a fight where an enemy parries.
+5. `result` values 0, 1, 6 and `special` bits 0x01, 0x02, 0x10, 0x20, 0x40, 0x80: what
+   are they? (0x80 is common on hits players take: block? shield?)
+6. Opcodes `0x371d`, `0x3600` are among the most frequent; probably movement/state.

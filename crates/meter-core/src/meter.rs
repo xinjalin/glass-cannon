@@ -13,8 +13,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
+use crate::buffs::EffectTracker;
 use crate::classes;
-use crate::damage::{self, DamageEvent};
+use crate::damage::{self, DamageEvent, Position};
 use crate::entities::{Change, Registry};
 use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
 
@@ -48,6 +49,56 @@ struct Hit {
     attacker: u64,
     skill: u32,
     damage: u64,
+    /// Which of the attacker's casts it belongs to (0 for ticks).
+    cast_id: u8,
+    is_dot: bool,
+    crit: bool,
+    perfect: bool,
+    double: bool,
+    position: Position,
+    /// Hits it stands for: its parts when it's a multi-hit, otherwise 1.
+    hit_count: u32,
+}
+
+/// How a player's (or one skill's) hits landed. Each count is out of `hits`, except
+/// `casts` and `multi_hits`.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Outcomes {
+    /// Casts (direct hits grouped by cast ID; ticks don't count).
+    pub casts: u64,
+    pub crits: u64,
+    pub back: u64,
+    pub front: u64,
+    pub perfect: u64,
+    pub double: u64,
+    /// Hits that were multi-hits (two or more parts).
+    pub multi: u64,
+    /// Hits counting every part of a multi-hit (what the game's own counter shows).
+    pub multi_hits: u64,
+}
+
+impl Outcomes {
+    fn add(&mut self, h: &Hit, new_cast: bool) {
+        self.casts += u64::from(new_cast);
+        self.crits += u64::from(h.crit);
+        self.back += u64::from(h.position == Position::Back);
+        self.front += u64::from(h.position == Position::Front);
+        self.perfect += u64::from(h.perfect);
+        self.double += u64::from(h.double);
+        self.multi += u64::from(h.hit_count >= 2);
+        self.multi_hits += u64::from(h.hit_count);
+    }
+
+    fn merge(&mut self, o: &Outcomes) {
+        self.casts += o.casts;
+        self.crits += o.crits;
+        self.back += o.back;
+        self.front += o.front;
+        self.perfect += o.perfect;
+        self.double += o.double;
+        self.multi += o.multi;
+        self.multi_hits += o.multi_hits;
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -55,6 +106,18 @@ struct SkillStats {
     hits: u64,
     damage: u64,
     max: u64,
+    min: u64,
+    outcomes: Outcomes,
+}
+
+impl SkillStats {
+    fn add(&mut self, damage: u64, outcomes: &Outcomes, hits: u64, max: u64, min: u64) {
+        self.min = if self.hits == 0 { min } else { self.min.min(min) };
+        self.hits += hits;
+        self.damage += damage;
+        self.max = self.max.max(max);
+        self.outcomes.merge(outcomes);
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -62,29 +125,28 @@ struct PlayerStats {
     damage: u64,
     hits: u64,
     max_hit: u64,
+    outcomes: Outcomes,
     skills: HashMap<u32, SkillStats>,
 }
 
 impl PlayerStats {
-    fn add(&mut self, h: &Hit) {
+    fn add(&mut self, h: &Hit, new_cast: bool) {
+        let mut one = Outcomes::default();
+        one.add(h, new_cast);
         self.damage += h.damage;
         self.hits += 1;
         self.max_hit = self.max_hit.max(h.damage);
-        let s = self.skills.entry(h.skill).or_default();
-        s.damage += h.damage;
-        s.hits += 1;
-        s.max = s.max.max(h.damage);
+        self.outcomes.merge(&one);
+        self.skills.entry(h.skill).or_default().add(h.damage, &one, 1, h.damage, h.damage);
     }
 
     fn merge(&mut self, other: &PlayerStats) {
         self.damage += other.damage;
         self.hits += other.hits;
         self.max_hit = self.max_hit.max(other.max_hit);
+        self.outcomes.merge(&other.outcomes);
         for (id, s) in &other.skills {
-            let t = self.skills.entry(*id).or_default();
-            t.damage += s.damage;
-            t.hits += s.hits;
-            t.max = t.max.max(s.max);
+            self.skills.entry(*id).or_default().add(s.damage, &s.outcomes, s.hits, s.max, s.min);
         }
     }
 }
@@ -105,6 +167,8 @@ struct Encounter {
     targets: HashMap<u64, TargetLog>,
     /// Targets you have hit.
     engaged: HashSet<u64>,
+    /// Each attacker's latest cast ID per skill: a new ID is a new cast.
+    last_cast: HashMap<(u64, u32), u8>,
 }
 
 impl Encounter {
@@ -113,10 +177,13 @@ impl Encounter {
             last_activity_us: ts_us,
             targets: HashMap::new(),
             engaged: HashSet::new(),
+            last_cast: HashMap::new(),
         }
     }
 
     fn record(&mut self, h: &Hit) {
+        // A cast counts once, on the target its first hit landed on.
+        let new_cast = !h.is_dot && self.last_cast.insert((h.attacker, h.skill), h.cast_id) != Some(h.cast_id);
         let t = self.targets.entry(h.target).or_insert(TargetLog {
             first_us: h.ts_us,
             last_us: h.ts_us,
@@ -126,7 +193,7 @@ impl Encounter {
         t.first_us = t.first_us.min(h.ts_us);
         t.last_us = t.last_us.max(h.ts_us);
         t.total += h.damage;
-        t.players.entry(h.attacker).or_default().add(h);
+        t.players.entry(h.attacker).or_default().add(h, new_cast);
     }
 }
 
@@ -140,8 +207,13 @@ pub struct SkillRow {
     pub damage: u64,
     pub hits: u64,
     pub max: u64,
+    /// Smallest single hit.
+    #[serde(default)]
+    pub min: u64,
     /// Fraction of this player's damage.
     pub share: f64,
+    #[serde(default)]
+    pub outcomes: Outcomes,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -159,6 +231,8 @@ pub struct PlayerRow {
     pub share: f64,
     pub hits: u64,
     pub max_hit: u64,
+    #[serde(default)]
+    pub outcomes: Outcomes,
     pub skills: Vec<SkillRow>,
 }
 
@@ -214,6 +288,8 @@ pub struct Meter {
     last: Option<Encounter>,
     /// Recent player hits outside any encounter, for late joins.
     lookback: VecDeque<Hit>,
+    /// Buffs and debuffs on everything in view.
+    effects: EffectTracker,
     completed: u32,
 }
 
@@ -233,6 +309,7 @@ impl Meter {
             current: None,
             last: None,
             lookback: VecDeque::new(),
+            effects: EffectTracker::default(),
             completed: 0,
         }
     }
@@ -259,7 +336,15 @@ impl Meter {
     }
 
     /// Feeds one game message.
+    /// Buff and debuff spans seen so far.
+    pub fn effects(&self) -> &EffectTracker {
+        &self.effects
+    }
+
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
+        if self.effects.feed(ts_us, opcode, payload) {
+            return;
+        }
         if opcode == OPCODE_DOT {
             if let Some(ev) = damage::parse_dot(payload) {
                 self.tick(ts_us);
@@ -273,6 +358,7 @@ impl Meter {
                 self.current = None;
                 self.last = None;
                 self.lookback.clear();
+                self.effects.clear();
             }
             return;
         }
@@ -283,7 +369,8 @@ impl Meter {
 
     fn on_damage(&mut self, ts_us: u64, ev: &DamageEvent) {
         let Some(dmg) = ev.damage else { return };
-        if ev.is_self() {
+        // Heal-over-time ticks carry the amount healed, not damage.
+        if ev.is_self() || ev.is_heal() {
             return;
         }
         let me = self.registry.self_id();
@@ -302,6 +389,13 @@ impl Meter {
             attacker: ev.attacker,
             skill: ev.skill,
             damage: dmg,
+            cast_id: ev.cast_id,
+            is_dot: ev.is_dot,
+            crit: ev.is_crit(),
+            perfect: ev.is_perfect(),
+            double: ev.is_double(),
+            position: ev.position(),
+            hit_count: ev.hit_count(),
         };
 
         // Does this start or continue your fight?
@@ -465,7 +559,9 @@ impl Meter {
                 damage: s.damage,
                 hits: s.hits,
                 max: s.max,
+                min: s.min,
                 share: ratio(s.damage, p.damage),
+                outcomes: s.outcomes,
             })
             .collect();
         skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
@@ -482,6 +578,7 @@ impl Meter {
             share: ratio(p.damage, total),
             hits: p.hits,
             max_hit: p.max_hit,
+            outcomes: p.outcomes,
             skills,
         }
     }
@@ -518,6 +615,83 @@ mod tests {
         p.extend(encode_varint(dmg));
         p.extend(1u16.to_le_bytes());
         p
+    }
+
+    /// A 0x3804 payload with a cast ID, result byte, optional outcome block
+    /// (special, position) and optional multi-hit parts.
+    fn hit_full(skill: u32, dmg: u64, cast_id: u8, result: u8, block: Option<(u8, u8)>, parts: usize) -> Vec<u8> {
+        let mut flags = 0x04u16;
+        if block.is_some() {
+            flags |= 0x02;
+        }
+        if parts > 0 {
+            flags |= 0x20;
+        }
+        let mut p = encode_varint(DUMMY);
+        p.extend(flags.to_le_bytes());
+        p.extend(encode_varint(ME));
+        p.extend(skill.to_le_bytes());
+        p.extend([cast_id, result]);
+        if let Some((special, position)) = block {
+            p.extend([special, 0, position]);
+        }
+        p.extend(0u32.to_le_bytes()); // unknown_a
+        p.extend(1u32.to_le_bytes()); // hit
+        p.extend(encode_varint(0)); // unknown_b
+        p.extend(encode_varint(dmg));
+        if parts > 0 {
+            p.extend(encode_varint(parts as u64));
+            for _ in 0..parts {
+                p.extend(encode_varint(dmg / parts as u64));
+            }
+        }
+        p.extend(1u16.to_le_bytes());
+        p
+    }
+
+    #[test]
+    fn counts_casts_crits_positions_and_multi_hits() {
+        let mut m = meter_as_me();
+        // Cast 7: two hits, one a crit from behind. Cast 8: a perfect from the front.
+        // Cast 9: a double strike from the side, a multi-hit with 4 parts.
+        m.feed(S, OPCODE_DAMAGE, &hit_full(18_010_340, 1000, 7, 2, Some((0, 2)), 0));
+        m.feed(S, OPCODE_DAMAGE, &hit_full(18_010_340, 1700, 7, 3, Some((0, 1)), 0));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 1100, 8, 2, Some((0x04, 2)), 0));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit_full(18_010_340, 4000, 9, 2, Some((0x08, 0)), 4));
+        let e = m.snapshot().encounter.unwrap();
+        let me = &e.players[0];
+        let want = Outcomes {
+            casts: 3,
+            crits: 1,
+            back: 1,
+            front: 2,
+            perfect: 1,
+            double: 1,
+            multi: 1,
+            multi_hits: 7,
+        };
+        assert_eq!(me.outcomes, want);
+        assert_eq!(me.skills[0].outcomes, want);
+        assert_eq!((me.skills[0].hits, me.skills[0].min, me.skills[0].max), (4, 1000, 4000));
+    }
+
+    #[test]
+    fn heal_ticks_are_not_damage() {
+        let mut m = meter_as_me();
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 1000));
+        // The dummy "healing" you via your own skill (seen with lifesteal-like effects).
+        let mut heal = encode_varint(ME);
+        heal.push(0x0b);
+        heal.extend(encode_varint(DUMMY));
+        heal.extend(encode_varint(42));
+        heal.extend(0u32.to_le_bytes());
+        heal.extend(encode_varint(783));
+        heal.extend(encode_varint(1));
+        heal.extend(18_730_002u32.to_le_bytes());
+        m.feed(2 * S, OPCODE_DOT, &heal);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.total_damage, 1000);
+        assert_eq!(e.players.len(), 1);
     }
 
     fn spawn(id: u64, name: &str) -> Vec<u8> {

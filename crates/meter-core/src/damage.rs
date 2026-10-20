@@ -4,8 +4,8 @@
 //! are consistently present but not understood yet.
 //!
 //! ```text
-//! varint target, u16 flags, varint attacker, u32 skill, u16 seq,
-//! [flags & 0x02: 3 bytes], u32 unknown_a, u32 hit, varint unknown_b,
+//! varint target, u16 flags, varint attacker, u32 skill, u8 cast_id, u8 result,
+//! [flags & 0x02: u8 special, u8, u8 position], u32 unknown_a, u32 hit, varint unknown_b,
 //! [flags & 0x04: varint damage],
 //! [flags & 0x10 without 0x02: 1 byte],
 //! [flags & 0x20: varint n, n × varint parts],
@@ -16,11 +16,32 @@
 //!
 //! The damage value's position depends only on bits 0x02 and 0x04, so damage is read
 //! correctly even when later fields include bits we haven't decoded.
+//!
+//! The hit outcome fields were worked out on a training dummy and checked against another
+//! meter's per-skill numbers for the same fight, which they match exactly (see
+//! `docs/protocol.md`, "Hit outcomes").
 
 use crate::protocol::read_varint;
 
 /// Flag bits whose fields we know how to skip.
 const KNOWN_FLAGS: u16 = 0x0002 | 0x0004 | 0x0010 | 0x0020 | 0x0100 | 0x0400;
+
+/// `result` of a critical hit (a normal hit is 2).
+const RESULT_CRIT: u8 = 3;
+/// Bits of `special`.
+const SPECIAL_PERFECT: u8 = 0x04;
+const SPECIAL_DOUBLE: u8 = 0x08;
+
+/// Where the attacker stood relative to the target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Position {
+    /// Neither front nor back (also every hit without the outcome block).
+    Side,
+    Back,
+    Front,
+    /// A value we haven't seen in tests.
+    Other(u8),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DamageEvent {
@@ -28,13 +49,24 @@ pub struct DamageEvent {
     pub attacker: u64,
     pub flags: u16,
     pub skill: u32,
-    /// Increments per event from the same source.
-    pub seq: u16,
-    /// 1, 2, 3… within a multi-hit skill.
+    /// The attacker's cast this hit belongs to: every hit of one cast shares it (and the
+    /// cast's `0x3802` message carries it too). Counts up and wraps at 255.
+    pub cast_id: u8,
+    /// How the hit landed: 2 normal, 3 critical. Other values (0, 1, 6) are rare and not
+    /// identified yet.
+    pub result: u8,
+    /// Outcome bits from the optional 3-byte block: 0x04 perfect, 0x08 double strike.
+    /// Other bits (0x80 is common on hits taken) aren't identified yet. 0 without the block.
+    pub special: u8,
+    /// Raw position byte from the same block: 0 side, 1 back, 2 front. 0 without the block.
+    pub position_byte: u8,
+    /// 1, 2, 3… within a multi-hit skill. Not every skill starts at 1, so count casts with
+    /// `cast_id` instead.
     pub hit: u32,
     /// `None` for events without a damage value (buffs, ticks, effects).
     pub damage: Option<u64>,
-    /// Repeated values listed after the damage when bit 0x20 is set. Meaning unknown.
+    /// The pieces of a multi-hit, listed after the damage when bit 0x20 is set. Two or
+    /// more pieces make this a multi-hit (see [`DamageEvent::hit_count`]).
     pub parts: Vec<u64>,
     pub unknown_a: u32,
     pub unknown_b: u64,
@@ -42,11 +74,53 @@ pub struct DamageEvent {
     pub fully_parsed: bool,
     /// A damage-over-time tick (opcode 0x3805) rather than a direct hit.
     pub is_dot: bool,
+    /// For ticks: the instance ID of the effect producing them (as in the buff messages).
+    pub instance: Option<u64>,
 }
 
 impl DamageEvent {
     pub fn is_self(&self) -> bool {
         self.target == self.attacker
+    }
+
+    pub fn is_crit(&self) -> bool {
+        self.result == RESULT_CRIT
+    }
+
+    pub fn is_perfect(&self) -> bool {
+        self.special & SPECIAL_PERFECT != 0
+    }
+
+    pub fn is_double(&self) -> bool {
+        self.special & SPECIAL_DOUBLE != 0
+    }
+
+    pub fn position(&self) -> Position {
+        match self.position_byte {
+            0 => Position::Side,
+            1 => Position::Back,
+            2 => Position::Front,
+            other => Position::Other(other),
+        }
+    }
+
+    /// A multi-hit: two or more parts.
+    pub fn is_multi(&self) -> bool {
+        self.parts.len() >= 2
+    }
+
+    /// Hits this event stands for: its parts when it's a multi-hit, otherwise 1.
+    pub fn hit_count(&self) -> u32 {
+        if self.is_multi() {
+            self.parts.len() as u32
+        } else {
+            1
+        }
+    }
+
+    /// A heal-over-time tick (0x3805 with flag 0x01): `damage` is then the amount healed.
+    pub fn is_heal(&self) -> bool {
+        self.is_dot && self.flags & 0x01 != 0
     }
 }
 
@@ -57,10 +131,14 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
     let flags = u16_at(p, &mut i)?;
     let attacker = read_varint(p, &mut i)?;
     let skill = u32_at(p, &mut i)?;
-    let seq = u16_at(p, &mut i)?;
-    if flags & 0x02 != 0 {
-        take(p, &mut i, 3)?;
-    }
+    let cast_id = *take(p, &mut i, 1)?.first()?;
+    let result = *take(p, &mut i, 1)?.first()?;
+    let (special, position_byte) = if flags & 0x02 != 0 {
+        let block = take(p, &mut i, 3)?;
+        (block[0], block[2])
+    } else {
+        (0, 0)
+    };
     let unknown_a = u32_at(p, &mut i)?;
     let hit = u32_at(p, &mut i)?;
     let unknown_b = read_varint(p, &mut i)?;
@@ -75,7 +153,10 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
         attacker,
         flags,
         skill,
-        seq,
+        cast_id,
+        result,
+        special,
+        position_byte,
         hit,
         damage,
         parts: Vec::new(),
@@ -83,6 +164,7 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
         unknown_b,
         fully_parsed: false,
         is_dot: false,
+        instance: None,
     };
     // Everything up to the damage value is solid. The rest is best effort: if it
     // doesn't line up, keep the event and mark it as not fully parsed.
@@ -90,23 +172,24 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
     Some(ev)
 }
 
-/// Parses the payload of an opcode 0x3805 message: one damage-over-time tick.
+/// Parses the payload of an opcode 0x3805 message: one damage-over-time or heal-over-time tick.
 ///
 /// ```text
-/// varint target, u8 flags, varint attacker, varint unknown, u32 unknown_a,
-/// [flags & 0x02: varint damage], [flags & 0x01: varint unknown],
+/// varint target, u8 flags, varint attacker, varint instance, u32 unknown_a,
+/// [flags & 0x02: varint amount], [flags & 0x01: varint unknown],
 /// u32 skill (absent on some self-effects)
 /// ```
 ///
-/// Worked out from our own captures (997 of 998 parse exactly). The field order differs
-/// from what some other tools assume, so trust the captures over older notes.
+/// Flag 0x02 means an amount is present; flag 0x01 marks a heal (Recuperation's ticks are
+/// 0x09 then 0x0b; damage ticks are 0x0a/0x08). `instance` is the effect's instance ID from
+/// the buff messages. Worked out from our own captures (997 of 998 parse exactly).
 pub fn parse_dot(p: &[u8]) -> Option<DamageEvent> {
     let mut i = 0;
     let target = read_varint(p, &mut i)?;
     let flags = *p.get(i)? as u16;
     i += 1;
     let attacker = read_varint(p, &mut i)?;
-    let unknown_b = read_varint(p, &mut i)?;
+    let instance = read_varint(p, &mut i)?;
     let unknown_a = u32_at(p, &mut i)?;
     let damage = if flags & 0x02 != 0 {
         Some(read_varint(p, &mut i)?)
@@ -122,14 +205,18 @@ pub fn parse_dot(p: &[u8]) -> Option<DamageEvent> {
         attacker,
         flags,
         skill,
-        seq: 0,
+        cast_id: 0,
+        result: 0,
+        special: 0,
+        position_byte: 0,
         hit: 0,
         damage,
         parts: Vec::new(),
         unknown_a,
-        unknown_b,
+        unknown_b: 0,
         fully_parsed: i == p.len(),
         is_dot: true,
+        instance: Some(instance),
     })
 }
 
@@ -288,6 +375,101 @@ mod tests {
         assert_eq!(ev.damage, None);
         assert_eq!(ev.skill, 0);
         assert!(ev.fully_parsed);
+    }
+
+    // Hit outcomes, from the live dummy tests on 2026-10-20 (you = entity 11792 = `90 5c`,
+    // the dummy = 25002 = `aa c3 01`).
+
+    #[test]
+    fn crit_from_the_front() {
+        // Resonance Crush, first hit of cast 103: result 3 (crit), position 2 (front).
+        let ev = parse(&hex(
+            "aa c3 01 06 00 90 5c f4 f7 12 01 67 03 00 00 02 5b db 68 6b 01 00 00 00 96 56 d2 0a 01 00",
+        ))
+        .unwrap();
+        assert_eq!((ev.target, ev.attacker, ev.skill), (25002, 11792, 18_020_340));
+        assert_eq!((ev.cast_id, ev.damage), (103, Some(1362)));
+        assert!(ev.is_crit() && !ev.is_perfect() && !ev.is_double());
+        assert_eq!(ev.position(), Position::Front);
+        assert!(ev.fully_parsed);
+    }
+
+    #[test]
+    fn normal_hit_from_the_front() {
+        let ev = parse(&hex(
+            "aa c3 01 06 00 90 5c 81 dd 1e 01 63 02 00 00 02 6f 86 0e 70 01 00 00 00 96 56 f0 1c 01 00",
+        ))
+        .unwrap();
+        assert_eq!((ev.skill, ev.cast_id, ev.damage), (18_800_001, 99, Some(3696)));
+        assert!(!ev.is_crit());
+        assert_eq!(ev.position(), Position::Front);
+    }
+
+    #[test]
+    fn back_attack() {
+        let ev = parse(&hex(
+            "aa c3 01 26 00 90 5c e4 d0 12 01 9a 03 00 00 01 1b 99 59 6b 01 00 00 00 96 56 e0 17 01 43 01 00",
+        ))
+        .unwrap();
+        assert_eq!((ev.skill, ev.cast_id, ev.damage), (18_010_340, 154, Some(3040)));
+        assert_eq!(ev.position(), Position::Back);
+        assert!(ev.is_crit());
+        // A single part isn't a multi-hit.
+        assert_eq!((ev.parts.len(), ev.hit_count()), (1, 1));
+    }
+
+    #[test]
+    fn side_hits_have_no_outcome_block() {
+        // From the side, with nothing special, the 3-byte block is left out (no flag 0x02).
+        let ev = parse(&hex(
+            "aa c3 01 04 00 90 5c 81 dd 1e 01 fd 03 6f 86 0e 70 01 00 00 00 96 56 b2 35 01 00",
+        ))
+        .unwrap();
+        assert_eq!((ev.cast_id, ev.damage), (253, Some(6834)));
+        assert_eq!(ev.position(), Position::Side);
+        assert!(ev.is_crit() && ev.fully_parsed);
+    }
+
+    #[test]
+    fn perfect_and_double() {
+        let perfect = parse(&hex(
+            "aa c3 01 06 00 90 5c f4 f7 12 01 d4 03 04 00 01 61 62 68 6b 04 00 00 00 96 56 be 0b 04 00",
+        ))
+        .unwrap();
+        assert!(perfect.is_perfect() && !perfect.is_double());
+        assert_eq!((perfect.damage, perfect.position()), (Some(1470), Position::Back));
+
+        let double = parse(&hex(
+            "aa c3 01 06 00 90 5c 54 c4 18 01 a5 03 08 00 01 db b0 ac 6d 01 00 00 00 96 56 8c 96 03 01 00",
+        ))
+        .unwrap();
+        assert!(double.is_double() && !double.is_perfect());
+        assert_eq!((double.skill, double.damage), (18_400_340, Some(51980)));
+    }
+
+    #[test]
+    fn multi_hit_counts_its_parts() {
+        let ev = parse(&hex(
+            "aa c3 01 26 00 90 5c 1e 46 13 01 ab 02 00 00 01 c6 63 87 6b 01 00 00 00 96 56 92 33 04 91 01 91 01 91 01 91 01 01 00",
+        ))
+        .unwrap();
+        assert_eq!(ev.damage, Some(6546));
+        assert_eq!(ev.parts, vec![145; 4]);
+        assert!(ev.is_multi());
+        assert_eq!(ev.hit_count(), 4);
+    }
+
+    #[test]
+    fn heal_tick() {
+        // Recuperation (18120120) healing you for 976; 2093 is the buff's instance ID.
+        let ev = parse_dot(&hex("90 5c 0b 90 5c ad 10 f3 f0 00 6c d0 07 c5 02 b8 7d 14 01")).unwrap();
+        assert!(ev.is_heal());
+        assert_eq!((ev.target, ev.attacker, ev.skill), (11792, 11792, 18_120_120));
+        assert_eq!((ev.damage, ev.instance), (Some(976), Some(2093)));
+        assert!(ev.fully_parsed);
+        // A damage tick isn't a heal.
+        let dot = parse_dot(&hex("9c c0 02 0a e1 79 02 0b 4b b6 67 a0 03 c0 80 09 01")).unwrap();
+        assert!(!dot.is_heal());
     }
 
     #[test]
