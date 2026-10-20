@@ -53,6 +53,19 @@ pub struct Settings {
     /// Click-through: the meter ignores the mouse except for its lock button.
     #[serde(default)]
     pub locked: bool,
+    /// What the meter's rows show.
+    #[serde(default)]
+    pub meter_view: MeterView,
+}
+
+/// What the meter's rows show: damage dealt, healing done or damage taken.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MeterView {
+    #[default]
+    Damage,
+    Healing,
+    Taken,
 }
 
 pub const REFRESH_RATES: [u32; 4] = [200, 500, 1000, 2000];
@@ -611,6 +624,8 @@ mod tests {
             names: Default::default(),
             mob_types: Default::default(),
             target_hp: Vec::new(),
+            heals: Vec::new(),
+            taken: Vec::new(),
         };
         for ended_ms in 1..=(DETAILS_LIMIT as u64 + 2) {
             details.save(ended_ms, &analysis);

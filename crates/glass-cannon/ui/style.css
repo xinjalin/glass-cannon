@@ -184,6 +184,10 @@ legend {
   font-size: 0.9em;
 }
 #clock { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* damage / healing / taken: what the rows show. */
+.view-switch { min-width: 0; height: 1.35em; padding: 0 0.35em; color: var(--accent); }
+.view-switch.on { background: var(--accent); color: var(--ink); text-shadow: none; }
+#float .view-switch { height: 1.6em; font-size: 0.9em; }
 .back {
   min-width: 1.1em;
   height: 1.3em;

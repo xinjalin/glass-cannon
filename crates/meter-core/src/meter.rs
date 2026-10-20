@@ -28,6 +28,12 @@ const LOOKBACK_US: u64 = 30_000_000;
 const LOOKBACK_MAX_EVENTS: usize = 50_000;
 /// Player skill IDs are 8 digits (class prefix + skill); mob skills are 7.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
+/// Skills summoned creatures (and some mobs) use: 8 digits like a class skill, but not one.
+const CREATURE_SKILLS: std::ops::Range<u32> = 16_990_000..17_000_000;
+/// How long a self-heal waits for the HP update that shows what it restored. In our
+/// captures that update follows it in the same millisecond; anything later is something
+/// else (regeneration, a tick).
+const SELF_HEAL_WAIT_US: u64 = 50_000;
 const MAX_SKILLS_PER_ROW: usize = 12;
 /// HP samples are kept this long, so a long boss fight still has its whole HP line.
 const HP_KEEP_US: u64 = 60 * 60_000_000;
@@ -63,6 +69,26 @@ struct Hit {
     position: Position,
     /// Hits it stands for: its parts when it's a multi-hit, otherwise 1.
     hit_count: u32,
+}
+
+impl Hit {
+    /// A heal or a mob's hit: an amount and who it went from and to, no outcomes.
+    fn flow(ts_us: u64, from: u64, to: u64, skill: u32, amount: u64) -> Self {
+        Hit {
+            ts_us,
+            target: to,
+            attacker: from,
+            skill,
+            damage: amount,
+            cast_id: 0,
+            is_dot: true,
+            crit: false,
+            perfect: false,
+            double: false,
+            position: Position::Other(0),
+            hit_count: 1,
+        }
+    }
 }
 
 /// How a player's (or one skill's) hits landed. Each count is out of `hits`, except
@@ -176,6 +202,12 @@ struct Encounter {
     last_cast: HashMap<(u64, u32), u8>,
     /// Every recorded hit in order, for the analysis views.
     hits: Vec<(Hit, bool)>,
+    /// Heals during the fight: `attacker` is the healer, `target` who was healed.
+    heals: Vec<Hit>,
+    /// Damage players took from mobs: `attacker` is the mob, `target` the player.
+    taken: Vec<Hit>,
+    /// Everyone whose damage was recorded, so a mob's hit on them counts as damage taken.
+    attackers: HashSet<u64>,
 }
 
 impl Encounter {
@@ -186,6 +218,9 @@ impl Encounter {
             engaged: HashSet::new(),
             last_cast: HashMap::new(),
             hits: Vec::new(),
+            heals: Vec::new(),
+            taken: Vec::new(),
+            attackers: HashSet::new(),
         }
     }
 
@@ -202,6 +237,7 @@ impl Encounter {
         t.last_us = t.last_us.max(h.ts_us);
         t.total += h.damage;
         t.players.entry(h.attacker).or_default().add(h, new_cast);
+        self.attackers.insert(h.attacker);
         self.hits.push((*h, new_cast));
     }
 }
@@ -266,6 +302,17 @@ pub struct EncounterView {
     pub end_us: u64,
     /// Highest damage first.
     pub players: Vec<PlayerRow>,
+    /// Healing done, per healer (most first). Here `damage`, `dps` and `share` mean
+    /// healing, healing per second and share of all healing; the skills are the heals.
+    #[serde(default)]
+    pub healing: Vec<PlayerRow>,
+    /// Damage taken from mobs, per player (most first); the skills are what hit them.
+    #[serde(default)]
+    pub taken: Vec<PlayerRow>,
+    #[serde(default)]
+    pub total_healing: u64,
+    #[serde(default)]
+    pub total_taken: u64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -347,6 +394,12 @@ pub struct Analysis {
     /// HP over the fight for each counted target the game sent HP for.
     #[serde(default)]
     pub target_hp: Vec<TargetHp>,
+    /// Each heal in the healing rows: `player` healed `target`.
+    #[serde(default)]
+    pub heals: Vec<TimelineHit>,
+    /// Each hit in the damage-taken rows: `player` is the mob, `target` who took it.
+    #[serde(default)]
+    pub taken: Vec<TimelineHit>,
 }
 
 /// A target's HP during a fight (from `0x8d00`). Mob and dummy HP isn't in damage units:
@@ -383,6 +436,11 @@ struct EntityHp {
 }
 
 impl HpLog {
+    /// The entity's latest HP, if we've had one.
+    fn last(&self, entity: u64) -> Option<u64> {
+        self.entities.get(&entity)?.samples.back().map(|(_, hp)| *hp)
+    }
+
     fn record(&mut self, ts_us: u64, entity: u64, hp: u64, max: Option<u64>) {
         let e = self.entities.entry(entity).or_default();
         e.max = e.max.max(hp).max(max.unwrap_or(0));
@@ -435,6 +493,8 @@ pub struct Meter {
     /// Buffs and debuffs on everything in view.
     effects: EffectTracker,
     hp: HpLog,
+    /// Self-heals (or shields: they look the same) waiting for an HP update.
+    pending_heals: VecDeque<Hit>,
     completed: u32,
 }
 
@@ -456,6 +516,7 @@ impl Meter {
             lookback: VecDeque::new(),
             effects: EffectTracker::default(),
             hp: HpLog::default(),
+            pending_heals: VecDeque::new(),
             completed: 0,
         }
     }
@@ -493,7 +554,11 @@ impl Meter {
         }
         if opcode == hp::OPCODE_HP {
             if let Some(u) = hp::parse_hp(payload) {
+                let before = self.hp.last(u.entity);
                 self.hp.record(ts_us, u.entity, u.hp, None);
+                if let Some(rise) = before.and_then(|b| u.hp.checked_sub(b)).filter(|r| *r > 0) {
+                    self.settle_self_heal(ts_us, u.entity, rise);
+                }
             }
             return;
         }
@@ -528,7 +593,36 @@ impl Meter {
     fn on_damage(&mut self, ts_us: u64, ev: &DamageEvent) {
         let Some(dmg) = ev.damage else { return };
         // Heal-over-time ticks carry the amount healed, not damage.
-        if ev.is_self() || ev.is_heal() {
+        if ev.is_heal() {
+            // The tick names the entity the effect sits on (a debuff on a mob can heal
+            // whoever hits it), so the healer is whoever applied the effect.
+            let healer = ev
+                .instance
+                .and_then(|i| self.effects.source_of(i, [ev.attacker, ev.target]))
+                .unwrap_or(ev.attacker);
+            if let Some(enc) = self.current.as_mut() {
+                enc.heals.push(Hit::flow(ts_us, healer, ev.target, ev.skill, dmg));
+            }
+            return;
+        }
+        if ev.is_self() {
+            // A heal a player casts on themselves (Healing Light, Blood Absorption…) comes
+            // as a hit on themselves, and so does a shield (Steel Barrier). Only a heal
+            // raises HP, so it waits for the HP update and counts what that restored.
+            // Natural regeneration (Restore HP, 1010000) and items aren't player skills,
+            // and mobs and summoned spirits use the 1699xxxx creature skills on themselves.
+            let creature = CREATURE_SKILLS.contains(&ev.skill);
+            if ev.skill >= PLAYER_SKILL_MIN && !creature && self.is_player(ev.attacker, ev.skill) {
+                while self
+                    .pending_heals
+                    .front()
+                    .is_some_and(|h| ts_us.saturating_sub(h.ts_us) > SELF_HEAL_WAIT_US)
+                {
+                    self.pending_heals.pop_front();
+                }
+                self.pending_heals
+                    .push_back(Hit::flow(ts_us, ev.attacker, ev.target, ev.skill, dmg));
+            }
             return;
         }
         let me = self.registry.self_id();
@@ -559,9 +653,18 @@ impl Meter {
         // Does this start or continue your fight?
         let engaged = self.current.as_ref().is_some_and(|e| e.engaged.contains(&ev.target));
         let relevant = by_me || on_me || by_party || on_party || engaged || (everyone && player);
+        // A mob's hit on a player: damage taken, when it's someone we know is a player.
+        let on_player = !player
+            && (on_me
+                || self.registry.player_name(ev.target).is_some()
+                || self.current.as_ref().is_some_and(|e| e.attackers.contains(&ev.target)));
         if !relevant {
             if player {
                 self.remember(hit);
+            } else if on_player {
+                if let Some(enc) = self.current.as_mut() {
+                    enc.taken.push(hit);
+                }
             }
             return;
         }
@@ -583,6 +686,24 @@ impl Meter {
         }
         if player {
             enc.record(&hit);
+        } else if on_player {
+            enc.taken.push(hit);
+        }
+    }
+
+    /// HP rose by `rise`: if `entity` just healed themselves, that's what the heal did.
+    fn settle_self_heal(&mut self, ts_us: u64, entity: u64, rise: u64) {
+        let Some(i) = self
+            .pending_heals
+            .iter()
+            .position(|h| h.target == entity && ts_us.saturating_sub(h.ts_us) <= SELF_HEAL_WAIT_US)
+        else {
+            return;
+        };
+        let mut heal = self.pending_heals.remove(i).expect("index from position");
+        heal.damage = heal.damage.min(rise);
+        if let Some(enc) = self.current.as_mut() {
+            enc.heals.push(heal);
         }
     }
 
@@ -670,8 +791,12 @@ impl Meter {
     /// Changes whenever the fight shown by [`Meter::analysis`] does: (fights finished, hits
     /// in the current or last fight).
     pub fn analysis_stamp(&self) -> (u32, usize) {
-        let hits = self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.hits.len());
-        (self.completed, hits)
+        let events = self
+            .current
+            .as_ref()
+            .or(self.last.as_ref())
+            .map_or(0, |e| e.hits.len() + e.heals.len() + e.taken.len());
+        (self.completed, events)
     }
 
     /// The current fight (or the last one) in full, for the analysis window.
@@ -724,6 +849,22 @@ impl Meter {
             })
             .collect();
 
+        // Heals by the healers shown, and hits on the players shown as taking damage.
+        let healers: HashSet<u64> = view.healing.iter().map(|p| p.id).collect();
+        let takers: HashSet<u64> = view.taken.iter().map(|p| p.id).collect();
+        let flow = |h: &Hit| TimelineHit {
+            t: ms(h.ts_us),
+            player: h.attacker,
+            target: h.target,
+            skill: h.skill,
+            cast: 0,
+            damage: h.damage,
+            flags: 0,
+            n: 1,
+        };
+        let heals: Vec<TimelineHit> = e.heals.iter().filter(|h| healers.contains(&h.attacker)).map(flow).collect();
+        let taken: Vec<TimelineHit> = e.taken.iter().filter(|h| takers.contains(&h.target)).map(flow).collect();
+
         let involved: HashSet<u64> = players.iter().chain(counted.iter()).copied().collect();
         let effects: Vec<TimelineEffect> = self
             .effects
@@ -744,7 +885,10 @@ impl Meter {
 
         let mut names = BTreeMap::new();
         let mut mob_types = BTreeMap::new();
-        let mentioned = involved.iter().chain(effects.iter().map(|e| &e.source));
+        let mentioned = involved
+            .iter()
+            .chain(effects.iter().map(|e| &e.source))
+            .chain(heals.iter().chain(taken.iter()).flat_map(|h| [&h.player, &h.target]));
         for id in mentioned {
             names.insert(*id, self.registry.label(*id));
             if let Some(t) = self.registry.mob_type(*id) {
@@ -760,6 +904,8 @@ impl Meter {
             names,
             mob_types,
             target_hp,
+            heals,
+            taken,
         })
     }
 
@@ -815,6 +961,28 @@ impl Meter {
             .max_by_key(|(id, t)| (t.total, std::cmp::Reverse(**id)))
             .map(|(id, _)| **id);
 
+        // Healing and damage taken for the people in this fight: in party scope your
+        // party; otherwise everyone dealing damage here (and you), and anyone healing them.
+        let everyone = self.scope == Scope::Everyone || self.registry.self_id().is_none();
+        let shown = |id: u64| !party_only || self.registry.in_party(id);
+        let in_fight = |id: u64| everyone || per_player.contains_key(&id) || self.registry.is_self(id);
+        let (healing, total_healing) = self.flow_rows(
+            e.heals
+                .iter()
+                .filter(|h| shown(h.attacker) && (in_fight(h.attacker) || in_fight(h.target))),
+            |h| h.attacker,
+            &per_player,
+            duration_s,
+            skill_cap,
+        );
+        let (taken, total_taken) = self.flow_rows(
+            e.taken.iter().filter(|h| shown(h.target) && in_fight(h.target)),
+            |h| h.target,
+            &per_player,
+            duration_s,
+            skill_cap,
+        );
+
         Some(EncounterView {
             active,
             duration_s,
@@ -828,7 +996,45 @@ impl Meter {
             start_us: first,
             end_us: last,
             players,
+            healing,
+            taken,
+            total_healing,
+            total_taken,
         })
+    }
+
+    /// Rows for heals or damage taken, one per `key` (the healer, or who took the hits),
+    /// most first, and their total. Classes come from the player's own damage when there
+    /// is some: what hits you says nothing about your class.
+    fn flow_rows<'a>(
+        &self,
+        events: impl Iterator<Item = &'a Hit>,
+        key: impl Fn(&Hit) -> u64,
+        damage: &HashMap<u64, PlayerStats>,
+        duration_s: f64,
+        skill_cap: Option<usize>,
+    ) -> (Vec<PlayerRow>, u64) {
+        let mut per: HashMap<u64, PlayerStats> = HashMap::new();
+        for h in events {
+            per.entry(key(h)).or_default().add(h, false);
+        }
+        let total: u64 = per.values().map(|p| p.damage).sum();
+        let mut rows: Vec<PlayerRow> = per
+            .iter()
+            .map(|(id, p)| {
+                let mut row = self.row(*id, p, total, duration_s, skill_cap);
+                let class = damage
+                    .get(id)
+                    .and_then(|d| d.skills.keys().find_map(|s| classes::class_code_of_skill(*s)));
+                if let Some(code) = class {
+                    row.class_code = Some(code);
+                    row.class_name = classes::class_name(code).map(str::to_string);
+                }
+                row
+            })
+            .collect();
+        rows.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.id.cmp(&b.id)));
+        (rows, total)
     }
 
     fn row(&self, id: u64, p: &PlayerStats, total: u64, duration_s: f64, skill_cap: Option<usize>) -> PlayerRow {
@@ -1306,6 +1512,81 @@ mod tests {
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.total_damage, 1250);
         assert!(e.players[0].skills.iter().any(|s| s.skill == 18_730_002));
+    }
+
+    /// An HP update (0x8d00): entity, mask 0x02, one u64 stat: 0 (HP).
+    fn hp_update(entity: u64, hp: u64) -> Vec<u8> {
+        let mut p = encode_varint(entity);
+        p.extend([0x02, 1, 0]);
+        p.extend(hp.to_le_bytes());
+        p
+    }
+
+    /// A heal-over-time tick (0x3805, flags 0x0b): target, flags, healer, instance, u32,
+    /// amount, the 0x01 varint, skill.
+    fn heal(target: u64, healer: u64, skill: u32, amount: u64) -> Vec<u8> {
+        let mut p = encode_varint(target);
+        p.push(0x0b);
+        p.extend(encode_varint(healer));
+        p.extend(encode_varint(2093));
+        p.extend(0u32.to_le_bytes());
+        p.extend(encode_varint(amount));
+        p.extend(encode_varint(0));
+        p.extend(skill.to_le_bytes());
+        p
+    }
+
+    #[test]
+    fn heals_and_damage_taken_get_their_own_rows() {
+        const MOB: u64 = 31865;
+        let mut m = meter_as_me();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(2787, "Stranger"));
+        // Before the fight: not counted.
+        m.feed(0, OPCODE_DOT, &heal(ME, ME, 18_120_120, 50));
+        m.feed(S, OPCODE_DAMAGE, &hit(MOB, ME, 18_010_340, 1000));
+        // The mob hits you twice and Pingu once (Pingu isn't fighting it: not counted).
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(ME, MOB, 100_018, 500));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(ME, MOB, 100_018, 300));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(15772, MOB, 100_018, 999));
+        // Your Recuperation, Pingu's chant on you, and a stranger healing a stranger.
+        m.feed(4 * S, OPCODE_DOT, &heal(ME, ME, 18_120_120, 976));
+        // A heal you cast on yourself comes as a hit on yourself, then HP rises: it counts
+        // what HP rose by (600 of 1000; the rest was overheal). A shield looks the same but
+        // HP doesn't rise. Regeneration and creature skills don't count.
+        m.feed(4 * S, hp::OPCODE_HP, &hp_update(ME, 5000));
+        m.feed(4 * S + 10, OPCODE_DAMAGE, &hit(ME, ME, 18_170_010, 1000));
+        m.feed(4 * S + 10, hp::OPCODE_HP, &hp_update(ME, 5600));
+        m.feed(4 * S + 300_000, OPCODE_DAMAGE, &hit(ME, ME, 18_720_001, 700));
+        m.feed(4 * S + 600_000, OPCODE_DAMAGE, &hit(ME, ME, 1_010_000, 500));
+        m.feed(4 * S + 600_000, hp::OPCODE_HP, &hp_update(ME, 6100));
+        m.feed(4 * S + 700_000, OPCODE_DAMAGE, &hit(MOB, MOB, 16_990_004, 9_999));
+        m.feed(5 * S, OPCODE_DOT, &heal(ME, 15772, 18_730_002, 200));
+        m.feed(5 * S, OPCODE_DOT, &heal(2787, 2787, 17_090_140, 700));
+
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.total_damage, 1000, "heals and hits on you aren't damage dealt");
+        let healing: Vec<(&str, u64)> = e.healing.iter().map(|p| (p.name.as_str(), p.damage)).collect();
+        assert_eq!(healing, [("NeneneTowawa", 1576), ("Pingu", 200)]);
+        assert_eq!(e.total_healing, 1776);
+        assert_eq!(e.healing[1].skills[0].skill, 18_730_002);
+        let self_heal = e.healing[0].skills.iter().find(|s| s.skill == 18_170_010).unwrap();
+        assert_eq!(self_heal.damage, 600, "what HP rose by, not the 1000 the message said");
+        assert!(!e.healing[0].skills.iter().any(|s| s.skill == 18_720_001), "a shield isn't a heal");
+        assert_eq!(e.taken.len(), 1);
+        assert_eq!((e.taken[0].id, e.taken[0].damage, e.total_taken), (ME, 800, 800));
+        assert_eq!(e.taken[0].skills[0].skill, 100_018);
+        assert_eq!(e.taken[0].class_code, Some(18), "class from your damage, not the mob's skill");
+
+        let a = m.analysis(6 * S).unwrap();
+        assert_eq!(a.heals.len(), 3);
+        assert_eq!(a.taken.iter().map(|h| (h.t, h.damage)).collect::<Vec<_>>(), [(1000, 500), (2000, 300)]);
+        assert!(a.names.contains_key(&MOB));
+
+        // Everyone: the stranger's heal counts too.
+        m.set_scope(Scope::Everyone);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.healing.len(), 3);
     }
 
     #[test]

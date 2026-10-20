@@ -35,6 +35,8 @@
       <button type="button" role="tab" data-tab="skills">[skills]</button>
       <button type="button" role="tab" data-tab="rotation">[rotation]</button>
       <button type="button" role="tab" data-tab="buffs">[buffs]</button>
+      <button type="button" role="tab" data-tab="healing">[healing]</button>
+      <button type="button" role="tab" data-tab="taken">[taken]</button>
     </nav>
 
     <div id="scroll">
@@ -105,6 +107,54 @@
           <legend>buffs per skill <span class="note">· share of each skill's casts that landed with the effect up</span></legend>
           <div id="buffs-per-skill" class="cards"></div>
         </fieldset>
+      </section>
+
+      <section id="tab-healing" class="tab" hidden>
+        <div id="healing-tiles" class="tiles"></div>
+        <fieldset class="box">
+          <legend>healing over time <span class="note">· 5 s average · top 5</span></legend>
+          <div id="healing-chart" class="chart">
+            <canvas></canvas>
+            <div class="tooltip" hidden></div>
+          </div>
+          <div id="healing-legend" class="legend"></div>
+        </fieldset>
+        <div class="pair">
+          <fieldset class="box">
+            <legend>healers <span class="note">· click for details</span></legend>
+            <table id="healing-table" class="grid"></table>
+          </fieldset>
+          <fieldset class="box">
+            <legend id="healing-detail-legend"></legend>
+            <table id="healing-skills" class="grid"></table>
+            <table id="healing-others" class="grid others"></table>
+          </fieldset>
+        </div>
+        <p class="note flow-note">Heals over time (credited to whoever applied the effect) and heals players cast on themselves, counted by the HP they restored. Direct heals on other players haven't been seen yet.</p>
+      </section>
+
+      <section id="tab-taken" class="tab" hidden>
+        <div id="taken-tiles" class="tiles"></div>
+        <fieldset class="box">
+          <legend>damage taken over time <span class="note">· 5 s average · top 5</span></legend>
+          <div id="taken-chart" class="chart">
+            <canvas></canvas>
+            <div class="tooltip" hidden></div>
+          </div>
+          <div id="taken-legend" class="legend"></div>
+        </fieldset>
+        <div class="pair">
+          <fieldset class="box">
+            <legend>players hit <span class="note">· click for details</span></legend>
+            <table id="taken-table" class="grid"></table>
+          </fieldset>
+          <fieldset class="box">
+            <legend id="taken-detail-legend"></legend>
+            <table id="taken-skills" class="grid"></table>
+            <table id="taken-others" class="grid others"></table>
+          </fieldset>
+        </div>
+        <p class="note flow-note">Damage players took from mobs. Training dummies don't hit back.</p>
       </section>
     </div>
   </main>

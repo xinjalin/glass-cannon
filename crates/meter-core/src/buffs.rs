@@ -211,6 +211,11 @@ impl EffectTracker {
         self.open.values().filter(move |s| s.target == target)
     }
 
+    /// Who applied the effect `instance` that is on one of `entities` right now.
+    pub fn source_of(&self, instance: u64, entities: [u64; 2]) -> Option<u64> {
+        entities.iter().find_map(|e| self.open.get(&(*e, instance)).map(|s| s.source))
+    }
+
     /// Every span that overlaps `[from_us, to_us]`, open ones included, by start time.
     pub fn spans(&self, from_us: u64, to_us: u64) -> Vec<EffectSpan> {
         let mut out: Vec<EffectSpan> = self

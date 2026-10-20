@@ -21,6 +21,17 @@ const SCOPE_TITLES = {
   everyone: "Everyone fighting nearby",
 };
 
+// What the rows show; the legend's button cycles through them in this order.
+const VIEWS = ["damage", "healing", "taken"];
+const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken" };
+const VIEW_TITLES = {
+  damage: "Damage dealt",
+  healing: "Healing done (heals over time and self-heals)",
+  taken: "Damage taken from mobs",
+};
+// The words for a row's amount in each view.
+const VIEW_UNITS = { damage: "dmg", healing: "healed", taken: "taken" };
+
 const $ = (id) => document.getElementById(id);
 const expanded = new Set(); // player IDs whose skill list is open
 let pinned = true;
@@ -107,13 +118,14 @@ function skillList(p) {
   const box = el("div", "skills");
   const stats = el("div", "stats");
   stats.append(
-    el("span", "", `${fmt(p.damage)} dmg`),
-    el("span", "", `${p.hits} hits`),
+    el("span", "", `${fmt(p.damage)} ${VIEW_UNITS[meterView()]}`),
+    el("span", "", `${p.hits} ${meterView() === "healing" ? "ticks" : "hits"}`),
     el("span", "", `max ${fmt(p.max_hit)}`),
   );
   box.append(stats);
   const head = el("div", "skill head");
-  head.append(el("span", "", "skill"), el("span", "", "damage"), el("span", "", "%"), el("span", "", "hits"));
+  const amount = { damage: "damage", healing: "healing", taken: "taken" }[meterView()];
+  head.append(el("span", "", meterView() === "taken" ? "hit by" : "skill"), el("span", "", amount), el("span", "", "%"), el("span", "", "hits"));
   box.append(head);
   for (const s of p.skills) {
     const r = el("div", "skill");
@@ -198,11 +210,18 @@ function classBadge(p) {
   return el("span", "class-icon blank");
 }
 
+// The rows for the chosen view (older saved fights have no healing or taken rows).
+function rowsOf(enc) {
+  const view = meterView();
+  return (view === "damage" ? enc.players : enc[view]) || [];
+}
+
 function drawRows(enc) {
   const list = $("rows");
   list.replaceChildren();
-  const top = enc.players.length ? enc.players[0].dps : 1;
-  enc.players.forEach((p, i) => {
+  const rows = rowsOf(enc);
+  const top = rows.length ? rows[0].dps || 1 : 1;
+  rows.forEach((p, i) => {
     const row = el("li", "row" + (p.is_self ? " self" : "") + (p.class_code ? ` c${p.class_code}` : ""));
     row.title = [p.class_name, `entity ${p.id}`].filter(Boolean).join(" · ");
 
@@ -250,7 +269,21 @@ function drawTotals(enc) {
           invoke("rename_npc", { typeId: enc.target_type, name: value }),
         )
     : null;
-  $("total").textContent = `${fmt(enc.total_dps)}/s · ${fmt(enc.total_damage)}`;
+  const view = meterView();
+  const total = view === "damage" ? enc.total_damage : (view === "healing" ? enc.total_healing : enc.total_taken) || 0;
+  $("total").textContent = `${fmt(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
+}
+
+const meterView = () => (lastView && lastView.meter_view) || "damage";
+
+function drawViewSwitch() {
+  const view = meterView();
+  const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
+  for (const b of [$("view"), $("f-view")]) {
+    b.textContent = VIEW_LABELS[view];
+    b.classList.toggle("on", view !== "damage");
+    b.title = `${VIEW_TITLES[view]}\nClick for ${VIEW_TITLES[next].split(" (")[0].toLowerCase()}`;
+  }
 }
 
 // ---------------------------------------------------------------- history
@@ -412,6 +445,7 @@ function phaseText(view) {
 }
 
 function redraw() {
+  drawViewSwitch();
   const live = mode === "live";
   $("back").hidden = live;
   $("f-back").hidden = live;
@@ -441,11 +475,13 @@ function redraw() {
           : "starting…";
     return;
   }
-  $("empty").hidden = true;
   $("legend-text").textContent = live ? "fight" : `fight · ${timeOfDay(enc.end_us / 1000)}`;
   $("clock").textContent = clock(enc.duration_s);
   drawTotals(enc);
   drawRows(enc);
+  const none = rowsOf(enc).length === 0;
+  $("empty").hidden = !none;
+  if (none) $("empty").textContent = meterView() === "healing" ? "no healing in this fight" : "no damage taken in this fight";
 }
 
 async function refresh() {
@@ -491,6 +527,17 @@ $("history").addEventListener("click", async () => {
   else mode = "live";
   redraw();
 });
+
+// Damage → healing → taken.
+async function cycleView() {
+  const next = VIEWS[(VIEWS.indexOf(meterView()) + 1) % VIEWS.length];
+  await invoke("set_meter_view", { view: next });
+  if (lastView) lastView.meter_view = next;
+  expanded.clear();
+  redraw();
+}
+$("view").addEventListener("click", cycleView);
+$("f-view").addEventListener("click", cycleView);
 
 // Ends the live fight now instead of waiting for it to go quiet.
 async function endFight() {

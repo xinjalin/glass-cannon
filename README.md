@@ -50,6 +50,11 @@ to keep five in view when you change the font size, the time bar or minimal mode
     party's damage. The meter reads the roster the game sends when you join a party or an
     expedition group; on your own it's just you.
   - *all*: every player fighting nearby.
+- **dmg / heal / taken** (the button by the fight clock; in minimal mode, hover): what
+  the rows show. *heal* is healing done: heals over time (credited to whoever applied
+  the effect) and heals players cast on themselves, counted by the HP they restored;
+  direct heals on other players haven't been seen yet. *taken* is the damage players
+  took from mobs. Saved for next time.
 - **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
   skill or the target to name it yourself.
 - **Right-click a player** (or the chart icon) to open the **analysis** window on that
@@ -62,7 +67,10 @@ to keep five in view when you change the font size, the time bar or minimal mode
   - *rotation*: your opening casts and a zoomable timeline of every cast by skill
     (crits ringed, back attacks dotted, the target's HP shaded behind);
   - *buffs*: buffs on you and debuffs on the target over time with their uptime, and
-    for each skill the share of its casts that landed with each effect up.
+    for each skill the share of its casts that landed with each effect up;
+  - *healing* and *taken*: healing done and damage taken over time, per player, with
+    each player's heals (or the mob skills that hit them) and who they healed (or which
+    mobs hit them).
   Filter by target when a fight had several. The newest 50 fights keep their full
   analysis; older ones keep the summary.
 - **Clock icon**: fight history. Every finished fight is kept (the last 200), with the

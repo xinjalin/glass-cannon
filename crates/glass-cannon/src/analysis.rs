@@ -146,6 +146,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
         .iter()
         .map(|h| h.skill)
         .chain(a.effects.iter().filter_map(|e| e.skill))
+        .chain(a.heals.iter().chain(a.taken.iter()).map(|h| h.skill))
         .chain(a.view.players.iter().flat_map(|p| p.skills.iter().map(|s| s.skill)));
     let mut skills = BTreeMap::new();
     for id in ids {

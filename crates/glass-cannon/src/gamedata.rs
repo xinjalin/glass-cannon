@@ -218,7 +218,8 @@ impl GameData {
     }
 
     pub fn annotate_view(&self, enc: &mut EncounterView) {
-        for row in enc.players.iter_mut().flat_map(|p| p.skills.iter_mut()) {
+        let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
+        for row in rows.flat_map(|p| p.skills.iter_mut()) {
             if let Some((key, e)) = self.resolve_skill(row.skill) {
                 if !e.name.is_empty() {
                     row.name = Some(e.name.clone());
