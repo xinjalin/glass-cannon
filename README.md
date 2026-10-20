@@ -62,7 +62,9 @@ to keep five in view when you change the font size, the time bar or minimal mode
 - **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
   skill or the target to name it yourself.
 - **Right-click a player** (or the chart icon) to open the **analysis** window on that
-  fight, live or from history. It's a full dashboard:
+  fight, live or from history. It opens beside the meter, on the side with more room
+  (shrinking to fit a small screen rather than covering the meter), and stays where you
+  move it as long as it's on screen and clear of the meter. It's a full dashboard:
   - *overview*: DPS, casts, crit, back and front attacks, perfect and double strikes,
     DPS over time for the top players with the target's HP in a strip beneath, and every
     player side by side;
@@ -90,7 +92,8 @@ to keep five in view when you change the font size, the time bar or minimal mode
 - **Lock** (bottom-right corner, or *click-through* in the settings): clicks go through
   the meter to the game. While it's locked, the lock button is the only part of the meter
   that takes the mouse; click it to unlock. It stays locked next time you open the meter.
-- **≡** opens the **settings** beside the meter (always fully on screen): appearance on
+- **≡** opens the **settings** beside the meter (to its left, else right, below or above;
+  always fully on screen and never over the meter where there's room): appearance on
   the left; status (Npcap, game, game data), whose damage counts, how often the meter
   updates (0.2–2 s; 0.5 s by default), click-through, record fights (applies
   the next time you open the meter), fight history, a Desktop/Start-menu shortcut and

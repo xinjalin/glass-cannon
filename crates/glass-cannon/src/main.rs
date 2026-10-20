@@ -31,6 +31,7 @@ mod analysis;
 mod clickthrough;
 mod fonts;
 mod gamedata;
+mod layout;
 mod placement;
 mod settings;
 mod store;

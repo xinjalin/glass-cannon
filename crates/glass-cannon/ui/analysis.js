@@ -43,6 +43,8 @@ function fmt(n) {
   return Math.round(n).toLocaleString("en-US");
 }
 
+// Per-second rates: small ones (a little healing) keep a decimal instead of showing 0.
+const fmtRate = (n) => (n > 0 && n < 10 ? n.toFixed(1) : fmt(n));
 const pct = (n, of) => (of ? `${((n / of) * 100).toFixed(1)}%` : "–");
 
 function clock(ms) {
@@ -421,7 +423,8 @@ function drawSeriesChart(box, legendBox, series, hover, hp) {
   const top = 8;
   let max = 1;
   for (const s of series) for (const v of s.dps) max = Math.max(max, v);
-  const step = niceStep(max, 4);
+  // Whole-number steps: a small maximum would otherwise label its gridlines 0, 0, 1, 1.
+  const step = Math.max(1, niceStep(max, 4));
   max = Math.ceil(max / step) * step;
   const seconds = series.length ? series[0].dps.length : 1;
   const x = (s) => left + ((right - left) * s) / Math.max(1, seconds - 1);
@@ -741,23 +744,28 @@ function drawFlow(kind) {
 
   const tiles = $(`${kind}-tiles`);
   tiles.replaceChildren(
-    tile(`total ${f.unit}`, fmt(total), `${fmt(total / secs)}/s over ${clock(derived.durationMs)}`),
+    tile(`total ${f.unit}`, fmt(total), `${fmtRate(total / secs)}/s over ${clock(derived.durationMs)}`),
     tile(order.length === 1 ? (kind === "healing" ? "healer" : "player hit") : kind === "healing" ? "healers" : "players hit", String(order.length), order.length ? `most: ${name(order[0])}` : "none"),
   );
   if (row) {
     tiles.append(
-      tile(name(pick), fmt(row.amount), `${pct(row.amount, total)} · ${fmt(row.amount / secs)}/s`),
+      tile(name(pick), fmt(row.amount), `${pct(row.amount, total)} · ${fmtRate(row.amount / secs)}/s`),
       tile("biggest", fmt(row.max), `${row.n} ${kind === "healing" ? "ticks" : "hits"}`),
     );
   }
 
-  drawSeriesChart(
-    $(`${kind}-chart`),
-    $(`${kind}-legend`),
-    perSecondSeries(events, order.slice(0, MAX_SERIES), f.rowOf),
-    flowHover[kind],
-    null,
-  );
+  // An empty chart says nothing: hide it when there's nothing to draw.
+  const chartBox = $(`${kind}-chart`).closest(".box");
+  chartBox.hidden = !events.length;
+  if (events.length) {
+    drawSeriesChart(
+      $(`${kind}-chart`),
+      $(`${kind}-legend`),
+      perSecondSeries(events, order.slice(0, MAX_SERIES), f.rowOf),
+      flowHover[kind],
+      null,
+    );
+  }
 
   const table = $(`${kind}-table`);
   table.replaceChildren();
@@ -775,7 +783,7 @@ function drawFlow(kind) {
     tr.append(
       el("td", "muted", String(i + 1)),
       who,
-      barCell(fmt(s.amount / secs), s.amount / top),
+      barCell(fmtRate(s.amount / secs), s.amount / top),
       el("td", "", fmt(s.amount)),
       el("td", "", pct(s.amount, total)),
       el("td", "", String(s.n)),
@@ -1290,7 +1298,16 @@ function drawBuffsPerSkill() {
 function render() {
   drawTabs();
   $("empty").hidden = !!data;
-  if (!data) return;
+  // With no fight, nothing of the last one stays on show (title, players, targets).
+  $("toolbar").hidden = !data;
+  $("copy-text").disabled = $("copy-image").disabled = !data;
+  if (!data) {
+    $("fight-label").textContent = "";
+    $("live").hidden = true;
+    $("players").replaceChildren();
+    $("targets").replaceChildren();
+    return;
+  }
   drawHeader();
   drawChips();
   if (tab === "overview") {
@@ -1726,7 +1743,9 @@ tauri.event.listen("analysis-select", (e) => {
   await load(true);
   // Live fights refresh every second, or less often when a refresh is costly.
   const poll = async () => {
-    if (selection.fight == null && !document.hidden) await load(false);
+    // A hidden window still says it's visible (document.hidden), so ask the window.
+    const shown = await win.isVisible().catch(() => true);
+    if (selection.fight == null && shown) await load(false);
     setTimeout(poll, Math.min(5000, Math.max(POLL_MS, loadMs * 10)));
   };
   setTimeout(poll, POLL_MS);
