@@ -179,8 +179,12 @@ target/release/packet-lab replay captures/<session>/raw.pcap
 # Message types in the game stream (bundles unpacked; game connection picked automatically)
 target/release/packet-lab opcodes captures/<session>
 
-# The meter over a recording (--party or --everyone for the other scopes)
+# The meter over a recording (--party or --everyone for the other scopes): per-skill
+# casts, hits, crit, back/front, perfect, double strike and multi-hit
 target/release/packet-lab meter captures/<session> --party
+
+# Buff and debuff spans (who, what, from whom, how long), optionally on one entity
+target/release/packet-lab buffs captures/<session> --on 11792
 
 # Damage events with names, per-attacker totals and DPS (--mine = only your hits)
 target/release/packet-lab damage captures/<session> --mine
