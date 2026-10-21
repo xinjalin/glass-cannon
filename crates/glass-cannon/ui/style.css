@@ -376,9 +376,11 @@ legend {
   padding: 0.3em;
   border: 1px solid var(--line-faint);
   border-radius: 0.3em;
+  /* Darker than the fights, so runs stand out on the glass. */
+  background: rgba(0, 0, 0, 0.22);
   cursor: pointer;
 }
-.run-item:hover { background: var(--line-faint); }
+.run-item:hover { background: rgba(0, 0, 0, 0.3); }
 .run-chevron { color: var(--muted); text-align: center; }
 .run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
 .run-tag {
