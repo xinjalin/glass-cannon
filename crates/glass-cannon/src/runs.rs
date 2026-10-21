@@ -4,8 +4,14 @@
 //! (no gap longer than [`RUN_GAP_MS`]) and stay in that dungeon. Fights on mobs the data
 //! doesn't place (adds, summons) between two of the dungeon's fights belong to the run;
 //! ones after its last dungeon fight don't. A fight in another dungeon ends it.
+//!
+//! Going straight back into the same dungeon isn't a gap or another dungeon, so a run also
+//! ends when a boss it already fought comes round again (other than a retry of the boss
+//! just fought, after a wipe): the run ended at its last boss, and the next one starts with
+//! the fights after that. Against 266 dungeon fights recorded by another meter (which reads
+//! instance entry from the game), this grouping agreed on 255.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use serde::Serialize;
@@ -23,38 +29,88 @@ pub struct Leg<'a> {
     pub end_ms: u64,
     /// The dungeon its mob is in (an ID), if the data places it.
     pub dungeon: Option<&'a str>,
+    /// The boss it was on (its mob type), if it was a boss fight.
+    pub boss: Option<u32>,
+}
+
+/// The run being built.
+struct Open<'a> {
+    dungeon: &'a str,
+    first: usize,
+    /// The last fight on the dungeon's mobs.
+    last: usize,
+    /// When the latest fight in it ended.
+    end_ms: u64,
+    bosses: HashSet<u32>,
+    /// The latest boss fought, and where.
+    last_boss: Option<(u32, usize)>,
+}
+
+impl<'a> Open<'a> {
+    fn start(dungeon: &'a str, first: usize, legs: &[Leg]) -> Self {
+        let mut run = Open { dungeon, first, last: first, end_ms: 0, bosses: HashSet::new(), last_boss: None };
+        for (i, leg) in legs.iter().enumerate().skip(first) {
+            run.add(i, leg);
+        }
+        run
+    }
+
+    fn add(&mut self, i: usize, leg: &Leg) {
+        self.end_ms = self.end_ms.max(leg.end_ms);
+        if leg.dungeon.is_some() {
+            self.last = i;
+        }
+        if let Some(b) = leg.boss {
+            self.bosses.insert(b);
+            self.last_boss = Some((b, i));
+        }
+    }
+
+    /// Its fights, if there are at least two.
+    fn close(self, runs: &mut Vec<(Range<usize>, &'a str)>) {
+        if self.last > self.first {
+            runs.push((self.first..self.last + 1, self.dungeon));
+        }
+    }
 }
 
 /// Groups fights (oldest first) into runs of two or more: each run's fights as a range of
 /// indexes into `legs`, and its dungeon.
 pub fn group<'a>(legs: &[Leg<'a>]) -> Vec<(Range<usize>, &'a str)> {
     let mut runs = Vec::new();
-    // The open run: its dungeon, first fight, last fight in the dungeon, and when the
-    // latest fight in it ended.
-    let mut open: Option<(&str, usize, usize, u64)> = None;
-    let close = |open: Option<(&'a str, usize, usize, u64)>, runs: &mut Vec<(Range<usize>, &'a str)>| {
-        if let Some((d, first, last, _)) = open {
-            if last > first {
-                runs.push((first..last + 1, d));
-            }
-        }
-    };
+    let mut open: Option<Open<'a>> = None;
     for (i, leg) in legs.iter().enumerate() {
-        let continues = open.is_some_and(|(d, _, _, end)| {
-            leg.start_ms.saturating_sub(end) <= RUN_GAP_MS && leg.dungeon.is_none_or(|x| x == d)
+        let continues = open.as_ref().is_some_and(|run| {
+            leg.start_ms.saturating_sub(run.end_ms) <= RUN_GAP_MS && leg.dungeon.is_none_or(|d| d == run.dungeon)
         });
-        if continues {
-            let run = open.as_mut().expect("checked above");
-            run.3 = run.3.max(leg.end_ms);
-            if leg.dungeon.is_some() {
-                run.2 = i;
+        if !continues {
+            if let Some(run) = open.take() {
+                run.close(&mut runs);
             }
-        } else {
-            close(open.take(), &mut runs);
-            open = leg.dungeon.map(|d| (d, i, i, leg.end_ms));
+            open = leg.dungeon.map(|d| Open::start(d, i, &legs[..=i]));
+            continue;
         }
+        let run = open.as_mut().expect("checked above");
+        let again = leg
+            .boss
+            .is_some_and(|b| run.bosses.contains(&b) && run.last_boss.is_some_and(|(last, _)| last != b));
+        if !again {
+            run.add(i, leg);
+            continue;
+        }
+        // Back in for another run: this one ended at its last boss, and the next starts at
+        // the first of the dungeon's fights after it.
+        let (_, boss_at) = run.last_boss.expect("a boss was fought");
+        let dungeon = run.dungeon;
+        let next = (boss_at + 1..=i).find(|&j| legs[j].dungeon == Some(dungeon)).unwrap_or(i);
+        let mut done = open.take().expect("checked above");
+        done.last = boss_at;
+        done.close(&mut runs);
+        open = Some(Open::start(dungeon, next, &legs[..=i]));
     }
-    close(open, &mut runs);
+    if let Some(run) = open {
+        run.close(&mut runs);
+    }
     runs
 }
 
@@ -80,6 +136,8 @@ pub struct Run {
     pub place: Place,
     pub started_ms: u64,
     pub ended_ms: u64,
+    /// Time spent fighting: its fights' lengths added up.
+    pub fight_s: f64,
     pub fights: usize,
     pub bosses: usize,
     pub total_damage: u64,
@@ -110,7 +168,12 @@ pub fn history_list(mut fights: Vec<FightSummary>, data: &GameData) -> HistoryLi
         .iter()
         .zip(&ids)
         .rev()
-        .map(|(f, d)| Leg { start_ms: f.started_ms, end_ms: f.ended_ms, dungeon: *d })
+        .map(|(f, d)| Leg {
+            start_ms: f.started_ms,
+            end_ms: f.ended_ms,
+            dungeon: *d,
+            boss: f.target_type.filter(|_| f.target_boss),
+        })
         .collect();
     let n = fights.len();
     let mut runs = Vec::new();
@@ -146,6 +209,7 @@ fn summarise<'a>(fights: impl Iterator<Item = &'a FightSummary> + Clone) -> Run 
         place,
         started_ms: u64::MAX,
         ended_ms: 0,
+        fight_s: 0.0,
         fights: 0,
         bosses: 0,
         total_damage: 0,
@@ -166,6 +230,7 @@ fn summarise<'a>(fights: impl Iterator<Item = &'a FightSummary> + Clone) -> Run 
             any_mine = true;
         }
     }
+    run.fight_s = secs;
     run.my_dps = (any_mine && secs > 0.0).then(|| mine as f64 / secs);
     run
 }
@@ -177,7 +242,31 @@ mod tests {
     const MIN: u64 = 60_000;
 
     fn leg(start_min: u64, dungeon: Option<&'static str>) -> Leg<'static> {
-        Leg { start_ms: start_min * MIN, end_ms: start_min * MIN + MIN, dungeon }
+        Leg { start_ms: start_min * MIN, end_ms: start_min * MIN + MIN, dungeon, boss: None }
+    }
+
+    fn boss(start_min: u64, dungeon: &'static str, boss: u32) -> Leg<'static> {
+        Leg { boss: Some(boss), ..leg(start_min, Some(dungeon)) }
+    }
+
+    #[test]
+    fn a_boss_coming_round_again_starts_the_next_run() {
+        // Draupnir twice in a row, as recorded: trash, Saraswati (1), Lakshmi (2), Bakarma
+        // (3) with a wipe and a retry, then straight back in: trash, Saraswati again.
+        let d = "Draupnir";
+        let legs = [
+            leg(0, Some(d)),
+            boss(1, d, 1),
+            boss(3, d, 2),
+            leg(5, Some(d)),
+            boss(6, d, 3),
+            boss(9, d, 3),
+            leg(12, Some(d)),
+            boss(13, d, 1),
+            boss(15, d, 2),
+        ];
+        // The first run ends at the last Bakarma; the trash after it opens the second.
+        assert_eq!(group(&legs), vec![(0..6, d), (6..9, d)]);
     }
 
     #[test]
@@ -244,7 +333,7 @@ mod tests {
         // The boss fight's mode names the run, not the trash's.
         assert_eq!((run.place.name.as_str(), run.place.mode.as_deref()), ("Deus Research Base", Some("Stage 2")));
         assert_eq!((run.fights, run.bosses, run.total_damage, run.players), (3, 1, 3000, 5));
-        assert_eq!((run.started_ms, run.ended_ms), (10 * MIN, 15 * MIN));
+        assert_eq!((run.started_ms, run.ended_ms, run.fight_s), (10 * MIN, 15 * MIN, 180.0));
         assert_eq!(run.my_dps, Some(10.0));
         assert!(list.fights[1].dungeon.is_none(), "the unplaced add has no place of its own");
         std::fs::remove_dir_all(dir).ok();

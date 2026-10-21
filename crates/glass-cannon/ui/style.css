@@ -383,6 +383,7 @@ legend {
 .run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
 .run-tag {
   flex: none;
+  margin-right: 0.2em;
   padding: 0 0.4em;
   border: 1px solid var(--line);
   border-radius: 0.25em;

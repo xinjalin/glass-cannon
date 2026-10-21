@@ -421,23 +421,25 @@ function fightItem(f, i, inRun) {
   return item;
 }
 
-// A dungeon run: where, its mode, when, how long from first pull to last kill, and its
-// total damage. Click to show or hide its fights.
+// A dungeon run: where and in which mode, when it started, the time spent fighting, its
+// fights and bosses, and its total damage. Click to show or hide its fights.
 function runItem(run) {
   const open = openRuns.has(run.started_ms);
   const item = el("li", "run-item" + (open ? " open" : ""));
   const text = el("span", "fight-text");
-  const what = el("span", "fight-what");
-  what.append(el("span", "run-name", run.place.name));
+  const when = el("span", "fight-what");
   const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
-  if (tag) what.append(el("span", "run-tag", tag));
-  const fights = `${run.fights} fights${run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : ""}`;
-  const meta = el("span", "fight-meta", `${timeOfDay(run.started_ms)} · ${clock((run.ended_ms - run.started_ms) / 1000)} · ${fights} · ${run.players}p`);
-  text.append(what, meta);
+  if (tag) when.append(el("span", "run-tag", tag));
+  when.append(el("span", "fight-meta", timeOfDay(run.started_ms)));
+  const bosses = run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : "";
+  const meta = el("span", "fight-meta", `${clock(run.fight_s)} · ${run.fights} fights${bosses} · ${run.players}p`);
+  text.append(el("span", "run-name", run.place.name), when, meta);
   const total = el("span", "fight-dps", fmt(run.total_damage));
-  total.title = run.my_dps != null ? `total damage · your DPS ${fmt(run.my_dps)}` : "total damage";
+  const dps = run.my_dps != null ? ` · your DPS ${fmt(run.my_dps)}` : "";
   item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, total);
-  item.title = open ? "Hide this run's fights" : "Show this run's fights";
+  item.title = `${clock(run.fight_s)} fighting, ${clock((run.ended_ms - run.started_ms) / 1000)} from first pull to last kill
+${fmt(run.total_damage)} damage${dps}
+Click to ${open ? "hide" : "show"} its fights`;
   item.addEventListener("click", () => {
     if (open) openRuns.delete(run.started_ms);
     else openRuns.add(run.started_ms);
