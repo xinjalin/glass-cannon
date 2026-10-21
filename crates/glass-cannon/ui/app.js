@@ -417,7 +417,12 @@ function fightItem(f, i, inRun) {
   const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
   dps.title = f.my_dps != null ? "your DPS" : "total DPS";
   item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
+  item.title = "Click to open · right-click for its analysis";
   item.addEventListener("click", () => openFight(f.index));
+  item.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    invoke("open_analysis", { fight: f.index, run: null, player: null }).catch(showError);
+  });
   return item;
 }
 
@@ -439,7 +444,12 @@ function runItem(run) {
   item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, total);
   item.title = `${clock(run.fight_s)} fighting, ${clock((run.ended_ms - run.started_ms) / 1000)} from first pull to last kill
 ${fmt(run.total_damage)} damage${dps}
-Click to ${open ? "hide" : "show"} its fights`;
+Click to ${open ? "hide" : "show"} its fights · right-click for the run's analysis`;
+  // Right-click: the whole run in the analysis window (again: closes it).
+  item.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    invoke("open_analysis", { fight: null, run: [run.first, run.last], player: null }).catch(showError);
+  });
   item.addEventListener("click", () => {
     if (open) openRuns.delete(run.started_ms);
     else openRuns.add(run.started_ms);
@@ -699,7 +709,7 @@ $("f-back").addEventListener("click", goBack);
 // The analysis window, on the fight shown here (a saved one in history mode).
 function openAnalysis(player) {
   const fight = mode === "fight" ? fightIndex : null;
-  invoke("open_analysis", { fight, player }).catch(showError);
+  invoke("open_analysis", { fight, run: null, player }).catch(showError);
 }
 $("analysis").addEventListener("click", () => openAnalysis(null));
 

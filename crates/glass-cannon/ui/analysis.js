@@ -17,7 +17,7 @@ const HIT = { CRIT: 0x01, BACK: 0x02, FRONT: 0x04, PERFECT: 0x08, DOUBLE: 0x10, 
 
 const $ = (id) => document.getElementById(id);
 
-let selection = { fight: null, player: null };
+let selection = { fight: null, run: null, player: null };
 let data = null; // what analysis_data returned
 let stamp = "";
 let tab = "overview";
@@ -281,6 +281,16 @@ function selectedPlayer() {
 
 function drawHeader() {
   const v = data.view;
+  if (data.run) {
+    // A dungeon run: where, how many fights, time spent fighting, damage, when it ended.
+    const r = data.run;
+    const where = data.place ? [data.place.name, data.place.mode].filter(Boolean).join(" ") : "dungeon";
+    const fights = r.shown < r.fights ? `${r.shown} of ${r.fights} fights (older ones have no details)` : `${r.fights} fights`;
+    const when = data.ended_ms ? ` · ${new Date(data.ended_ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
+    $("fight-label").textContent = `${where} run · ${fights} · ${clock(v.duration_s * 1000)} · ${fmt(v.total_damage)}${when}`;
+    $("live").hidden = true;
+    return;
+  }
   const when = data.ended_ms ? ` · ${new Date(data.ended_ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
   const boss = v.target_boss || (v.target_id != null && data.bosses.includes(v.target_id)) ? "BOSS " : "";
   const where = data.place ? ` · ${[data.place.name, data.place.mode].filter(Boolean).join(" ")}` : "";
@@ -462,6 +472,8 @@ function drawSeriesChart(box, legendBox, series, hover, hp, onPick) {
     ctx.textAlign = near ? "right" : "center";
     ctx.fillText(clock(s * 1000), near ? right : x(s), bottom + strip + 6);
   }
+
+  drawFightStarts(ctx, (t) => x(t / 1000), top, bottom + strip);
 
   if (hp) {
     const sTop = bottom + 5;
@@ -953,7 +965,27 @@ function attachTimeline(boxId, which, gutter, onHover) {
   canvas.addEventListener("mouseleave", () => onHover(null, null, null));
 }
 
+// A run's fights sit back to back: a dashed line where each one (after the first) starts.
+function drawFightStarts(ctx, x, top, bottom, t0 = -Infinity, t1 = Infinity) {
+  if (!data || !data.run) return;
+  ctx.save();
+  ctx.strokeStyle = css("--muted");
+  ctx.globalAlpha = 0.6;
+  ctx.setLineDash([3, 4]);
+  ctx.lineWidth = 1;
+  for (const t of data.run.starts.slice(1)) {
+    if (t < t0 || t > t1) continue;
+    const px = Math.round(x(t)) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px, top);
+    ctx.lineTo(px, bottom);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawTimeAxis(ctx, x0, x1, y, t0, t1) {
+  drawFightStarts(ctx, (t) => x0 + ((x1 - x0) * (t - t0)) / (t1 - t0), 0, y, t0, t1);
   ctx.font = canvasFont();
   ctx.fillStyle = css("--faint");
   ctx.strokeStyle = css("--line-faint");
@@ -1478,11 +1510,11 @@ let loadMs = 0;
 
 async function load(force) {
   try {
-    const s = await invoke("analysis_stamp", { fight: selection.fight });
+    const s = await invoke("analysis_stamp", { fight: selection.fight, run: selection.run });
     if (!force && s === stamp) return;
     stamp = s;
     const started = performance.now();
-    const d = await invoke("analysis_data", { fight: selection.fight });
+    const d = await invoke("analysis_data", { fight: selection.fight, run: selection.run });
     data = d || null;
     if (data) {
       if (target != null && !data.hits.some((h) => h.target === target)) target = null;
@@ -1559,6 +1591,7 @@ function fitColumns(s, width) {
 
 function fightTitle() {
   const v = data.view;
+  if (data.run) return `${data.place ? [data.place.name, data.place.mode].filter(Boolean).join(" ") : "Dungeon"} run`;
   const boss = v.target_boss || (v.target_id != null && data.bosses.includes(v.target_id)) ? "BOSS " : "";
   const more = v.target_count > 1 ? ` +${v.target_count - 1}` : "";
   return `${boss}${name(v.target_id) || v.target || "?"}${more}`;
@@ -1961,8 +1994,9 @@ document.addEventListener("keydown", (e) => {
 new ResizeObserver(queueRedraw).observe($("scroll"));
 
 tauri.event.listen("analysis-select", (e) => {
-  const fightChanged = e.payload.fight !== selection.fight;
-  selection = { fight: e.payload.fight, player: e.payload.player ?? selection.player };
+  const run = e.payload.run ?? null;
+  const fightChanged = e.payload.fight !== selection.fight || String(run) !== String(selection.run);
+  selection = { fight: e.payload.fight, run, player: e.payload.player ?? selection.player };
   if (fightChanged) {
     target = null;
     zoom.rotation = null;
@@ -1988,7 +2022,8 @@ tauri.event.listen("appearance", (e) => {
   const poll = async () => {
     // A hidden window still says it's visible (document.hidden), so ask the window.
     const shown = await win.isVisible().catch(() => true);
-    if (selection.fight == null && shown) await load(false);
+    // Only the live fight changes; saved fights and runs don't.
+    if (selection.fight == null && selection.run == null && shown) await load(false);
     setTimeout(poll, Math.min(5000, Math.max(POLL_MS, loadMs * 10)));
   };
   setTimeout(poll, POLL_MS);

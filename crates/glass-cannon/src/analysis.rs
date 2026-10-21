@@ -21,12 +21,29 @@ const HEIGHT: f64 = 780.0;
 /// As in tauri.conf.json: the smallest the window can be.
 const MIN: (f64, f64) = (760.0, 480.0);
 
-/// Which fight and player the window shows.
+/// Which fight (or dungeon run) and player the window shows.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Selection {
     /// A saved fight's history index; `None` is the live (or last) fight.
     pub fight: Option<usize>,
+    /// A dungeon run: its first and last fights' history indexes (shown instead of `fight`).
+    #[serde(default)]
+    pub run: Option<(usize, usize)>,
     pub player: Option<u64>,
+}
+
+/// About a dungeon run shown as one analysis.
+#[derive(Serialize)]
+pub struct RunInfo {
+    /// Fights in the run.
+    fights: usize,
+    /// Of those, the ones with a saved analysis (the newest fights only), which are what's
+    /// shown.
+    shown: usize,
+    /// Where each shown fight starts on the joined timeline (ms).
+    starts: Vec<u32>,
+    /// First pull to last kill.
+    wall_s: f64,
 }
 
 #[derive(Serialize)]
@@ -62,6 +79,8 @@ pub struct AnalysisData {
     bosses: Vec<u64>,
     /// The dungeon (and mode) the main target is in, if any.
     place: Option<crate::runs::Place>,
+    /// Set when this is a whole dungeon run.
+    run: Option<RunInfo>,
     /// Still going (only the live fight can be).
     live: bool,
     /// When a saved fight ended (ms since the Unix epoch).
@@ -76,15 +95,16 @@ pub fn open_analysis(
     handle: AppHandle,
     app: State<'_, Arc<AppState>>,
     fight: Option<usize>,
+    run: Option<(usize, usize)>,
     player: Option<u64>,
 ) -> Result<(), String> {
     let w = handle.get_webview_window(ANALYSIS).ok_or("no analysis window")?;
     let now = *lock(&app.analysis_selection);
     let showing = w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false);
-    if showing && now.fight == fight && player.is_none_or(|p| now.player == Some(p)) {
+    if showing && now.fight == fight && now.run == run && player.is_none_or(|p| now.player == Some(p)) {
         return w.hide().map_err(|e| e.to_string());
     }
-    let selection = Selection { fight, player: player.or(now.player) };
+    let selection = Selection { fight, run, player: player.or(now.player) };
     *lock(&app.analysis_selection) = selection;
     place(&handle, &w, !app.analysis_placed.swap(true, Ordering::SeqCst));
     w.show().map_err(|e| e.to_string())?;
@@ -134,10 +154,11 @@ fn place(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
 pub fn follow_fight(handle: AppHandle, app: State<'_, Arc<AppState>>, fight: Option<usize>) {
     let selection = {
         let mut s = lock(&app.analysis_selection);
-        if s.fight == fight {
+        if s.fight == fight && s.run.is_none() {
             return;
         }
         s.fight = fight;
+        s.run = None;
         *s
     };
     if let Some(w) = handle.get_webview_window(ANALYSIS) {
@@ -161,10 +182,11 @@ pub fn analysis_selection(app: State<'_, Arc<AppState>>) -> Selection {
 
 /// Changes whenever the fight's data does, so the page only refetches then.
 #[tauri::command]
-pub fn analysis_stamp(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> String {
-    match fight {
-        Some(i) => format!("saved-{i}"),
-        None => {
+pub fn analysis_stamp(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: Option<(usize, usize)>) -> String {
+    match (run, fight) {
+        (Some((a, b)), _) => format!("run-{a}-{b}"),
+        (None, Some(i)) => format!("saved-{i}"),
+        (None, None) => {
             let (finished, hits) = app.engine.meter().analysis_stamp();
             format!("live-{finished}-{hits}")
         }
@@ -173,15 +195,32 @@ pub fn analysis_stamp(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> St
 
 /// The fight in full, with names filled in.
 #[tauri::command]
-pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Option<AnalysisData> {
-    let (mut a, live, ended_ms) = match fight {
-        None => {
+pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: Option<(usize, usize)>) -> Option<AnalysisData> {
+    let mut run_info = None;
+    let (mut a, live, ended_ms) = match (run, fight) {
+        (Some((first, last)), _) => {
+            // The run's fights that still have their full analysis, back to back.
+            let fights: Vec<(u64, u64)> = {
+                let history = lock(&app.history);
+                (first..=last).filter_map(|i| history.fight(i)).map(|f| (f.view.start_us / 1000, f.ended_ms)).collect()
+            };
+            let parts: Vec<_> = fights.iter().filter_map(|(_, ended)| app.details.load(*ended)).collect();
+            let shown = parts.len();
+            let (a, starts) = meter_core::join::join(parts)?;
+            let wall_ms = match (fights.first(), fights.last()) {
+                (Some((start, _)), Some((_, end))) => end.saturating_sub(*start),
+                _ => 0,
+            };
+            run_info = Some(RunInfo { fights: fights.len(), shown, starts, wall_s: wall_ms as f64 / 1000.0 });
+            (a, false, fights.last().map(|(_, end)| *end))
+        }
+        (None, None) => {
             let now = app.engine.now();
             let a = app.engine.meter().analysis(now)?;
             let live = a.view.active;
             (a, live, None)
         }
-        Some(index) => {
+        (None, Some(index)) => {
             let ended_ms = lock(&app.history).fight(index)?.ended_ms;
             (app.details.load(ended_ms)?, false, Some(ended_ms))
         }
@@ -255,6 +294,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
         skill_details,
         bosses,
         place,
+        run: run_info,
         live,
         ended_ms,
         appearance,

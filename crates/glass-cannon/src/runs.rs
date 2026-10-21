@@ -134,6 +134,9 @@ impl From<&DungeonPlace<'_>> for Place {
 #[derive(Debug, Clone, Serialize)]
 pub struct Run {
     pub place: Place,
+    /// Its first and last fights' history indexes (for the analysis window).
+    pub first: usize,
+    pub last: usize,
     pub started_ms: u64,
     pub ended_ms: u64,
     /// Time spent fighting: its fights' lengths added up.
@@ -207,6 +210,8 @@ fn summarise<'a>(fights: impl Iterator<Item = &'a FightSummary> + Clone) -> Run 
         .expect("a run has dungeon fights");
     let mut run = Run {
         place,
+        first: usize::MAX,
+        last: 0,
         started_ms: u64::MAX,
         ended_ms: 0,
         fight_s: 0.0,
@@ -220,6 +225,8 @@ fn summarise<'a>(fights: impl Iterator<Item = &'a FightSummary> + Clone) -> Run 
     for f in fights {
         run.started_ms = run.started_ms.min(f.started_ms);
         run.ended_ms = run.ended_ms.max(f.ended_ms);
+        run.first = run.first.min(f.index);
+        run.last = run.last.max(f.index);
         run.fights += 1;
         run.bosses += usize::from(f.target_boss);
         run.total_damage += f.total_damage;
@@ -333,6 +340,7 @@ mod tests {
         // The boss fight's mode names the run, not the trash's.
         assert_eq!((run.place.name.as_str(), run.place.mode.as_deref()), ("Deus Research Base", Some("Stage 2")));
         assert_eq!((run.fights, run.bosses, run.total_damage, run.players), (3, 1, 3000, 5));
+        assert_eq!((run.first, run.last), (1, 3));
         assert_eq!((run.started_ms, run.ended_ms, run.fight_s), (10 * MIN, 15 * MIN, 180.0));
         assert_eq!(run.my_dps, Some(10.0));
         assert!(list.fights[1].dungeon.is_none(), "the unplaced add has no place of its own");

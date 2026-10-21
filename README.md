@@ -97,7 +97,8 @@ to keep five in view when you change the font size, the time bar or minimal mode
   mode (*Transcendence · Stage 2*, *Expedition · Conquest*), when it started, the time
   spent fighting (hover for first pull to last kill), how many fights and bosses, the most
   players and the total damage. Click a run to show or hide its fights; the newest starts
-  open. A run is fights in a row on that dungeon's mobs with no break longer than 10
+  open. Right-click a run for its analysis (its fights back to back, with a dashed line
+  where each starts) or a fight for that fight's; right-click again to close it. A run is fights in a row on that dungeon's mobs with no break longer than 10
   minutes; going straight back in shows as a new run once a boss you already fought comes
   round again (a retry after a wipe stays in the same run). **▷|** ends the fight now (your next hit starts a new one, without
   waiting for the fight to go quiet); **↺** resets; **pin** toggles always-on-top; **×**
