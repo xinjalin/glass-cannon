@@ -91,14 +91,18 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         };
         // Cooldowns, descriptions and specialties for the analysis tooltips: the meter
         // works without them, so a missing file is only a warning.
-        let details = match d.detail_count() {
-            0 => Check {
+        let details = match (d.detail_count(), d.theostone_count()) {
+            (0, _) => Check {
                 level: "warn",
                 text: "missing: no skill tooltips".into(),
             },
-            n => Check {
+            (n, 0) => Check {
                 level: "ok",
                 text: format!("{} skills", thousands(n)),
+            },
+            (n, t) => Check {
+                level: "ok",
+                text: format!("{} skills · {t} theostones", thousands(n)),
             },
         };
         (data, details)

@@ -36,13 +36,14 @@ Copy-Item README.md, LICENSE, THIRD_PARTY.md $stage
 # Game data: names, icons and skill details, next to the exe where the meter looks.
 $data = Join-Path $stage 'gamedata'
 Copy-Item -Recurse (Join-Path $Root 'gamedata') $data
-foreach ($f in 'skills.json', 'npcs.json', 'skill-details.json') {
+foreach ($f in 'skills.json', 'npcs.json', 'skill-details.json', 'theostones.json') {
   if (-not (Test-Path (Join-Path $data $f))) { throw "game data is missing $f" }
 }
 Copy-Item (Join-Path $Root 'third_party/GPL-3.0.txt') (Join-Path $data 'LICENSE-GPL-3.0.txt')
 $skills = Get-Content -Raw (Join-Path $data 'skills.json') | ConvertFrom-Json
 $npcs = Get-Content -Raw (Join-Path $data 'npcs.json') | ConvertFrom-Json
 $details = Get-Content -Raw (Join-Path $data 'skill-details.json') | ConvertFrom-Json
+$stones = Get-Content -Raw (Join-Path $data 'theostones.json') | ConvertFrom-Json
 @(
   'Game data for Glass Cannon: skill, class and mob names, icons and skill details.'
   ''
@@ -59,6 +60,8 @@ $details = Get-Content -Raw (Join-Path $data 'skill-details.json') | ConvertFrom
   'Without a licence:'
   "- skill-details.json, scraped from https://aion2.app/db/skills ($($details.source.scraped)),"
   '  game data compiled by aion2.app; removed on request.'
+  "- theostones.json (Theostone grades and effects), from a scraped item database collected"
+  "  from public fan databases ($($stones.source.scraped)); removed on request."
 ) | Set-Content -Encoding utf8 (Join-Path $data 'SOURCES.txt')
 
 # Every Rust crate built into the meter, with its licence.

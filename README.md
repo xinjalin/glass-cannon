@@ -62,22 +62,29 @@ to keep five in view when you change the font size, the time bar or minimal mode
 - **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
   skill or the target to name it yourself.
 - **Right-click a player** (or the chart icon) to open the **analysis** window on that
-  fight, live or from history. It opens beside the meter, on the side with more room
+  fight, live or from history; right-click them again (or the icon) to close it. While
+  it's open it follows the fight the meter shows: open a fight from the history and the
+  analysis switches to it. It opens beside the meter, on the side with more room
   (shrinking to fit a small screen rather than covering the meter), and stays where you
   move it as long as it's on screen and clear of the meter. It's a full dashboard:
   - *overview*: DPS, casts, crit, back and front attacks, perfect and double strikes,
-    DPS over time for the top players with the target's HP in a strip beneath, and every
-    player side by side;
+    DPS over time for the top players with the target's HP in a strip beneath (click a
+    line or its name to pick that player), and every player side by side;
   - *skills*: every skill with the specialties the player chose (read from the skill
     IDs the game sends), casts, hits, multi-hit, crit, double, perfect, back, front, min,
     max, average and time between casts (click a column to sort). Hover a skill for its
     cooldown, cost, range, description and all its specialties, the chosen ones ticked.
     The game doesn't send skill levels, so descriptions show level 1 (and the top level);
   - *rotation*: your opening casts and a zoomable timeline of every cast by skill
-    (crits ringed, back attacks dotted, the target's HP shaded behind). Zoomed in to the
+    (crits ringed, back attacks dotted, the target's HP shaded behind; hover a skill's
+    name for its tooltip). Zoomed in to the
     end of a live fight, the timeline follows it as it happens (**[now]** jumps there);
-  - *buffs*: buffs on you and debuffs on the target over time with their uptime, and
-    for each skill the share of its casts that landed with each effect up;
+  - *buffs*: buffs on you and debuffs on the target over time with their icons and
+    uptime, and for each skill the share of its casts that landed with each effect up.
+    Hover a buff's name for what it is: how long it lasts, who put it up and its skill's
+    description. When one skill puts up several effects the game data doesn't name apart
+    (Protection Circle: the circle, then Divine Barrier), each shows how long it lasts;
+    double-click a name to give it your own;
   - *healing* and *taken*: healing done and damage taken over time, per player, with
     each player's heals (or the mob skills that hit them) and who they healed (or which
     mobs hit them).
@@ -95,11 +102,12 @@ to keep five in view when you change the font size, the time bar or minimal mode
 - **≡** opens the **settings** beside the meter (to its left, else right, below or above;
   always fully on screen and never over the meter where there's room): appearance on
   the left; status (Npcap, game, game data), whose damage counts, how often the meter
-  updates (0.2–2 s; 0.5 s by default), click-through, record fights (applies
+  updates (*live*: as soon as new data arrives, up to ten times a second; or every
+  0.2–2 s; 0.5 s by default), click-through, record fights (applies
   the next time you open the meter), fight history, a Desktop/Start-menu shortcut and
   **reset appearance** (click twice: everything below, and the window size, back to the
   defaults) on the right. The window sizes itself to fit. Esc or × hides it.
-- **Appearance** (saved): theme colour (rose, lavender, mint, sky, amber, mono), font
+- **Appearance** (saved, and shown in every window as you change it): theme colour (rose, lavender, mint, sky, amber, mono), font
   size (10–18 px; the layout and the meter bars scale with it, the bars in whole pixels so
   every block and row gap is the same size), font (any font installed on your PC, picked
   from a searchable list with monospace fonts first; Cascadia Mono by default), highlight
@@ -142,7 +150,9 @@ The release zip has a `gamedata` folder next to the exe, the same as the reposit
   [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter), two open-source Aion 2
   meters, under their GPL-3.0 licence;
 - skill details (cooldowns, costs, descriptions, specialties) scraped from
-  [aion2.app](https://aion2.app/db/skills), without a licence.
+  [aion2.app](https://aion2.app/db/skills), without a licence;
+- Theostone grades and effects, from a scraped item database collected from public fan
+  databases, without a licence.
 
 None of it is covered by Glass Cannon's MIT licence, and the game's names, text and art
 belong to NCSOFT; [gamedata/README.md](gamedata/README.md) has the details. Their tables
@@ -194,6 +204,13 @@ aion2.app's skill database (a JSON object of skills by ID):
 
 ```bash
 target/release/packet-lab skill-details <scrape.json> --scraped <date>
+```
+
+The Theostone effects come from a scraped item database (a JSON object of items by ID with
+their in-game descriptions); only Theostones already named in `skills.json` are kept:
+
+```bash
+target/release/packet-lab theostones <items.json> --scraped <date>
 ```
 
 ### Releases
@@ -258,6 +275,9 @@ target/release/packet-lab damage captures/<session> --mine
 # Build gamedata/skill-details.json from a scrape of aion2.app's skill database
 target/release/packet-lab skill-details <scrape.json> --scraped <date>
 
+# Build gamedata/theostones.json (Theostone effects) from a scraped item database
+target/release/packet-lab theostones <items.json> --scraped <date>
+
 # Who was identified: you, nearby players, mob types
 target/release/packet-lab entities captures/<session>
 
@@ -302,7 +322,8 @@ git-ignored; don't share captures publicly.
   meters.
 - `gamedata/skill-details.json` was scraped from aion2.app, whose terms don't allow that
   without permission. It's included at the maintainer's own risk and will be removed on
-  request from aion2.app or NCSOFT.
+  request from aion2.app or NCSOFT. `gamedata/theostones.json` comes from a scraped item
+  database collected from fan sites it doesn't name, on the same terms.
 - Reading your own traffic passively doesn't modify the game, but the game's terms may
   still forbid third-party meters. Use at your own account's risk.
 

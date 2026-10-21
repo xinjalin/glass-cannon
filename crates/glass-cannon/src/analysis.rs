@@ -35,6 +35,16 @@ pub struct SkillMeta {
     icon_key: Option<u32>,
 }
 
+#[derive(Serialize)]
+pub struct EffectMeta {
+    name: Option<String>,
+    icon_key: Option<u32>,
+    /// The name is this effect's own, not its skill's.
+    own: bool,
+    /// You named it.
+    custom: bool,
+}
+
 /// One fight, with names filled in for the page.
 #[derive(Serialize)]
 pub struct AnalysisData {
@@ -42,8 +52,9 @@ pub struct AnalysisData {
     analysis: Analysis,
     /// Names and icons for every skill in the hits, rows and effects.
     skills: BTreeMap<u32, SkillMeta>,
-    /// Names for effects their skill doesn't name (no skill, or one the data lacks).
-    effect_names: BTreeMap<u32, String>,
+    /// Names and icons for effects: ones you named, and ones their skill doesn't name (no
+    /// skill, or one the data lacks).
+    effect_meta: BTreeMap<u32, EffectMeta>,
     /// For the skill tooltips: each class skill's cooldown, cost, description and
     /// specialties, with the ones this ID shows were chosen.
     skill_details: BTreeMap<u32, serde_json::Value>,
@@ -56,7 +67,8 @@ pub struct AnalysisData {
     appearance: Appearance,
 }
 
-/// Shows the window on a fight and (optionally) a player.
+/// Shows the window on a fight and (optionally) a player, or hides it when it's already
+/// showing that: the meter's right-click and menu button open and close it.
 #[tauri::command]
 pub fn open_analysis(
     handle: AppHandle,
@@ -64,9 +76,14 @@ pub fn open_analysis(
     fight: Option<usize>,
     player: Option<u64>,
 ) -> Result<(), String> {
-    let selection = Selection { fight, player };
-    *lock(&app.analysis_selection) = selection;
     let w = handle.get_webview_window(ANALYSIS).ok_or("no analysis window")?;
+    let now = *lock(&app.analysis_selection);
+    let showing = w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false);
+    if showing && now.fight == fight && player.is_none_or(|p| now.player == Some(p)) {
+        return w.hide().map_err(|e| e.to_string());
+    }
+    let selection = Selection { fight, player: player.or(now.player) };
+    *lock(&app.analysis_selection) = selection;
     place(&handle, &w, !app.analysis_placed.swap(true, Ordering::SeqCst));
     w.show().map_err(|e| e.to_string())?;
     let _ = w.unminimize();
@@ -107,6 +124,31 @@ fn place(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
         [Side::Right, Side::Left, Side::Below, Side::Above]
     };
     place_beside(handle, w, size, MIN, &sides);
+}
+
+/// The meter is showing another fight (a saved one, or the live one again): an open
+/// analysis window follows it.
+#[tauri::command]
+pub fn follow_fight(handle: AppHandle, app: State<'_, Arc<AppState>>, fight: Option<usize>) {
+    let selection = {
+        let mut s = lock(&app.analysis_selection);
+        if s.fight == fight {
+            return;
+        }
+        s.fight = fight;
+        *s
+    };
+    if let Some(w) = handle.get_webview_window(ANALYSIS) {
+        if w.is_visible().unwrap_or(false) {
+            let _ = w.emit("analysis-select", selection);
+        }
+    }
+}
+
+/// The player picked in the window, so a right-click on them in the meter closes it.
+#[tauri::command]
+pub fn analysis_pick(app: State<'_, Arc<AppState>>, player: Option<u64>) {
+    lock(&app.analysis_selection).player = player;
 }
 
 /// What the window should show (it asks when it first loads).
@@ -184,13 +226,21 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
     }
     let skill_details: BTreeMap<u32, serde_json::Value> =
         skills.keys().filter_map(|id| data.skill_details(*id).map(|d| (*id, d))).collect();
-    let mut effect_names = BTreeMap::new();
+    let mut effect_meta = BTreeMap::new();
     for e in &a.effects {
-        let named = e.skill.is_some_and(|s| skills.get(&s).is_some_and(|m| m.name.is_some()));
-        if !named && !effect_names.contains_key(&e.effect) {
-            if let (Some(name), _) = data.effect_meta(e.effect) {
-                effect_names.insert(e.effect, name);
-            }
+        if effect_meta.contains_key(&e.effect) {
+            continue;
+        }
+        let skill = e.skill.and_then(|s| skills.get(&s));
+        let (named, own) = (skill.is_some_and(|m| m.name.is_some()), data.effect_name(e.effect));
+        if own.is_some() || !named {
+            let (name, icon_key) = data.effect_meta(e.effect);
+            let icon_key = icon_key.or_else(|| skill.and_then(|m| m.icon_key));
+            let custom = own.as_ref().is_some_and(|(_, custom)| *custom);
+            effect_meta.insert(
+                e.effect,
+                EffectMeta { own: own.is_some(), custom, name: own.map(|(n, _)| n).or(name), icon_key },
+            );
         }
     }
     drop(data);
@@ -198,7 +248,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
     Some(AnalysisData {
         analysis: a,
         skills,
-        effect_names,
+        effect_meta,
         skill_details,
         bosses,
         live,

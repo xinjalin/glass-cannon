@@ -29,6 +29,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 const SKILLS_FILE: &str = "skills.json";
 const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
+const THEOSTONES_FILE: &str = "theostones.json";
 const MAX_ICON_BYTES: u64 = 256 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// Theostone (item) skills as the game sends them: 7 digits starting 30.
@@ -50,6 +51,20 @@ struct SkillFile {
 struct DetailsFile {
     #[serde(default)]
     skills: BTreeMap<u32, serde_json::Value>,
+}
+
+/// What each Theostone does, by the skill ID the game sends for it.
+#[derive(Debug, Default, Deserialize)]
+struct TheostoneFile {
+    #[serde(default)]
+    theostones: BTreeMap<u32, Theostone>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Theostone {
+    grade: Option<String>,
+    effect: String,
+    cooldown_s: Option<f64>,
 }
 
 /// Your own names for skills and mob types (`names.json` in the settings folder).
@@ -100,6 +115,8 @@ pub struct GameData {
     npcs: NpcFile,
     /// Cooldowns, costs, descriptions and specialties by base skill ID (optional).
     details: DetailsFile,
+    /// Theostone effects and grades (optional).
+    theostones: TheostoneFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -117,6 +134,7 @@ impl GameData {
             skills: SkillFile::default(),
             npcs: NpcFile::default(),
             details: DetailsFile::default(),
+            theostones: TheostoneFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -141,6 +159,7 @@ impl GameData {
                     // Mob names and skill details are optional (older folders only have skills).
                     self.npcs = read_json::<NpcFile>(&dir.join(NPCS_FILE)).unwrap_or_default();
                     self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
+                    self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.problem = None;
                     self.adopt_old_custom_names();
                     self.apply_names();
@@ -167,6 +186,12 @@ impl GameData {
     /// Skills with details (cooldown, cost, description, specialties) for the tooltips.
     pub fn detail_count(&self) -> usize {
         self.details.skills.len()
+    }
+
+    /// How many Theostones (by name) have their effect in the data.
+    pub fn theostone_count(&self) -> usize {
+        let effects: std::collections::HashSet<&str> = self.theostones.theostones.values().map(|t| t.effect.as_str()).collect();
+        effects.len()
     }
 
     pub fn skill_count(&self) -> usize {
@@ -213,6 +238,13 @@ impl GameData {
         }
     }
 
+    /// A name for this exact effect ID (one you gave it, or a Theostone's), not its
+    /// skill's, and whether you gave it.
+    pub fn effect_name(&self, effect: u32) -> Option<(String, bool)> {
+        let e = self.skills.skills.get(&effect)?;
+        (!e.name.is_empty()).then(|| (e.name.clone(), e.custom))
+    }
+
     /// Fills in skill names and icon keys, and the target's name and boss flag.
     pub fn annotate(&self, snap: &mut Snapshot) {
         if let Some(enc) = snap.encounter.as_mut() {
@@ -236,7 +268,20 @@ impl GameData {
     /// its base skill plus the chosen specialties' numbers in its thousands, hundreds and
     /// tens digits, smallest first: Onslaught 18010000 with specialties 3 and 4 is
     /// 18010340. The last digit tells apart parts of one skill (chains, extra hits).
+    /// A Theostone gets its grade and effect instead.
     pub fn skill_details(&self, skill: u32) -> Option<serde_json::Value> {
+        // A Theostone: its grade and effect, in the shape the tooltips read (no specialties).
+        if THEOSTONE_SKILLS.contains(&skill) {
+            let t = self.theostones.theostones.get(&skill)?;
+            let mut info = serde_json::json!({ "class": "Theostone", "desc": t.effect });
+            if let Some(grade) = &t.grade {
+                info["type"] = serde_json::json!(grade);
+            }
+            if let Some(s) = t.cooldown_s {
+                info["cooldown_s"] = serde_json::json!(s);
+            }
+            return Some(info);
+        }
         if !(10_000_000..100_000_000).contains(&skill) {
             return None;
         }
@@ -499,6 +544,29 @@ mod tests {
         assert_eq!(d.effect_meta(231), (None, None));
         // Only Theostone-range skills get the extra digit.
         assert_eq!(d.skill_meta(1_833_000), (None, None));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn theostones_have_their_effect() {
+        let dir = temp_dir("theostones");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18010000": { "name": "Onslaught" } } }"#).unwrap();
+        fs::write(
+            dir.join(THEOSTONES_FILE),
+            r#"{ "theostones": {
+                "3000015": { "name": "Theostone: Santras's Secret", "grade": "Rare", "effect": "Poison", "cooldown_s": 1.0 },
+                "3001015": { "name": "Theostone: Santras's Secret", "grade": "Rare", "effect": "Poison", "cooldown_s": 1.0 }
+            } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        let info = d.skill_details(3_001_015).unwrap();
+        assert_eq!((info["class"].as_str(), info["type"].as_str()), (Some("Theostone"), Some("Rare")));
+        assert_eq!((info["desc"].as_str(), info["cooldown_s"].as_f64()), (Some("Poison"), Some(1.0)));
+        assert!(info.get("chosen").is_none(), "Theostones have no specialties");
+        assert!(d.skill_details(3_000_016).is_none());
+        // Two IDs, one Theostone.
+        assert_eq!(d.theostone_count(), 1);
         fs::remove_dir_all(dir).ok();
     }
 

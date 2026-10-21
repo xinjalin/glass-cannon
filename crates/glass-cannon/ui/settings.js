@@ -370,6 +370,12 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && $("font-menu").hidden) invoke("hide_settings");
 });
 
+// A change from another window (or "reset appearance") shows here too.
+tauri.event.listen("appearance", (e) => {
+  if (state) state.appearance = e.payload;
+  drawAppearance(e.payload);
+});
+
 new ResizeObserver(fitWindow).observe($("columns"));
 refresh();
 setInterval(refresh, 2000);

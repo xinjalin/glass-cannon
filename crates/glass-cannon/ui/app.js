@@ -1,5 +1,5 @@
 // Glass Cannon overlay. Polls the engine (twice a second by default; settings → update
-// rate) and redraws.
+// rate) and redraws, or on "live" redraws whenever the app says new data has arrived.
 // Player and mob names come from network traffic, so everything is set with
 // textContent, never innerHTML.
 
@@ -8,6 +8,10 @@ const invoke = tauri.core.invoke;
 const win = tauri.window.getCurrentWindow();
 
 const DEFAULT_POLL_MS = 500;
+// The "live" update rate: redraw when new data arrives (the app says so), and once a
+// second anyway for the clock, ping and fights that end by going quiet.
+const REALTIME = 100;
+const HEARTBEAT_MS = 1000;
 const SEGMENTS = 12; // blocks in each meter bar
 const FIT_ROWS = 5; // the window's default height shows this many players
 const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
@@ -195,6 +199,7 @@ function startRename(nameEl, placeholder, current, save) {
   const finish = async (commit) => {
     if (done) return;
     done = true;
+    if (input.isConnected) input.replaceWith(nameEl);
     if (commit && input.value.trim() !== current) {
       try {
         await save(input.value);
@@ -233,41 +238,94 @@ function rowsOf(enc) {
   return (view === "damage" ? enc.players : enc[view]) || [];
 }
 
+// Rows are kept between redraws (one per player) and only their changed parts updated,
+// so a live fight redrawing ten times a second doesn't rebuild the list each time.
+const rowCache = new Map(); // player ID -> the row's elements and what they show
+
+function rowFor(id) {
+  let r = rowCache.get(id);
+  if (r) return r;
+  const row = el("li", "row");
+  const line = el("div", "line");
+  const rank = el("span", "rank");
+  const who = el("span", "who");
+  const badge = el("span", "class-icon blank");
+  const name = el("span", "name");
+  who.append(badge, name);
+  const meter = el("span", "meter");
+  const segs = Array.from({ length: SEGMENTS }, () => el("span", "seg"));
+  meter.append(...segs);
+  const dps = el("span", "dps");
+  const share = el("span", "share");
+  line.append(rank, who, meter, dps, share);
+  row.append(line);
+  row.addEventListener("click", () => toggleRow(id));
+  // Right-click: the full analysis of this fight, on this player (again: closes it).
+  row.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    openAnalysis(id);
+  });
+  r = { row, rank, badge, name, segs, dps, share, skills: null, shown: {} };
+  rowCache.set(id, r);
+  return r;
+}
+
+// Sets r.shown[key] = value, calling `apply` only when it changed.
+function update(r, key, value, apply) {
+  if (r.shown[key] === value) return;
+  r.shown[key] = value;
+  apply(value);
+}
+
 function drawRows(enc) {
   const list = $("rows");
-  list.replaceChildren();
   const rows = rowsOf(enc);
   const top = rows.length ? rows[0].dps || 1 : 1;
+  const ids = new Set();
   rows.forEach((p, i) => {
-    const row = el("li", "row" + (p.is_self ? " self" : "") + (p.class_code ? ` c${p.class_code}` : ""));
-    row.title = [p.class_name, `entity ${p.id}`].filter(Boolean).join(" · ");
-
-    const line = el("div", "line");
-    const meter = el("span", "meter");
+    ids.add(p.id);
+    const r = rowFor(p.id);
+    update(r, "class", "row" + (p.is_self ? " self" : "") + (p.class_code ? ` c${p.class_code}` : ""), (v) => (r.row.className = v));
+    update(r, "title", [p.class_name, `entity ${p.id}`].filter(Boolean).join(" · "), (v) => (r.row.title = v));
+    update(r, "rank", String(i + 1), (v) => (r.rank.textContent = v));
+    const badge = classBadge(p);
+    update(r, "badge", badge.src || "", () => {
+      r.badge.replaceWith(badge);
+      r.badge = badge;
+    });
+    update(r, "name", p.name, (v) => (r.name.textContent = v));
     const lit = Math.max(1, Math.round((p.dps / top) * SEGMENTS));
-    for (let s = 0; s < SEGMENTS; s++) meter.append(el("span", s < lit ? "seg on" : "seg"));
-    const who = el("span", "who");
-    who.append(classBadge(p), el("span", "name", p.name));
-    line.append(
-      el("span", "rank", String(i + 1)),
-      who,
-      meter,
-      el("span", "dps", fmtRate(p.dps)),
-      el("span", "share", `${(p.share * 100).toFixed(0)}%`),
-    );
-    row.append(line);
-    if (expanded.has(p.id)) row.append(skillList(p));
-    row.addEventListener("click", () => {
-      expanded.has(p.id) ? expanded.delete(p.id) : expanded.add(p.id);
-      redraw();
+    update(r, "lit", lit, (v) => r.segs.forEach((seg, s) => seg.classList.toggle("on", s < v)));
+    update(r, "dps", fmtRate(p.dps), (v) => (r.dps.textContent = v));
+    update(r, "share", `${(p.share * 100).toFixed(0)}%`, (v) => (r.share.textContent = v));
+    // The skill list, when open: rebuilt only when something in it changed.
+    const open = expanded.has(p.id);
+    const skillsKey = open ? `${meterView()}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
+    update(r, "skills", skillsKey, () => {
+      if (r.skills) r.skills.remove();
+      r.skills = open ? skillList(p) : null;
+      if (r.skills) r.row.append(r.skills);
     });
-    // Right-click: the full analysis of this fight, on this player.
-    row.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      openAnalysis(p.id);
-    });
-    list.append(row);
+    if (list.children[i] !== r.row) list.insertBefore(r.row, list.children[i] || null);
   });
+  for (const [id, r] of rowCache) {
+    if (ids.has(id)) continue;
+    r.row.remove();
+    rowCache.delete(id);
+  }
+}
+
+// Opens or closes a player's skill list. The live meter only sends the skills of open
+// rows, so opening one asks for them.
+function toggleRow(id) {
+  if (expanded.has(id)) {
+    expanded.delete(id);
+    redraw();
+  } else {
+    expanded.add(id);
+    if (mode === "live") refreshSoon();
+    else redraw();
+  }
 }
 
 function drawTotals(enc) {
@@ -461,7 +519,17 @@ function phaseText(view) {
   }[view.status.phase] || "";
 }
 
+// An open analysis window shows the fight shown here: a saved one, or the live one.
+let followed = null;
+function followFight() {
+  const fight = mode === "fight" ? fightIndex : mode === "live" ? null : undefined;
+  if (fight === undefined || fight === followed) return;
+  followed = fight;
+  invoke("follow_fight", { fight }).catch(() => {});
+}
+
 function redraw() {
+  followFight();
   drawViewSwitch();
   const live = mode === "live";
   $("back").hidden = live;
@@ -482,6 +550,7 @@ function redraw() {
     $("clock").textContent = "";
     $("totals").hidden = true;
     $("rows").replaceChildren();
+    rowCache.clear();
     $("empty").hidden = false;
     const phase = lastView ? lastView.status.phase : "starting";
     $("empty").textContent =
@@ -509,7 +578,7 @@ let drawnMode = "";
 async function refresh() {
   if (editing) return;
   try {
-    const view = await invoke("snapshot");
+    const view = await invoke("snapshot", { expanded: [...expanded] });
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
     lastKey = key;
@@ -527,11 +596,42 @@ async function refresh() {
   }
 }
 
+// One refresh at a time: a request while one is running runs once it's done.
+let refreshing = false;
+let refreshAgain = false;
+async function refreshSoon() {
+  if (refreshing) {
+    refreshAgain = true;
+    return;
+  }
+  refreshing = true;
+  await refresh();
+  refreshing = false;
+  if (refreshAgain) {
+    refreshAgain = false;
+    refreshSoon();
+  }
+}
+
 // Polls at the rate chosen in the settings, read from each snapshot.
 async function poll() {
-  await refresh();
-  setTimeout(poll, (lastView && lastView.refresh_ms) || DEFAULT_POLL_MS);
+  await refreshSoon();
+  const ms = (lastView && lastView.refresh_ms) || DEFAULT_POLL_MS;
+  setTimeout(poll, ms === REALTIME ? HEARTBEAT_MS : ms);
 }
+
+// "live": the app says when new data has arrived.
+tauri.event.listen("meter-changed", () => {
+  if (lastView && lastView.refresh_ms === REALTIME) refreshSoon();
+});
+
+// A theme or font change in the settings shows straight away, not on the next refresh.
+tauri.event.listen("appearance", (e) => {
+  if (lastView) lastView.appearance = e.payload;
+  applyAppearance(e.payload);
+  snapSizes();
+  fitHeight(e.payload);
+});
 
 // ---------------------------------------------------------------- controls
 

@@ -378,6 +378,9 @@ pub struct TimelineEffect {
     pub source: u64,
     pub skill: Option<u32>,
     pub effect: u32,
+    /// How long the game said it lasts (0: no set length, or a fight saved before this).
+    #[serde(default)]
+    pub duration_ms: u32,
 }
 
 /// One fight in full: every player's skills (not capped), every counted hit and the
@@ -891,6 +894,7 @@ impl Meter {
                 source: s.source,
                 skill: s.skill,
                 effect: s.effect,
+                duration_ms: s.duration_ms,
             })
             .collect();
 

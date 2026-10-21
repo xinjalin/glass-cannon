@@ -1,0 +1,477 @@
+{
+  "source": {
+    "from": "a scraped Aion 2 item database (collected from public fan databases; the bundle names no source site)",
+    "note": "Aion 2 game text and numbers belong to NCSOFT. Not covered by Glass Cannon's MIT licence. Made with packet-lab theostones.",
+    "scraped": "2026-10-21"
+  },
+  "theostones": {
+    "3000007": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Blind] for 5s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Kaisinel's Vestige"
+    },
+    "3000009": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Seal] for 3s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Perion's Tragedy"
+    },
+    "3000010": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Root] for 3s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Heladrir's Chains"
+    },
+    "3000011": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Stun] for 1s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Aulak's Roar"
+    },
+    "3000012": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Paralyze] for 2s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Nua's Scheme"
+    },
+    "3000013": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Move Speed for 5s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Reda's Tenacity"
+    },
+    "3000014": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Combat Speed for 5s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Notun's Craft"
+    },
+    "3000015": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 300 Poison damage every 2s for 20s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Santras's Secret"
+    },
+    "3000016": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 3% chance to deal 400 Bleed damage every 2s for 10s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Feruk's Instinct"
+    },
+    "3000017": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 1% chance to deal 5,000 Fire damage to a single target on attack",
+      "grade": "Rare",
+      "name": "Theostone: Zikel's Vestige"
+    },
+    "3000018": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 2% chance to deal 2,500 Water damage to a single target on attack",
+      "grade": "Rare",
+      "name": "Theostone: Tassin's Command"
+    },
+    "3000019": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 1,000 Earth damage to a single target on attack",
+      "grade": "Rare",
+      "name": "Theostone: Ulgorn's Will"
+    },
+    "3000020": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 10% chance to deal 500 Wind damage to a single target on attack",
+      "grade": "Rare",
+      "name": "Theostone: Aultross's Promise"
+    },
+    "3000021": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 2% chance to deal 1,250 AoE Fire damage to up to 4 targets on attack",
+      "grade": "Rare",
+      "name": "Theostone: Bargott's Ember"
+    },
+    "3000022": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 4% chance to deal 625 AoE Water damage to up to 4 targets on attack",
+      "grade": "Rare",
+      "name": "Theostone: Aulvicar's Sorcery"
+    },
+    "3000023": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 10% chance to deal 250 AoE Earth damage to up to 4 targets on attack",
+      "grade": "Rare",
+      "name": "Theostone: Gartua's Strength"
+    },
+    "3000024": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 20% chance to deal 125 AoE Wind damage to up to 4 targets on attack",
+      "grade": "Rare",
+      "name": "Theostone: Rathman's Greed"
+    },
+    "3000107": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Blind] for 6s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Bollvig's Tragedy"
+    },
+    "3000109": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Seal] for 4s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Khrudgelmir's Silence"
+    },
+    "3000110": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Root] for 4s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Charna's Root"
+    },
+    "3000111": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Stun] for 2s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Fasimedes's Dignity"
+    },
+    "3000112": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Paralyze] for 3s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Vidar's Dignity"
+    },
+    "3000113": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Move Speed for 6s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Deltras's Loyalty"
+    },
+    "3000114": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Combat Speed for 6s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Io's Sadness"
+    },
+    "3000115": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 450 Poison damage every 2s for 20s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Orissan's Blood"
+    },
+    "3000116": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 3% chance to deal 600 Bleed damage every 2s for 10s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Mahisha's Wrath"
+    },
+    "3000117": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 1% chance to deal 10,000 Fire damage to a single target on attack",
+      "grade": "Epic",
+      "name": "Theostone: Traufnir's Courage"
+    },
+    "3000118": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 2% chance to deal 5,000 Water damage to a single target on attack",
+      "grade": "Epic",
+      "name": "Theostone: Sif's Knowledge"
+    },
+    "3000119": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 2,000 Earth damage to a single target on attack",
+      "grade": "Epic",
+      "name": "Theostone: Freyr's Wisdom"
+    },
+    "3000120": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 10% chance to deal 1,000 Wind damage to a single target on attack",
+      "grade": "Epic",
+      "name": "Theostone: Sigyn's Brilliance"
+    },
+    "3000121": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 2% chance to deal 2,500 AoE Fire damage to up to 4 targets on attack",
+      "grade": "Epic",
+      "name": "Theostone: Boreas's Encouragement"
+    },
+    "3000122": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 4% chance to deal 1,250 AoE Water damage to up to 4 targets on attack",
+      "grade": "Epic",
+      "name": "Theostone: Charna's Acumen"
+    },
+    "3000123": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 10% chance to deal 500 AoE Earth damage to up to 4 targets on attack",
+      "grade": "Epic",
+      "name": "Theostone: Thrasymedes's Wisdom"
+    },
+    "3000124": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 20% chance to deal 250 AoE Wind damage to up to 4 targets on attack",
+      "grade": "Epic",
+      "name": "Theostone: Jumentis's Dexterity"
+    },
+    "3000207": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Blind] for 7s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Fregion's Schemes"
+    },
+    "3000209": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Seal] for 5s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Beritra's Conspiracy"
+    },
+    "3000210": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Root] for 5s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Nezekan's March"
+    },
+    "3000211": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Stun] for 3s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Meslamtaeda's Greed"
+    },
+    "3000212": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Paralyze] for 4s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Ereshkigal's Honor"
+    },
+    "3000213": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Move Speed for 7s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Kaisinel's Reverie"
+    },
+    "3000214": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Combat Speed for 7s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Lumiel's Interference"
+    },
+    "3000215": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 600 Poison damage every 2s for 20s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Zikel's Arrogance"
+    },
+    "3000216": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 3% chance to deal 800 Bleed damage every 2s for 10s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Fregion's Strategy"
+    },
+    "3000217": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 1% chance to deal 15,000 Fire damage to a single target on attack",
+      "grade": "Unique",
+      "name": "Theostone: Tiamat's Rage"
+    },
+    "3000218": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 2% chance to deal 7,500 Water damage to a single target on attack",
+      "grade": "Unique",
+      "name": "Theostone: Triniel's Rationality"
+    },
+    "3000219": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 3,000 Earth damage to a single target on attack",
+      "grade": "Unique",
+      "name": "Theostone: Vaizel's Oath"
+    },
+    "3000220": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 10% chance to deal 1,500 Wind damage to a single target on attack",
+      "grade": "Unique",
+      "name": "Theostone: Meslamtaeda's Regret"
+    },
+    "3000221": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 2% chance to deal 3,750 AoE Fire damage to up to 4 targets on attack",
+      "grade": "Unique",
+      "name": "Theostone: Tiamat's Counterstrike"
+    },
+    "3000222": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 4% chance to deal 1,875 AoE Water damage to up to 4 targets on attack",
+      "grade": "Unique",
+      "name": "Theostone: Marchutan's Justice"
+    },
+    "3000223": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 10% chance to deal 750 AoE Earth damage to up to 4 targets on attack",
+      "grade": "Unique",
+      "name": "Theostone: Yustiel's Compassion"
+    },
+    "3000224": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 20% chance to deal 375 AoE Wind damage to up to 4 targets on attack",
+      "grade": "Unique",
+      "name": "Theostone: Beritra's Selfishness"
+    },
+    "3001007": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Blind] for 5s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Kaisinel's Vestige"
+    },
+    "3001009": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Seal] for 3s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Perion's Tragedy"
+    },
+    "3001010": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Root] for 3s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Heladrir's Chains"
+    },
+    "3001011": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Stun] for 1s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Aulak's Roar"
+    },
+    "3001012": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Paralyze] for 2s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Nua's Scheme"
+    },
+    "3001013": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Move Speed for 5s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Reda's Tenacity"
+    },
+    "3001014": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Combat Speed for 5s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Notun's Craft"
+    },
+    "3001015": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 300 Poison damage every 2s for 20s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Santras's Secret"
+    },
+    "3001016": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 3% chance to deal 400 Bleed damage every 2s for 10s on attack",
+      "grade": "Rare",
+      "name": "Theostone: Feruk's Instinct"
+    },
+    "3001107": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Blind] for 6s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Bollvig's Tragedy"
+    },
+    "3001109": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Seal] for 4s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Khrudgelmir's Silence"
+    },
+    "3001110": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Root] for 4s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Charna's Root"
+    },
+    "3001111": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Stun] for 2s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Fasimedes's Dignity"
+    },
+    "3001112": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Paralyze] for 3s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Vidar's Dignity"
+    },
+    "3001113": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Move Speed for 6s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Deltras's Loyalty"
+    },
+    "3001114": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Combat Speed for 6s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Io's Sadness"
+    },
+    "3001115": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 450 Poison damage every 2s for 20s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Orissan's Blood"
+    },
+    "3001116": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 3% chance to deal 600 Bleed damage every 2s for 10s on attack",
+      "grade": "Epic",
+      "name": "Theostone: Mahisha's Wrath"
+    },
+    "3001207": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Blind] for 7s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Fregion's Schemes"
+    },
+    "3001209": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Seal] for 5s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Beritra's Conspiracy"
+    },
+    "3001210": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Root] for 5s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Nezekan's March"
+    },
+    "3001211": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict [Stun] for 3s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Meslamtaeda's Greed"
+    },
+    "3001212": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 2% chance to inflict [Paralyze] for 4s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Ereshkigal's Honor"
+    },
+    "3001213": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Move Speed for 7s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Kaisinel's Reverie"
+    },
+    "3001214": {
+      "cooldown_s": 5.0,
+      "effect": "Has a 3% chance to inflict -50% Combat Speed for 7s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Lumiel's Interference"
+    },
+    "3001215": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 5% chance to deal 600 Poison damage every 2s for 20s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Zikel's Arrogance"
+    },
+    "3001216": {
+      "cooldown_s": 1.0,
+      "effect": "Has a 3% chance to deal 800 Bleed damage every 2s for 10s on attack",
+      "grade": "Unique",
+      "name": "Theostone: Fregion's Strategy"
+    }
+  }
+}

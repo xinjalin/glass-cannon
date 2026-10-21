@@ -15,7 +15,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -71,6 +71,8 @@ struct Engine {
     started: AtomicBool,
     /// Replays run on the recording's clock instead of the wall clock.
     replay_clock: Option<AtomicU64>,
+    /// Set when new game messages reach the meter, for the "as it happens" refresh.
+    changed: (Mutex<bool>, Condvar),
 }
 
 impl Engine {
@@ -93,6 +95,22 @@ impl Engine {
 
     fn update_status(&self, f: impl FnOnce(&mut Status)) {
         f(&mut lock(&self.status));
+    }
+
+    fn mark_changed(&self) {
+        *lock(&self.changed.0) = true;
+        self.changed.1.notify_one();
+    }
+
+    /// Waits up to `timeout` for new messages; true if there were some.
+    fn wait_changed(&self, timeout: Duration) -> bool {
+        let guard = lock(&self.changed.0);
+        let (mut changed, _) = self
+            .changed
+            .1
+            .wait_timeout_while(guard, timeout, |c| !*c)
+            .unwrap_or_else(|e| e.into_inner());
+        std::mem::take(&mut *changed)
     }
 }
 
@@ -151,8 +169,10 @@ struct View {
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
+/// Skill lists come only for the players in `expanded` (the rows open in the overlay):
+/// the rest would only be thrown away, several times a second.
 #[tauri::command]
-fn snapshot(app: State<'_, Arc<AppState>>) -> View {
+fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let (mut snap, finished, known) = {
         let mut meter = app.engine.meter();
@@ -160,6 +180,12 @@ fn snapshot(app: State<'_, Arc<AppState>>) -> View {
         let known = remember_players(&app, &mut meter);
         (meter.snapshot(), meter.take_finished(), known)
     };
+    if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
+        let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
+        for row in rows.filter(|r| !open.contains(&r.id)) {
+            row.skills.clear();
+        }
+    }
     if let Some(k) = known {
         k.save(&app.config_dir);
     }
@@ -372,6 +398,8 @@ fn run_live(app: &AppState, record: bool) {
                 for m in &msgs {
                     meter.feed(m.ts_us, m.opcode, &m.payload);
                 }
+                drop(meter);
+                engine.mark_changed();
             }
             LiveEvent::Finished { .. } => {}
         });
@@ -413,6 +441,7 @@ fn run_replay(engine: &Engine, path: &Path, speed: f64) {
         }
         clock.store(m.ts_us, Ordering::Relaxed);
         engine.meter().feed(m.ts_us, m.opcode, &m.payload);
+        engine.mark_changed();
         last = m.ts_us;
     }
     // Let the last fight end (and reach the history).
@@ -531,6 +560,7 @@ fn main() {
             }),
             started: AtomicBool::new(false),
             replay_clock: replay.then(|| AtomicU64::new(0)),
+            changed: (Mutex::new(false), Condvar::new()),
         }),
         data: Mutex::new(data),
         history: Mutex::new(History::load(&config_dir)),
@@ -574,6 +604,9 @@ fn main() {
             settings::set_appearance,
             settings::fit_settings,
             analysis::open_analysis,
+            analysis::follow_fight,
+            analysis::analysis_pick,
+            appearance,
             analysis::analysis_selection,
             analysis::analysis_stamp,
             analysis::analysis_data,
@@ -591,6 +624,7 @@ fn main() {
             start_engine(&state);
             show_overlay(app.handle())?;
             clickthrough::watch(app.handle().clone(), Arc::clone(&state));
+            notify_changes(app.handle().clone(), Arc::clone(&state));
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -614,13 +648,38 @@ fn main() {
         .expect("running Glass Cannon");
 }
 
-/// Applies the background effect, corners and border to both windows.
+/// Applies the background effect, corners and border to every window, and tells each
+/// page so the theme and font change everywhere at once.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
     for label in [OVERLAY, SETTINGS, ANALYSIS] {
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }
     }
+    let _ = handle.emit("appearance", appearance);
+}
+
+/// The saved appearance, for a page as it loads.
+#[tauri::command]
+fn appearance(app: State<'_, Arc<AppState>>) -> Appearance {
+    lock(&app.settings).appearance.clone()
+}
+
+/// With the update rate on "as it happens", tells the overlay whenever new game messages
+/// arrive (at most every [`store::REALTIME`] ms), instead of it asking on a timer.
+fn notify_changes(handle: AppHandle, app: Arc<AppState>) {
+    thread::Builder::new()
+        .name("notify".into())
+        .spawn(move || loop {
+            if !app.engine.wait_changed(Duration::from_secs(1)) {
+                continue;
+            }
+            if lock(&app.settings).refresh_ms == store::REALTIME {
+                notify_overlay(&handle, "meter-changed");
+                thread::sleep(Duration::from_millis(store::REALTIME.into()));
+            }
+        })
+        .expect("starting the notify thread");
 }
 
 /// Something for the overlay to react to.
@@ -641,6 +700,7 @@ fn write_startup_log(config_dir: &Path, data: &GameData) {
     log += &line("skills loaded", data.skill_count().to_string());
     log += &line("mob names", data.named_npc_count().to_string());
     log += &line("skill details", data.detail_count().to_string());
+    log += &line("theostones", data.theostone_count().to_string());
     if let Some(p) = data.problem() {
         log += &line("data problem", p.to_string());
     }

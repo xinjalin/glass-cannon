@@ -138,6 +138,8 @@ pub struct EffectSpan {
     pub effect: u32,
     pub skill: Option<u32>,
     pub source: u64,
+    /// How long the game said it lasts (0 for ones without a set length).
+    pub duration_ms: u32,
     /// Capture times, microseconds since the Unix epoch.
     pub start_us: u64,
     pub end_us: Option<u64>,
@@ -188,6 +190,7 @@ impl EffectTracker {
             effect: e.effect,
             skill: e.skill,
             source: e.source,
+            duration_ms: e.duration_ms,
             start_us: ts_us,
             end_us: None,
         };
