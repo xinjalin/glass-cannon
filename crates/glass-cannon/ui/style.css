@@ -148,8 +148,9 @@ button:hover { background: var(--line-faint); color: var(--text); }
 button:focus-visible { outline: 1px solid var(--accent); }
 button.on { color: var(--accent); }
 button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
-#scope { font-size: 0.9em; }
-#scope.on { background: var(--accent); color: var(--ink); text-shadow: none; }
+/* Whose damage counts: the same filled button whichever it shows. */
+#scope { font-size: 0.9em; background: var(--accent); color: var(--ink); text-shadow: none; }
+#scope:hover { filter: brightness(1.1); }
 
 svg {
   width: 1.05em;
@@ -185,8 +186,9 @@ legend {
 }
 #clock { color: var(--muted); font-variant-numeric: tabular-nums; }
 /* damage / healing / taken: what the rows show. */
-.view-switch { min-width: 0; height: 1.35em; padding: 0 0.35em; color: var(--accent); }
-.view-switch.on { background: var(--accent); color: var(--ink); text-shadow: none; }
+/* What the rows show: the same filled button for dmg, heal and taken. */
+.view-switch { min-width: 0; height: 1.35em; padding: 0 0.35em; background: var(--accent); color: var(--ink); text-shadow: none; }
+.view-switch:hover { background: var(--accent); color: var(--ink); filter: brightness(1.1); }
 #float .view-switch { height: 1.6em; font-size: 0.9em; }
 .back {
   min-width: 1.1em;

@@ -45,8 +45,9 @@ with the WebView2 runtime (built into Windows 11).
 The meter opens and starts capturing straight away, waiting for the game if it isn't
 running yet. It's an always-on-top, frosted-glass window (Windows blurs whatever is behind
 it) in a warm rose, monospace style. It opens where you last left it (the first time: at
-the right edge of the game's monitor), tall enough for five players; it resizes itself
-to keep five in view when you change the font size, the time bar or minimal mode.
+the right edge of the game's monitor), tall enough for five players and wide enough for
+the title bar's text; it resizes itself to keep five in view when you change the font
+size, the time bar or minimal mode.
 
 - **mine / party / all** (click to cycle; also in settings):
   - *mine*: your fight, the targets you hit, with everyone's damage on them.
@@ -125,7 +126,8 @@ to keep five in view when you change the font size, the time bar or minimal mode
   *tinted* (no blur) or *clear* (nothing at all; text gets a heavier outline), with the
   tint adjustable from 0 to 100%.
 - **Minimal mode**: only the target and the bars, with no title bar, frame or border.
-  Drag it from anywhere; hover it for **≡** (settings).
+  Drag it from anywhere; hover it for dmg / heal / taken, end fight, **≡** (settings) and
+  **×** (quit).
 - **Time & ping bar**: an optional strip along the top with the local time and ping.
 - **Ping**: the header (or the time & ping bar) shows your round trip to the game
   server, measured from the timing of the game's own TCP traffic (the median of the last

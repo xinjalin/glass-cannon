@@ -518,8 +518,32 @@ function heightFor(rows) {
   return height;
 }
 
+// The longest thing the title bar says; the default width fits it.
+const LONGEST_PHASE = "waiting for the game";
+
+// The narrowest window (CSS pixels) whose title bar shows LONGEST_PHASE in full: lays out
+// a hidden copy of the panel at growing widths (the brand label comes back on a wider bar,
+// so it can't just be added up).
+function widthFor(text) {
+  const panel = $("panel");
+  const extra = window.innerWidth - panel.offsetWidth;
+  for (let w = panel.offsetWidth; w <= 900; w += 8) {
+    const copy = panel.cloneNode(true);
+    Object.assign(copy.style, { position: "absolute", visibility: "hidden", left: "0", top: "0", width: `${w}px` });
+    copy.querySelector("#fight").textContent = text;
+    document.body.append(copy);
+    const f = copy.querySelector("#fight");
+    const fits = f.scrollWidth <= f.clientWidth;
+    copy.remove();
+    if (fits) return w + extra;
+  }
+  return null;
+}
+
 // Fits the window to FIT_ROWS players: on start (only ever growing a window you made
-// taller), and exactly whenever the font size, time bar or minimal mode changes.
+// taller), and exactly whenever the font size, time bar or minimal mode changes. It's
+// made wide enough for the title bar's longest text then too (the app only applies that
+// on first start, after a layout change or a reset, never to a width you chose).
 let fitFor = null;
 let resetWidth = null; // set by "reset appearance": the width goes back to the default too
 function fitHeight(a) {
@@ -529,9 +553,10 @@ function fitHeight(a) {
   fitFor = key;
   const width = resetWidth;
   resetWidth = null;
-  requestAnimationFrame(() =>
-    invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width }).catch(() => {}),
-  );
+  requestAnimationFrame(() => {
+    const minWidth = minimal() ? null : widthFor(LONGEST_PHASE);
+    invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width, minWidth }).catch(() => {});
+  });
 }
 
 function drawStatus(view) {
@@ -621,7 +646,9 @@ function redraw() {
         ? "waiting for a fight…"
         : phase === "error"
           ? "not capturing (see below)"
-          : "starting…";
+          : phase === "waiting"
+            ? "start the game to begin"
+            : "starting…";
     return;
   }
   $("legend-text").textContent = live ? "fight" : `fight · ${timeOfDay(enc.end_us / 1000)}`;
@@ -823,6 +850,7 @@ $("lock").addEventListener("click", async () => {
 
 $("min").addEventListener("click", () => win.minimize());
 $("close").addEventListener("click", () => win.close());
+$("f-close").addEventListener("click", () => win.close());
 
 // "Reset appearance" in the settings: refit at the default size on the next refresh.
 tauri.event.listen("reset-size", () => {
