@@ -65,6 +65,8 @@ $dungeons = Get-Content -Raw (Join-Path $data 'dungeons.json') | ConvertFrom-Jso
   "  from public fan databases ($($stones.source.scraped)); removed on request."
   "- dungeons.json (dungeon mobs and modes), from the same kind of scraped monster database"
   "  ($($dungeons.source.scraped)); removed on request."
+  '- Icon_Item_Usable_*.png (scroll, potion and food icons), NCSOFT artwork from its game asset'
+  '  server (assets.playnccdn.com), listed in item-icons.json; removed on request.' 
 ) | Set-Content -Encoding utf8 (Join-Path $data 'SOURCES.txt')
 
 # Every Rust crate built into the meter, with its licence.

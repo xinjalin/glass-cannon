@@ -60,7 +60,7 @@ const CLASS_ICONS: [(u32, &str); 9] = [
     (19, "fighter"),
 ];
 const LANGUAGES: [&str; 4] = ["en", "ko", "zh-TW", "zh-CN"];
-const USER_AGENT: &str = concat!("glass-cannon-update/", env!("CARGO_PKG_VERSION"));
+pub(crate) const USER_AGENT: &str = concat!("glass-cannon-update/", env!("CARGO_PKG_VERSION"));
 const MAX_JSON: u64 = 8 << 20;
 const MAX_ICON: u64 = 256 << 10;
 /// Icons download this many at a time.
@@ -438,7 +438,7 @@ fn icon_files(id: &str) -> Vec<String> {
     names.into_iter().map(|n| format!("{n}.png")).collect()
 }
 
-fn get_bytes(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
+pub(crate) fn get_bytes(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
     let mut req = agent.get(url).set("Accept", "application/vnd.github+json");
     // GitHub's API limits anonymous calls per IP, which shared CI machines run into;
     // use the workflow's token there.

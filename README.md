@@ -291,6 +291,9 @@ target/release/packet-lab skill-details <scrape.json> --scraped <date>
 # Build gamedata/theostones.json (Theostone effects) from a scraped item database
 target/release/packet-lab theostones <items.json> --scraped <date>
 
+# Download icons for scroll, potion and food buffs (named by a scraped item database)
+target/release/packet-lab item-icons <items.json> --fetched <date>
+
 # Build gamedata/dungeons.json (dungeon mobs and modes) from a scraped monster database
 target/release/packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>
 

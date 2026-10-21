@@ -29,6 +29,7 @@ use meter_core::{damage, decode, protocol};
 mod gamedata;
 mod skill_details;
 mod dungeons;
+mod item_icons;
 mod theostones;
 
 #[derive(Parser)]
@@ -220,6 +221,18 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Download icons for consumables' buffs (scrolls, potions, food) from NCSOFT's asset
+    /// server into gamedata, matched to skills by name through a scraped item database
+    ItemIcons {
+        /// The scrape's items: a JSON object by item ID, each with its icon file name
+        items: PathBuf,
+        /// The game data folder (its skills.json is read; icons and item-icons.json go here)
+        #[arg(long, default_value = "gamedata")]
+        dir: PathBuf,
+        /// When this is run (recorded in item-icons.json)
+        #[arg(long)]
+        fetched: String,
+    },
     /// Show who was identified: your character, named players, and mob types
     Entities {
         /// A session folder or a flow folder
@@ -357,6 +370,7 @@ fn run(cli: Cli) -> Result<()> {
             gamedata::run(&dir, &lang, !no_icons, pins.as_deref(), bump)
         }
         Cmd::SkillDetails { input, out, scraped } => skill_details::run(&input, &out, &scraped),
+        Cmd::ItemIcons { items, dir, fetched } => item_icons::run(&items, &dir, &fetched),
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
