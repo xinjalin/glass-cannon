@@ -26,7 +26,8 @@ sources aren't named; they're here on the same terms and will be removed on requ
 ## Updating
 
 - Names and icons: `packet-lab update-data --pins scripts/gamedata-pins.json --out gamedata`
-  (add `--bump` to move to the latest upstream commits), then commit the folder.
+  (add `--bump` to move to the latest upstream commits, `--lang ko|zh-TW|zh-CN` for other
+  skill languages), check the meter still names skills and mobs, then commit the folder.
 - Skill details: `packet-lab skill-details <scrape.json> --scraped <date>` from a fresh
   scrape of aion2.app's skill database.
 - Theostones: `packet-lab theostones <items.json> --scraped <date>` from a scraped item
