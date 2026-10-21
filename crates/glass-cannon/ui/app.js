@@ -53,12 +53,16 @@ const classIcons = new Map(); // class code -> data URL (null while loading / mi
 // Icons load in the background; one that arrives redraws the panel (refreshes skip
 // redrawing while the fight doesn't change, so it wouldn't show up otherwise).
 let iconRedraw = false;
+// How many icons have arrived: an open skill list is rebuilt when this changes, since a
+// list drawn before its icons loaded would otherwise keep the blanks.
+let iconsLoaded = 0;
 function cached(map, key, command, args) {
   if (!map.has(key)) {
     map.set(key, null);
     invoke(command, args)
       .then((url) => {
         map.set(key, url);
+        if (url) iconsLoaded += 1;
         if (url && !iconRedraw) {
           iconRedraw = true;
           requestAnimationFrame(() => {
@@ -300,7 +304,7 @@ function drawRows(enc) {
     update(r, "share", `${(p.share * 100).toFixed(0)}%`, (v) => (r.share.textContent = v));
     // The skill list, when open: rebuilt only when something in it changed.
     const open = expanded.has(p.id);
-    const skillsKey = open ? `${meterView()}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
+    const skillsKey = open ? `${meterView()}|${iconsLoaded}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
     update(r, "skills", skillsKey, () => {
       if (r.skills) r.skills.remove();
       r.skills = open ? skillList(p) : null;
