@@ -237,18 +237,34 @@ table.grid {
 .legend.inline { padding: 0; margin-left: 1em; align-items: center; gap: 0.4em; }
 .legend .item { display: inline-flex; align-items: center; gap: 0.4em; }
 .legend .line { display: inline-block; width: 1.2em; height: 2px; border-radius: 1px; }
+.legend .item.pick { cursor: pointer; }
+.legend .item.pick:hover, .legend .item.on { color: var(--text); }
+.legend .item.on .line { height: 3px; }
+/* Naming a buff: an input over its label on the timeline. */
+.lane-name {
+  position: absolute;
+  left: 4px;
+  z-index: 6;
+  box-sizing: border-box;
+  padding: 0 0.4em;
+  border: 1px solid var(--accent);
+  border-radius: 0.25em;
+  background: rgb(var(--tint-rgb));
+  color: var(--text);
+  font: inherit;
+}
 .swatch-mark { display: inline-block; width: 0.9em; height: 0.6em; border-radius: 0.15em; margin-left: 0.6em; }
 .swatch-mark.buff { background: var(--buff); }
 .swatch-mark.debuff { background: var(--debuff); }
 
 /* ---------------------------------------------------------------- skill tooltip */
 
-[data-skill] { cursor: help; }
+[data-skill], [data-effect] { cursor: help; }
 .skill-tip {
   position: fixed;
   z-index: 20;
   pointer-events: none;
-  width: min(26em, calc(100vw - 2em));
+  width: min(24em, calc(100vw - 2em));
   padding: 0.55em 0.7em;
   border: 1px solid var(--line);
   border-radius: 0.45em;
@@ -258,22 +274,25 @@ table.grid {
   line-height: 1.35;
   white-space: normal;
 }
-.st-head { display: flex; align-items: center; gap: 0.55em; margin-bottom: 0.4em; }
+.st-head { display: flex; align-items: center; gap: 0.55em; padding-bottom: 0.4em; margin-bottom: 0.4em; border-bottom: 1px solid var(--line-faint); }
 .st-head img, .st-head .blank { width: 2.1em; height: 2.1em; border-radius: 0.3em; flex: none; }
 .st-head .blank { background: var(--line-faint); }
 .st-name { color: var(--accent-2); font-size: 1.05em; }
 .st-kind { color: var(--muted); font-size: 0.85em; }
-.st-facts { display: flex; flex-wrap: wrap; gap: 0.1em 1em; margin-bottom: 0.25em; font-variant-numeric: tabular-nums; }
+.st-facts { display: flex; flex-wrap: wrap; gap: 0.15em 1em; margin-bottom: 0.35em; font-variant-numeric: tabular-nums; }
 .st-facts .k { color: var(--muted); }
 .st-props { color: var(--faint); font-size: 0.85em; margin-bottom: 0.35em; }
-.st-desc { margin: 0.3em 0; white-space: pre-line; }
+.st-desc { margin: 0.35em 0; white-space: pre-line; }
+.st-scale { color: var(--accent); font-weight: normal; white-space: nowrap; }
 .st-max { color: var(--muted); font-size: 0.85em; }
-.st-group { margin-top: 0.5em; color: var(--faint); font-size: 0.8em; letter-spacing: 0.05em; }
-.st-spec { display: grid; grid-template-columns: 1.2em minmax(0, 1fr) auto; gap: 0.4em; color: var(--faint); font-size: 0.9em; }
-.st-spec.on { color: var(--text); }
+.st-group { margin: 0.55em 0 0.15em; padding-top: 0.4em; border-top: 1px solid var(--line-faint); color: var(--faint); font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; }
+.st-spec { display: grid; grid-template-columns: 1.2em minmax(0, 1fr) auto; gap: 0.4em; color: var(--faint); font-size: 0.85em; }
+/* Specialties not chosen: one line each, so the chosen ones stand out. */
+.st-spec:not(.on) .st-spec-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-spec.on { color: var(--text); font-size: 0.9em; margin: 0.1em 0; }
 .st-spec.on .st-mark { color: var(--accent); }
 .st-unlock { color: var(--faint); font-size: 0.85em; }
-.st-measured { margin-top: 0.5em; color: var(--muted); font-size: 0.85em; }
+.st-measured { margin-top: 0.45em; color: var(--muted); font-size: 0.85em; }
 .st-note { margin-top: 0.2em; color: var(--faint); font-size: 0.78em; }
 
 /* ---------------------------------------------------------------- healing / taken */

@@ -47,7 +47,8 @@ pub struct Settings {
     everyone: bool,
     #[serde(default)]
     pub appearance: Appearance,
-    /// How often the overlay redraws, in milliseconds: one of [`REFRESH_RATES`].
+    /// How often the overlay redraws, in milliseconds: one of [`REFRESH_RATES`]
+    /// ([`REALTIME`]: as soon as new data arrives).
     #[serde(default)]
     pub refresh_ms: u32,
     /// Click-through: the meter ignores the mouse except for its lock button.
@@ -68,7 +69,10 @@ pub enum MeterView {
     Taken,
 }
 
-pub const REFRESH_RATES: [u32; 4] = [200, 500, 1000, 2000];
+pub const REFRESH_RATES: [u32; 5] = [REALTIME, 200, 500, 1000, 2000];
+/// The "as it happens" rate: the overlay redraws when new data arrives instead of on a
+/// timer, at most this often (ten times a second).
+pub const REALTIME: u32 = 100;
 pub const DEFAULT_REFRESH_MS: u32 = 500;
 
 pub const THEMES: [&str; 6] = ["rose", "lavender", "mint", "sky", "amber", "mono"];
@@ -544,6 +548,8 @@ mod tests {
         assert_eq!((s.refresh_ms, s.locked), (DEFAULT_REFRESH_MS, true));
         fs::write(dir.join("settings.json"), r#"{ "refresh_ms": 2000 }"#).unwrap();
         assert_eq!(Settings::load(&dir).refresh_ms, 2000);
+        fs::write(dir.join("settings.json"), format!(r#"{{ "refresh_ms": {REALTIME} }}"#)).unwrap();
+        assert_eq!(Settings::load(&dir).refresh_ms, REALTIME);
         fs::remove_dir_all(dir).ok();
     }
 

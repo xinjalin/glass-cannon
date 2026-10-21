@@ -76,7 +76,10 @@ const iconImages = new Map();
 let redrawQueued = false;
 
 function skillIconUrl(skill) {
-  const key = data && data.skills[skill] && data.skills[skill].icon_key;
+  return iconUrlFor(data && data.skills[skill] && data.skills[skill].icon_key);
+}
+
+function iconUrlFor(key) {
   if (key == null) return null;
   if (!iconUrls.has(key)) {
     iconUrls.set(key, null);
@@ -97,8 +100,11 @@ function skillIconUrl(skill) {
 }
 
 function skillIconImage(skill) {
-  skillIconUrl(skill);
-  const key = data.skills[skill] && data.skills[skill].icon_key;
+  return iconImageFor(data.skills[skill] && data.skills[skill].icon_key);
+}
+
+function iconImageFor(key) {
+  iconUrlFor(key);
   const img = iconImages.get(key);
   return img && img.complete ? img : null;
 }
@@ -405,12 +411,14 @@ function perSecondSeries(events, ids, keyOf) {
 let dpsHover = null;
 
 function drawDpsChart() {
-  drawSeriesChart($("dps-chart"), $("dps-legend"), dpsSeries(), dpsHover, derived.hp);
+  drawSeriesChart($("dps-chart"), $("dps-legend"), dpsSeries(), dpsHover, derived.hp, selectPlayer);
 }
 
 // A per-second line chart (one line per series) with a crosshair tooltip at `hover`
-// (x in the canvas), and the target's HP in a strip underneath when given.
-function drawSeriesChart(box, legendBox, series, hover, hp) {
+// (x in the canvas), and the target's HP in a strip underneath when given. With `onPick`,
+// clicking a line or its legend entry picks that series.
+const chartLayouts = new WeakMap();
+function drawSeriesChart(box, legendBox, series, hover, hp, onPick) {
   const canvas = box.querySelector("canvas");
   box.classList.toggle("has-hp", !!hp);
   const { ctx, width, height } = setupCanvas(canvas, box.clientHeight || 200);
@@ -472,6 +480,7 @@ function drawSeriesChart(box, legendBox, series, hover, hp) {
     ctx.restore();
   }
 
+  chartLayouts.set(box, { series, x, y, left, right, top, bottom, seconds, onPick });
   for (const s of series) {
     ctx.strokeStyle = s.colour;
     ctx.lineWidth = s.id === selection.player ? 2.5 : 2;
@@ -519,12 +528,30 @@ function drawSeriesChart(box, legendBox, series, hover, hp) {
   const legend = legendBox;
   legend.replaceChildren();
   for (const s of series) {
-    const item = el("span", "item");
+    const item = el("span", `item${onPick ? " pick" : ""}${onPick && s.id === selection.player ? " on" : ""}`);
     const line = el("span", "line");
     line.style.background = s.colour;
     item.append(line, document.createTextNode(name(s.id)));
+    if (onPick) item.addEventListener("click", () => onPick(s.id));
     legend.append(item);
   }
+}
+
+// The series whose line passes within a few pixels of (mx, my) on a chart, or null.
+function lineAt(box, mx, my) {
+  const L = chartLayouts.get(box);
+  if (!L || !L.series.length || mx < L.left || mx > L.right || my < L.top || my > L.bottom) return null;
+  const s = Math.max(0, Math.min(L.seconds - 1, Math.round(((mx - L.left) / (L.right - L.left)) * (L.seconds - 1))));
+  let best = null;
+  let bestD = 10;
+  for (const ser of L.series) {
+    const d = Math.abs(L.y(ser.dps[s]) - my);
+    if (d < bestD) {
+      bestD = d;
+      best = ser;
+    }
+  }
+  return best;
 }
 
 function placeTooltip(tip, box, x, y) {
@@ -920,9 +947,9 @@ function attachTimeline(boxId, which, gutter, onHover) {
       drag.x = e.clientX;
       return;
     }
-    onHover(e.clientX - rect.left, e.clientY - rect.top);
+    onHover(e.clientX - rect.left, e.clientY - rect.top, e);
   });
-  canvas.addEventListener("mouseleave", () => onHover(null, null));
+  canvas.addEventListener("mouseleave", () => onHover(null, null, null));
 }
 
 function drawTimeAxis(ctx, x0, x1, y, t0, t1) {
@@ -1093,27 +1120,48 @@ function nearestMark(marks, [mx, my]) {
   return best;
 }
 
-attachTimeline("rotation", "rotation", rotationGutter, (mx, my) => {
-  rotationHover = mx == null ? null : [mx, my];
+// The skill whose label (left of the lanes) is at (mx, my).
+function rotationLabelAt(mx, my) {
+  const L = rotationLayout;
+  if (!L || mx == null || mx >= L.gutter || my < 0 || my >= L.plotBottom) return null;
+  return L.lanes[Math.floor(my / LANE_H)] ?? null;
+}
+
+attachTimeline("rotation", "rotation", rotationGutter, (mx, my, e) => {
+  const skill = rotationLabelAt(mx, my);
+  rotationHover = mx == null || skill != null ? null : [mx, my];
   drawRotation();
+  canvasTip($("rotation"), skill != null ? `skill:${skill}` : null, e, () => buildSkillTip(skill));
 });
 
 // ---------------------------------------------------------------- buffs
 
 let buffHover = null;
 let buffLayout = null;
-const buffGutter = () => 17 * fontPx();
+const buffGutter = () => 21 * fontPx();
 
-// The skill's name, else the effect's own (from its ID), else the bare number.
+const effectMeta = (effect) => (data.effect_meta && data.effect_meta[effect]) || null;
+
+// A name you gave the effect, else its skill's, else the effect's own (from its ID), else
+// the bare number.
 function effectLabel(e) {
+  const own = effectMeta(e.effect);
   const skill = e.skill != null && data.skills[e.skill];
+  if (own && own.name && (own.own || !(skill && skill.name))) return own.name;
   if (skill && skill.name) return skill.name;
-  const named = data.effect_names && data.effect_names[e.effect];
-  if (named) return named;
+  if (own && own.name) return own.name;
   return e.skill != null ? String(e.skill) : `effect ${e.effect}`;
 }
 
-// Lanes of effect spans: on the player (buffs), then on the target (debuffs).
+function effectIconKey(e) {
+  const own = effectMeta(e.effect);
+  if (own && own.icon_key != null) return own.icon_key;
+  return e.skill != null && data.skills[e.skill] ? data.skills[e.skill].icon_key : null;
+}
+
+// Lanes of effect spans, one per effect: on the player (buffs), then on the target
+// (debuffs). Also kept by key for the tooltips.
+let lanesByKey = new Map();
 function buffLanes() {
   const debuffTarget = target != null ? target : data.view.target_id;
   const lanes = new Map();
@@ -1122,8 +1170,10 @@ function buffLanes() {
     if (e.target === selection.player) kind = "buff";
     else if (e.target === debuffTarget) kind = "debuff";
     if (!kind) continue;
-    const key = `${kind}/${e.skill ?? `e${e.effect}`}`;
-    if (!lanes.has(key)) lanes.set(key, { kind, label: effectLabel(e), skill: e.skill, spans: [] });
+    const key = `${kind}/${e.effect}`;
+    if (!lanes.has(key)) {
+      lanes.set(key, { key, kind, label: effectLabel(e), effect: e.effect, skill: e.skill, iconKey: effectIconKey(e), spans: [] });
+    }
     lanes.get(key).spans.push(e);
   }
   const end = Math.max(1000, derived.endMs);
@@ -1142,15 +1192,32 @@ function buffLanes() {
     }
     if (curE > curS) covered += curE - curS;
     lane.uptime = Math.min(1, covered / end);
+    // How long it lasts: what the game said, else the longest span that started and
+    // ended in the fight (a shield that breaks, or a buff cast again, ends early).
+    lane.lasts = Math.max(0, ...lane.spans.map((s) => s.duration_ms || 0));
+    lane.longest = lane.lasts || Math.max(0, ...lane.spans.filter((s) => !s.before && !s.open).map((s) => s.end - s.start));
   }
   const list = [...lanes.values()];
   list.sort((a, b) => (a.kind === b.kind ? b.uptime - a.uptime : a.kind === "buff" ? -1 : 1));
-  // Different effects can share a skill name: tell them apart by the end of the effect ID.
-  const seen = new Map();
-  for (const lane of list) seen.set(lane.label, (seen.get(lane.label) || 0) + 1);
+  // One skill can put up several effects (Protection Circle: the circle, then Divine
+  // Barrier) that the game data doesn't name apart. Tell them apart by how long they last,
+  // or else by number; double-clicking the label names one.
+  const groups = new Map();
   for (const lane of list) {
-    if (seen.get(lane.label) > 1) lane.label += ` ·${String(lane.spans[0].effect % 1000).padStart(3, "0")}`;
+    const k = `${lane.kind}/${lane.label}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(lane);
   }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const lengths = group.map((l) => (l.longest ? seconds(l.longest / 1000) : null));
+    const byLength = lengths.every(Boolean) && new Set(lengths).size === group.length;
+    [...group].sort((a, b) => a.effect - b.effect).forEach((lane, i) => {
+      lane.siblings = group.length;
+      lane.label += byLength ? ` · ${seconds(lane.longest / 1000)}` : ` · #${i + 1}`;
+    });
+  }
+  lanesByKey = new Map(list.map((l) => [l.key, l]));
   return { list, debuffTarget };
 }
 
@@ -1176,7 +1243,7 @@ function drawBuffTimeline() {
     ctx.fillText("no buffs or debuffs recorded for this player and target", (gutter + width) / 2, laneH);
   }
   const colours = { buff: css("--buff"), debuff: css("--debuff") };
-  buffLayout = { bars: [], laneH };
+  buffLayout = { bars: [], laneH, list, gutter };
   ctx.textBaseline = "middle";
   list.forEach((lane, i) => {
     const y = i * laneH;
@@ -1188,7 +1255,16 @@ function drawBuffTimeline() {
     ctx.fillStyle = css("--text");
     ctx.font = canvasFont();
     const pctText = `${Math.round(lane.uptime * 100)}%`;
-    ctx.fillText(clipText(ctx, lane.label, gutter - 5 * fontPx()), 4, y + laneH / 2);
+    const icon = laneH - 6;
+    const img = iconImageFor(lane.iconKey);
+    if (img) ctx.drawImage(img, 4, y + 3, icon, icon);
+    else {
+      ctx.fillStyle = css("--line-faint");
+      roundRect(ctx, 4, y + 3, icon, icon, 3);
+      ctx.fill();
+      ctx.fillStyle = css("--text");
+    }
+    ctx.fillText(clipText(ctx, lane.label, gutter - 5 * fontPx() - icon - 6), icon + 10, y + laneH / 2);
     ctx.textAlign = "right";
     ctx.fillStyle = css("--muted");
     ctx.fillText(pctText, gutter - 10, y + laneH / 2);
@@ -1242,9 +1318,55 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-attachTimeline("buff-timeline", "buffs", buffGutter, (mx, my) => {
-  buffHover = mx == null ? null : [mx, my];
+// The lane whose label (left of the bars) is at (mx, my).
+function buffLabelAt(mx, my) {
+  const L = buffLayout;
+  if (!L || mx == null || mx >= L.gutter || my < 0) return null;
+  return L.list[Math.floor(my / L.laneH)] || null;
+}
+
+attachTimeline("buff-timeline", "buffs", buffGutter, (mx, my, e) => {
+  const lane = buffLabelAt(mx, my);
+  buffHover = mx == null || lane ? null : [mx, my];
   drawBuffTimeline();
+  canvasTip($("buff-timeline"), lane ? `effect:${lane.key}` : null, e, () => buildEffectTip(lane));
+});
+
+// Double-click a buff's label to name it (saved with your other names).
+$("buff-timeline").querySelector("canvas").addEventListener("dblclick", (e) => {
+  const box = $("buff-timeline");
+  const rect = box.querySelector("canvas").getBoundingClientRect();
+  const lane = buffLabelAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (!lane) return;
+  hideSkillTip();
+  const input = el("input", "lane-name");
+  const own = effectMeta(lane.effect);
+  input.value = own && own.custom ? own.name : "";
+  input.placeholder = lane.label;
+  input.maxLength = 60;
+  Object.assign(input.style, {
+    top: `${Math.floor((e.clientY - rect.top) / buffLayout.laneH) * buffLayout.laneH}px`,
+    height: `${buffLayout.laneH}px`,
+    width: `${buffLayout.gutter - 8}px`,
+  });
+  box.append(input);
+  input.focus();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    input.remove();
+    if (save && input.value.trim() !== (own && own.custom ? own.name : "")) {
+      await invoke("rename_skill", { skill: lane.effect, name: input.value }).catch((err) => sayCopied(String(err)));
+      load(true);
+    }
+  };
+  input.addEventListener("keydown", (k) => {
+    k.stopPropagation();
+    if (k.key === "Enter") finish(true);
+    if (k.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
 });
 
 // Each skill's casts, and the share of them that landed with each effect up.
@@ -1271,7 +1393,11 @@ function drawBuffsPerSkill() {
     if (always.length) {
       card.append(el("div", "group", "ALWAYS UP"));
       const tags = el("div", "always");
-      for (const r of always) tags.append(el("span", "tag", r.lane.label));
+      for (const r of always) {
+        const t = el("span", "tag", r.lane.label);
+        t.dataset.effect = r.lane.key;
+        tags.append(t);
+      }
       card.append(tags);
     }
     for (const kind of ["buff", "debuff"]) {
@@ -1284,7 +1410,9 @@ function drawBuffsPerSkill() {
         const fill = el("div", `fill ${kind}`);
         fill.style.width = `${r.share * 100}%`;
         track.append(fill);
-        line.append(el("span", "label", r.lane.label), track, el("span", "pct", `${Math.round(r.share * 100)}%`));
+        const label = el("span", "label", r.lane.label);
+        label.dataset.effect = r.lane.key;
+        line.append(label, track, el("span", "pct", `${Math.round(r.share * 100)}%`));
         card.append(line);
       }
       if (top.length > 3) card.append(el("div", "sub", `+${top.length - 3} more`));
@@ -1331,6 +1459,7 @@ function render() {
 
 function selectPlayer(id) {
   selection.player = id;
+  invoke("analysis_pick", { player: id }).catch(() => {});
   render();
 }
 
@@ -1355,7 +1484,6 @@ async function load(force) {
     const d = await invoke("analysis_data", { fight: selection.fight });
     data = d || null;
     if (data) {
-      applyAppearance(data.appearance);
       if (target != null && !data.hits.some((h) => h.target === target)) target = null;
       derived = derive();
       const ids = data.view.players.map((p) => p.id);
@@ -1381,6 +1509,11 @@ for (const b of document.querySelectorAll("#tabs [data-tab]")) {
 $("dps-chart").querySelector("canvas").addEventListener("mousemove", (e) => {
   dpsHover = e.offsetX;
   drawDpsChart();
+  e.target.style.cursor = lineAt($("dps-chart"), e.offsetX, e.offsetY) ? "pointer" : "";
+});
+$("dps-chart").querySelector("canvas").addEventListener("click", (e) => {
+  const s = lineAt($("dps-chart"), e.offsetX, e.offsetY);
+  if (s) selectPlayer(s.id);
 });
 $("dps-chart").querySelector("canvas").addEventListener("mouseleave", () => {
   dpsHover = null;
@@ -1618,57 +1751,90 @@ function specText(id) {
 }
 
 const seconds = (v) => `${Number(v.toFixed(1))}s`;
-// One number, or [level 1, top level] when it changes with the skill's level.
-function byLevel(v, unit, maxLevel) {
+// One number, or "level 1 → top level" when it changes with the skill's level.
+function byLevel(v, unit) {
   if (v == null) return null;
-  if (Array.isArray(v)) return `${unit(v[0])} → ${unit(v[1])} (lv 1 → ${maxLevel || "max"})`;
-  return unit(v);
+  return Array.isArray(v) ? `${unit(v[0])} → ${unit(v[1])}` : unit(v);
+}
+
+// The level 1 description with the numbers that grow with the skill's level shown as
+// "1,384 → 4,386", so one text says both. Null when the two texts don't line up.
+function mergeLevels(low, high) {
+  // "1384-1384 damage" is one number.
+  const tidy = (t) => t.replace(/(\d[\d.,]*)-\1(?![\d.,])/g, "$1");
+  const num = /(\d[\d.,]*%?)/;
+  const a = tidy(low).split(num);
+  const b = tidy(high || low).split(num);
+  if (a.length !== b.length || a.some((part, i) => i % 2 === 0 && part !== b[i])) return null;
+  let scaled = false;
+  const nodes = a.map((part, i) => {
+    if (i % 2 === 0 || part === b[i]) return document.createTextNode(part);
+    scaled = true;
+    return el("b", "st-scale", `${part} → ${b[i]}`);
+  });
+  return { nodes, scaled };
+}
+
+// The skill data's description, kind, facts and specialties.
+function appendSkillDetails(tip, d, compact) {
+  const facts = [
+    ["cooldown", byLevel(d.cooldown_s, seconds)],
+    ["cast", byLevel(d.cast_s, seconds)],
+    ["MP", byLevel(d.mp, (n) => fmt(n))],
+    ["range", d.range],
+  ].filter(([, v]) => v);
+  if (facts.length) {
+    const line = el("div", "st-facts");
+    for (const [k, v] of facts) {
+      const f = el("span");
+      f.append(el("span", "k", `${k} `), document.createTextNode(v));
+      line.append(f);
+    }
+    tip.append(line);
+  }
+  let scaled = Array.isArray(d.cooldown_s) || Array.isArray(d.cast_s) || Array.isArray(d.mp);
+  if (d.desc) {
+    const merged = mergeLevels(d.desc, d.desc_max);
+    const p = el("div", "st-desc");
+    if (merged) {
+      p.append(...merged.nodes);
+      scaled = scaled || merged.scaled;
+    } else p.textContent = d.desc;
+    tip.append(p);
+  }
+  if (d.properties && !compact) tip.append(el("div", "st-props", d.properties.split(" | ").join(" · ")));
+  if (d.specs && d.specs.length && !compact) {
+    const chosen = d.specs.filter((sp) => d.chosen.includes(specNumber(sp)));
+    tip.append(el("div", "st-group", chosen.length ? `specialties · ${chosen.length} chosen` : "specialties · none chosen"));
+    // The chosen ones in full; the others one line each, dimmed.
+    for (const spec of d.specs) {
+      const n = specNumber(spec);
+      const on = d.chosen.includes(n);
+      const row = el("div", `st-spec${on ? " on" : ""}`);
+      row.append(el("span", "st-mark", on ? "✓" : String(n)), el("span", "st-spec-text", spec.desc));
+      if (spec.unlock) row.append(el("span", "st-unlock", `lv ${spec.unlock}`));
+      tip.append(row);
+    }
+  }
+  return scaled;
+}
+
+function tipHead(tip, iconUrl, title, kind) {
+  const head = el("div", "st-head");
+  head.append(iconOrBlank(iconUrl, ""));
+  const t = el("div", "st-title");
+  t.append(el("div", "st-name", title), el("div", "st-kind", kind));
+  head.append(t);
+  tip.append(head);
 }
 
 function buildSkillTip(id) {
   const tip = $("skill-tip");
   tip.replaceChildren();
   const d = skillInfo(id);
-  const head = el("div", "st-head");
-  head.append(iconOrBlank(skillIconUrl(id), ""));
-  const title = el("div", "st-title");
-  title.append(el("div", "st-name", skillName(id)));
   const kind = d ? [d.class, d.subtype || d.type, d.weapon].filter(Boolean).join(" · ") : "";
-  title.append(el("div", "st-kind", kind || `skill ${id}`));
-  head.append(title);
-  tip.append(head);
-
-  if (d) {
-    const facts = [
-      ["cooldown", byLevel(d.cooldown_s, seconds, d.max_level)],
-      ["cast", byLevel(d.cast_s, seconds, d.max_level)],
-      ["MP", byLevel(d.mp, (n) => fmt(n), d.max_level)],
-      ["range", d.range],
-    ].filter(([, v]) => v);
-    if (facts.length) {
-      const line = el("div", "st-facts");
-      for (const [k, v] of facts) {
-        const f = el("span");
-        f.append(el("span", "k", `${k} `), document.createTextNode(v));
-        line.append(f);
-      }
-      tip.append(line);
-    }
-    if (d.properties) tip.append(el("div", "st-props", d.properties.split(" | ").join(" · ")));
-    if (d.desc) tip.append(el("div", "st-desc", d.desc));
-    if (d.desc_max) tip.append(el("div", "st-desc st-max", `at level ${d.max_level || "max"}: ${d.desc_max}`));
-    if (d.specs && d.specs.length) {
-      tip.append(el("div", "st-group", d.chosen.length ? "SPECIALTIES (✓ = chosen)" : "SPECIALTIES (none chosen)"));
-      for (const spec of d.specs) {
-        const n = specNumber(spec);
-        const chosen = d.chosen.includes(n);
-        const row = el("div", `st-spec${chosen ? " on" : ""}`);
-        row.append(el("span", "st-mark", chosen ? "✓" : String(n)), el("span", "", spec.desc));
-        if (spec.unlock) row.append(el("span", "st-unlock", `lv ${spec.unlock}`));
-        tip.append(row);
-      }
-    }
-  }
+  tipHead(tip, skillIconUrl(id), skillName(id), kind || `skill ${id}`);
+  const scaled = d ? appendSkillDetails(tip, d, false) : false;
 
   // From this fight: how often the selected player cast it.
   const s = selectedPlayer() && selectedPlayer().skills.get(id);
@@ -1678,40 +1844,105 @@ function buildSkillTip(id) {
     for (let i = 1; i < t.length; i++) shortest = Math.min(shortest, t[i] - t[i - 1]);
     const parts = [`${t.length} cast${t.length === 1 ? "" : "s"}`];
     if (shortest < Infinity) parts.push(`shortest gap ${gap(shortest)}`);
-    tip.append(el("div", "st-measured", `this fight: ${parts.join(" · ")}`));
+    tip.append(el("div", "st-measured", `this fight · ${parts.join(" · ")}`));
   }
-  tip.append(el("div", "st-note", d ? "The game doesn't send skill levels, so descriptions show level 1." : `skill ${id}: no details in the game data`));
+  if (scaled) tip.append(el("div", "st-note", `a → b: level 1 → ${d.max_level || "max"} (the game doesn't say which level)`));
+  else if (!d) tip.append(el("div", "st-note", "no description in the game data"));
 }
 
-// Any element with data-skill shows the tooltip while the pointer is on it.
-let tipFor = null;
-document.addEventListener("mouseover", (e) => {
-  const host = e.target.closest("[data-skill]");
-  if (!host) return;
-  const id = Number(host.dataset.skill);
-  if (tipFor !== id) {
-    tipFor = id;
-    buildSkillTip(id);
-  }
-  $("skill-tip").hidden = false;
-});
-document.addEventListener("mouseout", (e) => {
-  const host = e.target.closest("[data-skill]");
-  if (host && !host.contains(e.relatedTarget)) {
-    $("skill-tip").hidden = true;
-    tipFor = null;
-  }
-});
-document.addEventListener("mousemove", (e) => {
+// A buff or debuff: what it is, how it went in this fight, and what its skill does.
+function buildEffectTip(lane) {
   const tip = $("skill-tip");
-  if (tip.hidden) return;
+  tip.replaceChildren();
+  const on = lane.kind === "buff" ? name(selection.player) : name(lane.spans[0].target);
+  tipHead(tip, iconUrlFor(lane.iconKey), lane.label, `${lane.kind} on ${on}`);
+  const line = el("div", "st-facts");
+  const fact = (k, v) => {
+    const f = el("span");
+    f.append(el("span", "k", `${k} `), document.createTextNode(v));
+    line.append(f);
+  };
+  fact("uptime", `${Math.round(lane.uptime * 100)}%`);
+  fact("applied", `${lane.spans.length}×`);
+  if (lane.lasts) fact("lasts", seconds(lane.lasts / 1000));
+  else if (lane.longest) fact("lasts", `up to ${gap(lane.longest)}`);
+  tip.append(line);
+  const sources = [...new Set(lane.spans.map((s) => s.source).filter((x) => x != null))];
+  if (sources.length) {
+    const more = sources.length > 3 ? ` +${sources.length - 3}` : "";
+    tip.append(el("div", "st-measured", `from ${sources.slice(0, 3).map(name).join(", ")}${more}`));
+  }
+  const d = lane.skill != null ? skillInfo(lane.skill) : null;
+  let scaled = false;
+  if (d) {
+    tip.append(el("div", "st-group", `from the skill ${skillName(lane.skill)}`));
+    scaled = appendSkillDetails(tip, d, true);
+  }
+  if (lane.siblings) {
+    tip.append(el("div", "st-measured", `one of ${lane.siblings} effects this skill puts up; the game data doesn't name them apart`));
+  }
+  if (scaled) tip.append(el("div", "st-note", `a → b: level 1 → ${d.max_level || "max"}`));
+  tip.append(el("div", "st-note", `effect ${lane.effect} · double-click the label to name it`));
+}
+
+// The tooltip follows the pointer, kept inside the window.
+function placeSkillTip(x, y) {
+  const tip = $("skill-tip");
   const pad = 14;
   const w = tip.offsetWidth;
   const h = tip.offsetHeight;
-  const x = e.clientX + pad + w > innerWidth ? e.clientX - pad - w : e.clientX + pad;
-  const y = Math.min(innerHeight - h - 4, e.clientY + pad);
-  tip.style.left = `${Math.max(4, x)}px`;
-  tip.style.top = `${Math.max(4, y)}px`;
+  const left = x + pad + w > innerWidth ? x - pad - w : x + pad;
+  tip.style.left = `${Math.max(4, left)}px`;
+  tip.style.top = `${Math.max(4, Math.min(innerHeight - h - 4, y + pad))}px`;
+}
+
+let tipFor = null; // what the tooltip shows: "skill:<id>" or "effect:<lane key>"
+let tipHost = null; // the element (or canvas box) it belongs to
+
+function showTip(key, host, build, x, y) {
+  if (tipFor !== key) {
+    tipFor = key;
+    build();
+  }
+  tipHost = host;
+  $("skill-tip").hidden = false;
+  placeSkillTip(x, y);
+}
+
+function hideSkillTip() {
+  $("skill-tip").hidden = true;
+  tipFor = null;
+  tipHost = null;
+}
+
+// For a canvas: show the tooltip `key` (built by `build`) at the pointer, or hide it.
+function canvasTip(box, key, e, build) {
+  box.querySelector("canvas").style.cursor = key ? "help" : "";
+  if (key && e) showTip(key, box, build, e.clientX, e.clientY);
+  else if (tipHost === box) hideSkillTip();
+}
+
+// Any element with data-skill (or data-effect, a buff lane) shows its tooltip while the
+// pointer is on it.
+function tipTarget(e) {
+  const host = e.target.closest && e.target.closest("[data-skill], [data-effect]");
+  if (!host) return null;
+  if (host.dataset.skill) {
+    const id = Number(host.dataset.skill);
+    return { host, key: `skill:${id}`, build: () => buildSkillTip(id) };
+  }
+  const lane = lanesByKey.get(host.dataset.effect);
+  return lane ? { host, key: `effect:${lane.key}`, build: () => buildEffectTip(lane) } : null;
+}
+document.addEventListener("mouseover", (e) => {
+  const t = tipTarget(e);
+  if (t) showTip(t.key, t.host, t.build, e.clientX, e.clientY);
+});
+document.addEventListener("mouseout", (e) => {
+  if (tipHost && tipHost.dataset && tipHost.contains(e.target) && !tipHost.contains(e.relatedTarget)) hideSkillTip();
+});
+document.addEventListener("mousemove", (e) => {
+  if (!$("skill-tip").hidden && tipHost && tipHost.dataset && (tipHost.dataset.skill || tipHost.dataset.effect)) placeSkillTip(e.clientX, e.clientY);
 });
 
 $("close").addEventListener("click", () => win.hide());
@@ -1738,7 +1969,17 @@ tauri.event.listen("analysis-select", (e) => {
   load(true);
 });
 
+// A theme or font change in the settings shows here straight away.
+tauri.event.listen("appearance", (e) => {
+  applyAppearance(e.payload);
+  queueRedraw();
+});
+
 (async () => {
+  invoke("appearance").then((a) => {
+    applyAppearance(a);
+    queueRedraw();
+  }).catch(() => {});
   selection = await invoke("analysis_selection").catch(() => selection);
   await load(true);
   // Live fights refresh every second, or less often when a refresh is costly.

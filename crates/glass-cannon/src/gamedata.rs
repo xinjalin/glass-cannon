@@ -213,6 +213,13 @@ impl GameData {
         }
     }
 
+    /// A name for this exact effect ID (one you gave it, or a Theostone's), not its
+    /// skill's, and whether you gave it.
+    pub fn effect_name(&self, effect: u32) -> Option<(String, bool)> {
+        let e = self.skills.skills.get(&effect)?;
+        (!e.name.is_empty()).then(|| (e.name.clone(), e.custom))
+    }
+
     /// Fills in skill names and icon keys, and the target's name and boss flag.
     pub fn annotate(&self, snap: &mut Snapshot) {
         if let Some(enc) = snap.encounter.as_mut() {
