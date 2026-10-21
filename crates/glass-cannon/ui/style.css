@@ -363,6 +363,9 @@ legend {
 .fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
 .fight-dps { color: var(--accent-2); font-variant-numeric: tabular-nums; }
 
+/* Room between the list and its scrollbar, so a run's border doesn't touch it. */
+#fights { padding-right: 0.35em; }
+
 /* A dungeon run: a header row, with its fights indented under it while open. */
 .run-item {
   display: grid;
