@@ -446,3 +446,27 @@ and may be the basic attack. Needs a name table from our own observations.
 9. Summon spawns: what are the byte after the owner (02..14) and the `07 02 06` /
    `07 02 01` / `09 01` tags? A spirit that's already out when the meter starts and never
    uses an echo skill (e.g. `#39331` in `…184039`, one hit) still gets its own row.
+
+## Capturing (how packet-lab and the meter get the traffic)
+
+- **Finding the game:** the Windows connection tables (`GetExtendedTcpTable` /
+  `GetExtendedUdpTable`) list the game process's sockets, polled every 500 ms.
+- **Capture:** one Npcap handle per adapter the game uses, filtered to TCP/UDP. Packets
+  from connections not yet identified are held for up to 3 s, so a new connection's
+  handshake and first messages aren't lost.
+- **Reassembly:** per-direction TCP streams with out-of-order, retransmission, overlap and
+  wraparound handling. Holes that never fill are skipped and recorded as gaps.
+
+A recording (`packet-lab capture`, or **record fights** in the meter) looks like this:
+
+```text
+captures/<YYYYmmdd-HHMMSS>/
+  session.json   process, adapter and time of the capture
+  raw.pcap       every game packet (opens in Wireshark)
+  events.jsonl   flows opened/closed, with per-direction stats
+  flows/<id>-<proto>-<localport>-to-<ip>_<port>/
+    in.bin / out.bin   reassembled bytes received / sent
+    index.jsonl        one line per chunk: time, side, kind, stream offset, file pos, length
+```
+
+Captures contain your own game session, possibly including login tokens: don't share them.

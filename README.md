@@ -1,9 +1,8 @@
 # Glass Cannon
 
-A frosted-glass DPS meter overlay for **Aion 2** on Windows. It reads the game's own
-network traffic (passively, through Npcap), so it never touches the game or its memory.
-No admin rights while running, no hidden scheduled tasks, no auto-updates, and it never
-goes online: everything it needs is in the download.
+A frosted-glass DPS meter for **Aion 2** on Windows. It reads the game's network traffic
+passively through Npcap, so it never touches the game or its memory. No admin rights, no
+auto-updates, and it never goes online.
 
 ![The meter in a fight with eight players](docs/screenshots/overlay.png)
 
@@ -25,335 +24,111 @@ goes online: everything it needs is in the download.
 
 ![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png)
 
-<sub>All screenshots are real fights, replayed from recordings: training dummies, with other players' names (and the dummies') made up. The dungeon runs are real runs recorded by another meter and loaded into Glass Cannon's history (it shows mobs, not players).</sub>
+<sub>Real fights replayed from recordings, with other players' names made up. The dungeon runs were recorded by another meter and loaded into the history.</sub>
 
 ## Install
 
-1. Install [Npcap](https://npcap.com) (once). Leave **"Restrict Npcap driver's access to
-   Administrators only"** unticked, so the meter can run without admin rights.
-2. Download `glass-cannon-vX.Y.Z-windows-x64.zip` from [Releases](../../releases) and
-   extract it anywhere, for example `Documents\Glass Cannon`. It holds the meter and its
-   game data (skill, class and mob names and icons). The `.sha256` file next to the zip
-   lets you check the download.
-3. Run `glass-cannon.exe`. The exe isn't code-signed, so Windows SmartScreen may warn the
-   first time: **More info → Run anyway**.
+1. Install [Npcap](https://npcap.com). Leave **"Restrict Npcap driver's access to
+   Administrators only"** unticked, so the meter doesn't need admin rights.
+2. Download the zip from [Releases](../../releases) and extract it anywhere.
+3. Run `glass-cannon.exe`. It isn't code-signed, so SmartScreen may ask: **More info →
+   Run anyway**.
 
-To update, extract a new release over the old folder; your settings, history and the
-names you typed yourself live elsewhere (see below) and stay. It needs Windows 10 or 11
-with the WebView2 runtime (built into Windows 11).
+To update, extract a new release over the old one; your settings and history are kept.
+Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
 ## Using the meter
 
-The meter opens and starts capturing straight away, waiting for the game if it isn't
-running yet. It's an always-on-top, frosted-glass window (Windows blurs whatever is behind
-it) in a warm rose, monospace style. It opens where you last left it (the first time: at
-the right edge of the game's monitor), tall enough for five players and wide enough for
-the title bar's text; it resizes itself to keep five in view when you change the font
-size, the time bar or minimal mode.
+It starts capturing straight away and waits for the game if it isn't running.
 
-- **mine / party / all** (click to cycle; also in settings):
-  - *mine*: your fight, the targets you hit, with everyone's damage on them.
-  - *party*: your party's or group's fight, the targets any of you hit, with only your
-    party's damage. The meter reads the roster the game sends when you join a party or an
-    expedition group; on your own it's just you.
-  - *all*: every player fighting nearby.
-- **dmg / heal / taken** (the button by the fight clock; in minimal mode, hover): what
-  the rows show. *heal* is healing done: heals over time (credited to whoever applied
-  the effect) and heals players cast on themselves, counted by the HP they restored;
-  direct heals on other players haven't been seen yet. *taken* is the damage players
-  took from mobs. Saved for next time.
-- **Click a player** for their skill breakdown; hover a skill for its ID; double-click a
-  skill or the target to name it yourself.
-- **Right-click a player** (or the chart icon) to open the **analysis** window on that
-  fight, live or from history; right-click them again (or the icon) to close it. While
-  it's open it follows the fight the meter shows: open a fight from the history and the
-  analysis switches to it. It opens beside the meter, on the side with more room
-  (shrinking to fit a small screen rather than covering the meter), and stays where you
-  move it as long as it's on screen and clear of the meter. It's a full dashboard:
-  - *overview*: DPS, casts, crit, back and front attacks, perfect and double strikes,
-    DPS over time for the top players with the target's HP in a strip beneath (click a
-    line or its name to pick that player), and every player side by side;
-  - *skills*: every skill with the specialties the player chose (read from the skill
-    IDs the game sends), casts, hits, multi-hit, crit, double, perfect, back, front, min,
-    max, average and time between casts (click a column to sort). Hover a skill for its
-    cooldown, cost, range, description and all its specialties, the chosen ones ticked.
-    The game doesn't send skill levels, so descriptions show level 1 (and the top level);
-  - *rotation*: your opening casts and a zoomable timeline of every cast by skill
-    (crits ringed, back attacks dotted, the target's HP shaded behind; hover a skill's
-    name for its tooltip). Zoomed in to the
-    end of a live fight, the timeline follows it as it happens (**[now]** jumps there);
-  - *buffs*: buffs on you and debuffs on the target over time with their icons and
-    uptime, and for each skill the share of its casts that landed with each effect up.
-    Hover a buff's name for what it is: how long it lasts, who put it up and its skill's
-    description. When one skill puts up several effects the game data doesn't name apart
-    (Protection Circle: the circle, then Divine Barrier), each shows how long it lasts;
-    double-click a name to give it your own;
-  - *healing* and *taken*: healing done and damage taken over time, per player, with
-    each player's heals (or the mob skills that hit them) and who they healed (or which
-    mobs hit them).
-  **[copy text]** puts a summary on the clipboard for Discord (a table of the players);
-  **[copy image]** copies a summary card with the players and their DPS over time.
-  Filter by target when a fight had several. The newest 50 fights keep their full
-  analysis; older ones keep the summary.
-- **Clock icon**: fight history. Every finished fight is kept (the last 200), with the
-  full breakdown. Fights in a dungeon are grouped into **runs**: the dungeon, its type and
-  mode (*Transcendence · Stage 2*, *Expedition · Conquest*), when it started, the time
-  spent fighting (hover for first pull to last kill), how many fights and bosses, the most
-  players and the total damage. Click a run to show or hide its fights; the newest starts
-  open. Right-click a run for its analysis (its fights back to back, with a dashed line
-  where each starts) or a fight for that fight's; right-click again to close it. A run is fights in a row on that dungeon's mobs with no break longer than 10
-  minutes; going straight back in shows as a new run once a boss you already fought comes
-  round again (a retry after a wipe stays in the same run). **▷|** ends the fight now (your next hit starts a new one, without
-  waiting for the fight to go quiet); **↺** resets; **pin** toggles always-on-top; **×**
-  quits.
-- **Lock** (bottom-right corner, or *click-through* in the settings): clicks go through
-  the meter to the game. While it's locked, the lock button is the only part of the meter
-  that takes the mouse; click it to unlock. It stays locked next time you open the meter.
-- **≡** opens the **settings** beside the meter (to its left, else right, below or above;
-  always fully on screen and never over the meter where there's room): appearance on
-  the left; status (Npcap, game, game data), whose damage counts, how often the meter
-  updates (*live*: as soon as new data arrives, up to ten times a second; or every
-  0.2–2 s; 0.5 s by default), click-through, record fights (applies
-  the next time you open the meter), fight history, a Desktop/Start-menu shortcut and
-  **reset appearance** (click twice: everything below, and the window size, back to the
-  defaults) on the right. The window sizes itself to fit. Esc or × hides it.
-- **Appearance** (saved, and shown in every window as you change it): theme colour (rose, lavender, mint, sky, amber, mono), font
-  size (10–18 px; the layout and the meter bars scale with it, the bars in whole pixels so
-  every block and row gap is the same size), font (any font installed on your PC, picked
-  from a searchable list with monospace fonts first; Cascadia Mono by default), highlight
-  just your row or fill every row,
-  and the bar colour, chosen separately from the theme: follow the theme, each player's
-  class, or any of the six colours.
-- **Background**: *frosted* (Windows 11 acrylic, kept on while the meter is unfocused),
-  *tinted* (no blur) or *clear* (nothing at all; text gets a heavier outline), with the
-  tint adjustable from 0 to 100%.
-- **Minimal mode**: only the target and the bars, with no title bar, frame or border.
-  Drag it from anywhere; hover it for dmg / heal / taken, end fight, **≡** (settings) and
-  **×** (quit).
-- **Time & ping bar**: an optional strip along the top with the local time and ping.
-- **Ping**: the header (or the time & ping bar) shows your round trip to the game
-  server, measured from the timing of the game's own TCP traffic (the median of the last
-  10 seconds): green under 200 ms, amber under 300 ms, red above. No extra packets are
-  sent.
-- A fight ends after 15 s without action; the last fight stays on screen until the next.
-- **Your character** is recognised the moment you hit a real mob, or at login or a zone
-  change. Training dummies don't announce you, so until then the meter shows the name it
-  saw last time (if your class matches), marked "(remembered)".
-- Other players are named when they come into view, after a zone change, or when they
-  start fighting a mob: the game sends no other name for them. So players who were
-  already around you when you opened the meter show as `#ID` until one of those happens
-  (a teleport or zone change names everyone nearby). The meter remembers names for the
-  rest of your login, so restarting it doesn't lose them. Classes come from their skills. Mobs are named from their type,
-  which the game only sends when a mob appears: mobs that were already there when the
-  meter started show as `#ID` until you meet fresh ones.
+- **mine / party / all**: count your targets, your party's, or everyone nearby.
+- **dmg / heal / taken**: damage dealt, healing done (heals over time and self-heals), or
+  damage taken from mobs.
+- **Click a player** for their skills. Double-click a skill or the target to rename it.
+- **▷|** ends the fight now (otherwise 15 s of quiet does); **↺** resets.
+- **Lock** (bottom right): clicks pass through to the game. Click it again to unlock.
+- **≡** opens the settings: theme, font, background, minimal mode, update rate (*live* or
+  every 0.2–2 s), recording, and status checks.
 
-Recordings (with **record fights** on) go to a `captures` folder next to the exe.
-`--replay <session folder>` (with `--speed 10` to fast-forward) plays back a recording.
+### Analysis
 
-### Game data
+**Right-click a player** (or the chart icon) for the full fight; right-click again to
+close it. Tabs:
 
-The release zip has a `gamedata` folder next to the exe, the same as the repository's
-[gamedata](gamedata) folder:
+- **overview**: DPS, crits, positionals and DPS over time with the target's HP.
+- **skills**: every skill with the player's chosen specialties; hover for the tooltip.
+- **rotation**: the opener and a zoomable cast timeline that follows a live fight.
+- **buffs**: buff and debuff uptime with icons, and which buffs were up for each skill.
+- **healing** and **taken**: who healed whom and what hit whom.
 
-- skill names and icons, class icons and boss lists from
-  [NOIA2](https://github.com/ZDYoung0519/NOIA2), and English mob names (about 9,900, with
-  boss and training-dummy flags) plus about 2,200 more skill names from
-  [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter), two open-source Aion 2
-  meters, under their GPL-3.0 licence;
-- skill details (cooldowns, costs, descriptions, specialties) scraped from
-  [aion2.app](https://aion2.app/db/skills), without a licence;
-- Theostone grades and effects, and which dungeon (and mode) each dungeon mob is in, from
-  a scraped item and monster database collected from public fan databases, without a
-  licence.
+**[copy text]** and **[copy image]** put a summary on the clipboard for Discord.
 
-None of it is covered by Glass Cannon's MIT licence, and the game's names, text and art
-belong to NCSOFT; [gamedata/README.md](gamedata/README.md) has the details. Their tables
-use the same IDs the game sends.
+### History and dungeon runs
 
-Skill and mob names you type yourself are saved in `names.json` (below), so a new
-release's data never overwrites them.
+The **clock icon** lists the last 200 fights (the newest 50 keep their full analysis).
+Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses
+and damage. Right-click a run for one analysis of all its fights, or a fight for that
+fight. A run ends after 10 minutes without a fight, in another dungeon, or when you
+start the same dungeon again.
 
-If skills show as numbers, the status line says why, and `meter.log` in
-`%APPDATA%\io.github.xinjalin.glass-cannon\` records where the app looked at startup.
-That folder also holds `settings.json`, `names.json`, `profile.json` (your last-seen
-name), `history.jsonl`, `fights` (the full analysis of the newest 50 fights),
-`players.json` (names of players seen this login) and `window.json` (where you left the
-meter). Settings from before the rename (`%APPDATA%\local.aion-meter`)
-move there on first start.
+### Names
 
-The terminal version is `packet-lab live`; `packet-lab meter <session>` runs the meter
-over a recording.
+Players are named when they come into view, after a zone change, or when they start a
+fight; until then they show as `#ID`. Mobs that were already there when the meter started
+show as `#ID` too. You're recognised on your first hit on a real mob.
 
-## Building from source
+## Game data
 
-- [Npcap](https://npcap.com), installed as above. The programs load `wpcap.dll` at
-  runtime from Npcap's system folder, so no Npcap SDK is needed to build.
-- Rust (stable, MSVC toolchain).
+The `gamedata` folder holds skill, mob and class names, icons, skill details, Theostone
+effects and dungeon mobs. It isn't under the MIT licence: see
+[gamedata/README.md](gamedata/README.md) for sources and how to update it.
+
+If skills show as numbers, check `meter.log` in `%APPDATA%\io.github.xinjalin.glass-cannon`.
+That folder also holds your settings, history and the names you typed.
+
+## Building
+
+Needs Rust (stable, MSVC) and [Npcap](https://npcap.com); no Npcap SDK.
 
 ```bash
 cargo build --release
 ```
 
-```bash
-target/release/glass-cannon.exe
-```
+`scripts/package.ps1` builds the release zip. CI builds every push; pushing a `vX.Y.Z`
+tag (after bumping `Cargo.toml` and writing `docs/releases/vX.Y.Z.md`) publishes a release.
 
-A build in `target/release` uses the repository's `gamedata` folder.
-`scripts/package.ps1` builds the release zip into `dist/` with that folder.
+## packet-lab
 
-### Updating the game data
-
-The game data is committed, so builds don't download anything. To take the latest NOIA2
-and RATmeter data (`--lang ko|zh-TW|zh-CN` for other skill languages):
+The command-line tool behind the meter: it captures and inspects the game's traffic. Run
+`target/release/packet-lab --help` for every command.
 
 ```bash
-target/release/packet-lab update-data --pins scripts/gamedata-pins.json --bump --out gamedata
-```
-
-That updates `scripts/gamedata-pins.json` and the `gamedata` folder; check the meter still
-names skills and mobs, then commit both. The skill details come from a scrape of
-aion2.app's skill database (a JSON object of skills by ID):
-
-```bash
-target/release/packet-lab skill-details <scrape.json> --scraped <date>
-```
-
-The Theostone effects come from a scraped item database (a JSON object of items by ID with
-their in-game descriptions); only Theostones already named in `skills.json` are kept:
-
-```bash
-target/release/packet-lab theostones <items.json> --scraped <date>
-```
-
-The dungeon runs come from the same kind of scrape's monsters and dungeons:
-
-```bash
-target/release/packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>
-```
-
-### Releases
-
-GitHub Actions ([.github/workflows/build.yml](.github/workflows/build.yml)) lints, tests
-and packages every push and pull request; the zip is kept as a build artifact. To publish
-a release, bump `version` in `Cargo.toml`, write what's new in `docs/releases/vX.Y.Z.md`
-(optional; it goes above GitHub's list of merged pull requests), commit, then push a
-matching tag:
-
-```bash
-git tag vX.Y.Z
-```
-
-```bash
-git push origin vX.Y.Z
-```
-
-The workflow then attaches the zip and its checksum to a new GitHub release.
-
-## packet-lab (capture and protocol tools)
-
-`packet-lab` is the command-line tool the meter was built with: it captures and inspects
-the game's traffic so the packet format can be worked out from your own captures.
-
-```bash
-# Which process is the game, and which sockets does it have?
-target/release/packet-lab procs aion2
-
-# Capture the game's traffic until Ctrl+C (or --seconds N)
+# Capture until Ctrl+C
 target/release/packet-lab capture --process AION2
 
-# Inspect a flow: chunks in time order, then a hex dump of any position
-target/release/packet-lab chunks captures/<session>/flows/<flow> --side in
-target/release/packet-lab dump captures/<session>/flows/<flow> --side in --pos 0 --len 512
-
-# Re-run reassembly on a capture (e.g. after improving the parser)
-target/release/packet-lab replay captures/<session>/raw.pcap
-
-# Message types in the game stream (bundles unpacked; game connection picked automatically)
-target/release/packet-lab opcodes captures/<session>
-
-# The meter over a recording (--party or --everyone for the other scopes): per-skill
-# casts, hits, crit, back/front, perfect, double strike and multi-hit
+# The meter over a recording, or the meter live in the terminal
 target/release/packet-lab meter captures/<session> --party
+target/release/packet-lab live
 
-# The last fight as the analysis window gets it (JSON)
-target/release/packet-lab meter captures/<session> --analysis
-
-# Every message of one type, with its time and payload in hex
+# Every message of one type, or which messages contain a number you saw in game
 target/release/packet-lab messages captures/<session> 8d00
-
-# HP updates checked against the damage on each entity (--on <id> lists one entity's)
-target/release/packet-lab hp captures/<session>
-
-# Buff and debuff spans (who, what, from whom, how long), optionally on one entity
-target/release/packet-lab buffs captures/<session> --on 11792
-
-# Damage events with names, per-attacker totals and DPS (--mine = only your hits)
-target/release/packet-lab damage captures/<session> --mine
-
-# Build gamedata/skill-details.json from a scrape of aion2.app's skill database
-target/release/packet-lab skill-details <scrape.json> --scraped <date>
-
-# Build gamedata/theostones.json (Theostone effects) from a scraped item database
-target/release/packet-lab theostones <items.json> --scraped <date>
-
-# Download icons for scroll, potion and food buffs (named by a scraped item database)
-target/release/packet-lab item-icons <items.json> --fetched <date>
-
-# Build gamedata/dungeons.json (dungeon mobs and modes) from a scraped monster database
-target/release/packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>
-
-# Who was identified: you, nearby players, mob types
-target/release/packet-lab entities captures/<session>
-
-# Which messages contain a number you saw in game?
 target/release/packet-lab find captures/<session> 2674
 ```
 
-What's known about the protocol so far is in [docs/protocol.md](docs/protocol.md).
-
-## Session layout
-
-```text
-captures/<YYYYmmdd-HHMMSS>/
-  session.json   process, adapter and time of the capture
-  raw.pcap       every game packet (opens in Wireshark)
-  events.jsonl   flows opened/closed, with per-direction stats
-  flows/<id>-<proto>-<localport>-to-<ip>_<port>/
-    in.bin / out.bin   reassembled bytes received / sent
-    index.jsonl        one line per chunk: time, side, kind, stream offset, file pos, length
-```
-
-Captures contain your own game session, possibly including login tokens. `captures/` is
-git-ignored; don't share captures publicly.
-
-## How it works
-
-- **Finding the game:** the Windows connection tables (`GetExtendedTcpTable` /
-  `GetExtendedUdpTable`) list which sockets the game process owns. They are polled every
-  500 ms.
-- **Capture:** one Npcap handle per adapter the game uses, filtered to TCP/UDP.
-  Packets from connections not yet identified are held for up to 3 s, so a new
-  connection's handshake and first messages aren't lost.
-- **Reassembly:** per-direction TCP stream rebuilding with out-of-order, retransmission,
-  overlap and wraparound handling. Holes that never fill are skipped and recorded as gaps.
+The meter replays a recording with `glass-cannon.exe --replay <session> --speed 10`.
+What's known about the protocol is in [docs/protocol.md](docs/protocol.md). Captures go to
+`captures/` and can hold login tokens: don't share them.
 
 ## Ground rules
 
-- The packet format is worked out from our own captures. Facts learned from the GPL-3.0
-  NOIA2 and RATmeter projects (which message carries what) are re-checked against our captures and
-  implemented independently; their code is never copied. Their data is in the
-  `gamedata` folder (reformatted) under their GPL-3.0 licence. Nothing from closed-source
+- The protocol is worked out from our own captures. Facts from the open-source NOIA2 and
+  RATmeter meters are re-checked and implemented independently; nothing from closed-source
   meters.
-- `gamedata/skill-details.json` was scraped from aion2.app, whose terms don't allow that
-  without permission. It's included at the maintainer's own risk and will be removed on
-  request from aion2.app or NCSOFT. `gamedata/theostones.json` and `gamedata/dungeons.json`
-  come from a scraped item and monster database collected from fan sites it doesn't name,
-  on the same terms.
-- Reading your own traffic passively doesn't modify the game, but the game's terms may
-  still forbid third-party meters. Use at your own account's risk.
+- Some game data is scraped without a licence and will be removed on request (see
+  [gamedata/README.md](gamedata/README.md)).
+- The game's terms may forbid third-party meters. Use at your own risk.
 
 ## License
 
-[MIT](LICENSE) © Xinjalin. Third-party software and data are listed in
-[THIRD_PARTY.md](THIRD_PARTY.md). Aion is a trademark of NCSOFT; this is an unofficial
-fan project, not affiliated with or endorsed by NCSOFT.
+[MIT](LICENSE) © Xinjalin. Third-party software and data: [THIRD_PARTY.md](THIRD_PARTY.md).
+Aion is a trademark of NCSOFT; this is an unofficial fan project.
