@@ -16,6 +16,10 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   (cooldowns, costs, descriptions, specialties), scraped from its skill database. Its
   terms don't allow that without permission; it's included at the maintainer's own risk
   and will be removed on request.
+- A scraped Aion 2 item database, **no licence**: `theostones.json` (Theostone grades,
+  effects and cooldowns, 51 Theostones). The bundle it came from was collected from public
+  fan databases and doesn't name them. Only the Theostone entries are used; included at
+  the maintainer's own risk and removed on request.
 
 The NOIA2 and RATmeter files are a separate work alongside the meter (aggregation) and
 stay under their projects' GPL-3.0 licence; the release adds the licence text

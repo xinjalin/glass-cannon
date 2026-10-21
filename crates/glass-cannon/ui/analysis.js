@@ -1743,10 +1743,11 @@ const skillInfo = (id) => (data && data.skill_details && data.skill_details[id])
 // The specialty a spec entry is (1-5, its position in the skill's list).
 const specNumber = (spec) => Math.floor((spec.id % 10000) / 10);
 
-// "3 · 4": the specialties a skill ID shows were chosen ("–" for none, "" for no data).
+// "3 · 4": the specialties a skill ID shows were chosen ("–" for none, "" for no data or a
+// Theostone, which has none).
 function specText(id) {
   const d = skillInfo(id);
-  if (!d) return "";
+  if (!d || !d.chosen) return "";
   return d.chosen.length ? d.chosen.join(" · ") : "–";
 }
 

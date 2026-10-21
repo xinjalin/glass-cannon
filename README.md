@@ -150,7 +150,9 @@ The release zip has a `gamedata` folder next to the exe, the same as the reposit
   [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter), two open-source Aion 2
   meters, under their GPL-3.0 licence;
 - skill details (cooldowns, costs, descriptions, specialties) scraped from
-  [aion2.app](https://aion2.app/db/skills), without a licence.
+  [aion2.app](https://aion2.app/db/skills), without a licence;
+- Theostone grades and effects, from a scraped item database collected from public fan
+  databases, without a licence.
 
 None of it is covered by Glass Cannon's MIT licence, and the game's names, text and art
 belong to NCSOFT; [gamedata/README.md](gamedata/README.md) has the details. Their tables
@@ -202,6 +204,13 @@ aion2.app's skill database (a JSON object of skills by ID):
 
 ```bash
 target/release/packet-lab skill-details <scrape.json> --scraped <date>
+```
+
+The Theostone effects come from a scraped item database (a JSON object of items by ID with
+their in-game descriptions); only Theostones already named in `skills.json` are kept:
+
+```bash
+target/release/packet-lab theostones <items.json> --scraped <date>
 ```
 
 ### Releases
@@ -266,6 +275,9 @@ target/release/packet-lab damage captures/<session> --mine
 # Build gamedata/skill-details.json from a scrape of aion2.app's skill database
 target/release/packet-lab skill-details <scrape.json> --scraped <date>
 
+# Build gamedata/theostones.json (Theostone effects) from a scraped item database
+target/release/packet-lab theostones <items.json> --scraped <date>
+
 # Who was identified: you, nearby players, mob types
 target/release/packet-lab entities captures/<session>
 
@@ -310,7 +322,8 @@ git-ignored; don't share captures publicly.
   meters.
 - `gamedata/skill-details.json` was scraped from aion2.app, whose terms don't allow that
   without permission. It's included at the maintainer's own risk and will be removed on
-  request from aion2.app or NCSOFT.
+  request from aion2.app or NCSOFT. `gamedata/theostones.json` comes from a scraped item
+  database collected from fan sites it doesn't name, on the same terms.
 - Reading your own traffic passively doesn't modify the game, but the game's terms may
   still forbid third-party meters. Use at your own account's risk.
 

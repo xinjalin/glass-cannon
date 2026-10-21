@@ -28,6 +28,7 @@ use meter_core::{damage, decode, protocol};
 
 mod gamedata;
 mod skill_details;
+mod theostones;
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -191,6 +192,20 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Build gamedata/theostones.json (Theostone tooltips: grade, effect, cooldown) from a
+    /// scraped item database
+    Theostones {
+        /// The scrape: a JSON object of items by ID, each with its in-game description
+        items: PathBuf,
+        /// Our skill names, to match Theostones to the skill IDs the game sends
+        #[arg(long, default_value = "gamedata/skills.json")]
+        skills: PathBuf,
+        #[arg(long, default_value = "gamedata/theostones.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Show who was identified: your character, named players, and mob types
     Entities {
         /// A session folder or a flow folder
@@ -328,6 +343,7 @@ fn run(cli: Cli) -> Result<()> {
             gamedata::run(&dir, &lang, !no_icons, pins.as_deref(), bump)
         }
         Cmd::SkillDetails { input, out, scraped } => skill_details::run(&input, &out, &scraped),
+        Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
             process,
             record,
