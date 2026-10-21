@@ -79,8 +79,9 @@ body {
   cursor: grab;
   container-type: inline-size;
 }
-/* Narrow window or large text: drop the label so the fight state stays readable. */
-@container (max-width: 34em) {
+/* Narrow window or large text: drop the label so the fight state stays readable (with it,
+   "waiting for the game" needs about 44em). */
+@container (max-width: 44em) {
   .brand { display: none; }
 }
 
