@@ -28,6 +28,7 @@ use meter_core::{damage, decode, protocol};
 
 mod gamedata;
 mod skill_details;
+mod dungeons;
 mod theostones;
 
 #[derive(Parser)]
@@ -206,6 +207,19 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Build gamedata/dungeons.json (which dungeon and mode each mob type is in, for the
+    /// history's dungeon runs) from a scraped monster and dungeon database
+    Dungeons {
+        /// The scrape's monsters: a JSON object by mob type ID
+        monsters: PathBuf,
+        /// The scrape's dungeons: a JSON object by dungeon ID
+        dungeons: PathBuf,
+        #[arg(long, default_value = "gamedata/dungeons.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Show who was identified: your character, named players, and mob types
     Entities {
         /// A session folder or a flow folder
@@ -343,6 +357,7 @@ fn run(cli: Cli) -> Result<()> {
             gamedata::run(&dir, &lang, !no_icons, pins.as_deref(), bump)
         }
         Cmd::SkillDetails { input, out, scraped } => skill_details::run(&input, &out, &scraped),
+        Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
             process,

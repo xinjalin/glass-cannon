@@ -370,29 +370,80 @@ async function showList() {
   await drawList();
 }
 
+// Dungeon runs shown open (by when they started). The newest run starts open.
+const openRuns = new Set();
+let runsSeen = false;
+
 async function drawList() {
-  const fights = await invoke("history_list");
+  const { fights, runs } = await invoke("history_list");
   const list = $("fights");
   list.replaceChildren();
+  if (!runsSeen && runs.length) {
+    runsSeen = true;
+    const newest = fights.find((f) => f.run != null);
+    if (newest) openRuns.add(runs[newest.run].started_ms);
+  }
+  // A run's fights come together (newest first): a header, then its fights if it's open.
+  let shownRun = null;
   fights.forEach((f, i) => {
-    const item = el("li", "fight-item");
-    const what = el("span", "fight-what");
-    if (f.target_boss) what.append(el("span", "boss", "BOSS"));
-    what.append(el("span", "fight-target", f.target || "unknown target"));
-    const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
-    const meta = el("span", "fight-meta", `${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
-    const text = el("span", "fight-text");
-    text.append(what, meta);
-    const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
-    dps.title = f.my_dps != null ? "your DPS" : "total DPS";
-    item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
-    item.addEventListener("click", () => openFight(f.index));
-    list.append(item);
+    if (f.run != null) {
+      const run = runs[f.run];
+      if (shownRun !== f.run) {
+        shownRun = f.run;
+        list.append(runItem(run));
+      }
+      if (openRuns.has(run.started_ms)) list.append(fightItem(f, i, true));
+    } else {
+      list.append(fightItem(f, i, false));
+    }
   });
   $("legend-text").textContent = "history";
   $("clock").textContent = fights.length ? `[${fights.length}]` : "";
   $("empty").hidden = fights.length > 0;
   $("empty").textContent = "no finished fights yet";
+}
+
+function fightItem(f, i, inRun) {
+  const item = el("li", "fight-item" + (inRun ? " in-run" : ""));
+  const what = el("span", "fight-what");
+  if (f.target_boss) what.append(el("span", "boss", "BOSS"));
+  what.append(el("span", "fight-target", f.target || "unknown target"));
+  const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
+  // A dungeon fight on its own (not part of a run) says where it was.
+  const where = !inRun && f.dungeon ? `${f.dungeon.name} · ` : "";
+  const meta = el("span", "fight-meta", `${where}${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
+  const text = el("span", "fight-text");
+  text.append(what, meta);
+  const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
+  dps.title = f.my_dps != null ? "your DPS" : "total DPS";
+  item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
+  item.addEventListener("click", () => openFight(f.index));
+  return item;
+}
+
+// A dungeon run: where, its mode, when, how long from first pull to last kill, and its
+// total damage. Click to show or hide its fights.
+function runItem(run) {
+  const open = openRuns.has(run.started_ms);
+  const item = el("li", "run-item" + (open ? " open" : ""));
+  const text = el("span", "fight-text");
+  const what = el("span", "fight-what");
+  what.append(el("span", "run-name", run.place.name));
+  const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
+  if (tag) what.append(el("span", "run-tag", tag));
+  const fights = `${run.fights} fights${run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : ""}`;
+  const meta = el("span", "fight-meta", `${timeOfDay(run.started_ms)} · ${clock((run.ended_ms - run.started_ms) / 1000)} · ${fights} · ${run.players}p`);
+  text.append(what, meta);
+  const total = el("span", "fight-dps", fmt(run.total_damage));
+  total.title = run.my_dps != null ? `total damage · your DPS ${fmt(run.my_dps)}` : "total damage";
+  item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, total);
+  item.title = open ? "Hide this run's fights" : "Show this run's fights";
+  item.addEventListener("click", () => {
+    if (open) openRuns.delete(run.started_ms);
+    else openRuns.add(run.started_ms);
+    drawList();
+  });
+  return item;
 }
 
 async function openFight(index) {

@@ -60,6 +60,8 @@ pub struct AnalysisData {
     skill_details: BTreeMap<u32, serde_json::Value>,
     /// Targets the game data marks as bosses.
     bosses: Vec<u64>,
+    /// The dungeon (and mode) the main target is in, if any.
+    place: Option<crate::runs::Place>,
     /// Still going (only the live fight can be).
     live: bool,
     /// When a saved fight ended (ms since the Unix epoch).
@@ -210,6 +212,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
             }
         }
     }
+    let place = a.view.target_type.and_then(|t| data.dungeon(t)).as_ref().map(crate::runs::Place::from);
     let ids = a
         .hits
         .iter()
@@ -251,6 +254,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>) -> Opt
         effect_meta,
         skill_details,
         bosses,
+        place,
         live,
         ended_ms,
         appearance,

@@ -363,6 +363,32 @@ legend {
 .fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
 .fight-dps { color: var(--accent-2); font-variant-numeric: tabular-nums; }
 
+/* A dungeon run: a header row, with its fights indented under it while open. */
+.run-item {
+  display: grid;
+  grid-template-columns: 1.8em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.15em;
+  padding: 0.3em;
+  border: 1px solid var(--line-faint);
+  border-radius: 0.3em;
+  cursor: pointer;
+}
+.run-item:hover { background: var(--line-faint); }
+.run-chevron { color: var(--muted); text-align: center; }
+.run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
+.run-tag {
+  flex: none;
+  padding: 0 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 0.25em;
+  color: var(--accent-2);
+  font-size: 0.8em;
+  text-shadow: none;
+}
+.fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
+
 #empty {
   flex: 1;
   margin: 0;

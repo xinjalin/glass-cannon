@@ -283,7 +283,8 @@ function drawHeader() {
   const v = data.view;
   const when = data.ended_ms ? ` · ${new Date(data.ended_ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
   const boss = v.target_boss || (v.target_id != null && data.bosses.includes(v.target_id)) ? "BOSS " : "";
-  $("fight-label").textContent = `${boss}${name(v.target_id) || v.target || "?"}${v.target_count > 1 ? ` +${v.target_count - 1}` : ""} · ${clock(v.duration_s * 1000)} · ${fmt(v.total_damage)}${when}`;
+  const where = data.place ? ` · ${[data.place.name, data.place.mode].filter(Boolean).join(" ")}` : "";
+  $("fight-label").textContent = `${boss}${name(v.target_id) || v.target || "?"}${v.target_count > 1 ? ` +${v.target_count - 1}` : ""}${where} · ${clock(v.duration_s * 1000)} · ${fmt(v.total_damage)}${when}`;
   $("live").hidden = !data.live;
 }
 

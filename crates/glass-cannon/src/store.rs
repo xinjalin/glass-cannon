@@ -413,15 +413,25 @@ pub struct Fight {
 pub struct FightSummary {
     /// Position in the list (pass to `history_fight`).
     pub index: usize,
+    pub started_ms: u64,
     pub ended_ms: u64,
     pub target: Option<String>,
+    /// The main target's mob type.
+    pub target_type: Option<u32>,
     pub target_boss: bool,
     pub duration_s: f64,
+    pub total_damage: u64,
     pub total_dps: f64,
     pub players: usize,
     pub my_dps: Option<f64>,
+    #[serde(skip)]
+    pub my_damage: Option<u64>,
     /// A full analysis is saved for it (the newest fights only).
     pub has_details: bool,
+    /// Where it was, when its mob is a dungeon's (filled in by [`crate::runs`]).
+    pub dungeon: Option<crate::runs::Place>,
+    /// The dungeon run it's part of: a position in the list's runs.
+    pub run: Option<usize>,
 }
 
 pub struct History {
@@ -469,14 +479,20 @@ impl History {
             .rev()
             .map(|(index, f)| FightSummary {
                 index,
+                started_ms: f.view.start_us / 1000,
                 ended_ms: f.ended_ms,
                 target: f.view.target.clone(),
+                target_type: f.view.target_type,
                 target_boss: f.view.target_boss,
                 duration_s: f.view.duration_s,
+                total_damage: f.view.total_damage,
                 total_dps: f.view.total_dps,
                 players: f.view.players.len(),
                 my_dps: f.view.players.iter().find(|p| p.is_self).map(|p| p.dps),
+                my_damage: f.view.players.iter().find(|p| p.is_self).map(|p| p.damage),
                 has_details: details.has(f.ended_ms),
+                dungeon: None,
+                run: None,
             })
             .collect()
     }

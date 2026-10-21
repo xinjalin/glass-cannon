@@ -33,12 +33,13 @@ mod fonts;
 mod gamedata;
 mod layout;
 mod placement;
+mod runs;
 mod settings;
 mod store;
 mod style;
 
 use gamedata::GameData;
-use store::{Appearance, Fight, FightDetails, FightSummary, History, KnownPlayers, Profile, Settings};
+use store::{Appearance, Fight, FightDetails, History, KnownPlayers, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
@@ -311,8 +312,9 @@ fn set_scope(app: State<'_, Arc<AppState>>, scope: Scope) {
 }
 
 #[tauri::command]
-fn history_list(app: State<'_, Arc<AppState>>) -> Vec<FightSummary> {
-    lock(&app.history).summaries(&app.details)
+fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
+    let fights = lock(&app.history).summaries(&app.details);
+    runs::history_list(fights, &lock(&app.data))
 }
 
 #[tauri::command]
@@ -701,6 +703,7 @@ fn write_startup_log(config_dir: &Path, data: &GameData) {
     log += &line("mob names", data.named_npc_count().to_string());
     log += &line("skill details", data.detail_count().to_string());
     log += &line("theostones", data.theostone_count().to_string());
+    log += &line("dungeon mobs", data.dungeon_mob_count().to_string());
     if let Some(p) = data.problem() {
         log += &line("data problem", p.to_string());
     }
