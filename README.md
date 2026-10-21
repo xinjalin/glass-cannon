@@ -11,6 +11,8 @@ goes online: everything it needs is in the download.
 | --- | --- |
 | ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
 
+![Dungeon runs in the fight history](docs/screenshots/history.png)
+
 ![Settings beside the meter](docs/screenshots/settings.png)
 
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
@@ -23,7 +25,7 @@ goes online: everything it needs is in the download.
 
 ![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png)
 
-<sub>All screenshots are real fights at training dummies, replayed from recordings; other players' names (and the dummies') are made up.</sub>
+<sub>All screenshots are real fights, replayed from recordings: training dummies, with other players' names (and the dummies') made up. The dungeon runs are real runs recorded by another meter and loaded into Glass Cannon's history (it shows mobs, not players).</sub>
 
 ## Install
 
