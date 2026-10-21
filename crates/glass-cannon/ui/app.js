@@ -53,12 +53,16 @@ const classIcons = new Map(); // class code -> data URL (null while loading / mi
 // Icons load in the background; one that arrives redraws the panel (refreshes skip
 // redrawing while the fight doesn't change, so it wouldn't show up otherwise).
 let iconRedraw = false;
+// How many icons have arrived: an open skill list is rebuilt when this changes, since a
+// list drawn before its icons loaded would otherwise keep the blanks.
+let iconsLoaded = 0;
 function cached(map, key, command, args) {
   if (!map.has(key)) {
     map.set(key, null);
     invoke(command, args)
       .then((url) => {
         map.set(key, url);
+        if (url) iconsLoaded += 1;
         if (url && !iconRedraw) {
           iconRedraw = true;
           requestAnimationFrame(() => {
@@ -300,7 +304,7 @@ function drawRows(enc) {
     update(r, "share", `${(p.share * 100).toFixed(0)}%`, (v) => (r.share.textContent = v));
     // The skill list, when open: rebuilt only when something in it changed.
     const open = expanded.has(p.id);
-    const skillsKey = open ? `${meterView()}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
+    const skillsKey = open ? `${meterView()}|${iconsLoaded}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
     update(r, "skills", skillsKey, () => {
       if (r.skills) r.skills.remove();
       r.skills = open ? skillList(p) : null;
@@ -370,29 +374,92 @@ async function showList() {
   await drawList();
 }
 
+// Dungeon runs shown open (by when they started). The newest run starts open.
+const openRuns = new Set();
+let runsSeen = false;
+
 async function drawList() {
-  const fights = await invoke("history_list");
+  const { fights, runs } = await invoke("history_list");
   const list = $("fights");
   list.replaceChildren();
+  if (!runsSeen && runs.length) {
+    runsSeen = true;
+    const newest = fights.find((f) => f.run != null);
+    if (newest) openRuns.add(runs[newest.run].started_ms);
+  }
+  // A run's fights come together (newest first): a header, then its fights if it's open.
+  let shownRun = null;
   fights.forEach((f, i) => {
-    const item = el("li", "fight-item");
-    const what = el("span", "fight-what");
-    if (f.target_boss) what.append(el("span", "boss", "BOSS"));
-    what.append(el("span", "fight-target", f.target || "unknown target"));
-    const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
-    const meta = el("span", "fight-meta", `${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
-    const text = el("span", "fight-text");
-    text.append(what, meta);
-    const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
-    dps.title = f.my_dps != null ? "your DPS" : "total DPS";
-    item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
-    item.addEventListener("click", () => openFight(f.index));
-    list.append(item);
+    if (f.run != null) {
+      const run = runs[f.run];
+      if (shownRun !== f.run) {
+        shownRun = f.run;
+        list.append(runItem(run));
+      }
+      if (openRuns.has(run.started_ms)) list.append(fightItem(f, i, true));
+    } else {
+      list.append(fightItem(f, i, false));
+    }
   });
   $("legend-text").textContent = "history";
   $("clock").textContent = fights.length ? `[${fights.length}]` : "";
   $("empty").hidden = fights.length > 0;
   $("empty").textContent = "no finished fights yet";
+}
+
+function fightItem(f, i, inRun) {
+  const item = el("li", "fight-item" + (inRun ? " in-run" : ""));
+  const what = el("span", "fight-what");
+  if (f.target_boss) what.append(el("span", "boss", "BOSS"));
+  what.append(el("span", "fight-target", f.target || "unknown target"));
+  const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
+  // A dungeon fight on its own (not part of a run) says where it was.
+  const where = !inRun && f.dungeon ? `${f.dungeon.name} · ` : "";
+  const meta = el("span", "fight-meta", `${where}${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
+  const text = el("span", "fight-text");
+  text.append(what, meta);
+  const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
+  dps.title = f.my_dps != null ? "your DPS" : "total DPS";
+  item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
+  item.title = "Click to open · right-click for its analysis";
+  item.addEventListener("click", () => openFight(f.index));
+  item.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    invoke("open_analysis", { fight: f.index, run: null, player: null }).catch(showError);
+  });
+  return item;
+}
+
+// A dungeon run: where and in which mode, when it started, the time spent fighting, its
+// fights and bosses, and its total damage. Click to show or hide its fights.
+function runItem(run) {
+  const open = openRuns.has(run.started_ms);
+  const item = el("li", "run-item" + (open ? " open" : ""));
+  const text = el("span", "fight-text");
+  const when = el("span", "fight-what");
+  const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
+  if (tag) when.append(el("span", "run-tag", tag));
+  when.append(el("span", "fight-meta", timeOfDay(run.started_ms)));
+  const bosses = run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : "";
+  const meta = el("span", "fight-meta", `${clock(run.fight_s)} · ${run.fights} fights${bosses} · ${run.players}p`);
+  text.append(el("span", "run-name", run.place.name), when, meta);
+  const total = el("span", "fight-dps", fmt(run.total_damage));
+  const dps = run.my_dps != null ? ` · your DPS ${fmt(run.my_dps)}` : "";
+  item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, total);
+  item.title = `${clock(run.fight_s)} fighting, ${clock((run.ended_ms - run.started_ms) / 1000)} from first pull to last kill
+${fmt(run.total_damage)} damage${dps}
+Click to ${open ? "hide" : "show"} its fights · right-click for the run's analysis`;
+  // Right-click: the whole run in the analysis window (again: closes it).
+  item.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    invoke("open_analysis", { fight: null, run: [run.first, run.last], player: null }).catch(showError);
+  });
+  item.addEventListener("click", () => {
+    if (open) openRuns.delete(run.started_ms);
+    else openRuns.add(run.started_ms);
+    drawList();
+  });
+  return item;
 }
 
 async function openFight(index) {
@@ -455,8 +522,32 @@ function heightFor(rows) {
   return height;
 }
 
+// The longest thing the title bar says; the default width fits it.
+const LONGEST_PHASE = "waiting for the game";
+
+// The narrowest window (CSS pixels) whose title bar shows LONGEST_PHASE in full: lays out
+// a hidden copy of the panel at growing widths (the brand label comes back on a wider bar,
+// so it can't just be added up).
+function widthFor(text) {
+  const panel = $("panel");
+  const extra = window.innerWidth - panel.offsetWidth;
+  for (let w = panel.offsetWidth; w <= 900; w += 8) {
+    const copy = panel.cloneNode(true);
+    Object.assign(copy.style, { position: "absolute", visibility: "hidden", left: "0", top: "0", width: `${w}px` });
+    copy.querySelector("#fight").textContent = text;
+    document.body.append(copy);
+    const f = copy.querySelector("#fight");
+    const fits = f.scrollWidth <= f.clientWidth;
+    copy.remove();
+    if (fits) return w + extra;
+  }
+  return null;
+}
+
 // Fits the window to FIT_ROWS players: on start (only ever growing a window you made
-// taller), and exactly whenever the font size, time bar or minimal mode changes.
+// taller), and exactly whenever the font size, time bar or minimal mode changes. It's
+// made wide enough for the title bar's longest text then too (the app only applies that
+// on first start, after a layout change or a reset, never to a width you chose).
 let fitFor = null;
 let resetWidth = null; // set by "reset appearance": the width goes back to the default too
 function fitHeight(a) {
@@ -466,9 +557,10 @@ function fitHeight(a) {
   fitFor = key;
   const width = resetWidth;
   resetWidth = null;
-  requestAnimationFrame(() =>
-    invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width }).catch(() => {}),
-  );
+  requestAnimationFrame(() => {
+    const minWidth = minimal() ? null : widthFor(LONGEST_PHASE);
+    invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width, minWidth }).catch(() => {});
+  });
 }
 
 function drawStatus(view) {
@@ -558,7 +650,9 @@ function redraw() {
         ? "waiting for a fight…"
         : phase === "error"
           ? "not capturing (see below)"
-          : "starting…";
+          : phase === "waiting"
+            ? "start the game to begin"
+            : "starting…";
     return;
   }
   $("legend-text").textContent = live ? "fight" : `fight · ${timeOfDay(enc.end_us / 1000)}`;
@@ -646,7 +740,7 @@ $("f-back").addEventListener("click", goBack);
 // The analysis window, on the fight shown here (a saved one in history mode).
 function openAnalysis(player) {
   const fight = mode === "fight" ? fightIndex : null;
-  invoke("open_analysis", { fight, player }).catch(showError);
+  invoke("open_analysis", { fight, run: null, player }).catch(showError);
 }
 $("analysis").addEventListener("click", () => openAnalysis(null));
 
@@ -760,6 +854,7 @@ $("lock").addEventListener("click", async () => {
 
 $("min").addEventListener("click", () => win.minimize());
 $("close").addEventListener("click", () => win.close());
+$("f-close").addEventListener("click", () => win.close());
 
 // "Reset appearance" in the settings: refit at the default size on the next refresh.
 tauri.event.listen("reset-size", () => {

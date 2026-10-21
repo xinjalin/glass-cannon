@@ -30,6 +30,8 @@ const SKILLS_FILE: &str = "skills.json";
 const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
+const DUNGEONS_FILE: &str = "dungeons.json";
+const ITEM_ICONS_FILE: &str = "item-icons.json";
 const MAX_ICON_BYTES: u64 = 256 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// Theostone (item) skills as the game sends them: 7 digits starting 30.
@@ -58,6 +60,44 @@ struct DetailsFile {
 struct TheostoneFile {
     #[serde(default)]
     theostones: BTreeMap<u32, Theostone>,
+}
+
+/// Icons for consumables' buffs (scrolls, potions, food), by skill ID.
+#[derive(Debug, Default, Deserialize)]
+struct ItemIconFile {
+    #[serde(default)]
+    icons: BTreeMap<u32, String>,
+}
+
+/// Which dungeon (and mode) each dungeon mob type is in.
+#[derive(Debug, Default, Deserialize)]
+struct DungeonFile {
+    #[serde(default)]
+    dungeons: BTreeMap<String, DungeonEntry>,
+    #[serde(default)]
+    mobs: BTreeMap<u32, DungeonMob>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DungeonEntry {
+    name: String,
+    #[serde(rename = "type")]
+    kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DungeonMob {
+    dungeon: String,
+    mode: Option<String>,
+}
+
+/// Where a mob type is: its dungeon (ID and name), the dungeon's type and the mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DungeonPlace<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub kind: Option<&'a str>,
+    pub mode: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -117,6 +157,8 @@ pub struct GameData {
     details: DetailsFile,
     /// Theostone effects and grades (optional).
     theostones: TheostoneFile,
+    /// Dungeon mobs, for the history's dungeon runs (optional).
+    dungeons: DungeonFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -135,6 +177,7 @@ impl GameData {
             npcs: NpcFile::default(),
             details: DetailsFile::default(),
             theostones: TheostoneFile::default(),
+            dungeons: DungeonFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -160,6 +203,14 @@ impl GameData {
                     self.npcs = read_json::<NpcFile>(&dir.join(NPCS_FILE)).unwrap_or_default();
                     self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
+                    self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
+                    // Consumables' icons fill in skills that have none.
+                    let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
+                    for (id, file) in items.icons {
+                        if let Some(e) = self.skills.skills.get_mut(&id) {
+                            e.icon.get_or_insert(file);
+                        }
+                    }
                     self.problem = None;
                     self.adopt_old_custom_names();
                     self.apply_names();
@@ -186,6 +237,17 @@ impl GameData {
     /// Skills with details (cooldown, cost, description, specialties) for the tooltips.
     pub fn detail_count(&self) -> usize {
         self.details.skills.len()
+    }
+
+    /// The dungeon a mob type belongs to, if any.
+    pub fn dungeon(&self, mob_type: u32) -> Option<DungeonPlace<'_>> {
+        let mob = self.dungeons.mobs.get(&mob_type)?;
+        let (id, d) = self.dungeons.dungeons.get_key_value(&mob.dungeon)?;
+        Some(DungeonPlace { id, name: &d.name, kind: d.kind.as_deref(), mode: mob.mode.as_deref() })
+    }
+
+    pub fn dungeon_mob_count(&self) -> usize {
+        self.dungeons.mobs.len()
     }
 
     /// How many Theostones (by name) have their effect in the data.
@@ -544,6 +606,46 @@ mod tests {
         assert_eq!(d.effect_meta(231), (None, None));
         // Only Theostone-range skills get the extra digit.
         assert_eq!(d.skill_meta(1_833_000), (None, None));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn consumables_get_their_icons() {
+        let dir = temp_dir("item-icons");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": { "2210105": { "name": "Courage Scroll" }, "18010000": { "name": "Onslaught", "icon": "1801.png" } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(ITEM_ICONS_FILE),
+            r#"{ "icons": { "2210105": "Scroll.png", "18010000": "Other.png", "1": "Nothing.png" } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // A scroll's buff: the effect is the skill and one more digit.
+        assert_eq!(d.effect_meta(22_101_051), (Some("Courage Scroll".to_string()), Some(2_210_105)));
+        assert_eq!(d.skills.skills[&2_210_105].icon.as_deref(), Some("Scroll.png"));
+        // A skill that has an icon keeps it.
+        assert_eq!(d.skills.skills[&18_010_000].icon.as_deref(), Some("1801.png"));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn dungeon_mobs_know_where_they_are() {
+        let dir = temp_dir("dungeons");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18010000": { "name": "Onslaught" } } }"#).unwrap();
+        fs::write(
+            dir.join(DUNGEONS_FILE),
+            r#"{ "dungeons": { "DeusCenter": { "name": "Deus Research Base", "type": "Transcendence" } },
+                 "mobs": { "2340601": { "dungeon": "DeusCenter", "mode": "Stage 2" }, "1": { "dungeon": "Gone" } } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        let place = DungeonPlace { id: "DeusCenter", name: "Deus Research Base", kind: Some("Transcendence"), mode: Some("Stage 2") };
+        assert_eq!(d.dungeon(2_340_601), Some(place));
+        assert_eq!(d.dungeon(2_400_010), None);
+        assert_eq!(d.dungeon(1), None, "a mob in a dungeon the file doesn't list");
         fs::remove_dir_all(dir).ok();
     }
 

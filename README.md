@@ -45,8 +45,9 @@ with the WebView2 runtime (built into Windows 11).
 The meter opens and starts capturing straight away, waiting for the game if it isn't
 running yet. It's an always-on-top, frosted-glass window (Windows blurs whatever is behind
 it) in a warm rose, monospace style. It opens where you last left it (the first time: at
-the right edge of the game's monitor), tall enough for five players; it resizes itself
-to keep five in view when you change the font size, the time bar or minimal mode.
+the right edge of the game's monitor), tall enough for five players and wide enough for
+the title bar's text; it resizes itself to keep five in view when you change the font
+size, the time bar or minimal mode.
 
 - **mine / party / all** (click to cycle; also in settings):
   - *mine*: your fight, the targets you hit, with everyone's damage on them.
@@ -93,7 +94,14 @@ to keep five in view when you change the font size, the time bar or minimal mode
   Filter by target when a fight had several. The newest 50 fights keep their full
   analysis; older ones keep the summary.
 - **Clock icon**: fight history. Every finished fight is kept (the last 200), with the
-  full breakdown. **▷|** ends the fight now (your next hit starts a new one, without
+  full breakdown. Fights in a dungeon are grouped into **runs**: the dungeon, its type and
+  mode (*Transcendence · Stage 2*, *Expedition · Conquest*), when it started, the time
+  spent fighting (hover for first pull to last kill), how many fights and bosses, the most
+  players and the total damage. Click a run to show or hide its fights; the newest starts
+  open. Right-click a run for its analysis (its fights back to back, with a dashed line
+  where each starts) or a fight for that fight's; right-click again to close it. A run is fights in a row on that dungeon's mobs with no break longer than 10
+  minutes; going straight back in shows as a new run once a boss you already fought comes
+  round again (a retry after a wipe stays in the same run). **▷|** ends the fight now (your next hit starts a new one, without
   waiting for the fight to go quiet); **↺** resets; **pin** toggles always-on-top; **×**
   quits.
 - **Lock** (bottom-right corner, or *click-through* in the settings): clicks go through
@@ -118,7 +126,8 @@ to keep five in view when you change the font size, the time bar or minimal mode
   *tinted* (no blur) or *clear* (nothing at all; text gets a heavier outline), with the
   tint adjustable from 0 to 100%.
 - **Minimal mode**: only the target and the bars, with no title bar, frame or border.
-  Drag it from anywhere; hover it for **≡** (settings).
+  Drag it from anywhere; hover it for dmg / heal / taken, end fight, **≡** (settings) and
+  **×** (quit).
 - **Time & ping bar**: an optional strip along the top with the local time and ping.
 - **Ping**: the header (or the time & ping bar) shows your round trip to the game
   server, measured from the timing of the game's own TCP traffic (the median of the last
@@ -151,8 +160,9 @@ The release zip has a `gamedata` folder next to the exe, the same as the reposit
   meters, under their GPL-3.0 licence;
 - skill details (cooldowns, costs, descriptions, specialties) scraped from
   [aion2.app](https://aion2.app/db/skills), without a licence;
-- Theostone grades and effects, from a scraped item database collected from public fan
-  databases, without a licence.
+- Theostone grades and effects, and which dungeon (and mode) each dungeon mob is in, from
+  a scraped item and monster database collected from public fan databases, without a
+  licence.
 
 None of it is covered by Glass Cannon's MIT licence, and the game's names, text and art
 belong to NCSOFT; [gamedata/README.md](gamedata/README.md) has the details. Their tables
@@ -211,6 +221,12 @@ their in-game descriptions); only Theostones already named in `skills.json` are 
 
 ```bash
 target/release/packet-lab theostones <items.json> --scraped <date>
+```
+
+The dungeon runs come from the same kind of scrape's monsters and dungeons:
+
+```bash
+target/release/packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>
 ```
 
 ### Releases
@@ -278,6 +294,12 @@ target/release/packet-lab skill-details <scrape.json> --scraped <date>
 # Build gamedata/theostones.json (Theostone effects) from a scraped item database
 target/release/packet-lab theostones <items.json> --scraped <date>
 
+# Download icons for scroll, potion and food buffs (named by a scraped item database)
+target/release/packet-lab item-icons <items.json> --fetched <date>
+
+# Build gamedata/dungeons.json (dungeon mobs and modes) from a scraped monster database
+target/release/packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>
+
 # Who was identified: you, nearby players, mob types
 target/release/packet-lab entities captures/<session>
 
@@ -322,8 +344,9 @@ git-ignored; don't share captures publicly.
   meters.
 - `gamedata/skill-details.json` was scraped from aion2.app, whose terms don't allow that
   without permission. It's included at the maintainer's own risk and will be removed on
-  request from aion2.app or NCSOFT. `gamedata/theostones.json` comes from a scraped item
-  database collected from fan sites it doesn't name, on the same terms.
+  request from aion2.app or NCSOFT. `gamedata/theostones.json` and `gamedata/dungeons.json`
+  come from a scraped item and monster database collected from fan sites it doesn't name,
+  on the same terms.
 - Reading your own traffic passively doesn't modify the game, but the game's terms may
   still forbid third-party meters. Use at your own account's risk.
 

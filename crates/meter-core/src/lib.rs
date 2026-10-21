@@ -11,6 +11,7 @@ pub mod damage;
 pub mod entities;
 pub mod game;
 pub mod hp;
+pub mod join;
 pub mod decode;
 pub mod live;
 pub mod meter;

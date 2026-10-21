@@ -33,12 +33,13 @@ mod fonts;
 mod gamedata;
 mod layout;
 mod placement;
+mod runs;
 mod settings;
 mod store;
 mod style;
 
 use gamedata::GameData;
-use store::{Appearance, Fight, FightDetails, FightSummary, History, KnownPlayers, Profile, Settings};
+use store::{Appearance, Fight, FightDetails, History, KnownPlayers, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
@@ -311,8 +312,9 @@ fn set_scope(app: State<'_, Arc<AppState>>, scope: Scope) {
 }
 
 #[tauri::command]
-fn history_list(app: State<'_, Arc<AppState>>) -> Vec<FightSummary> {
-    lock(&app.history).summaries(&app.details)
+fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
+    let fights = lock(&app.history).summaries(&app.details);
+    runs::history_list(fights, &lock(&app.data))
 }
 
 #[tauri::command]
@@ -475,8 +477,10 @@ fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
 
 /// Sets the overlay's height for five rows (the page measures it for the current font
 /// size and layout). `exact` after a layout change; otherwise only ever grows it, so a
-/// taller window you made yourself stays. `width` (after a reset) sets that too. Keeps
-/// the window on its monitor.
+/// taller window you made yourself stays. `width` (after a reset) sets that too.
+/// `min_width` is what the title bar needs for its longest text: the window grows to it on
+/// first start, after a layout change or a reset, but a width you chose is left alone.
+/// Keeps the window on its monitor.
 #[tauri::command]
 fn fit_overlay(
     handle: AppHandle,
@@ -484,6 +488,7 @@ fn fit_overlay(
     height: f64,
     exact: bool,
     width: Option<f64>,
+    min_width: Option<f64>,
 ) -> Result<(), String> {
     let w = handle.get_webview_window(OVERLAY).ok_or("no overlay")?;
     let first_run = app.overlay_new.swap(false, Ordering::SeqCst);
@@ -494,19 +499,28 @@ fn fit_overlay(
     if let Some(m) = &monitor {
         wanted = wanted.min(m.work_area().size.height as f64 / m.scale_factor() - 20.0);
     }
-    let new_width = width.unwrap_or(now.width);
+    let mut new_width = width.unwrap_or(now.width);
+    if let Some(min) = min_width.filter(|_| exact || first_run || width.is_some()) {
+        new_width = new_width.max(min);
+    }
+    if let Some(m) = &monitor {
+        new_width = new_width.min(m.work_area().size.width as f64 / m.scale_factor() - 20.0);
+    }
     if (wanted - now.height).abs() < 1.0 && (new_width - now.width).abs() < 1.0 {
         return Ok(());
     }
     w.set_size(LogicalSize::new(new_width, wanted)).map_err(|e| e.to_string())?;
-    // A taller window mustn't run off the bottom of the screen.
+    // A taller or wider window mustn't run off the bottom or the right of the screen.
     if let (Some(m), Ok(pos)) = (monitor, w.outer_position()) {
         let area = m.work_area();
         let bottom = area.position.y + area.size.height as i32;
+        let right = area.position.x + area.size.width as i32;
         let tall = (wanted * scale).ceil() as i32;
-        if pos.y + tall > bottom {
-            let y = (bottom - tall).max(area.position.y);
-            let _ = w.set_position(PhysicalPosition::new(pos.x, y));
+        let wide = (new_width * scale).ceil() as i32;
+        let y = if pos.y + tall > bottom { (bottom - tall).max(area.position.y) } else { pos.y };
+        let x = if pos.x + wide > right { (right - wide).max(area.position.x) } else { pos.x };
+        if (x, y) != (pos.x, pos.y) {
+            let _ = w.set_position(PhysicalPosition::new(x, y));
         }
     }
     Ok(())
@@ -549,6 +563,8 @@ fn main() {
 
     let replay = args.replay.is_some();
     let known_players = KnownPlayers::load(&config_dir);
+    // Known from the start: the page can ask to be fitted before the overlay is placed.
+    let overlay_new = placement::load(&placement::state_path(&config_dir)).is_none();
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
             meter: Mutex::new(Meter::default()),
@@ -574,7 +590,7 @@ fn main() {
         args,
         overlay_placed: AtomicBool::new(false),
         recording_now: AtomicBool::new(false),
-        overlay_new: AtomicBool::new(false),
+        overlay_new: AtomicBool::new(overlay_new),
         locked: AtomicBool::new(false),
         lock_button: Mutex::new(None),
         known_players: Mutex::new(Some(known_players)),
@@ -701,6 +717,7 @@ fn write_startup_log(config_dir: &Path, data: &GameData) {
     log += &line("mob names", data.named_npc_count().to_string());
     log += &line("skill details", data.detail_count().to_string());
     log += &line("theostones", data.theostone_count().to_string());
+    log += &line("dungeon mobs", data.dungeon_mob_count().to_string());
     if let Some(p) = data.problem() {
         log += &line("data problem", p.to_string());
     }

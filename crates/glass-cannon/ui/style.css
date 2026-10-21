@@ -148,8 +148,10 @@ button:hover { background: var(--line-faint); color: var(--text); }
 button:focus-visible { outline: 1px solid var(--accent); }
 button.on { color: var(--accent); }
 button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
-#scope { font-size: 0.9em; }
-#scope.on { background: var(--accent); color: var(--ink); text-shadow: none; }
+/* Whose damage counts: the same filled button whichever it shows, as wide as its longest
+   label ("party") so it doesn't change size. */
+#scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent); color: var(--ink); text-shadow: none; }
+#scope:hover { filter: brightness(1.1); }
 
 svg {
   width: 1.05em;
@@ -185,8 +187,12 @@ legend {
 }
 #clock { color: var(--muted); font-variant-numeric: tabular-nums; }
 /* damage / healing / taken: what the rows show. */
-.view-switch { min-width: 0; height: 1.35em; padding: 0 0.35em; color: var(--accent); }
-.view-switch.on { background: var(--accent); color: var(--ink); text-shadow: none; }
+/* What the rows show: the same filled button for dmg, heal and taken, as wide as the
+   longest ("taken") so it doesn't change size. Two classes, so `button.on` doesn't turn
+   its text the colour of its background. */
+.view-switch,
+.view-switch.on { width: calc(5ch + 0.7em); min-width: 0; height: 1.35em; padding: 0; background: var(--accent); color: var(--ink); text-shadow: none; }
+.view-switch:hover { background: var(--accent); color: var(--ink); filter: brightness(1.1); }
 #float .view-switch { height: 1.6em; font-size: 0.9em; }
 .back {
   min-width: 1.1em;
@@ -362,6 +368,38 @@ legend {
 .fight-target { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
 .fight-dps { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+
+/* Room between the list and its scrollbar, so a run's border doesn't touch it. */
+#fights { padding-right: 0.35em; }
+
+/* A dungeon run: a header row, with its fights indented under it while open. */
+.run-item {
+  display: grid;
+  grid-template-columns: 1.8em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.15em;
+  padding: 0.3em;
+  border: 1px solid var(--line-faint);
+  border-radius: 0.3em;
+  /* Darker than the fights, so runs stand out on the glass. */
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+.run-item:hover { background: rgba(0, 0, 0, 0.3); }
+.run-chevron { color: var(--muted); text-align: center; }
+.run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
+.run-tag {
+  flex: none;
+  margin-right: 0.2em;
+  padding: 0 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 0.25em;
+  color: var(--accent-2);
+  font-size: 0.8em;
+  text-shadow: none;
+}
+.fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
 
 #empty {
   flex: 1;

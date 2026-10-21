@@ -1,0 +1,6231 @@
+{
+  "dungeons": {
+    "Arkanis": {
+      "name": "Shattered Arkanis",
+      "type": "Transcendence"
+    },
+    "BakronIsland": {
+      "name": "Vakron Sky Island",
+      "type": "Expedition"
+    },
+    "BlueBreathIsle": {
+      "name": "Azure Breath Island",
+      "type": "Expedition"
+    },
+    "CradleNihility": {
+      "name": "Cradle of Nihility",
+      "type": "Expedition"
+    },
+    "DaevaCitadel": {
+      "name": "Citadel of the Fallen Daeva",
+      "type": "Expedition"
+    },
+    "DeadDramataNest": {
+      "name": "Dying Dramata's Nest",
+      "type": "Expedition"
+    },
+    "DeusCenter": {
+      "name": "Deus Research Base",
+      "type": "Transcendence"
+    },
+    "Draupnir": {
+      "name": "Draupnir",
+      "type": "Expedition"
+    },
+    "ErosionPurifier_01": {
+      "name": "Corroded Decontamination Facility",
+      "type": "Sanctuary"
+    },
+    "Fire_Temple": {
+      "name": "Fire Temple",
+      "type": "Expedition"
+    },
+    "Fire_Temple_Arena": {
+      "name": "Fire Temple Arena",
+      "type": "Arena"
+    },
+    "HornCave": {
+      "name": "Ferocious Horn Den",
+      "type": "Expedition"
+    },
+    "KraoCave": {
+      "name": "Krao Cave",
+      "type": "Expedition"
+    },
+    "MirrorHeart": {
+      "name": "Mirror of Scarlet Desire",
+      "type": "Transcendence"
+    },
+    "MusphelHolyGrail": {
+      "name": "Chalice of Muspel",
+      "type": "Sanctuary"
+    },
+    "PhantomsHall": {
+      "name": "Hall of Illusion",
+      "type": "Expedition"
+    },
+    "ReforgedAbyss": {
+      "name": "Abyssal Forge: Ludra",
+      "type": "Sanctuary"
+    },
+    "SunkenTemple": {
+      "name": "Submerged Life Temple",
+      "type": "Transcendence"
+    },
+    "Urugugu_Canyon": {
+      "name": "Urugugu Canyon",
+      "type": "Expedition"
+    }
+  },
+  "mobs": {
+    "2300000": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300001": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300002": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300003": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300004": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300005": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300006": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300007": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300008": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300009": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300010": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300011": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300012": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300013": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300014": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300015": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300016": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300017": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300018": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300019": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300020": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300021": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300022": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300023": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300024": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300025": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300026": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300027": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300028": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300029": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300030": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300031": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300032": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300033": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300034": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300035": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300036": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300037": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300038": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300039": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300040": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300041": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300042": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300043": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300044": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300045": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300046": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300047": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300048": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300049": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300050": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300051": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300052": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300053": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300054": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300055": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300056": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300057": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300058": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300059": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300060": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300061": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300062": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300063": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300064": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300065": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300066": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300067": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300068": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300069": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300070": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300071": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300072": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300073": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300074": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300075": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300076": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300077": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300078": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300079": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300080": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300081": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300082": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300083": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300084": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300085": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300086": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300087": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300088": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300089": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300090": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300091": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300092": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300093": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300094": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300095": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300096": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300097": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300098": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300099": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300100": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300101": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300102": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300103": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300104": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300105": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300106": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300107": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300108": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300109": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300110": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300111": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300112": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300113": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300114": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300115": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300116": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300117": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300118": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300119": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300120": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300121": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300122": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300123": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300124": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300125": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300126": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300127": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300128": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300129": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300130": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300131": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300132": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300133": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300134": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300135": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300136": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300137": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300138": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300139": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300140": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300141": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300142": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300143": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300144": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300145": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2300146": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300147": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300148": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300149": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300150": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300151": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300152": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300153": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300154": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300155": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300156": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300157": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300158": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300159": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300160": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300161": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300163": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300164": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300165": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300166": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300167": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300168": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300169": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300171": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest · Phase 1"
+    },
+    "2300172": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest · Phase 2"
+    },
+    "2300173": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest · Phase 3"
+    },
+    "2300174": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest · Phase 4"
+    },
+    "2300183": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300184": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2300185": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300186": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300187": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300188": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300189": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300190": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300191": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300192": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300193": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300194": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300195": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300196": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300197": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300198": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300199": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300200": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300201": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300202": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300203": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300204": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300205": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300206": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300207": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300208": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300209": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300210": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300211": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300212": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300213": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300214": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300215": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300216": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300217": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300218": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300219": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300220": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300221": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300222": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300223": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300224": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300225": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300226": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300227": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300228": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest"
+    },
+    "2300230": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300231": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300232": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300233": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300234": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300235": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300236": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300237": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300238": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300239": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300240": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300241": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300242": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300243": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300244": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300245": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300246": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300247": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300248": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300249": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300250": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300251": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300252": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300253": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300254": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300255": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300256": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300257": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300258": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300259": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300260": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300261": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300262": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300263": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300264": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300265": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300266": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300267": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300268": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300269": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300270": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300271": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300272": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300273": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300274": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300275": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300276": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300299": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300300": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300301": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300302": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300304": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300305": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300306": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300307": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300308": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300309": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300310": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300311": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300312": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300313": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300315": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300316": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300317": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300318": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300319": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300320": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300321": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300322": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300323": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300324": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300325": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300326": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300327": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300328": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300329": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300330": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300331": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300332": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300333": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300334": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300335": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300336": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300337": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300338": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300339": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300340": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300341": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300342": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300343": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300344": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300345": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300346": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300347": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300348": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300349": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300350": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300351": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300352": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300353": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300354": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300355": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300356": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300357": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300358": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300359": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Exploration"
+    },
+    "2300360": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300361": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300362": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest"
+    },
+    "2300363": {
+      "dungeon": "BlueBreathIsle",
+      "mode": "Conquest [Hard]"
+    },
+    "2300371": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest"
+    },
+    "2300401": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300402": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300403": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300404": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300405": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300406": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300408": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300411": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300412": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300413": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300414": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300415": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300416": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300417": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300418": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300419": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300420": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300421": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300422": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300423": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300424": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300425": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300426": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300428": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300429": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300430": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300431": {
+      "dungeon": "MirrorHeart",
+      "mode": "Conquest"
+    },
+    "2300465": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300466": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300467": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300468": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300469": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300470": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300471": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest"
+    },
+    "2300473": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300474": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300475": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300476": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300477": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300478": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300479": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300480": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300482": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300483": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300484": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300485": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300486": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300487": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300488": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300489": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300491": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300492": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300493": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300494": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300495": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300496": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300497": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300498": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300499": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2300518": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300520": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300521": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300522": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300523": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300524": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300525": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300527": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300528": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300529": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300530": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300531": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300532": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300533": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300534": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300535": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300536": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300537": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300538": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300539": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300540": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300541": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300542": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300544": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300545": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300546": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300547": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300548": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300549": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300550": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300551": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300552": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300553": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300554": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300571": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300572": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300573": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300574": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300575": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300576": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300577": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300578": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300579": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300580": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300581": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300582": {
+      "dungeon": "Fire_Temple_Arena",
+      "mode": "Ordeal"
+    },
+    "2300583": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300584": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300585": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300586": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300587": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300595": {
+      "dungeon": "BakronIsland",
+      "mode": "Ordeal"
+    },
+    "2300601": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300602": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300603": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300604": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300605": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300606": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300607": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300608": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300609": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300610": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300611": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300612": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300613": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300614": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300615": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300616": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300617": {
+      "dungeon": "DeusCenter",
+      "mode": "Exploration"
+    },
+    "2300701": {
+      "dungeon": "Arkanis",
+      "mode": "Conquest"
+    },
+    "2300702": {
+      "dungeon": "Arkanis",
+      "mode": "Conquest"
+    },
+    "2300703": {
+      "dungeon": "Arkanis",
+      "mode": "Conquest"
+    },
+    "2300704": {
+      "dungeon": "Arkanis",
+      "mode": "Conquest"
+    },
+    "2300705": {
+      "dungeon": "Arkanis",
+      "mode": "Conquest"
+    },
+    "2300706": {
+      "dungeon": "Arkanis",
+      "mode": "Conquest"
+    },
+    "2300707": {
+      "dungeon": "Arkanis",
+      "mode": "Exploration"
+    },
+    "2300708": {
+      "dungeon": "Arkanis",
+      "mode": "Exploration"
+    },
+    "2300709": {
+      "dungeon": "Arkanis",
+      "mode": "Exploration"
+    },
+    "2300801": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300802": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300803": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300804": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300805": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300806": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300807": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300808": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300809": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300810": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300811": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300812": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300813": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300814": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300815": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300816": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300817": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300818": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest"
+    },
+    "2300900": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300901": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300902": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300903": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300904": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300905": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300906": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300907": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300908": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300909": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300910": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300911": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300912": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300913": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300914": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300915": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300916": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300917": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300918": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300920": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2300921": {
+      "dungeon": "HornCave",
+      "mode": "Conquest"
+    },
+    "2301001": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301002": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301003": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301004": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301005": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301006": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301007": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301008": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301009": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301010": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301011": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301012": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301013": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301014": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301018": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301019": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301020": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301021": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301022": {
+      "dungeon": "ReforgedAbyss",
+      "mode": "Conquest"
+    },
+    "2301050": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301051": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301052": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301053": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301054": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301055": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301056": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301057": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301058": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301059": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301060": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301061": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301062": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301063": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301064": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301065": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301066": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301067": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301068": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301080": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301081": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301082": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301083": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301084": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301085": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301086": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301087": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301088": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301089": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301090": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301091": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301092": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301093": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301094": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301095": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301096": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301097": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301098": {
+      "dungeon": "MusphelHolyGrail",
+      "mode": "Conquest"
+    },
+    "2301201": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301202": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301203": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301204": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301205": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301206": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301207": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301208": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301209": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301210": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301211": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301214": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301215": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301216": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301217": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301218": {
+      "dungeon": "ErosionPurifier_01",
+      "mode": "Conquest"
+    },
+    "2301301": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301302": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301303": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301304": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301305": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301306": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301307": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301308": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301309": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301310": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301311": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301312": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301313": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301314": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301315": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301319": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301320": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301321": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301322": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301323": {
+      "dungeon": "CradleNihility",
+      "mode": "Exploration"
+    },
+    "2301401": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301402": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301403": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301404": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301405": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301406": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301407": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301408": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301409": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301410": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301411": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301412": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301413": {
+      "dungeon": "PhantomsHall",
+      "mode": "Exploration"
+    },
+    "2301501": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301502": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301503": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301504": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301505": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301506": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301507": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301508": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301509": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301510": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301511": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301512": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301513": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301514": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301515": {
+      "dungeon": "SunkenTemple",
+      "mode": "Ordeal"
+    },
+    "2301601": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301602": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301603": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301604": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301605": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301606": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301607": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301608": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301609": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301610": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301611": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301612": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301613": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Exploration"
+    },
+    "2301701": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301702": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301703": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301704": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301705": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301706": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301707": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301708": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301709": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301710": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301711": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301712": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301713": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301714": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301715": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301717": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest"
+    },
+    "2301721": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301722": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301723": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301724": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301725": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301726": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301727": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301728": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301729": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301730": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301731": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301732": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301734": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2301735": {
+      "dungeon": "DaevaCitadel",
+      "mode": "Conquest [Hard]"
+    },
+    "2310101": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310102": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310103": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310104": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310106": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310107": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310108": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310109": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310110": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310113": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2310171": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration · Phase 1"
+    },
+    "2310172": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration · Phase 2"
+    },
+    "2310173": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration · Phase 3"
+    },
+    "2310174": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration · Phase 4"
+    },
+    "2310183": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310184": {
+      "dungeon": "KraoCave",
+      "mode": "Exploration"
+    },
+    "2310201": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310202": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310203": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310204": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310205": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310206": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310207": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310208": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310209": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310210": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310211": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310212": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310213": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310214": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310215": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310216": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310217": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310218": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310219": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310220": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310221": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310222": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310223": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310224": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310225": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310226": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310227": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310228": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Exploration"
+    },
+    "2310301": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310302": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310304": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310305": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310306": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310307": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310308": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310309": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310310": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310311": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310312": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310313": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310315": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310316": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310371": {
+      "dungeon": "Fire_Temple",
+      "mode": "Exploration"
+    },
+    "2310401": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310402": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310403": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310404": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310405": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310406": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310408": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310411": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310412": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310413": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310414": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310415": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310416": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310418": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310419": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310421": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310422": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310423": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310424": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310425": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310470": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310471": {
+      "dungeon": "Draupnir",
+      "mode": "Exploration"
+    },
+    "2310500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest"
+    },
+    "2310601": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310602": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310603": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310604": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310605": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310606": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310607": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310608": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310609": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310610": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310611": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310612": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310613": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310614": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310615": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310616": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310617": {
+      "dungeon": "DeusCenter",
+      "mode": "Conquest"
+    },
+    "2310801": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310802": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310803": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310804": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310805": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310806": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310807": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310808": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310809": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310810": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310811": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310812": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310813": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310814": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310815": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310816": {
+      "dungeon": "BakronIsland",
+      "mode": "Exploration"
+    },
+    "2310900": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310901": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310902": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310903": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310904": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310905": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310906": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310907": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310908": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310909": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310910": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310911": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310912": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310913": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310914": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310915": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310916": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310917": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310918": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310920": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2310921": {
+      "dungeon": "HornCave",
+      "mode": "Exploration"
+    },
+    "2311301": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311302": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311303": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311304": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311305": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311306": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311307": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311308": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311309": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311310": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311311": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311312": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311313": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311314": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311315": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311318": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311319": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311320": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311321": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311322": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311323": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest"
+    },
+    "2311401": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311402": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311403": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311404": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311405": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311406": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311407": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311408": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311409": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311410": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311411": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311412": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311413": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311414": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2311418": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest"
+    },
+    "2320101": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320102": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320103": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320104": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320106": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320107": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320108": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320111": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320112": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320113": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320114": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320171": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard] · Phase 1"
+    },
+    "2320172": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard] · Phase 2"
+    },
+    "2320173": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard] · Phase 3"
+    },
+    "2320174": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard] · Phase 4"
+    },
+    "2320183": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320184": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320201": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320202": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320203": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320204": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320205": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320206": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320207": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320208": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320209": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320210": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320211": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320212": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320213": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320214": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320215": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320216": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320217": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320218": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320220": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320221": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320222": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320223": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320224": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320225": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320226": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320227": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320228": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Conquest [Hard]"
+    },
+    "2320301": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320302": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320304": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320305": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320306": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320307": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320308": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320309": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320310": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320311": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320312": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320313": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320315": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320316": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320371": {
+      "dungeon": "Fire_Temple",
+      "mode": "Conquest [Hard]"
+    },
+    "2320401": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest [Hard]"
+    },
+    "2320402": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320403": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest [Hard]"
+    },
+    "2320404": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320405": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320406": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320408": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320411": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320412": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320413": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320414": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320415": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320416": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320417": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320418": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320419": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320420": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320421": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320422": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320423": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320424": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320425": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320426": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320470": {
+      "dungeon": "Draupnir",
+      "mode": "Conquest [Hard]"
+    },
+    "2320471": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Conquest [Hard]"
+    },
+    "2320500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2320601": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 1"
+    },
+    "2320602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320615": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 1"
+    },
+    "2320616": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 1"
+    },
+    "2320617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2320801": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320802": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320803": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320804": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320805": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320806": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320807": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320808": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320809": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320810": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320811": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320813": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320814": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320815": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320816": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320817": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320818": {
+      "dungeon": "BakronIsland",
+      "mode": "Conquest [Hard]"
+    },
+    "2320900": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320901": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320902": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320903": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320904": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320905": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320906": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320907": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320908": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320909": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320910": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320911": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320912": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320913": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320914": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320915": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320916": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320917": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320918": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320920": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2320921": {
+      "dungeon": "HornCave",
+      "mode": "Conquest [Hard]"
+    },
+    "2321301": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321302": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321303": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321304": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321305": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321306": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321307": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321308": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321309": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321310": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321311": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321312": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321313": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321314": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321315": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321318": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321319": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321320": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321321": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321322": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321323": {
+      "dungeon": "CradleNihility",
+      "mode": "Conquest [Hard]"
+    },
+    "2321401": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321402": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321403": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321404": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321405": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321406": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321407": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321408": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321409": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321410": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321411": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321412": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321413": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321414": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321418": {
+      "dungeon": "PhantomsHall",
+      "mode": "Conquest [Hard]"
+    },
+    "2321500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2321518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2322518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2323518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2324518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2325518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2326518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2327518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2328518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329500": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329501": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329503": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329504": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329505": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329506": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329507": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329508": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329509": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329510": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329511": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329512": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329513": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329514": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2329518": {
+      "dungeon": "DeadDramataNest",
+      "mode": "Ordeal"
+    },
+    "2330101": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330102": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330103": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330104": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330106": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330107": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330108": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330109": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330110": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal"
+    },
+    "2330113": {
+      "dungeon": "KraoCave",
+      "mode": "Conquest"
+    },
+    "2330171": {
+      "dungeon": "KraoCave",
+      "mode": "Ordeal · Phase 1"
+    },
+    "2330201": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330202": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330203": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330204": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330205": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330206": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330207": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330208": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330209": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330210": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330211": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330212": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330213": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330214": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330215": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330216": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330217": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330218": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330220": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330221": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330222": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330223": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330224": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330225": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330226": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330227": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330228": {
+      "dungeon": "Urugugu_Canyon",
+      "mode": "Ordeal"
+    },
+    "2330301": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330302": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330304": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330305": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330306": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330307": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330308": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330309": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330310": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330311": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330312": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330313": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330371": {
+      "dungeon": "Fire_Temple",
+      "mode": "Ordeal"
+    },
+    "2330401": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330402": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330403": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330404": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330405": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330406": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330407": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330408": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330409": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330410": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330411": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330412": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330413": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330414": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330415": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330416": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330417": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330418": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330419": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330420": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330421": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330422": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330423": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330424": {
+      "dungeon": "Draupnir",
+      "mode": "Ordeal"
+    },
+    "2330601": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330615": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330616": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2330701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2330702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2330703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2330704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2330705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2330706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2330707": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 1"
+    },
+    "2330708": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 1"
+    },
+    "2330709": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 1"
+    },
+    "2330710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340601": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 2"
+    },
+    "2340602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340615": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 2"
+    },
+    "2340616": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 2"
+    },
+    "2340617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2340701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340707": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340708": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340709": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2340710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2341601": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341615": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341616": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2341618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342601": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342615": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342616": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2342618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343601": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 3"
+    },
+    "2343602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343615": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 3"
+    },
+    "2343616": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 3"
+    },
+    "2343617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2343618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344601": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344615": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344616": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2344618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345601": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345615": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345616": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2345618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346601": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 4"
+    },
+    "2346602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346615": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 4"
+    },
+    "2346616": {
+      "dungeon": "DeusCenter",
+      "mode": "Stage 4"
+    },
+    "2346617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2346618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347601": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347602": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347603": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347604": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347605": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347606": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347607": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347608": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347609": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347610": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347611": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347612": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347613": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347614": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347615": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347616": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347617": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2347618": {
+      "dungeon": "DeusCenter",
+      "mode": "Ordeal"
+    },
+    "2350701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2350702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2350703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2350704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2350705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2350706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2350707": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 2"
+    },
+    "2350708": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 2"
+    },
+    "2350709": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 2"
+    },
+    "2350710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351707": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351708": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351709": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2351711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352707": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352708": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352709": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2352711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353707": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 3"
+    },
+    "2353708": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 3"
+    },
+    "2353709": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 3"
+    },
+    "2353710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2353711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354707": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354708": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354709": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2354711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355707": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355708": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355709": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2355711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356707": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 4"
+    },
+    "2356708": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 4"
+    },
+    "2356709": {
+      "dungeon": "Arkanis",
+      "mode": "Stage 4"
+    },
+    "2356710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2356711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357701": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357702": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357703": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357704": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357705": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357706": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357707": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357708": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357709": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357710": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    },
+    "2357711": {
+      "dungeon": "Arkanis",
+      "mode": "Ordeal"
+    }
+  },
+  "source": {
+    "from": "a scraped Aion 2 monster database (collected from public fan databases; the bundle names no source site)",
+    "note": "Aion 2 game data; names belong to NCSOFT. Not covered by Glass Cannon's MIT licence. Made with packet-lab dungeons.",
+    "scraped": "2026-10-21"
+  }
+}

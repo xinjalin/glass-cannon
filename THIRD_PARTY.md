@@ -20,6 +20,12 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   effects and cooldowns, 51 Theostones). The bundle it came from was collected from public
   fan databases and doesn't name them. Only the Theostone entries are used; included at
   the maintainer's own risk and removed on request.
+- The same bundle's monsters and dungeons, **no licence**: `dungeons.json` (which dungeon
+  and mode each of 1,536 dungeon mobs is in, for the history's dungeon runs). Only those
+  entries are used; same terms.
+- NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
+  scrolls, potions and food, shrunk to 64 px) for their buffs. NCSOFT's artwork, like the
+  rest of the game data; removed on request.
 
 The NOIA2 and RATmeter files are a separate work alongside the meter (aggregation) and
 stay under their projects' GPL-3.0 licence; the release adds the licence text
