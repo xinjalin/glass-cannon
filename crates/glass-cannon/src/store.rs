@@ -63,6 +63,19 @@ pub struct Settings {
     /// What the meter's rows show.
     #[serde(default)]
     pub meter_view: MeterView,
+    /// The windows left open (history, cooldowns, timers), opened again at start.
+    #[serde(default)]
+    pub panels: Vec<String>,
+    /// Whose event schedule the timers follow: one of [`TIMER_REGIONS`].
+    #[serde(default = "default_timer_region")]
+    pub timer_region: String,
+}
+
+/// Regions with their own event times (the global client's by time zone, Korea, Taiwan).
+pub const TIMER_REGIONS: [&str; 6] = ["as", "naw", "eu", "la", "kr", "tw"];
+
+fn default_timer_region() -> String {
+    "as".into()
 }
 
 impl Settings {
@@ -375,6 +388,43 @@ impl Profile {
 const DETAILS_LIMIT: usize = 50;
 
 const INSTANCES_LIMIT: usize = 500;
+/// PvP sessions kept.
+const PVP_LIMIT: usize = 300;
+
+/// PvP sessions, oldest first (`pvp.jsonl`).
+pub struct PvpLog {
+    path: PathBuf,
+    sessions: Vec<meter_core::pvp::PvpSession>,
+}
+
+impl PvpLog {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("pvp.jsonl");
+        let mut sessions: Vec<meter_core::pvp::PvpSession> = fs::read_to_string(&path)
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+        let extra = sessions.len().saturating_sub(PVP_LIMIT);
+        sessions.drain(..extra);
+        Self { path, sessions }
+    }
+
+    pub fn record(&mut self, s: meter_core::pvp::PvpSession) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let (Ok(line), Ok(mut f)) = (serde_json::to_string(&s), OpenOptions::new().create(true).append(true).open(&self.path)) {
+            let _ = writeln!(f, "{line}");
+        }
+        self.sessions.push(s);
+    }
+
+    /// Newest first.
+    pub fn list(&self) -> Vec<meter_core::pvp::PvpSession> {
+        self.sessions.iter().rev().cloned().collect()
+    }
+}
 
 /// Dungeon runs as the game reported them: when you entered, when the countdown ended and
 /// when it was completed. Kept in `instances.jsonl`, one line per change (the last line for

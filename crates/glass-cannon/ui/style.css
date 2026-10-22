@@ -263,8 +263,7 @@ legend {
 
 /* ---------------------------------------------------------------- player rows */
 
-#rows,
-#fights {
+#rows {
   flex: 1;
   margin: 0;
   padding: 0;
@@ -393,58 +392,6 @@ legend {
   font: inherit;
   outline: none;
 }
-
-/* ---------------------------------------------------------------- history */
-
-.fight-item {
-  display: grid;
-  grid-template-columns: 1.8em minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0.3em;
-  border-radius: 0.3em;
-  cursor: pointer;
-}
-.fight-item:hover { background: var(--line-faint); }
-.fight-no { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
-.fight-text { display: flex; flex-direction: column; min-width: 0; }
-.fight-what { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
-.fight-target { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
-.fight-dps { color: var(--accent-2); font-variant-numeric: tabular-nums; }
-
-/* Room between the list and its scrollbar, so a run's border doesn't touch it. */
-#fights { padding-right: 0.35em; }
-
-/* A dungeon run: a header row, with its fights indented under it while open. */
-.run-item {
-  display: grid;
-  grid-template-columns: 1.8em minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5em;
-  margin-top: 0.15em;
-  padding: 0.3em;
-  border: 1px solid var(--line-faint);
-  border-radius: 0.3em;
-  /* Darker than the fights, so runs stand out on the glass. */
-  background: rgba(0, 0, 0, 0.22);
-  cursor: pointer;
-}
-.run-item:hover { background: rgba(0, 0, 0, 0.3); }
-.run-chevron { color: var(--muted); text-align: center; }
-.run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
-.run-tag {
-  flex: none;
-  margin-right: 0.2em;
-  padding: 0 0.4em;
-  border: 1px solid var(--line);
-  border-radius: 0.25em;
-  color: var(--accent-2);
-  font-size: 0.8em;
-  text-shadow: none;
-}
-.run-clear { flex: none; color: var(--ok); font-size: 0.9em; font-variant-numeric: tabular-nums; }
-.fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
 
 #empty {
   flex: 1;

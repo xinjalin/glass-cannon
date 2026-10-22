@@ -380,6 +380,9 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("history").addEventListener("click", () => invoke("open_history").catch((e) => say(String(e), "error")));
+for (const name of ["cooldowns", "timers"]) {
+  $(`open-${name}`).addEventListener("click", () => invoke("toggle_panel", { name }).catch((e) => say(String(e), "error")));
+}
 
 $("shortcut").addEventListener("click", async () => {
   try {

@@ -199,12 +199,14 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
     Ok("added to Desktop and Start menu".into())
 }
 
-/// Opens the overlay's history list.
+/// Opens the history window.
 #[tauri::command]
-pub fn open_history(handle: AppHandle) -> Result<(), String> {
+pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
     show_overlay(&handle).map_err(|e| e.to_string())?;
-    notify_overlay(&handle, "show-history");
-    Ok(())
+    if handle.get_webview_window("history").is_some_and(|w| w.is_visible().unwrap_or(false)) {
+        return Ok(());
+    }
+    crate::panels::toggle_panel(handle, app, "history".into())
 }
 
 /// Shows the settings next to the overlay, or hides them if they're already open.

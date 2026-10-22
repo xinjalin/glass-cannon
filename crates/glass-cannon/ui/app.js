@@ -474,46 +474,6 @@ function drawViewSwitch() {
 
 // ---------------------------------------------------------------- history
 
-async function showList() {
-  mode = "list";
-  fightIndex = null;
-  fightView = null;
-  await drawList();
-}
-
-// Dungeon runs shown open (by when they started). The newest run starts open.
-const openRuns = new Set();
-let runsSeen = false;
-
-async function drawList() {
-  const { fights, runs } = await invoke("history_list");
-  const list = $("fights");
-  list.replaceChildren();
-  if (!runsSeen && runs.length) {
-    runsSeen = true;
-    const newest = fights.find((f) => f.run != null);
-    if (newest) openRuns.add(runs[newest.run].started_ms);
-  }
-  // A run's fights come together (newest first): a header, then its fights if it's open.
-  let shownRun = null;
-  fights.forEach((f, i) => {
-    if (f.run != null) {
-      const run = runs[f.run];
-      if (shownRun !== f.run) {
-        shownRun = f.run;
-        list.append(runItem(run));
-      }
-      if (openRuns.has(run.started_ms)) list.append(fightItem(f, i, true));
-    } else {
-      list.append(fightItem(f, i, false));
-    }
-  });
-  $("legend-text").textContent = "history";
-  $("clock").textContent = fights.length ? `[${fights.length}]` : "";
-  $("empty").hidden = fights.length > 0;
-  $("empty").textContent = "no finished fights yet";
-}
-
 // How a fight ended, for kills and wipes (and its deaths): null for the rest.
 function endTag(end, deaths) {
   const parts = [];
@@ -528,72 +488,13 @@ function endTag(end, deaths) {
   return tag;
 }
 
-function fightItem(f, i, inRun) {
-  const item = el("li", "fight-item" + (inRun ? " in-run" : ""));
-  const what = el("span", "fight-what");
-  if (f.target_boss) what.append(el("span", "boss", "BOSS"));
-  what.append(el("span", "fight-target", f.target || "unknown target"));
-  const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
-  // A dungeon fight on its own (not part of a run) says where it was.
-  const where = !inRun && f.dungeon ? `${f.dungeon.name} · ` : "";
-  const meta = el("span", "fight-meta", `${where}${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
-  const end = endTag(f.end, f.deaths);
-  if (end) meta.append(end);
-  const text = el("span", "fight-text");
-  text.append(what, meta);
-  const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
-  dps.title = f.my_dps != null ? "your DPS" : "total DPS";
-  item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
-  item.title = "Click to open · right-click for its analysis";
-  item.addEventListener("click", () => openFight(f.index));
-  item.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    invoke("open_analysis", { fight: f.index, run: null, player: null }).catch(showError);
-  });
-  return item;
-}
-
-// A dungeon run: where and in which mode, when it started, the time spent fighting, its
-// fights and bosses, and its total damage. Click to show or hide its fights.
-function runItem(run) {
-  const open = openRuns.has(run.started_ms);
-  const item = el("li", "run-item" + (open ? " open" : ""));
-  const text = el("span", "fight-text");
-  const when = el("span", "fight-what");
-  const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
-  if (tag) when.append(el("span", "run-tag", tag));
-  when.append(el("span", "fight-meta", timeOfDay(run.started_ms)));
-  // Completed, by the game's own timer (from the countdown to "complete").
-  if (run.clear_s != null) {
-    const clear = el("span", "run-clear", `✓ ${clock(run.clear_s)}`);
-    clear.title = `Completed in ${clock(run.clear_s)} (the game's timer, from the countdown)`;
-    when.append(clear);
-  }
-  const bosses = run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : "";
-  const meta = el("span", "fight-meta", `${clock(run.fight_s)} · ${run.fights} fights${bosses} · ${run.players}p`);
-  text.append(el("span", "run-name", run.place.name), when, meta);
-  const total = el("span", "fight-dps", fmt(run.total_damage));
-  const dps = run.my_dps != null ? ` · your DPS ${fmt(run.my_dps)}` : "";
-  item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, total);
-  item.title = `${clock(run.fight_s)} fighting, ${clock((run.ended_ms - run.started_ms) / 1000)} from first pull to last kill
-${fmt(run.total_damage)} damage${dps}
-Click to ${open ? "hide" : "show"} its fights · right-click for the run's analysis`;
-  // Right-click: the whole run in the analysis window (again: closes it).
-  item.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    invoke("open_analysis", { fight: null, run: [run.first, run.last], player: null }).catch(showError);
-  });
-  item.addEventListener("click", () => {
-    if (open) openRuns.delete(run.started_ms);
-    else openRuns.add(run.started_ms);
-    drawList();
-  });
-  return item;
-}
-
+// A saved fight on the meter (picked in the history window); back goes live again.
 async function openFight(index) {
   fightView = await invoke("history_fight", { index });
-  if (!fightView) return showList();
+  if (!fightView) {
+    mode = "live";
+    return redraw();
+  }
   mode = "fight";
   fightIndex = index;
   redraw();
@@ -759,15 +660,9 @@ function redraw() {
   $("back").hidden = live;
   $("f-back").hidden = live;
   $("fight").textContent = phaseText(lastView);
-  $("rows").hidden = mode === "list";
-  $("fights").hidden = mode !== "list";
   for (const b of [$("history"), $("f-history")]) b.classList.toggle("on", !live);
   if (lastView) drawStatus(lastView);
 
-  if (mode === "list") {
-    $("totals").hidden = true;
-    return;
-  }
   const party = (lastView && lastView.meter.party) || [];
   if (live && (meterView() === "party" || partyPeek)) {
     const ready = readyCount(party);
@@ -835,7 +730,6 @@ async function refresh() {
     snapSizes();
     fitHeight(lastView.appearance);
     drawLock(lastView.locked);
-    if (mode === "list") await drawList();
     redraw();
   } catch (e) {
     showError(e);
@@ -881,9 +775,10 @@ tauri.event.listen("appearance", (e) => {
 
 // ---------------------------------------------------------------- controls
 
-async function goBack() {
-  if (mode === "fight") await showList();
-  else mode = "live";
+function goBack() {
+  mode = "live";
+  fightView = null;
+  fightIndex = null;
   redraw();
 }
 $("back").addEventListener("click", goBack);
@@ -896,10 +791,9 @@ function openAnalysis(player) {
 }
 $("analysis").addEventListener("click", () => openAnalysis(null));
 
-async function toggleHistory() {
-  if (mode === "live") await showList();
-  else mode = "live";
-  redraw();
+// The history has its own window.
+function toggleHistory() {
+  invoke("toggle_panel", { name: "history" }).catch(showError);
 }
 $("history").addEventListener("click", toggleHistory);
 $("f-history").addEventListener("click", toggleHistory);
@@ -1020,10 +914,7 @@ tauri.event.listen("reset-size", () => {
   fitFor = "reset";
 });
 
-// The settings window's "history" opens this window straight on the list.
-tauri.event.listen("show-history", async () => {
-  await showList();
-  redraw();
-});
+// A fight picked in the history window.
+tauri.event.listen("show-fight", (e) => openFight(e.payload));
 
 poll();

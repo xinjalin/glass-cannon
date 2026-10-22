@@ -30,6 +30,7 @@ use meter_core::session;
 mod analysis;
 mod clickthrough;
 mod fonts;
+mod panels;
 mod ping;
 mod gamedata;
 mod layout;
@@ -146,6 +147,10 @@ pub struct AppState {
     known_players: Mutex<Option<KnownPlayers>>,
     /// How many named players were last saved to `players.json`.
     players_saved: AtomicUsize,
+    /// PvP sessions.
+    pvp: Mutex<store::PvpLog>,
+    /// Side windows placed beside the meter once already.
+    panels_placed: Mutex<std::collections::HashSet<String>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -181,7 +186,7 @@ struct View {
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -191,8 +196,14 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             meter.set_scope(scope);
         }
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping)
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp())
     };
+    if !pvp.is_empty() {
+        let mut log = lock(&app.pvp);
+        for s in pvp {
+            log.record(s);
+        }
+    }
     if !entered.is_empty() {
         let mut instances = lock(&app.instances);
         for i in entered {
@@ -591,6 +602,7 @@ fn main() {
     let known_players = KnownPlayers::load(&config_dir);
     // Known from the start: the page can ask to be fitted before the overlay is placed.
     let overlay_new = placement::load(&placement::state_path(&config_dir)).is_none();
+    let config_dir_for_pvp = config_dir.clone();
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
             meter: Mutex::new({
@@ -625,6 +637,8 @@ fn main() {
         lock_button: Mutex::new(None),
         known_players: Mutex::new(Some(known_players)),
         players_saved: AtomicUsize::new(0),
+        pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
+        panels_placed: Mutex::new(std::collections::HashSet::new()),
     });
     state.locked.store(lock(&state.settings).locked, Ordering::SeqCst);
 
@@ -663,6 +677,13 @@ fn main() {
             settings::open_history,
             settings::toggle_settings,
             settings::hide_settings,
+            panels::toggle_panel,
+            panels::panels_open,
+            panels::show_fight,
+            panels::cooldowns,
+            panels::pvp_list,
+            panels::timer_region,
+            panels::set_timer_region,
         ])
         .setup(move |app| {
             restyle_windows(app.handle(), &lock(&state.settings).appearance.clone());
@@ -671,6 +692,7 @@ fn main() {
             show_overlay(app.handle())?;
             clickthrough::watch(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
+            panels::reopen(app.handle(), &state);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -697,7 +719,7 @@ fn main() {
 /// Applies the background effect, corners and border to every window, and tells each
 /// page so the theme and font change everywhere at once.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
-    for label in [OVERLAY, SETTINGS, ANALYSIS] {
+    for label in [OVERLAY, SETTINGS, ANALYSIS].into_iter().chain(panels::PANELS) {
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }

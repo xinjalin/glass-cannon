@@ -19,6 +19,8 @@ use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
 use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
 use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
+use crate::cooldowns::{CooldownView, Cooldowns};
+use crate::pvp::{PvpSession, PvpTracker};
 use crate::state::{self, REMOVED_DIED};
 use crate::hp;
 use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
@@ -642,6 +644,10 @@ pub struct Meter {
     berserk: HashMap<u64, u64>,
     /// The game's pings coming back: (arrival, when the client sent it on its clock).
     pings: VecDeque<(u64, i64)>,
+    /// Your skills' cooldowns.
+    cooldowns: Cooldowns,
+    /// Fights with players outside your party.
+    pvp: PvpTracker,
 }
 
 impl Default for Meter {
@@ -672,6 +678,8 @@ impl Meter {
             died: HashMap::new(),
             berserk: HashMap::new(),
             pings: VecDeque::new(),
+            cooldowns: Cooldowns::default(),
+            pvp: PvpTracker::default(),
         }
     }
 
@@ -703,6 +711,21 @@ impl Meter {
         self.pings.iter()
     }
 
+    /// Your skills that aren't ready at `now_us`, soonest first.
+    pub fn cooldowns(&self, now_us: u64) -> Vec<CooldownView> {
+        self.cooldowns.active(now_us)
+    }
+
+    /// The PvP session going on, if any.
+    pub fn pvp(&self) -> Option<PvpSession> {
+        self.pvp.current()
+    }
+
+    /// PvP sessions that ended since the last call.
+    pub fn take_pvp(&mut self) -> Vec<PvpSession> {
+        self.pvp.take_finished()
+    }
+
     /// Stays on a map (dungeon runs) that began or changed since the last call, oldest
     /// first; the same stay can come more than once as it starts and completes.
     pub fn take_instances(&mut self) -> Vec<Instance> {
@@ -726,6 +749,7 @@ impl Meter {
 
     /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
+        self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }
@@ -799,6 +823,8 @@ impl Meter {
                 self.lookback.clear();
                 self.effects.clear();
                 self.hp = HpLog::default();
+                self.cooldowns.clear();
+                self.pvp.end();
             }
             return;
         }
@@ -851,6 +877,7 @@ impl Meter {
         if by == on {
             return;
         }
+        self.record_pvp(ts_us, by, on, ev.skill, dmg);
         // Between members of your party (a Chanter's effect on an ally, say): not damage.
         if !self.registry.party().is_empty() && self.registry.in_party(by) && self.registry.in_party(on) {
             return;
@@ -971,6 +998,7 @@ impl Meter {
 
     /// Ends the current encounter if it has been idle too long. Call periodically.
     pub fn tick(&mut self, now_us: u64) {
+        self.pvp.tick(now_us);
         let Some(enc) = &self.current else { return };
         let quiet = now_us.saturating_sub(enc.last_activity_us);
         if quiet <= self.idle_timeout_us {
@@ -986,12 +1014,33 @@ impl Meter {
         }
     }
 
+    /// A hit between you and a player outside your party goes in the PvP session.
+    fn record_pvp(&mut self, ts_us: u64, by: u64, on: u64, skill: u32, damage: u64) {
+        let Some(me) = self.registry.self_id() else { return };
+        let enemy = |id: u64| id != me && self.registry.player_name(id).is_some() && !self.registry.in_party(id);
+        let (other, outgoing) = match (by == me, on == me) {
+            (true, _) if enemy(on) => (on, true),
+            (_, true) if enemy(by) => (by, false),
+            _ => return,
+        };
+        let class = self.classes.get(&other).copied().or_else(|| (!outgoing).then(|| classes::class_code_of_skill(skill)).flatten());
+        if let Some(code) = class {
+            self.classes.insert(other, code);
+        }
+        let name = self.registry.label(other);
+        self.pvp.hit(ts_us, other, name, class, damage, outgoing);
+    }
+
     fn is_boss(&self, entity: u64) -> bool {
         self.registry.mob_type(entity).is_some_and(|t| self.bosses.contains(&t))
     }
 
     /// Something died: a player's death goes in the fight's recap, and it may end the fight.
     fn on_death(&mut self, ts_us: u64, d: Death) {
+        let me = self.registry.self_id();
+        let by_you = me.is_some() && d.killer.map(|k| self.registry.credited(k)) == me;
+        let killer = d.killer_name.clone().or_else(|| d.killer.map(|k| self.registry.label(k)));
+        self.pvp.death(ts_us, d.entity, me == Some(d.entity), by_you, killer);
         self.died.insert(d.entity, ts_us);
         self.died.retain(|_, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US);
         // Players the game has named (an unnamed "player" may be a mob we missed the spawn of).
@@ -2114,6 +2163,26 @@ mod tests {
         let hits: Vec<_> = d.hits.iter().map(|h| (h.before_s, h.amount, h.hp)).collect();
         assert_eq!(hits, [(2.0, 4000, Some(5000)), (0.0, 6000, Some(0))]);
         assert_eq!(d.last_heal.as_ref().map(|h| h.amount), Some(1000));
+    }
+
+    #[test]
+    fn fighting_a_player_outside_your_party_is_pvp() {
+        let mut m = meter_as_me();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(777, "Rival"));
+        m.feed(0, OPCODE_PARTY_ROSTER, &roster(&["Pingu", "NeneneTowawa"]));
+        m.feed(S, OPCODE_DAMAGE, &hit(777, ME, 18_010_340, 5000));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(ME, 777, 11_010_340, 3000));
+        // A party member's hits on the rival aren't yours (Questlog counts only yours too).
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(777, 15772, 12_010_340, 9000));
+        m.feed(20 * S, OPCODE_DAMAGE, &hit(777, ME, 18_010_340, 4000));
+        m.feed(20 * S, OPCODE_DEATH, &death(777, 18_010_340, ME));
+        let now = m.pvp().unwrap();
+        assert_eq!((now.dealt, now.taken, now.kills), (9000, 3000, 1));
+        m.tick(200 * S);
+        let s = &m.take_pvp()[0];
+        assert_eq!((s.dealt, s.taken, s.kills, s.deaths), (9000, 3000, 1, 0));
+        assert_eq!((s.opponents[0].name.as_str(), s.opponents[0].class_code), ("Rival", Some(11)));
     }
 
     #[test]
