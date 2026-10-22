@@ -611,9 +611,11 @@ function heightFor(rows) {
     }),
   );
   part("totals").hidden = false;
+  // Room for the boss's HP line when it's on, so a boss fight's rows still fit.
+  part("boss-bar").hidden = !bossBarRoom();
   part("target").textContent = "x";
   part("total").textContent = "x";
-  for (const id of ["fights", "empty", "status"]) part(id).hidden = true;
+  for (const id of ["empty", "status"]) part(id).hidden = true;
   document.body.append(copy);
   const height = Math.ceil(copy.getBoundingClientRect().height);
   copy.remove();
@@ -648,8 +650,10 @@ function widthFor(text) {
 // on first start, after a layout change or a reset, never to a width you chose).
 let fitFor = null;
 let resetWidth = null; // set by "reset appearance": the width goes back to the default too
+const bossBarRoom = () => !!(lastView && lastView.boss_hp && !minimal());
+
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}`;
+  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}`;
   if (key === fitFor) return;
   const exact = fitFor !== null;
   fitFor = key;

@@ -35,7 +35,7 @@ fn save<T: Serialize>(path: &Path, value: &T) {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     /// Also save each session's packets to `captures/`.
     #[serde(default)]
@@ -96,6 +96,14 @@ pub const TIMER_REGIONS: [&str; 6] = ["as", "naw", "eu", "la", "kr", "tw"];
 
 fn default_timer_region() -> String {
     "as".into()
+}
+
+/// No settings file: the same as an empty one, so each setting gets its own default (some
+/// are on unless turned off).
+impl Default for Settings {
+    fn default() -> Self {
+        serde_json::from_str("{}").expect("every setting has a default")
+    }
 }
 
 impl Settings {
@@ -863,6 +871,13 @@ mod tests {
         assert!(details.has(3));
         assert_eq!(details.load(DETAILS_LIMIT as u64 + 2), Some(analysis));
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_new_install_gets_the_defaults() {
+        let s = Settings::load(&temp_dir("no-settings"));
+        assert!(s.boss_hp);
+        assert_eq!((s.alert_lead_min, s.timer_region.as_str(), s.hide_after_s), (5, "as", 0));
     }
 
     #[test]

@@ -4,27 +4,31 @@ A frosted-glass DPS meter for **Aion 2** on Windows. It reads the game's network
 passively through Npcap, so it never touches the game or its memory. No admin rights, no
 auto-updates, and it never goes online.
 
-![The meter in a fight with eight players](docs/screenshots/overlay.png)
+![The meter in a boss fight: the boss's HP, deaths and five players](docs/screenshots/overlay.png)
 
 | Skill breakdown | Minimal mode, class-coloured bars |
 | --- | --- |
 | ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
 
-![Dungeon runs in the fight history](docs/screenshots/history.png)
+![A boss fight with the target frame, cooldowns, party cooldowns and world timers](docs/screenshots/windows.png)
 
-![Settings beside the meter](docs/screenshots/settings.png)
+| Fight history | Settings |
+| --- | --- |
+| ![A dungeon run in the fight history window](docs/screenshots/history.png) | ![Settings beside the meter](docs/screenshots/settings.png) |
 
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
 
-![Skills with each player's specialties, and a skill's tooltip](docs/screenshots/analysis-skills.png)
+![Skills with each player's specialties](docs/screenshots/analysis-skills.png)
 
 | Rotation | Buffs |
 | --- | --- |
 | ![Skill rotation timeline](docs/screenshots/analysis-rotation.png) | ![Buff timeline and buffs per skill](docs/screenshots/analysis-buffs.png) |
 
-![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png)
+| Healing | Deaths |
+| --- | --- |
+| ![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png) | ![Deaths, and the hits and heals before one](docs/screenshots/analysis-deaths.png) |
 
-<sub>Real fights replayed from recordings, with other players' names made up. The dungeon runs were recorded by another meter and loaded into the history.</sub>
+<sub>A real dungeon run replayed from a recording, with other players' names made up.</sub>
 
 ## Install
 
