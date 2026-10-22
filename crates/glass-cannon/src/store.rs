@@ -5,6 +5,7 @@
 //! - `history.jsonl`  finished fights, one per line (newest last)
 //! - `players.json`   names of players seen this login, for when the meter restarts
 
+use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -39,9 +40,14 @@ pub struct Settings {
     /// Also save each session's packets to `captures/`.
     #[serde(default)]
     pub record: bool,
-    /// Whose damage counts: your targets ("mine"), your party, or everyone nearby.
+    /// Whose damage counts when chosen by hand: your targets ("mine"), your party, or
+    /// everyone nearby. Only used with `manual_scope`.
     #[serde(default)]
     pub scope: Scope,
+    /// The scope was chosen by hand. Otherwise it follows your party: your party's fight
+    /// while you're in one, yours on your own.
+    #[serde(default)]
+    pub manual_scope: bool,
     /// Older settings files: `true` becomes `scope: "everyone"`.
     #[serde(default, skip_serializing)]
     everyone: bool,
@@ -59,6 +65,17 @@ pub struct Settings {
     pub meter_view: MeterView,
 }
 
+impl Settings {
+    /// Whose damage counts now, for a party of `party` people (you included; 0 alone).
+    pub fn scope_for(&self, party: usize) -> Scope {
+        match (self.manual_scope, party > 1) {
+            (true, _) => self.scope,
+            (false, true) => Scope::Party,
+            (false, false) => Scope::Mine,
+        }
+    }
+}
+
 /// What the meter's rows show: damage dealt, healing done or damage taken.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -67,6 +84,8 @@ pub enum MeterView {
     Damage,
     Healing,
     Taken,
+    /// Who's in your party or group, with their combat power and gear score.
+    Party,
 }
 
 pub const REFRESH_RATES: [u32; 5] = [REALTIME, 200, 500, 1000, 2000];
@@ -348,6 +367,50 @@ impl Profile {
 /// Fights kept with their full analysis (the rest of the history keeps its summary).
 const DETAILS_LIMIT: usize = 50;
 
+const INSTANCES_LIMIT: usize = 500;
+
+/// Dungeon runs as the game reported them: when you entered, when the countdown ended and
+/// when it was completed. Kept in `instances.jsonl`, one line per change (the last line for
+/// an entry wins).
+pub struct Instances {
+    path: PathBuf,
+    by_entered: BTreeMap<u64, meter_core::dungeon::Instance>,
+}
+
+impl Instances {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("instances.jsonl");
+        let mut by_entered = BTreeMap::new();
+        for line in fs::read_to_string(&path).unwrap_or_default().lines() {
+            if let Ok(i) = serde_json::from_str::<meter_core::dungeon::Instance>(line) {
+                by_entered.insert(i.entered_us, i);
+            }
+        }
+        while by_entered.len() > INSTANCES_LIMIT {
+            by_entered.pop_first();
+        }
+        Self { path, by_entered }
+    }
+
+    /// Saves a dungeon run's progress (stays without a countdown aren't dungeons).
+    pub fn record(&mut self, i: meter_core::dungeon::Instance) {
+        if i.started_us.is_none() || self.by_entered.get(&i.entered_us) == Some(&i) {
+            return;
+        }
+        self.by_entered.insert(i.entered_us, i);
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let (Ok(line), Ok(mut f)) = (serde_json::to_string(&i), OpenOptions::new().create(true).append(true).open(&self.path)) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+
+    pub fn get(&self, entered_us: u64) -> Option<&meter_core::dungeon::Instance> {
+        self.by_entered.get(&entered_us)
+    }
+}
+
 /// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
 pub struct FightDetails {
     dir: PathBuf,
@@ -418,6 +481,8 @@ pub struct FightSummary {
     pub target: Option<String>,
     /// The main target's mob type.
     pub target_type: Option<u32>,
+    /// When you entered the map it was on (the same for a dungeon run's fights).
+    pub instance_us: Option<u64>,
     pub target_boss: bool,
     pub duration_s: f64,
     pub total_damage: u64,
@@ -483,6 +548,7 @@ impl History {
                 ended_ms: f.ended_ms,
                 target: f.view.target.clone(),
                 target_type: f.view.target_type,
+                instance_us: f.view.instance_us,
                 target_boss: f.view.target_boss,
                 duration_s: f.view.duration_s,
                 total_damage: f.view.total_damage,
@@ -530,6 +596,7 @@ mod tests {
             self_id: Some(3199),
             scope: Scope::Mine,
             party_size: 0,
+            party: Vec::new(),
             encounter: Some(view),
             encounters_completed: 0,
         })
@@ -655,6 +722,35 @@ mod tests {
         assert!(!details.has(1) && !details.has(2));
         assert!(details.has(3));
         assert_eq!(details.load(DETAILS_LIMIT as u64 + 2), Some(analysis));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn the_scope_follows_your_party_unless_chosen() {
+        let mut s = Settings::default();
+        assert_eq!((s.scope_for(0), s.scope_for(1), s.scope_for(5)), (Scope::Mine, Scope::Mine, Scope::Party));
+        s.manual_scope = true;
+        s.scope = Scope::Everyone;
+        assert_eq!(s.scope_for(5), Scope::Everyone);
+        // Settings from before this follow the party.
+        let dir = temp_dir("auto-scope");
+        fs::write(dir.join("settings.json"), r#"{ "scope": "everyone" }"#).unwrap();
+        assert_eq!(Settings::load(&dir).scope_for(5), Scope::Party);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn dungeon_runs_are_kept() {
+        use meter_core::dungeon::Instance;
+        let dir = temp_dir("instances");
+        let mut i = Instances::load(&dir);
+        let entered = Instance { map: 600_072, entered_us: 1, started_us: None, completed_us: None };
+        i.record(entered);
+        assert!(i.get(1).is_none(), "no countdown: not a dungeon");
+        i.record(Instance { started_us: Some(2), ..entered });
+        i.record(Instance { started_us: Some(2), completed_us: Some(9), ..entered });
+        let again = Instances::load(&dir);
+        assert_eq!(again.get(1).and_then(|i| i.completed_us), Some(9));
         fs::remove_dir_all(dir).ok();
     }
 

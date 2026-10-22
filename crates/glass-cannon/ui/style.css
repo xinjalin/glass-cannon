@@ -153,6 +153,30 @@ button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
    label ("party") so it doesn't change size. */
 #scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent); color: var(--ink); text-shadow: none; }
 #scope:hover { filter: brightness(1.1); }
+/* Auto: a small mark in the corner (the scope follows your party). */
+#scope { position: relative; }
+#scope.auto::after {
+  content: "";
+  position: absolute;
+  top: 0.15em;
+  right: 0.15em;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* People joining and leaving the party. */
+#notices { margin: 0; padding: 0; list-style: none; }
+#notices:empty { display: none; }
+.notice {
+  padding: 0.15em 0.45em;
+  color: var(--accent-2);
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 svg {
   width: 1.05em;
@@ -400,6 +424,7 @@ legend {
   font-size: 0.8em;
   text-shadow: none;
 }
+.run-clear { flex: none; color: var(--ok); font-size: 0.9em; font-variant-numeric: tabular-nums; }
 .fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
 
 #empty {

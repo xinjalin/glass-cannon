@@ -39,7 +39,7 @@ mod store;
 mod style;
 
 use gamedata::GameData;
-use store::{Appearance, Fight, FightDetails, History, KnownPlayers, Profile, Settings};
+use store::{Appearance, Fight, FightDetails, History, Instances, KnownPlayers, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
@@ -123,6 +123,8 @@ pub struct AppState {
     history: Mutex<History>,
     /// Full analyses of recent fights.
     details: FightDetails,
+    /// Dungeon runs' start and completion, as the game reported them.
+    instances: Mutex<Instances>,
     /// What the analysis window shows.
     analysis_selection: Mutex<analysis::Selection>,
     /// The analysis window has been sized and placed once.
@@ -162,6 +164,8 @@ struct View {
     /// Your name came from memory (the game hasn't said who you are yet this session).
     name_remembered: bool,
     history_count: usize,
+    /// Whose damage counts follows your party (not chosen by hand).
+    auto_scope: bool,
     appearance: Appearance,
     /// How often the overlay should ask again, in milliseconds.
     refresh_ms: u32,
@@ -175,12 +179,24 @@ struct View {
 #[tauri::command]
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
-    let (mut snap, finished, known) = {
+    let auto_scope = !lock(&app.settings).manual_scope;
+    let (mut snap, finished, known, entered) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
-        (meter.snapshot(), meter.take_finished(), known)
+        // Whose damage counts follows your party, unless chosen by hand.
+        let scope = lock(&app.settings).scope_for(meter.registry().party().len());
+        if meter.scope() != scope {
+            meter.set_scope(scope);
+        }
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances())
     };
+    if !entered.is_empty() {
+        let mut instances = lock(&app.instances);
+        for i in entered {
+            instances.record(i);
+        }
+    }
     if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
         let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
         for row in rows.filter(|r| !open.contains(&r.id)) {
@@ -217,6 +233,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         skills_problem: data.problem().map(str::to_string),
         name_remembered,
         history_count: history.len(),
+        auto_scope,
         appearance: settings.appearance,
         refresh_ms: settings.refresh_ms,
         locked: settings.locked,
@@ -303,18 +320,27 @@ fn reset(app: State<'_, Arc<AppState>>) {
 }
 
 /// Whose damage counts (mine, party or everyone); saved for next time.
+/// Whose damage counts: a scope chosen by hand, or `None` to follow your party.
 #[tauri::command]
-fn set_scope(app: State<'_, Arc<AppState>>, scope: Scope) {
-    app.engine.meter().set_scope(scope);
+fn set_scope(app: State<'_, Arc<AppState>>, scope: Option<Scope>) {
     let mut s = lock(&app.settings);
-    s.scope = scope;
+    s.manual_scope = scope.is_some();
+    if let Some(scope) = scope {
+        s.scope = scope;
+    }
     s.save(&app.config_dir);
+    let settings = s.clone();
+    drop(s);
+    // Settings released before the meter: the snapshot takes them the other way round.
+    let mut meter = app.engine.meter();
+    let scope = settings.scope_for(meter.registry().party().len());
+    meter.set_scope(scope);
 }
 
 #[tauri::command]
 fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
     let fights = lock(&app.history).summaries(&app.details);
-    runs::history_list(fights, &lock(&app.data))
+    runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
 
 #[tauri::command]
@@ -359,7 +385,7 @@ fn start_engine(app: &Arc<AppState>) {
         return;
     }
     let settings = lock(&app.settings).clone();
-    app.engine.meter().set_scope(settings.scope);
+    app.engine.meter().set_scope(settings.scope_for(0));
     app.recording_now.store(settings.record && app.args.replay.is_none(), Ordering::SeqCst);
     app.engine.set_status(Phase::Starting, "starting…");
     let state = Arc::clone(app);
@@ -581,6 +607,7 @@ fn main() {
         data: Mutex::new(data),
         history: Mutex::new(History::load(&config_dir)),
         details: FightDetails::new(&config_dir),
+        instances: Mutex::new(Instances::load(&config_dir)),
         analysis_selection: Mutex::new(analysis::Selection::default()),
         analysis_placed: AtomicBool::new(false),
         profile: Mutex::new(Profile::load(&config_dir)),

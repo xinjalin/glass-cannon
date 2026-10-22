@@ -113,13 +113,17 @@ function drawAppearance(a) {
   fitWindow();
 }
 
-function drawScope(scope, partySize) {
+function drawScope(scope, partySize, auto) {
   for (const b of document.querySelectorAll("[data-scope-choice]")) {
     b.setAttribute("role", "radio");
-    b.setAttribute("aria-checked", String(b.dataset.scopeChoice === scope));
+    b.setAttribute("aria-checked", String(auto ? b.dataset.scopeChoice === "auto" : b.dataset.scopeChoice === scope));
   }
   let hint = SCOPE_HINTS[scope] || "";
-  if (scope === "party") hint += partySize > 1 ? ` · ${partySize} in your party` : " · not in a party";
+  if (auto) {
+    hint = partySize > 1 ? `follows your party · now your party of ${partySize}` : "follows your party · now just you (not in a party)";
+  } else if (scope === "party") {
+    hint += partySize > 1 ? ` · ${partySize} in your party` : " · not in a party";
+  }
   $("scope-hint").textContent = hint;
 }
 
@@ -132,7 +136,7 @@ async function refresh() {
     setCheck("check-data", state.data);
     setCheck("check-details", state.details);
     drawAppearance(state.appearance);
-    drawScope(state.scope, state.party_size);
+    drawScope(state.scope, state.party_size, state.auto_scope);
     for (const b of document.querySelectorAll("[data-refresh-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.refreshChoice) === state.refresh_ms));
@@ -189,7 +193,8 @@ $("info-bar").addEventListener("click", () => setAppearance({ infoBar: !state.ap
 
 for (const b of document.querySelectorAll("[data-scope-choice]")) {
   b.addEventListener("click", async () => {
-    await invoke("set_scope", { scope: b.dataset.scopeChoice });
+    const choice = b.dataset.scopeChoice;
+    await invoke("set_scope", { scope: choice === "auto" ? null : choice });
     refresh();
   });
 }

@@ -16,8 +16,9 @@ const SEGMENTS = 12; // blocks in each meter bar
 const FIT_ROWS = 5; // the window's default height shows this many players
 const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
 
-// Whose damage counts; the button cycles through them in this order.
-const SCOPES = ["mine", "party", "everyone"];
+// Whose damage counts; the button cycles through them in this order. "auto" follows your
+// party: your party's fight while you're in one, yours on your own.
+const SCOPES = ["auto", "mine", "party", "everyone"];
 const SCOPE_LABELS = { mine: "mine", party: "party", everyone: "all" };
 const SCOPE_TITLES = {
   mine: "Your fight: targets you hit, with everyone's damage on them",
@@ -26,13 +27,16 @@ const SCOPE_TITLES = {
 };
 
 // What the rows show; the legend's button cycles through them in this order.
-const VIEWS = ["damage", "healing", "taken"];
-const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken" };
+const VIEWS = ["damage", "healing", "taken", "party"];
+const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken", party: "party" };
 const VIEW_TITLES = {
   damage: "Damage dealt",
   healing: "Healing done (heals over time and self-heals)",
   taken: "Damage taken from mobs",
+  party: "Your party: combat power and gear score",
 };
+// How long a "joined" or "left" notice stays.
+const NOTICE_MS = 8000;
 // The words for a row's amount in each view.
 const VIEW_UNITS = { damage: "dmg", healing: "healed", taken: "taken" };
 
@@ -143,14 +147,14 @@ function skillList(p) {
   const box = el("div", "skills");
   const stats = el("div", "stats");
   stats.append(
-    el("span", "", `${fmt(p.damage)} ${VIEW_UNITS[meterView()]}`),
-    el("span", "", `${p.hits} ${meterView() === "healing" ? "ticks" : "hits"}`),
+    el("span", "", `${fmt(p.damage)} ${VIEW_UNITS[rowView()]}`),
+    el("span", "", `${p.hits} ${rowView() === "healing" ? "ticks" : "hits"}`),
     el("span", "", `max ${fmt(p.max_hit)}`),
   );
   box.append(stats);
   const head = el("div", "skill head");
-  const amount = { damage: "damage", healing: "healing", taken: "taken" }[meterView()];
-  head.append(el("span", "", meterView() === "taken" ? "hit by" : "skill"), el("span", "", amount), el("span", "", "%"), el("span", "", "hits"));
+  const amount = { damage: "damage", healing: "healing", taken: "taken" }[rowView()];
+  head.append(el("span", "", rowView() === "taken" ? "hit by" : "skill"), el("span", "", amount), el("span", "", "%"), el("span", "", "hits"));
   box.append(head);
   for (const s of p.skills) {
     const r = el("div", "skill");
@@ -238,7 +242,7 @@ function classBadge(p) {
 
 // The rows for the chosen view (older saved fights have no healing or taken rows).
 function rowsOf(enc) {
-  const view = meterView();
+  const view = rowView();
   return (view === "damage" ? enc.players : enc[view]) || [];
 }
 
@@ -304,7 +308,7 @@ function drawRows(enc) {
     update(r, "share", `${(p.share * 100).toFixed(0)}%`, (v) => (r.share.textContent = v));
     // The skill list, when open: rebuilt only when something in it changed.
     const open = expanded.has(p.id);
-    const skillsKey = open ? `${meterView()}|${iconsLoaded}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
+    const skillsKey = open ? `${rowView()}|${iconsLoaded}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
     update(r, "skills", skillsKey, () => {
       if (r.skills) r.skills.remove();
       r.skills = open ? skillList(p) : null;
@@ -332,6 +336,69 @@ function toggleRow(id) {
   }
 }
 
+// ---------------------------------------------------------------- party
+
+// The party as rows: slot, class, name, combat power as a bar against the strongest, and
+// gear score. Members' stats arrive a moment after they join; until then they show "–".
+function drawParty(party) {
+  const list = $("rows");
+  list.replaceChildren();
+  rowCache.clear();
+  const top = Math.max(1, ...party.map((m) => m.combat_power || 0));
+  party.forEach((m, i) => {
+    const row = el("li", "row party-row" + (m.is_self ? " self" : "") + (m.class_code ? ` c${m.class_code}` : ""));
+    row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ");
+    const line = el("div", "line");
+    const meter = el("span", "meter");
+    const lit = m.combat_power ? Math.max(1, Math.round((m.combat_power / top) * SEGMENTS)) : 0;
+    for (let s = 0; s < SEGMENTS; s++) meter.append(el("span", s < lit ? "seg on" : "seg"));
+    const who = el("span", "who");
+    who.append(classBadge(m), el("span", "name", m.name));
+    const cp = el("span", "dps", m.combat_power ? fmt(m.combat_power) : "–");
+    cp.title = "Combat power";
+    const gs = el("span", "share", m.gear_score ? m.gear_score.toLocaleString("en-US") : "–");
+    gs.title = "Gear score";
+    line.append(el("span", "rank", String(i + 1)), who, meter, cp, gs);
+    row.append(line);
+    list.append(row);
+  });
+}
+
+// Joins and leaves since the last roster, as notices; the first roster after starting
+// isn't news. Returns whether anything changed.
+let lastParty = null;
+function noticePartyChanges(party) {
+  const names = party.map((m) => m.name);
+  const before = lastParty;
+  lastParty = names;
+  if (!before) return false;
+  if (names.length === 0 && before.length > 0) {
+    notice("you left the party");
+    return true;
+  }
+  // You joining a party (or an expedition): one notice, not one per member.
+  if (before.length === 0 && names.length > 0) {
+    notice(`joined a party of ${names.length}`);
+    return true;
+  }
+  const me = lastView && lastView.meter.self_name;
+  const joined = party.filter((m) => !before.includes(m.name) && !m.is_self && m.name !== me);
+  const left = before.filter((n) => !names.includes(n));
+  for (const m of joined) {
+    const stats = [m.combat_power ? `CP ${fmt(m.combat_power)}` : "", m.gear_score ? `GS ${m.gear_score.toLocaleString("en-US")}` : ""].filter(Boolean).join(" · ");
+    notice(`+ ${m.name} joined${stats ? ` · ${stats}` : ""}`);
+  }
+  for (const n of left) notice(`− ${n} left`);
+  return joined.length > 0 || left.length > 0 || (before.length === 0 && names.length > 0);
+}
+
+function notice(text) {
+  const item = el("li", "notice", text);
+  $("notices").append(item);
+  while ($("notices").children.length > 3) $("notices").firstChild.remove();
+  setTimeout(() => item.remove(), NOTICE_MS);
+}
+
 function drawTotals(enc) {
   $("totals").hidden = false;
   const target = $("target");
@@ -348,15 +415,17 @@ function drawTotals(enc) {
           invoke("rename_npc", { typeId: enc.target_type, name: value }),
         )
     : null;
-  const view = meterView();
+  const view = rowView();
   const total = view === "damage" ? enc.total_damage : (view === "healing" ? enc.total_healing : enc.total_taken) || 0;
   $("total").textContent = `${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";
+// What the rows of a fight show: the party view has no fight rows, so damage.
+const rowView = () => (meterView() === "party" ? "damage" : meterView());
 
 function drawViewSwitch() {
-  const view = meterView();
+  const view = partyPeek && mode === "live" ? "party" : meterView();
   const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
   for (const b of [$("view"), $("f-view")]) {
     b.textContent = VIEW_LABELS[view];
@@ -440,6 +509,12 @@ function runItem(run) {
   const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
   if (tag) when.append(el("span", "run-tag", tag));
   when.append(el("span", "fight-meta", timeOfDay(run.started_ms)));
+  // Completed, by the game's own timer (from the countdown to "complete").
+  if (run.clear_s != null) {
+    const clear = el("span", "run-clear", `✓ ${clock(run.clear_s)}`);
+    clear.title = `Completed in ${clock(run.clear_s)} (the game's timer, from the countdown)`;
+    when.append(clear);
+  }
   const bosses = run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : "";
   const meta = el("span", "fight-meta", `${clock(run.fight_s)} · ${run.fights} fights${bosses} · ${run.players}p`);
   text.append(el("span", "run-name", run.place.name), when, meta);
@@ -472,17 +547,20 @@ async function openFight(index) {
 
 // ---------------------------------------------------------------- drawing
 
-function drawScope(meter) {
+function drawScope(meter, auto) {
   const scope = meter.scope;
-  const next = SCOPES[(SCOPES.indexOf(scope) + 1) % SCOPES.length];
+  const choice = auto ? "auto" : scope;
+  const next = SCOPES[(SCOPES.indexOf(choice) + 1) % SCOPES.length];
   const b = $("scope");
   b.textContent = SCOPE_LABELS[scope] || scope;
   b.classList.toggle("on", scope !== "mine");
+  b.classList.toggle("auto", auto);
   let title = SCOPE_TITLES[scope] || "";
   if (scope === "party") {
     title += meter.party_size > 1 ? ` (${meter.party_size} people)` : " (not in a party: just you)";
   }
-  b.title = `${title}\nClick for ${SCOPE_LABELS[next]}`;
+  if (auto) title = `Auto: follows your party (your party's fight in a party or expedition, yours on your own)\nNow: ${title}`;
+  b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
 }
 
 // How tall the window must be to show `rows` players with the current font and layout:
@@ -566,7 +644,7 @@ function fitHeight(a) {
 function drawStatus(view) {
   const { status, meter } = view;
   const enc = meter.encounter;
-  drawScope(meter);
+  drawScope(meter, view.auto_scope);
   $("dot").className = "dot " + (enc && enc.active ? "fighting" : status.phase);
   $("dot").title = status.message;
 
@@ -636,6 +714,16 @@ function redraw() {
     $("totals").hidden = true;
     return;
   }
+  const party = (lastView && lastView.meter.party) || [];
+  if (live && (meterView() === "party" || partyPeek)) {
+    $("legend-text").textContent = "party";
+    $("clock").textContent = party.length ? `[${party.length}]` : "";
+    $("totals").hidden = true;
+    drawParty(party);
+    $("empty").hidden = party.length > 0;
+    $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
+    return;
+  }
   const enc = live ? lastView && lastView.meter.encounter : fightView;
   if (!enc) {
     $("legend-text").textContent = "fight";
@@ -661,13 +749,15 @@ function redraw() {
   drawRows(enc);
   const none = rowsOf(enc).length === 0;
   $("empty").hidden = !none;
-  if (none) $("empty").textContent = meterView() === "healing" ? "no healing in this fight" : "no damage taken in this fight";
+  if (none) $("empty").textContent = rowView() === "healing" ? "no healing in this fight" : "no damage taken in this fight";
 }
 
 // The last snapshot as text: when a new one is the same (no fight going on), the panel
 // isn't rebuilt.
 let lastKey = "";
 let drawnMode = "";
+// Showing the party for a while (after someone joins or leaves), whatever the view.
+let partyPeek = false;
 
 async function refresh() {
   if (editing) return;
@@ -679,6 +769,13 @@ async function refresh() {
     drawnMode = `${mode}/${fightIndex}`;
     lastView = view;
     if (same) return;
+    // A join or leave while you're not fighting shows the party until the next fight.
+    const party = view.meter.party || [];
+    const fighting = !!(view.meter.encounter && view.meter.encounter.active);
+    if (noticePartyChanges(party) && !fighting) partyPeek = true;
+    if (fighting) partyPeek = false;
+    // Before any fight, a party is more useful than "waiting for a fight".
+    if (!view.meter.encounter && party.length > 1) partyPeek = true;
     applyAppearance(lastView.appearance);
     snapSizes();
     fitHeight(lastView.appearance);
@@ -750,9 +847,12 @@ $("history").addEventListener("click", async () => {
   redraw();
 });
 
-// Damage → healing → taken.
+// Damage → healing → taken → party.
 async function cycleView() {
-  const next = VIEWS[(VIEWS.indexOf(meterView()) + 1) % VIEWS.length];
+  // A peek at the party isn't a choice: the next click goes back to the rows.
+  const from = partyPeek ? "taken" : meterView();
+  partyPeek = false;
+  const next = VIEWS[(VIEWS.indexOf(from) + 1) % VIEWS.length];
   await invoke("set_meter_view", { view: next });
   if (lastView) lastView.meter_view = next;
   expanded.clear();
@@ -779,8 +879,9 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("scope").addEventListener("click", async () => {
-  const now = lastView ? lastView.meter.scope : "mine";
-  await invoke("set_scope", { scope: SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length] });
+  const now = !lastView || lastView.auto_scope ? "auto" : lastView.meter.scope;
+  const next = SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length];
+  await invoke("set_scope", { scope: next === "auto" ? null : next });
   refresh();
 });
 

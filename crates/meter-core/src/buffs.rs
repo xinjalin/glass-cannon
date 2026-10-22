@@ -219,6 +219,21 @@ impl EffectTracker {
         entities.iter().find_map(|e| self.open.get(&(*e, instance)).map(|s| s.source))
     }
 
+    /// Who put up an effect from `skill` that's on `target` now.
+    pub fn source_on(&self, target: u64, skill: u32) -> Option<u64> {
+        self.open.values().find(|s| s.target == target && s.skill == Some(skill)).map(|s| s.source)
+    }
+
+    /// Who last put up an effect from `skill` on anyone (still up or not).
+    pub fn last_source(&self, skill: u32) -> Option<u64> {
+        self.open
+            .values()
+            .chain(self.closed.iter())
+            .filter(|s| s.skill == Some(skill))
+            .max_by_key(|s| s.start_us)
+            .map(|s| s.source)
+    }
+
     /// Every span that overlaps `[from_us, to_us]`, open ones included, by start time.
     pub fn spans(&self, from_us: u64, to_us: u64) -> Vec<EffectSpan> {
         let mut out: Vec<EffectSpan> = self

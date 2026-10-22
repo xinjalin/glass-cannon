@@ -235,6 +235,25 @@ its max. Mobs in the open world were all 119,700 max; a mob that comes into view
 says so (test D, mob 17151: `e3 d6 04 94 a7 07` = 76,643 of 119,700), and corpses come
 in as `00`, HP 0.
 
+### Objects named after a player (confirmed 2026-10-22)
+
+Some `0x3641` spawns are an object that belongs to a player, with the player's name in it:
+
+```text
+varint  entity ID
+1c 00 01
+u8      length, then the player's name (UTF-8)
+u32     object type (2920364 / 2920371 Protection Circle's barriers, 2920360 / 2920663
+        dungeon items in Vakron Sky Island)
+...     a position, the summon mark below with the object's own ID, no owner
+```
+
+A Chanter's Protection Circle puts a Divine Barrier object on every party member, named
+after that member; the barrier hits back with skill `18730002`. The meter credits an
+object's hits to whoever put up that skill's effect on the named player (the Chanter), or
+whoever last put it up on anyone once the barrier has broken, else to the named player.
+Before this, each barrier showed as a separate unnamed Chanter.
+
 ### Summoned creatures and their owners (confirmed 2026-10-20)
 
 Elementalist spirits, Cleric servants and Sorcerer summons arrive as mob spawns
@@ -337,7 +356,34 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 
 Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen), `u8
 length`, UTF-8 name, then level, class, legion name and other fields. Entries aren't at
-fixed offsets, so the meter scans for that shape (`entities::parse_roster`). Seen in the
+fixed offsets, so the meter scans for that shape (`entities::parse_roster`).
+
+After the name, **group** rosters (`0x9702`) have: u32 (not the class), u32 level, u32
+**gear score**, the server again (one entry had an extra byte first), 3 bytes, u32 **combat
+power**. **Party** rosters (`0x9200`) have HP, MP, the map, a position and the legion name
+first, then u32 level, u32 0, u32 gear score, u32 combat power (one entry of five had 8
+more bytes before combat power). Checked against the game for our character (gear score
+2,023, combat power 88.27K) in the Vakron Sky Island capture.
+
+`0x921c` (**a member's update**, resent every few seconds, never for you):
+
+```text
+u32     character ID
+00 00
+u16     server
+u32     (not the class)
+12 B    zeros
+12 B    position (3 floats)
+u32     level
+u32
+u32     gear score
+u8      length, then the legion name (0: none)
+u32     (0 or 1)
+u8
+u32     combat power
+```
+
+All 1,333 in the Vakron capture parse this way and match the roster's numbers. Seen in the
 "joining a party and leaving a party" capture (5 → 4 members, leave, rejoin with a new
 member, leave) and in the expedition capture (several groups joined and left). A `0x9702`
 without your own name is someone else's group and is ignored.
@@ -446,6 +492,23 @@ and may be the basic attack. Needs a name table from our own observations.
 9. Summon spawns: what are the byte after the owner (02..14) and the `07 02 06` /
    `07 02 01` / `09 01` tags? A spirit that's already out when the meter starts and never
    uses an echo skill (e.g. `#39331` in `…184039`, one hit) still gets its own row.
+
+## Maps and dungeons (confirmed 2026-10-22)
+
+Worked out from a Vakron Sky Island run with screenshots every 3 seconds. Entering the
+dungeon moved the game to **another server connection** (the world's stopped the same
+second), and leaving moved it back; each connection starts with `0x4002`.
+
+| opcode   | layout                                              | what                                     |
+| -------- | --------------------------------------------------- | ---------------------------------------- |
+| `0x4002` | u32 map ID, u8                                      | you're on this map (600072 = Vakron Sky Island, Conquest; 1110 = the world map we left from) |
+| `0x6100` | u32 map ID, u8 step, u64 ms, u64 ms                 | a dungeon's progress: step 1 on entering, **2 when the countdown ends**, **3 at "Expedition Complete"** |
+| `0x6101` | u8 0, u32 map ID, u8 1, u8 0                         | the dungeon was completed (with step 3)  |
+
+The map ID is also in `0x3633` (your character), `0x9702` (the group roster's header)
+and `0x921c`. The meter keeps each stay on a map, and a dungeon's start and completion
+(`instances.jsonl`): a history run is the fights of one stay, and its clear time runs
+from step 2 to step 3.
 
 ## Capturing (how packet-lab and the meter get the traffic)
 

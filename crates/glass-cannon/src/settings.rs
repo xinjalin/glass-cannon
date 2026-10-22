@@ -43,6 +43,8 @@ pub struct SettingsStatus {
     /// Whether the capture running now is recording (the switch applies on next start).
     recording_now: bool,
     scope: Scope,
+    /// The scope follows your party (not chosen by hand).
+    auto_scope: bool,
     /// People in your party or group, you included (0 when on your own).
     party_size: usize,
     appearance: Appearance,
@@ -108,6 +110,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         (data, details)
     };
     let s = lock(&app.settings).clone();
+    // Once: a second lock of the meter in the same expression would wait on the first.
+    let party_size = app.engine.meter().registry().party().len();
     SettingsStatus {
         version: env!("CARGO_PKG_VERSION"),
         npcap,
@@ -116,8 +120,9 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         details,
         record: s.record,
         recording_now: app.recording_now.load(std::sync::atomic::Ordering::SeqCst),
-        scope: s.scope,
-        party_size: app.engine.meter().registry().party().len(),
+        scope: s.scope_for(party_size),
+        auto_scope: !s.manual_scope,
+        party_size,
         appearance: s.appearance,
         refresh_ms: s.refresh_ms,
         locked: s.locked,

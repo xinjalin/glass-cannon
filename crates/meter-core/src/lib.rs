@@ -8,6 +8,7 @@ pub mod cast;
 pub mod classes;
 pub mod conns;
 pub mod damage;
+pub mod dungeon;
 pub mod entities;
 pub mod game;
 pub mod hp;

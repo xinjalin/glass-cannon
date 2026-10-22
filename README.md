@@ -41,9 +41,12 @@ Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
 It starts capturing straight away and waits for the game if it isn't running.
 
-- **mine / party / all**: count your targets, your party's, or everyone nearby.
-- **dmg / heal / taken**: damage dealt, healing done (heals over time and self-heals), or
-  damage taken from mobs.
+- **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
+  party: your party's fight while you're in a party or expedition, yours on your own.
+- **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
+  self-heals), damage taken from mobs, or your party with each member's combat power and
+  gear score. The party shows by itself when someone joins or leaves between fights, and a
+  line under the meter says who.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - **▷|** ends the fight now (otherwise 15 s of quiet does); **↺** resets.
 - **Lock** (bottom right): clicks pass through to the game. Click it again to unlock.
@@ -66,10 +69,10 @@ close it. Tabs:
 ### History and dungeon runs
 
 The **clock icon** lists the last 200 fights (the newest 50 keep their full analysis).
-Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses
-and damage. Right-click a run for one analysis of all its fights, or a fight for that
-fight. A run ends after 10 minutes without a fight, in another dungeon, or when you
-start the same dungeon again.
+Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
+damage and, when the game says it was completed, the clear time (✓). Right-click a run for
+one analysis of all its fights, or a fight for that fight. A run is one entry into the
+dungeon (older fights: no break over 10 minutes and no boss fought twice).
 
 ### Names
 

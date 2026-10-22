@@ -16,7 +16,8 @@ use serde::{Deserialize, Serialize};
 use crate::buffs::EffectTracker;
 use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
-use crate::entities::{Change, Registry};
+use crate::dungeon::{Instance, Maps};
+use crate::entities::{Change, PartyMember, Registry};
 use crate::hp;
 use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
 
@@ -208,6 +209,8 @@ struct Encounter {
     taken: Vec<Hit>,
     /// Everyone whose damage was recorded, so a mob's hit on them counts as damage taken.
     attackers: HashSet<u64>,
+    /// The map it's on and when you entered it.
+    instance: Option<(u32, u64)>,
 }
 
 impl Encounter {
@@ -221,6 +224,7 @@ impl Encounter {
             heals: Vec::new(),
             taken: Vec::new(),
             attackers: HashSet::new(),
+            instance: None,
         }
     }
 
@@ -306,6 +310,12 @@ pub struct EncounterView {
     /// healing, healing per second and share of all healing; the skills are the heals.
     #[serde(default)]
     pub healing: Vec<PlayerRow>,
+    /// The map the fight was on, and when you entered it (which stay on that map: a
+    /// dungeon run). Unknown in fights saved before this was read.
+    #[serde(default)]
+    pub map: Option<u32>,
+    #[serde(default)]
+    pub instance_us: Option<u64>,
     /// Damage taken from mobs, per player (most first); the skills are what hit them.
     #[serde(default)]
     pub taken: Vec<PlayerRow>,
@@ -322,9 +332,21 @@ pub struct Snapshot {
     pub scope: Scope,
     /// People in your party or group, you included (0 when on your own).
     pub party_size: usize,
+    /// Your party or group, you included, in roster order (empty when on your own).
+    pub party: Vec<PartyView>,
     /// The current encounter, or the last one once it has ended.
     pub encounter: Option<EncounterView>,
     pub encounters_completed: u32,
+}
+
+/// A party member as the meter shows them.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PartyView {
+    #[serde(flatten)]
+    pub member: PartyMember,
+    pub is_self: bool,
+    /// From the skills we've seen them use (unknown until they fight).
+    pub class_code: Option<u32>,
 }
 
 /// A fight that has ended, as it looked at the end.
@@ -499,6 +521,12 @@ pub struct Meter {
     /// Self-heals (or shields: they look the same) waiting for an HP update.
     pending_heals: VecDeque<Hit>,
     completed: u32,
+    /// The map you're on (a dungeon run, when it's a dungeon's).
+    maps: Maps,
+    /// Stays on a map that started or changed since [`Meter::take_instances`].
+    instance_changes: Vec<Instance>,
+    /// Each player's class, from their skills.
+    classes: HashMap<u64, u32>,
 }
 
 impl Default for Meter {
@@ -521,6 +549,9 @@ impl Meter {
             hp: HpLog::default(),
             pending_heals: VecDeque::new(),
             completed: 0,
+            maps: Maps::default(),
+            instance_changes: Vec::new(),
+            classes: HashMap::new(),
         }
     }
 
@@ -538,6 +569,17 @@ impl Meter {
 
     pub fn set_scope(&mut self, scope: Scope) {
         self.scope = scope;
+    }
+
+    /// Stays on a map (dungeon runs) that began or changed since the last call, oldest
+    /// first; the same stay can come more than once as it starts and completes.
+    pub fn take_instances(&mut self) -> Vec<Instance> {
+        std::mem::take(&mut self.instance_changes)
+    }
+
+    /// The map you're on now, if the game has said.
+    pub fn instance(&self) -> Option<&Instance> {
+        self.maps.current()
     }
 
     /// Fights that have ended since the last call, oldest first.
@@ -578,6 +620,9 @@ impl Meter {
             return;
         }
         if opcode != OPCODE_DAMAGE {
+            if let Some(i) = self.maps.feed(ts_us, opcode, payload) {
+                self.instance_changes.push(i);
+            }
             if let Some(Change::Relogin { .. }) = self.registry.observe(opcode, payload) {
                 // Entity IDs from the previous login mean nothing now.
                 self.current = None;
@@ -629,9 +674,12 @@ impl Meter {
             }
             return;
         }
+        // A barrier on a party member that hits back is the caster's: it's named after the
+        // member it protects, and the member's buff from that skill says who cast it.
+        let attacker = self.object_caster(ev.attacker, ev.skill).unwrap_or(ev.attacker);
         // A summon's hits count for its owner. Hits between a player and their own
         // summons (a spirit's echo on its owner, Spirit Communion) aren't damage.
-        let by = self.registry.credited(ev.attacker);
+        let by = self.registry.credited(attacker);
         if by == self.registry.credited(ev.target) {
             return;
         }
@@ -642,14 +690,14 @@ impl Meter {
         let by_party = self.scope == Scope::Party && self.registry.in_party(by);
         let on_party = self.scope == Scope::Party && self.registry.in_party(ev.target);
         // Spirits attack with mob-style skill IDs, so they're players by their owner.
-        let player = by != ev.attacker || self.is_player(ev.attacker, ev.skill);
+        let player = by != attacker || self.is_player(attacker, ev.skill);
         // Without knowing who we are yet, every player hit counts.
         let everyone = self.scope == Scope::Everyone || me.is_none();
 
         let hit = Hit {
             ts_us,
             target: ev.target,
-            attacker: ev.attacker,
+            attacker,
             skill: ev.skill,
             damage: dmg,
             cast_id: ev.cast_id,
@@ -680,8 +728,14 @@ impl Meter {
             return;
         }
 
+        if player {
+            if let Some(code) = classes::class_code_of_skill(ev.skill) {
+                self.classes.insert(by, code);
+            }
+        }
         if self.current.is_none() {
             let mut enc = Encounter::new(ts_us);
+            enc.instance = self.maps.current().map(|i| (i.map, i.entered_us));
             // Bring in recent hits so a late join shows the whole fight on its targets.
             for h in self.lookback.drain(..) {
                 enc.record(&h);
@@ -787,9 +841,36 @@ impl Meter {
             self_id: self.registry.self_id(),
             scope: self.scope,
             party_size: self.registry.party().len(),
+            party: self.party_view(),
             encounter: enc.and_then(|e| self.view(e, active)),
             encounters_completed: self.completed,
         }
+    }
+
+    /// For an object that belongs to a player (a barrier on them), who cast it: whoever put
+    /// up that skill's effect on the player; once it's gone (a barrier breaks as it hits),
+    /// whoever last put that effect up on anyone; else the player (their own objects, such
+    /// as a dungeon's items they use, have no effect).
+    fn object_caster(&self, id: u64, skill: u32) -> Option<u64> {
+        let player = self.registry.object_player(id)?;
+        Some(self.effects.source_on(player, skill).or_else(|| self.effects.last_source(skill)).unwrap_or(player))
+    }
+
+    /// Your party with what we know of each member's class.
+    fn party_view(&self) -> Vec<PartyView> {
+        let me = self.registry.self_name();
+        self.registry
+            .party()
+            .iter()
+            .map(|m| {
+                let entity = self.registry.entity_named(&m.name);
+                PartyView {
+                    member: m.clone(),
+                    is_self: me == Some(m.name.as_str()),
+                    class_code: entity.and_then(|id| self.classes.get(&id).copied()),
+                }
+            })
+            .collect()
     }
 
     fn is_player(&self, id: u64, skill: u32) -> bool {
@@ -1016,6 +1097,8 @@ impl Meter {
             start_us: first,
             end_us: last,
             players,
+            map: e.instance.map(|(map, _)| map),
+            instance_us: e.instance.map(|(_, at)| at),
             healing,
             taken,
             total_healing,
