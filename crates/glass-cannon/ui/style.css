@@ -270,6 +270,8 @@ legend {
 .rank { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
 .who { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
 .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ready-mark { flex: none; color: var(--faint); }
+.ready-mark.ready { color: var(--ok); }
 .dps { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); }
 .share { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 

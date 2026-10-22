@@ -353,9 +353,19 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 | `0x9702` | a cross-server group's full roster (expeditions)      |
 | `0x970b` | one member joining that group                         |
 | `0x971d` | you left the group (`00 00`)                          |
+| `0x971e` | a member left the group: u32 character ID, `00 00`, u16 server |
+| `0x9221` | a member left the party (same layout)                 |
+| `0x9716` | a group member readied up or stopped: character ID, `00 00`, server, u8 ready |
+| `0x9715` | you readied up or stopped: `00 00`, u8 ready          |
 
 Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen), `u8
-length`, UTF-8 name, then level, class, legion name and other fields. Entries aren't at
+length`, UTF-8 name, then level, class, legion name and other fields. In group rosters
+(`0x9702`, `0x970b`) two bytes come first: flags (`0x0c` always, `0x02` ready, `0x10`
+inside the dungeon) and the slot (1 = the leader, who starts rather than readies).
+Seen in the Vakron capture's party finder: robi03, TAQE and Chandra readied (TAQE
+unreadied and readied again) by `0x9716`, ours by `0x9715`, and robi03 leaving at the end
+by `0x971e` and `0x9221` together. Being kicked hasn't been captured; the meter takes
+`0x9221`/`0x971e` with your own character ID as being removed. Entries aren't at
 fixed offsets, so the meter scans for that shape (`entities::parse_roster`).
 
 After the name, **group** rosters (`0x9702`) have: u32 (not the class), u32 level, u32

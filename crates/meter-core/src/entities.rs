@@ -27,6 +27,16 @@ pub const OPCODE_GROUP_ROSTER: u16 = 0x9702;
 pub const OPCODE_GROUP_JOIN: u16 = 0x970b;
 /// You left the group.
 pub const OPCODE_GROUP_LEFT: u16 = 0x971d;
+/// A member left the party: u32 character ID, 2 zero bytes, u16 server. Taken to mean
+/// you're out when it carries your own ID (being kicked; not seen in a capture yet).
+pub const OPCODE_PARTY_MEMBER_LEFT: u16 = 0x9221;
+/// A member left the group (same layout as [`OPCODE_PARTY_MEMBER_LEFT`]).
+pub const OPCODE_GROUP_MEMBER_LEFT: u16 = 0x971e;
+/// A group member readied up or stopped: u32 character ID, 2 zero bytes, u16 server, u8
+/// ready (1 or 0).
+pub const OPCODE_GROUP_READY: u16 = 0x9716;
+/// You readied up or stopped: `00 00`, u8 ready.
+pub const OPCODE_GROUP_SELF_READY: u16 = 0x9715;
 /// One party or group member's level, gear score, legion and combat power (not sent for
 /// you). Resent often.
 pub const OPCODE_PARTY_MEMBER: u16 = 0x921c;
@@ -108,6 +118,10 @@ pub struct PartyMember {
     pub gear_score: Option<u32>,
     pub combat_power: Option<u32>,
     pub legion: Option<String>,
+    /// In a party-finder group that hasn't started: whether they've readied up. None
+    /// outside such a group, once inside, and for the group's leader (who starts it).
+    #[serde(default)]
+    pub ready: Option<bool>,
 }
 
 impl Registry {
@@ -264,7 +278,7 @@ impl Registry {
                 Some(Change::PlayerNamed { id, name })
             }
             OPCODE_PARTY_ROSTER | OPCODE_GROUP_ROSTER => {
-                let mut members = parse_roster(payload);
+                let mut members = parse_roster(payload, opcode == OPCODE_GROUP_ROSTER);
                 // A roster without us is someone else's group (a party-finder post).
                 let ours = match &self.self_name {
                     Some(me) => members.iter().any(|m| &m.name == me),
@@ -280,6 +294,10 @@ impl Registry {
                         m.gear_score = m.gear_score.or(old.gear_score);
                         m.combat_power = m.combat_power.or(old.combat_power);
                         m.legion = m.legion.take().or_else(|| old.legion.clone());
+                        // Party rosters don't say; group rosters do.
+                        if opcode == OPCODE_PARTY_ROSTER {
+                            m.ready = old.ready;
+                        }
                     }
                 }
                 if members == self.party {
@@ -291,7 +309,7 @@ impl Registry {
             }
             OPCODE_GROUP_JOIN => {
                 let before = self.party.len();
-                for m in parse_roster(payload) {
+                for m in parse_roster(payload, true) {
                     if !self.party.iter().any(|o| o.character == m.character) {
                         self.party.push(m);
                     }
@@ -306,6 +324,32 @@ impl Registry {
                 m.combat_power = u.combat_power.or(m.combat_power);
                 m.legion = u.legion.or_else(|| m.legion.take());
                 None
+            }
+            OPCODE_GROUP_READY => {
+                let (character, _) = parse_member_id(payload)?;
+                let ready = *payload.get(8)? != 0;
+                let m = self.party.iter_mut().find(|m| m.character == character && m.ready.is_some())?;
+                m.ready = Some(ready);
+                None
+            }
+            OPCODE_GROUP_SELF_READY => {
+                let ready = *payload.get(2)? != 0;
+                let me = self.self_name.clone()?;
+                let m = self.party.iter_mut().find(|m| m.name == me && m.ready.is_some())?;
+                m.ready = Some(ready);
+                None
+            }
+            OPCODE_PARTY_MEMBER_LEFT | OPCODE_GROUP_MEMBER_LEFT => {
+                let (character, _) = parse_member_id(payload)?;
+                let me = self.self_name.as_deref();
+                let mine = self.party.iter().any(|m| m.character == character && Some(m.name.as_str()) == me);
+                let before = self.party.len();
+                if mine {
+                    self.party.clear();
+                } else {
+                    self.party.retain(|m| m.character != character);
+                }
+                (self.party.len() != before).then_some(Change::PartyChanged { members: self.party.len() })
             }
             OPCODE_PARTY_LEFT | OPCODE_GROUP_LEFT => {
                 if self.party.is_empty() {
@@ -410,7 +454,11 @@ pub fn parse_engage(p: &[u8]) -> Option<(u64, String)> {
 /// Rosters (`0x9200`, `0x9702`, `0x970b`): each member is a u32 character ID, two zero
 /// bytes, a u16 server ID, a u8 length and the UTF-8 name, among other fields we don't
 /// use. Entries aren't at fixed offsets, so this scans for that shape.
-pub fn parse_roster(p: &[u8]) -> Vec<PartyMember> {
+/// A roster: each member's entry is u32 character ID, 2 zero bytes, u16 server, u8 length
+/// and their name, then other fields. In `group` rosters (`0x9702`, `0x970b`) the entry
+/// starts two bytes earlier: u8 flags (`0x0c` always set, `0x02` ready, `0x10` inside the
+/// dungeon) and u8 slot (1 is the leader).
+pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
     // Where each entry starts and its name ends; an entry's other fields run to the next.
     let mut found: Vec<(usize, String, usize)> = Vec::new();
     let mut i = 0;
@@ -431,6 +479,12 @@ pub fn parse_roster(p: &[u8]) -> Vec<PartyMember> {
         let next = found.get(k + 1).map_or(p.len(), |f| f.0);
         let server = u16::from_le_bytes([p[start + 6], p[start + 7]]);
         let (level, gear_score, combat_power) = roster_stats(&p[*end..next], server);
+        let ready = match (group, start.checked_sub(2).map(|f| (p[f], p[f + 1]))) {
+            (true, Some((flags, slot))) if flags & 0x0c == 0x0c && flags & 0x10 == 0 && slot > 1 => {
+                Some(flags & 0x02 != 0)
+            }
+            _ => None,
+        };
         members.push(PartyMember {
             character: u32_at(p, *start).expect("an entry has 9 bytes before its name"),
             name: name.clone(),
@@ -439,9 +493,18 @@ pub fn parse_roster(p: &[u8]) -> Vec<PartyMember> {
             gear_score,
             combat_power,
             legion: None,
+            ready,
         });
     }
     members
+}
+
+/// u32 character ID, 2 zero bytes, u16 server.
+fn parse_member_id(p: &[u8]) -> Option<(u32, u16)> {
+    if p.get(4..6)? != [0, 0] {
+        return None;
+    }
+    Some((u32_at(p, 0)?, u16::from_le_bytes(p.get(6..8)?.try_into().ok()?)))
 }
 
 fn u32_at(p: &[u8], i: usize) -> Option<u32> {
@@ -491,6 +554,7 @@ pub fn parse_member_update(p: &[u8]) -> Option<PartyMember> {
         gear_score,
         combat_power,
         legion,
+        ready: None,
     })
 }
 
@@ -596,7 +660,7 @@ pub(crate) mod tests {
 
     #[test]
     fn group_rosters_carry_gear_score_and_combat_power() {
-        let m = parse_roster(&hex(VAKRON_ROSTER));
+        let m = parse_roster(&hex(VAKRON_ROSTER), true);
         let got: Vec<_> = m.iter().map(|m| (m.name.as_str(), m.level, m.gear_score, m.combat_power)).collect();
         assert_eq!(
             got,
@@ -630,6 +694,53 @@ pub(crate) mod tests {
         // The roster again (resent often) keeps the legion it doesn't carry.
         assert!(r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER)).is_none());
         assert_eq!(r.party()[4].legion.as_deref(), Some("EternalWinGs"));
+    }
+
+    /// From the Vakron capture, in the party finder before the start: the group's roster
+    /// (Aja leads; robi03 and you not ready), TAQE joining, and the ready messages.
+    const ROOM_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 0f 01 00 05 0c 01 80 62 01 00 00 00 e5 05 03 41 6a 61 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 e5 05 04 52 3e 01 00 00 00 00 00 00 01 01 0c 02 a7 de 03 00 00 00 df 05 06 72 6f 62 69 30 33 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 df 05 04 73 47 01 00 00 00 00 00 00 01 01 0c 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 c7 09 04 d2 58 01 00 00 00 00 00 00 01 02 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 02";
+    const TAQE_JOINS: &str = "0c 04 0f 1a 04 00 00 00 e4 05 04 54 41 51 45 0e 00 00 00 2d 00 00 00 c3 05 00 00 01 e4 05 e4 05 04 f6 f9 00 00 00 00 00 00 00 01 01";
+
+    #[test]
+    fn group_members_ready_up() {
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_GROUP_ROSTER, &hex(ROOM_ROSTER));
+        let ready = |r: &Registry| r.party().iter().map(|m| (m.name.clone(), m.ready)).collect::<Vec<_>>();
+        let s = |n: &str| n.to_string();
+        assert_eq!(ready(&r), [(s("Aja"), None), (s("robi03"), Some(false)), (s("NeneneTowawa"), Some(false))]);
+        r.observe(OPCODE_GROUP_READY, &hex("a7 de 03 00 00 00 df 05 01"));
+        r.observe(OPCODE_GROUP_SELF_READY, &hex("00 00 01"));
+        assert!(r.observe(OPCODE_GROUP_JOIN, &hex(TAQE_JOINS)).is_some());
+        assert_eq!(r.party()[3].ready, Some(false));
+        r.observe(OPCODE_GROUP_READY, &hex("0f 1a 04 00 00 00 e4 05 01"));
+        assert_eq!(
+            ready(&r),
+            [(s("Aja"), None), (s("robi03"), Some(true)), (s("NeneneTowawa"), Some(true)), (s("TAQE"), Some(true))]
+        );
+        // Inside the dungeon the group roster marks everyone as in: no ready marks.
+        r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER));
+        assert!(r.party().iter().all(|m| m.ready.is_none()));
+    }
+
+    #[test]
+    fn members_leaving_and_being_removed() {
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER));
+        // robi03 leaves (from the end of the Vakron run).
+        assert_eq!(
+            r.observe(OPCODE_GROUP_MEMBER_LEFT, &hex("a7 de 03 00 00 00 df 05")),
+            Some(Change::PartyChanged { members: 4 })
+        );
+        assert!(r.party().iter().all(|m| m.name != "robi03"));
+        assert_eq!(r.observe(OPCODE_PARTY_MEMBER_LEFT, &hex("a7 de 03 00 00 00 df 05")), None);
+        // The same message with your own ID: you're out (kicked), so the party is gone.
+        assert_eq!(
+            r.observe(OPCODE_PARTY_MEMBER_LEFT, &hex("58 de 03 00 00 00 c7 09")),
+            Some(Change::PartyChanged { members: 0 })
+        );
+        assert!(r.party().is_empty());
     }
 
     #[test]
@@ -756,9 +867,9 @@ pub(crate) mod tests {
     #[test]
     fn parses_roster_names() {
         let p = roster(&[(173846, 2503, "\u{7c92}\u{5bfb}\u{6b22}"), (182272, 2503, "Pingu"), (253528, 2503, "NeneneTowawa")]);
-        let names: Vec<String> = parse_roster(&p).into_iter().map(|m| m.name).collect();
+        let names: Vec<String> = parse_roster(&p, false).into_iter().map(|m| m.name).collect();
         assert_eq!(names, ["\u{7c92}\u{5bfb}\u{6b22}", "Pingu", "NeneneTowawa"]);
-        assert!(parse_roster(&hex("00 00 00 00 00 00 00 00 00 00")).is_empty());
+        assert!(parse_roster(&hex("00 00 00 00 00 00 00 00 00 00"), false).is_empty());
     }
 
     #[test]

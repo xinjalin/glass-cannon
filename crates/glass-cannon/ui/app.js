@@ -349,6 +349,12 @@ function drawParty(party) {
     for (let s = 0; s < SEGMENTS; s++) meter.append(el("span", s < lit ? "seg on" : "seg"));
     const who = el("span", "who");
     who.append(classBadge(m), el("span", "name", m.name));
+    // In a party-finder group before the start: who has readied up.
+    if (m.ready != null) {
+      const mark = el("span", "ready-mark" + (m.ready ? " ready" : ""), m.ready ? "✓" : "○");
+      mark.title = m.ready ? "Ready" : "Not ready yet";
+      who.append(mark);
+    }
     const cp = el("span", "dps", m.combat_power ? fmt(m.combat_power) : "–");
     cp.title = "Combat power";
     const gs = el("span", "share", m.gear_score ? m.gear_score.toLocaleString("en-US") : "–");
@@ -359,14 +365,28 @@ function drawParty(party) {
   });
 }
 
-// Joins and leaves since the last roster, as notices; the first roster after starting
-// isn't news. Returns whether anything changed.
+// Who's ready of those who need to be ("2/4"), or "" when nobody has a ready mark.
+function readyCount(party) {
+  const marked = party.filter((m) => m.ready != null);
+  return marked.length ? `${marked.filter((m) => m.ready).length}/${marked.length}` : "";
+}
+
+// Joins, leaves and ready-ups since the last roster, as notices; the first roster after
+// starting isn't news. Returns whether anything changed.
 let lastParty = null;
+let lastReady = "";
 function noticePartyChanges(party) {
   const names = party.map((m) => m.name);
   const before = lastParty;
   lastParty = names;
+  const ready = readyCount(party);
+  const readyChanged = ready !== lastReady;
+  lastReady = ready;
   if (!before) return false;
+  if (readyChanged && ready) {
+    const [n, of] = ready.split("/");
+    if (n === of) notice("everyone's ready");
+  }
   if (names.length === 0 && before.length > 0) {
     notice("you left the party");
     return true;
@@ -384,7 +404,7 @@ function noticePartyChanges(party) {
     notice(`+ ${m.name} joined${stats ? ` · ${stats}` : ""}`);
   }
   for (const n of left) notice(`− ${n} left`);
-  return joined.length > 0 || left.length > 0 || (before.length === 0 && names.length > 0);
+  return joined.length > 0 || left.length > 0 || (before.length === 0 && names.length > 0) || (readyChanged && !!ready);
 }
 
 function notice(text) {
@@ -693,7 +713,7 @@ function redraw() {
   $("fight").textContent = phaseText(lastView);
   $("rows").hidden = mode === "list";
   $("fights").hidden = mode !== "list";
-  $("history").classList.toggle("on", !live);
+  for (const b of [$("history"), $("f-history")]) b.classList.toggle("on", !live);
   if (lastView) drawStatus(lastView);
 
   if (mode === "list") {
@@ -702,7 +722,8 @@ function redraw() {
   }
   const party = (lastView && lastView.meter.party) || [];
   if (live && (meterView() === "party" || partyPeek)) {
-    $("legend-text").textContent = "party";
+    const ready = readyCount(party);
+    $("legend-text").textContent = ready ? `party · ${ready} ready` : "party";
     $("clock").textContent = party.length ? `[${party.length}]` : "";
     $("totals").hidden = true;
     drawParty(party);
@@ -827,11 +848,13 @@ function openAnalysis(player) {
 }
 $("analysis").addEventListener("click", () => openAnalysis(null));
 
-$("history").addEventListener("click", async () => {
+async function toggleHistory() {
   if (mode === "live") await showList();
   else mode = "live";
   redraw();
-});
+}
+$("history").addEventListener("click", toggleHistory);
+$("f-history").addEventListener("click", toggleHistory);
 
 // Damage → healing → taken → party.
 async function cycleView() {

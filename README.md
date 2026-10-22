@@ -46,8 +46,9 @@ It starts capturing straight away and waits for the game if it isn't running.
   *mine* is only your damage, *all* everyone's nearby.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
-  gear score. The party shows by itself when someone joins or leaves between fights, and a
-  line under the meter says who.
+  gear score, and a ✓ for who's readied up in the party finder. The party shows by itself
+  when someone joins, leaves or readies up between fights, and a line under the meter
+  says who.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - **▷|** ends the fight now (otherwise 15 s of quiet does); **↺** resets.
 - **Lock** (bottom right): clicks pass through to the game. Click it again to unlock.
