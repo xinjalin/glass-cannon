@@ -88,11 +88,6 @@ impl GameStreams {
         self.flows.values().any(|f| f.confirmed)
     }
 
-    /// The flow carrying the game, once confirmed.
-    pub fn game_flow(&self) -> Option<u32> {
-        self.flows.iter().find(|(_, f)| f.confirmed).map(|(id, _)| *id)
-    }
-
     /// Times framing was lost on a confirmed game connection.
     pub fn resyncs(&self) -> u64 {
         self.resyncs

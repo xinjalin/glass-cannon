@@ -132,7 +132,7 @@ pub struct Appearance {
     /// Only the target name and the meter bars: no title bar, frame or border.
     #[serde(default)]
     pub minimal: bool,
-    /// A thin strip at the top with the local time and ping.
+    /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
 }

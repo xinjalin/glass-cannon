@@ -9,7 +9,7 @@ const win = tauri.window.getCurrentWindow();
 
 const DEFAULT_POLL_MS = 500;
 // The "live" update rate: redraw when new data arrives (the app says so), and once a
-// second anyway for the clock, ping and fights that end by going quiet.
+// second anyway for the clock and fights that end by going quiet.
 const REALTIME = 100;
 const HEARTBEAT_MS = 1000;
 const SEGMENTS = 12; // blocks in each meter bar
@@ -98,11 +98,6 @@ function clock(s) {
 
 function timeOfDay(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-// Green for a normal connection, amber when it's getting laggy, red when it's bad.
-function pingClass(ms) {
-  return ms < 200 ? "good" : ms < 300 ? "high" : "bad";
 }
 
 const minimal = () => document.documentElement.classList.contains("minimal");
@@ -647,15 +642,6 @@ function drawStatus(view) {
   drawScope(meter, view.auto_scope);
   $("dot").className = "dot " + (enc && enc.active ? "fighting" : status.phase);
   $("dot").title = status.message;
-
-  const ms = status.ping_ms;
-  const ping = $("ping");
-  ping.hidden = ms == null;
-  ping.textContent = ms == null ? "" : `${ms}ms`;
-  ping.className = ms == null ? "" : pingClass(ms);
-  const infoPing = $("info-ping");
-  infoPing.textContent = ms == null ? "ping –" : `ping ${ms}ms`;
-  infoPing.className = ms == null ? "" : pingClass(ms);
 
   // The bottom line only appears when something needs attention.
   let problem = "";

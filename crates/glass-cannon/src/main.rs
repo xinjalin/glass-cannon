@@ -62,8 +62,6 @@ struct Status {
     phase: Phase,
     message: String,
     dropped: u64,
-    /// Round trip to the game server.
-    ping_ms: Option<u32>,
 }
 
 struct Engine {
@@ -417,10 +415,7 @@ fn run_live(app: &AppState, record: bool) {
                 engine.set_status(Phase::Capturing, format!("capturing on {}", devices.join(", ")))
             }
             LiveEvent::Warning(msg) => engine.update_status(|s| s.message = msg),
-            LiveEvent::Status(st) => engine.update_status(|s| {
-                s.dropped = st.dropped;
-                s.ping_ms = st.ping_ms;
-            }),
+            LiveEvent::Status(st) => engine.update_status(|s| s.dropped = st.dropped),
             LiveEvent::Messages(msgs) => {
                 let mut meter = engine.meter();
                 for m in &msgs {
@@ -598,7 +593,6 @@ fn main() {
                 phase: Phase::Idle,
                 message: "not started".into(),
                 dropped: 0,
-                ping_ms: None,
             }),
             started: AtomicBool::new(false),
             replay_clock: replay.then(|| AtomicU64::new(0)),

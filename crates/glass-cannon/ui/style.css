@@ -43,7 +43,7 @@ body {
   --shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
-/* ---------------------------------------------------------------- time & ping strip */
+/* ---------------------------------------------------------------- time strip */
 
 #info {
   display: none;
@@ -62,11 +62,6 @@ body {
   cursor: grab;
 }
 .info-bar #info { display: flex; }
-.info-bar #ping { display: none; }
-#info-ping { color: var(--accent-2); }
-#info-ping.good { color: var(--ok); }
-#info-ping.high { color: var(--warn); }
-#info-ping.bad { color: var(--bad); }
 
 /* ---------------------------------------------------------------- title bar */
 
@@ -114,16 +109,6 @@ body {
   text-overflow: ellipsis;
   color: var(--accent-2);
 }
-
-#ping {
-  flex: none;
-  font-size: 0.9em;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent-2);
-}
-#ping.good { color: var(--ok); }
-#ping.high { color: var(--warn); }
-#ping.bad { color: var(--bad); }
 
 nav {
   display: flex;

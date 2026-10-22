@@ -21,7 +21,6 @@ pub mod pcapfile;
 pub mod pipeline;
 pub mod protocol;
 pub mod reassembly;
-pub mod rtt;
 pub mod recorder;
 pub mod session;
 mod win;
