@@ -9,15 +9,17 @@
 </head>
 <body>
   <main id="panel">
-    <!-- Optional strip with the local time (settings → time bar). -->
+    <!-- Optional strip with the local time and ping (settings → time & ping bar). -->
     <div id="info" data-tauri-drag-region>
       <span id="info-time" data-tauri-drag-region></span>
+      <span id="info-ping" title="Ping: the game's own round trip to its server" data-tauri-drag-region></span>
     </div>
 
     <header id="bar" data-tauri-drag-region>
       <span class="brand" data-tauri-drag-region>─ glass cannon</span>
       <span id="dot" class="dot" data-tauri-drag-region></span>
       <span id="fight" data-tauri-drag-region></span>
+      <span id="ping" title="Ping: the game's own round trip to its server" hidden></span>
       <nav>
         <button id="scope" type="button" title="Whose damage counts: auto, mine, party or all">mine</button>
         <button id="analysis" type="button" title="Analyse this fight (or right-click a player)">

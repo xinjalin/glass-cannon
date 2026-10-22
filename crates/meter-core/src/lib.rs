@@ -20,6 +20,7 @@ pub mod npcap;
 pub mod pcapfile;
 pub mod pipeline;
 pub mod protocol;
+pub mod state;
 pub mod reassembly;
 pub mod recorder;
 pub mod session;

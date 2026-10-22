@@ -338,6 +338,8 @@ function drawTabs() {
   for (const b of document.querySelectorAll("#tabs [data-tab]")) {
     b.setAttribute("aria-selected", String(b.dataset.tab === tab));
   }
+  const deaths = (data && data.view.deaths) || [];
+  $("deaths-tab").textContent = deaths.length ? `[deaths ${deaths.length}]` : "[deaths]";
   for (const s of document.querySelectorAll(".tab")) s.hidden = !data || s.id !== `tab-${tab}`;
 }
 
@@ -1487,7 +1489,79 @@ function render() {
     drawFollow("buffs");
   } else if (tab === "healing" || tab === "taken") {
     drawFlow(tab);
+  } else if (tab === "deaths") {
+    drawDeaths();
   }
+}
+
+// ---------------------------------------------------------------- deaths
+
+let deathPick = 0;
+
+function drawDeaths() {
+  const deaths = data.view.deaths || [];
+  const table = $("deaths-table");
+  table.replaceChildren();
+  if (!deaths.length) {
+    table.append(el("caption", "note", "nobody died in this fight"));
+    $("recap-legend").textContent = "recap";
+    $("recap-tiles").replaceChildren();
+    $("recap-hits").replaceChildren();
+    $("recap-heal").textContent = "";
+    return;
+  }
+  deathPick = Math.min(deathPick, deaths.length - 1);
+  const head = el("tr");
+  head.append(th("time", null, true), th("who", null, true), th("killed by", null, true), th("to death"));
+  table.append(head);
+  deaths.forEach((d, i) => {
+    const tr = el("tr", "clickable" + (i === deathPick ? " selected" : ""));
+    tr.append(
+      el("td", "left", clock(d.at_s * 1000)),
+      el("td", "left", d.name),
+      el("td", "left", [d.killer || "?", d.skill_name || (d.skill ? `#${d.skill}` : "")].filter(Boolean).join(" · ")),
+      el("td", "", `${d.time_to_death_s.toFixed(1)} s`),
+    );
+    tr.addEventListener("click", () => {
+      deathPick = i;
+      drawDeaths();
+    });
+    table.append(tr);
+  });
+  drawRecap(deaths[deathPick]);
+}
+
+function drawRecap(d) {
+  $("recap-legend").textContent = `${d.name} at ${clock(d.at_s * 1000)}`;
+  const tiles = $("recap-tiles");
+  tiles.replaceChildren(
+    tile("time to death", `${d.time_to_death_s.toFixed(1)} s`, "since full HP"),
+    tile("taken", fmt(d.direct + d.over_time), `${fmt(d.direct)} direct · ${fmt(d.over_time)} over time`),
+    tile("healed", fmt(d.healed), "in that time"),
+  );
+  const table = $("recap-hits");
+  table.replaceChildren();
+  const head = el("tr");
+  head.append(th("before", null, true), th("from", null, true), th("skill", null, true), th("damage"), th("hp after"));
+  table.append(head);
+  const hits = d.hits || [];
+  hits.forEach((h, i) => {
+    const last = i === hits.length - 1;
+    const tr = el("tr", last ? "selected" : "");
+    tr.append(
+      el("td", "left", `-${h.before_s.toFixed(1)} s`),
+      el("td", "left", h.from),
+      el("td", "left", (h.skill_name || `#${h.skill}`) + (h.dot ? " (over time)" : "")),
+      el("td", "", fmt(h.amount)),
+      el("td", "", h.hp == null ? "–" : fmt(h.hp)),
+    );
+    table.append(tr);
+  });
+  if (!hits.length) table.append(el("caption", "note", "no hits seen on them before this"));
+  const heal = d.last_heal;
+  $("recap-heal").textContent = heal
+    ? `last heal: ${heal.skill_name || `#${heal.skill}`} from ${heal.from}, ${heal.before_s.toFixed(1)} s before (${fmt(heal.amount)})`
+    : "no heals on them in this fight";
 }
 
 function selectPlayer(id) {

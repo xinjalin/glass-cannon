@@ -43,7 +43,7 @@ body {
   --shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
-/* ---------------------------------------------------------------- time strip */
+/* ---------------------------------------------------------------- time & ping strip */
 
 #info {
   display: none;
@@ -62,6 +62,11 @@ body {
   cursor: grab;
 }
 .info-bar #info { display: flex; }
+.info-bar #ping { display: none; }
+#info-ping { color: var(--accent-2); }
+#info-ping.good { color: var(--ok); }
+#info-ping.high { color: var(--warn); }
+#info-ping.bad { color: var(--bad); }
 
 /* ---------------------------------------------------------------- title bar */
 
@@ -109,6 +114,16 @@ body {
   text-overflow: ellipsis;
   color: var(--accent-2);
 }
+
+#ping {
+  flex: none;
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2);
+}
+#ping.good { color: var(--ok); }
+#ping.high { color: var(--warn); }
+#ping.bad { color: var(--bad); }
 
 nav {
   display: flex;
@@ -226,6 +241,13 @@ legend {
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 #total { flex: none; font-variant-numeric: tabular-nums; }
 
+.end-tag { flex: none; color: var(--muted); white-space: nowrap; }
+.end-tag.kill { color: var(--ok); }
+.end-tag.wipe { color: var(--bad); }
+.name[data-deaths]::after { content: " ☠" attr(data-deaths); color: var(--bad); }
+[data-highlight="self"] .row.self .name[data-deaths]::after,
+[data-highlight="all"] .row .name[data-deaths]::after { color: var(--ink); }
+
 .boss {
   flex: none;
   padding: 0 0.35em;
@@ -272,6 +294,7 @@ legend {
 .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ready-mark { flex: none; color: var(--faint); }
 .ready-mark.ready { color: var(--ok); }
+.leader-mark { flex: none; color: var(--warn); }
 .dps { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); }
 .share { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 

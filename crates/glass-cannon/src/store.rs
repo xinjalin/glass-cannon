@@ -10,7 +10,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use meter_core::meter::{Analysis, EncounterView, Scope, Snapshot};
+use meter_core::meter::{Analysis, EncounterView, FightEnd, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Fights kept in memory and shown in the history list.
@@ -504,6 +504,10 @@ pub struct FightSummary {
     pub dungeon: Option<crate::runs::Place>,
     /// The dungeon run it's part of: a position in the list's runs.
     pub run: Option<usize>,
+    /// How it ended (unknown for fights saved before this was read).
+    pub end: Option<FightEnd>,
+    /// Deaths of the players shown.
+    pub deaths: usize,
 }
 
 pub struct History {
@@ -566,6 +570,8 @@ impl History {
                 has_details: details.has(f.ended_ms),
                 dungeon: None,
                 run: None,
+                end: f.view.end,
+                deaths: f.view.deaths.len(),
             })
             .collect()
     }

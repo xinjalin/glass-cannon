@@ -30,6 +30,7 @@ use meter_core::session;
 mod analysis;
 mod clickthrough;
 mod fonts;
+mod ping;
 mod gamedata;
 mod layout;
 mod placement;
@@ -169,6 +170,8 @@ struct View {
     refresh_ms: u32,
     locked: bool,
     meter_view: store::MeterView,
+    /// The game's own ping (live capture only).
+    ping_ms: Option<u32>,
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
@@ -178,7 +181,7 @@ struct View {
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered) = {
+    let (mut snap, finished, known, entered, ping_ms) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -187,7 +190,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         if meter.scope() != scope {
             meter.set_scope(scope);
         }
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances())
+        let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping)
     };
     if !entered.is_empty() {
         let mut instances = lock(&app.instances);
@@ -236,6 +240,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         refresh_ms: settings.refresh_ms,
         locked: settings.locked,
         meter_view: settings.meter_view,
+        ping_ms,
     }
 }
 
@@ -588,7 +593,11 @@ fn main() {
     let overlay_new = placement::load(&placement::state_path(&config_dir)).is_none();
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
-            meter: Mutex::new(Meter::default()),
+            meter: Mutex::new({
+                let mut m = Meter::default();
+                m.set_boss_types(data.boss_types());
+                m
+            }),
             status: Mutex::new(Status {
                 phase: Phase::Idle,
                 message: "not started".into(),

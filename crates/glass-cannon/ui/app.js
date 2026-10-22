@@ -9,7 +9,7 @@ const win = tauri.window.getCurrentWindow();
 
 const DEFAULT_POLL_MS = 500;
 // The "live" update rate: redraw when new data arrives (the app says so), and once a
-// second anyway for the clock and fights that end by going quiet.
+// second anyway for the clock, ping and fights that end by going quiet.
 const REALTIME = 100;
 const HEARTBEAT_MS = 1000;
 const SEGMENTS = 12; // blocks in each meter bar
@@ -98,6 +98,11 @@ function clock(s) {
 
 function timeOfDay(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Green for a normal connection, amber when it's getting laggy, red when it's bad.
+function pingClass(ms) {
+  return ms < 200 ? "good" : ms < 300 ? "high" : "bad";
 }
 
 const minimal = () => document.documentElement.classList.contains("minimal");
@@ -283,6 +288,9 @@ function update(r, key, value, apply) {
 function drawRows(enc) {
   const list = $("rows");
   const rows = rowsOf(enc);
+  // Deaths per player, marked after their name.
+  const died = new Map();
+  for (const d of enc.deaths || []) died.set(d.entity, (died.get(d.entity) || 0) + 1);
   const top = rows.length ? rows[0].dps || 1 : 1;
   const ids = new Set();
   rows.forEach((p, i) => {
@@ -297,6 +305,10 @@ function drawRows(enc) {
       r.badge = badge;
     });
     update(r, "name", p.name, (v) => (r.name.textContent = v));
+    update(r, "deaths", died.get(p.id) || 0, (n) => {
+      if (n) r.name.dataset.deaths = n > 1 ? String(n) : "";
+      else delete r.name.dataset.deaths;
+    });
     const lit = Math.max(1, Math.round((p.dps / top) * SEGMENTS));
     update(r, "lit", lit, (v) => r.segs.forEach((seg, s) => seg.classList.toggle("on", s < v)));
     update(r, "dps", fmtRate(p.dps), (v) => (r.dps.textContent = v));
@@ -352,6 +364,11 @@ function drawParty(party) {
     for (let s = 0; s < SEGMENTS; s++) meter.append(el("span", s < lit ? "seg on" : "seg"));
     const who = el("span", "who");
     who.append(classBadge(m), el("span", "name", m.name));
+    if (m.leader) {
+      const lead = el("span", "leader-mark", "★");
+      lead.title = "Leader";
+      who.append(lead);
+    }
     // In a party-finder group before the start: who has readied up.
     if (m.ready != null) {
       const mark = el("span", "ready-mark" + (m.ready ? " ready" : ""), m.ready ? "✓" : "○");
@@ -425,6 +442,8 @@ function drawTotals(enc) {
   const more = enc.target_count > 1 ? ` +${enc.target_count - 1}` : "";
   const name = el("span", "target-name", (enc.target || "") + more);
   target.append(name);
+  const end = !enc.active && endTag(enc.end, (enc.deaths || []).length);
+  if (end) target.append(end);
   target.title = enc.target_type ? `mob type ${enc.target_type} · double-click to name it` : "";
   const current = enc.target && !enc.target.startsWith("Mob ") && !enc.target.startsWith("#") ? enc.target : "";
   target.ondblclick = enc.target_type
@@ -494,6 +513,20 @@ async function drawList() {
   $("empty").textContent = "no finished fights yet";
 }
 
+// How a fight ended, for kills and wipes (and its deaths): null for the rest.
+function endTag(end, deaths) {
+  const parts = [];
+  if (end === "kill") parts.push("✓ kill");
+  if (end === "wipe") parts.push("✗ wipe");
+  if (deaths) parts.push(`☠${deaths > 1 ? deaths : ""}`);
+  if (!parts.length) return null;
+  const tag = el("span", `end-tag ${end || ""}`, ` · ${parts.join(" ")}`);
+  tag.title = [end === "kill" ? "Ended on the kill" : end === "wipe" ? "The boss reset (a wipe)" : "", deaths ? `${deaths} death${deaths > 1 ? "s" : ""}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  return tag;
+}
+
 function fightItem(f, i, inRun) {
   const item = el("li", "fight-item" + (inRun ? " in-run" : ""));
   const what = el("span", "fight-what");
@@ -503,6 +536,8 @@ function fightItem(f, i, inRun) {
   // A dungeon fight on its own (not part of a run) says where it was.
   const where = !inRun && f.dungeon ? `${f.dungeon.name} · ` : "";
   const meta = el("span", "fight-meta", `${where}${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
+  const end = endTag(f.end, f.deaths);
+  if (end) meta.append(end);
   const text = el("span", "fight-text");
   text.append(what, meta);
   const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
@@ -665,6 +700,15 @@ function drawStatus(view) {
   drawScope(meter, view.auto_scope);
   $("dot").className = "dot " + (enc && enc.active ? "fighting" : status.phase);
   $("dot").title = status.message;
+
+  const ms = view.ping_ms;
+  const ping = $("ping");
+  ping.hidden = ms == null;
+  ping.textContent = ms == null ? "" : `${ms}ms`;
+  ping.className = ms == null ? "" : pingClass(ms);
+  const infoPing = $("info-ping");
+  infoPing.textContent = ms == null ? "ping –" : `ping ${ms}ms`;
+  infoPing.className = ms == null ? "" : pingClass(ms);
 
   // The bottom line only appears when something needs attention.
   let problem = "";

@@ -614,7 +614,27 @@ fn scope(everyone: bool, party: bool) -> Scope {
 fn new_meter(idle_s: u64, scope: Scope) -> Meter {
     let mut m = Meter::new(idle_s * 1_000_000);
     m.set_scope(scope);
+    m.set_boss_types(boss_types());
     m
+}
+
+/// Boss mob types from `gamedata/npcs.json` (in or above the current folder), so fights
+/// end on a boss's death as they do in the app. None when it isn't there.
+fn boss_types() -> Vec<u32> {
+    let found = std::env::current_dir()
+        .ok()
+        .and_then(|d| d.ancestors().map(|a| a.join("gamedata/npcs.json")).find(|p| p.exists()));
+    let Some(text) = found.and_then(|p| std::fs::read_to_string(p).ok()) else { return Vec::new() };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else { return Vec::new() };
+    json["npcs"]
+        .as_object()
+        .map(|npcs| {
+            npcs.iter()
+                .filter(|(_, n)| n["boss"].as_bool() == Some(true))
+                .filter_map(|(id, _)| id.parse().ok())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn render_meter(snap: &Snapshot) -> String {
@@ -631,7 +651,7 @@ fn render_meter(snap: &Snapshot) -> String {
     };
     out.push_str(&format!(
         "\n{} {:>5.0}s  {}{}  total {}  ({}/s)\n\n",
-        if e.active { "● fighting" } else { "■ ended   " },
+        if e.active { "● fighting".to_string() } else { format!("■ ended ({})", e.end.map_or("?".into(), |x| format!("{x:?}").to_lowercase())) },
         e.duration_s,
         e.target.as_deref().unwrap_or("?"),
         if e.target_count > 1 {
@@ -642,6 +662,20 @@ fn render_meter(snap: &Snapshot) -> String {
         human_num(e.total_damage),
         human_num(e.total_dps as u64)
     ));
+    for d in &e.deaths {
+        out.push_str(&format!(
+            "☠ {} died at {:.0}s (killed by {} with {}): {:.1}s to death, {} direct, {} over time, {} healed
+",
+            d.name,
+            d.at_s,
+            d.killer.as_deref().or(d.killer_type.map(|_| "a mob")).unwrap_or("?"),
+            d.skill,
+            d.time_to_death_s,
+            human_num(d.direct),
+            human_num(d.over_time),
+            human_num(d.healed),
+        ));
+    }
     out.push_str(&format!(
         "   {} {:>5} {:>9} {:>9} {:>6} {:>5} {:>8}\n",
         col("player", 18),

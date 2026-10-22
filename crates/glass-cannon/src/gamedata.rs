@@ -359,6 +359,11 @@ impl GameData {
         Some(info)
     }
 
+    /// The mob types that are bosses.
+    pub fn boss_types(&self) -> Vec<u32> {
+        self.npcs.npcs.iter().filter(|(_, e)| e.boss).map(|(id, _)| *id).collect()
+    }
+
     /// A mob type's name and boss flag.
     pub fn npc(&self, type_id: u32) -> Option<(String, bool)> {
         let e = self.npcs.npcs.get(&type_id)?;
@@ -382,6 +387,21 @@ impl GameData {
                 enc.target = Some(e.name.clone());
             }
             enc.target_boss = e.boss;
+        }
+        // Death recaps: skills and mobs by name.
+        let skill_name = |id: u32| self.resolve_skill(id).map(|(_, e)| e.name.clone()).filter(|n| !n.is_empty());
+        let mob_name = |t: Option<u32>| t.and_then(|t| self.npc(t)).map(|(name, _)| name);
+        for d in &mut enc.deaths {
+            d.skill_name = skill_name(d.skill);
+            if let Some(name) = mob_name(d.killer_type) {
+                d.killer = Some(name);
+            }
+            for h in d.hits.iter_mut().chain(d.last_heal.as_mut()) {
+                h.skill_name = skill_name(h.skill);
+                if let Some(name) = mob_name(h.from_type) {
+                    h.from = name;
+                }
+            }
         }
     }
 

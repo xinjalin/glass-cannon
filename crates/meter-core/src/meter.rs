@@ -17,10 +17,23 @@ use serde::{Deserialize, Serialize};
 use crate::buffs::EffectTracker;
 use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
-use crate::dungeon::{Instance, Maps};
-use crate::entities::{Change, PartyMember, Registry};
+use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
+use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
+use crate::state::{self, REMOVED_DIED};
 use crate::hp;
 use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
+
+/// While a boss in the fight is alive and in combat, quiet this long ends it instead.
+const BOSS_IDLE_TIMEOUT_US: u64 = 90_000_000;
+/// Hits on something that died this recently don't start a new fight (damage over time
+/// still ticking on a corpse).
+const AFTER_DEATH_US: u64 = 10_000_000;
+/// Deaths remembered this long, then forgotten (entity IDs get reused).
+const DEATHS_KEPT_US: u64 = 120_000_000;
+/// A death recap lists this many of the last hits.
+const RECAP_HITS: usize = 12;
+/// Pings kept for the median.
+const PINGS_KEPT: usize = 6;
 
 /// No activity in your fight for this long ends the encounter.
 pub const DEFAULT_IDLE_TIMEOUT_US: u64 = 15_000_000;
@@ -222,6 +235,9 @@ struct Encounter {
     attackers: HashSet<u64>,
     /// The map it's on and when you entered it.
     instance: Option<(u32, u64)>,
+    /// Players who died during it.
+    deaths: Vec<(u64, Death)>,
+    end: Option<FightEnd>,
 }
 
 impl Encounter {
@@ -236,7 +252,14 @@ impl Encounter {
             taken: Vec::new(),
             attackers: HashSet::new(),
             instance: None,
+            deaths: Vec::new(),
+            end: None,
         }
+    }
+
+    /// When its first hit landed.
+    fn start_us(&self) -> u64 {
+        self.targets.values().map(|t| t.first_us).min().unwrap_or(self.last_activity_us)
     }
 
     fn record(&mut self, h: &Hit) {
@@ -334,6 +357,72 @@ pub struct EncounterView {
     pub total_healing: u64,
     #[serde(default)]
     pub total_taken: u64,
+    /// How it ended (None while it's going on, and in fights saved before this was read).
+    #[serde(default)]
+    pub end: Option<FightEnd>,
+    /// Deaths of the players shown, in order.
+    #[serde(default)]
+    pub deaths: Vec<DeathView>,
+    /// When the boss goes berserk (µs since the Unix epoch), if the game said.
+    #[serde(default)]
+    pub berserk_us: Option<u64>,
+}
+
+/// Why a fight ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FightEnd {
+    /// Every boss in it died; or, with no boss, everyone left combat with the targets dead.
+    Kill,
+    /// A boss healed back to full, or everyone left combat with a boss alive.
+    Wipe,
+    /// Nobody did anything for a while.
+    Idle,
+    /// You changed map.
+    Zone,
+    /// Ended by hand.
+    Manual,
+}
+
+/// A player's death, with what led to it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DeathView {
+    pub entity: u64,
+    pub name: String,
+    /// Seconds into the fight.
+    pub at_s: f64,
+    /// A player killer's name or a mob's label (the app names mobs by `killer_type`).
+    pub killer: Option<String>,
+    pub killer_type: Option<u32>,
+    pub skill: u32,
+    /// Filled in by the app from its skill table.
+    pub skill_name: Option<String>,
+    /// From the last time they were at full HP in this fight (or its start) to the death.
+    pub time_to_death_s: f64,
+    /// Damage taken in that time: direct hits, and damage over time.
+    pub direct: u64,
+    pub over_time: u64,
+    /// Healing received in that time.
+    pub healed: u64,
+    /// The last hits taken, oldest first.
+    pub hits: Vec<RecapHit>,
+    /// The last heal received in the fight.
+    pub last_heal: Option<RecapHit>,
+}
+
+/// One hit (or heal) in a death recap.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecapHit {
+    /// Seconds before the death.
+    pub before_s: f64,
+    pub skill: u32,
+    pub skill_name: Option<String>,
+    pub from: String,
+    pub from_type: Option<u32>,
+    pub amount: u64,
+    pub dot: bool,
+    /// HP right after it, when known.
+    pub hp: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -477,6 +566,11 @@ impl HpLog {
         self.entities.get(&entity)?.samples.back().map(|(_, hp)| *hp)
     }
 
+    /// From the spawn, or the highest HP seen.
+    fn max(&self, entity: u64) -> Option<u64> {
+        self.entities.get(&entity).map(|e| e.max).filter(|m| *m > 0)
+    }
+
     fn record(&mut self, ts_us: u64, entity: u64, hp: u64, max: Option<u64>) {
         let e = self.entities.entry(entity).or_default();
         e.max = e.max.max(hp).max(max.unwrap_or(0));
@@ -538,6 +632,16 @@ pub struct Meter {
     instance_changes: Vec<Instance>,
     /// Each player's class, from their skills.
     classes: HashMap<u64, u32>,
+    /// Mob types that are bosses (from the app's mob data).
+    bosses: HashSet<u32>,
+    /// Who's in combat, as the game last said, and when.
+    combat: HashMap<u64, (bool, u64)>,
+    /// When things died (pruned after [`DEATHS_KEPT_US`]).
+    died: HashMap<u64, u64>,
+    /// When bosses go berserk (ms since 1970).
+    berserk: HashMap<u64, u64>,
+    /// The game's pings coming back: (arrival, when the client sent it on its clock).
+    pings: VecDeque<(u64, i64)>,
 }
 
 impl Default for Meter {
@@ -563,6 +667,11 @@ impl Meter {
             maps: Maps::default(),
             instance_changes: Vec::new(),
             classes: HashMap::new(),
+            bosses: HashSet::new(),
+            combat: HashMap::new(),
+            died: HashMap::new(),
+            berserk: HashMap::new(),
+            pings: VecDeque::new(),
         }
     }
 
@@ -582,6 +691,18 @@ impl Meter {
         self.scope = scope;
     }
 
+    /// Which mob types are bosses: a boss's death ends the fight, and while one is alive
+    /// and in combat the fight waits longer before going idle.
+    pub fn set_boss_types(&mut self, types: impl IntoIterator<Item = u32>) {
+        self.bosses = types.into_iter().collect();
+    }
+
+    /// The game's latest pings: when each came back (capture time, µs) and when the client
+    /// sent it, on its clock (see [`state::CLIENT_CLOCK_BASE_MS`]).
+    pub fn pings(&self) -> impl Iterator<Item = &(u64, i64)> {
+        self.pings.iter()
+    }
+
     /// Stays on a map (dungeon runs) that began or changed since the last call, oldest
     /// first; the same stay can come more than once as it starts and completes.
     pub fn take_instances(&mut self) -> Vec<Instance> {
@@ -598,12 +719,12 @@ impl Meter {
         std::mem::take(&mut self.finished)
     }
 
-    /// Feeds one game message.
     /// Buff and debuff spans seen so far.
     pub fn effects(&self) -> &EffectTracker {
         &self.effects
     }
 
+    /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
         if self.effects.feed(ts_us, opcode, payload) {
             return;
@@ -614,6 +735,9 @@ impl Meter {
                 self.hp.record(ts_us, u.entity, u.hp, None);
                 if let Some(rise) = before.and_then(|b| u.hp.checked_sub(b)).filter(|r| *r > 0) {
                     self.settle_self_heal(ts_us, u.entity, rise);
+                    if self.boss_reset(u.entity, u.hp) {
+                        self.finish(FightEnd::Wipe, ts_us);
+                    }
                 }
             }
             return;
@@ -631,8 +755,42 @@ impl Meter {
             return;
         }
         if opcode != OPCODE_DAMAGE {
+            if opcode == OPCODE_MAP_ENTERED && self.current.is_some() {
+                self.finish(FightEnd::Zone, ts_us);
+            }
             if let Some(i) = self.maps.feed(ts_us, opcode, payload) {
                 self.instance_changes.push(i);
+            }
+            match opcode {
+                state::OPCODE_COMBAT_STATE => {
+                    if let Some(s) = state::parse_combat_state(payload) {
+                        self.combat.insert(s.entity, (s.in_combat, ts_us));
+                        if let Some(b) = s.berserk_ms {
+                            self.berserk.insert(s.entity, b);
+                        }
+                        self.check_end(ts_us);
+                    }
+                }
+                state::OPCODE_NPC_REMOVED => {
+                    if let Some((entity, REMOVED_DIED)) = state::parse_npc_removed(payload) {
+                        self.died.entry(entity).or_insert(ts_us);
+                        self.check_end(ts_us);
+                    }
+                }
+                state::OPCODE_PING => {
+                    if let Some(sent) = state::parse_ping(payload) {
+                        self.pings.push_back((ts_us, sent));
+                        if self.pings.len() > PINGS_KEPT {
+                            self.pings.pop_front();
+                        }
+                    }
+                }
+                OPCODE_DEATH => {
+                    if let Some(d) = parse_death(payload) {
+                        self.on_death(ts_us, d);
+                    }
+                }
+                _ => {}
             }
             if let Some(Change::Relogin { .. }) = self.registry.observe(opcode, payload) {
                 // Entity IDs from the previous login mean nothing now.
@@ -685,13 +843,16 @@ impl Meter {
             }
             return;
         }
-        // A barrier on a party member that hits back is the caster's: it's named after the
-        // member it protects, and the member's buff from that skill says who cast it.
-        let attacker = self.object_caster(ev.attacker, ev.skill).unwrap_or(ev.attacker);
+        let attacker = ev.attacker;
         // A summon's hits count for its owner. Hits between a player and their own
         // summons (a spirit's echo on its owner, Spirit Communion) aren't damage.
         let by = self.registry.credited(attacker);
-        if by == self.registry.credited(ev.target) {
+        let on = self.registry.credited(ev.target);
+        if by == on {
+            return;
+        }
+        // Between members of your party (a Chanter's effect on an ally, say): not damage.
+        if !self.registry.party().is_empty() && self.registry.in_party(by) && self.registry.in_party(on) {
             return;
         }
         let me = self.registry.self_id();
@@ -743,6 +904,12 @@ impl Meter {
             if let Some(code) = classes::class_code_of_skill(ev.skill) {
                 self.classes.insert(by, code);
             }
+        }
+        // Nor does a 1-damage hit (touching an object in a dungeon) or one on a corpse.
+        if self.current.is_none()
+            && (dmg <= 1 || self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US))
+        {
+            return;
         }
         if self.current.is_none() {
             let mut enc = Encounter::new(ts_us);
@@ -802,18 +969,92 @@ impl Meter {
 
     /// Ends the current encounter if it has been idle too long. Call periodically.
     pub fn tick(&mut self, now_us: u64) {
-        let idle = self
-            .current
-            .as_ref()
-            .is_some_and(|enc| now_us.saturating_sub(enc.last_activity_us) > self.idle_timeout_us);
-        if idle {
-            self.end_fight(now_us);
+        let Some(enc) = &self.current else { return };
+        let quiet = now_us.saturating_sub(enc.last_activity_us);
+        if quiet <= self.idle_timeout_us {
+            return;
+        }
+        // A boss still fighting (between phases, or out of reach) gets longer.
+        let boss_fighting = self
+            .counted_targets(enc)
+            .into_iter()
+            .any(|t| self.is_boss(t) && !self.died.contains_key(&t) && self.combat.get(&t).is_some_and(|(c, _)| *c));
+        if !boss_fighting || quiet > BOSS_IDLE_TIMEOUT_US {
+            self.finish(FightEnd::Idle, now_us);
         }
     }
 
-    /// Ends the current encounter now, as if it had gone idle: it goes to the finished
-    /// fights and stays on show, and the next hit starts a new one.
-    pub fn end_fight(&mut self, now_us: u64) {
+    fn is_boss(&self, entity: u64) -> bool {
+        self.registry.mob_type(entity).is_some_and(|t| self.bosses.contains(&t))
+    }
+
+    /// Something died: a player's death goes in the fight's recap, and it may end the fight.
+    fn on_death(&mut self, ts_us: u64, d: Death) {
+        self.died.insert(d.entity, ts_us);
+        self.died.retain(|_, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US);
+        // Players the game has named (an unnamed "player" may be a mob we missed the spawn of).
+        if self.registry.is_self(d.entity) || self.registry.player_name(d.entity).is_some() {
+            if let Some(enc) = self.current.as_mut() {
+                enc.deaths.push((ts_us, d));
+            }
+            return;
+        }
+        self.check_end(ts_us);
+    }
+
+    /// Whether you and your party in this fight have all left combat since it started:
+    /// None until the game has said for at least one of you.
+    fn party_out_of_combat(&self, enc: &Encounter) -> Option<bool> {
+        let start = enc.start_us();
+        let mut known = false;
+        for id in enc.attackers.iter().copied().chain(self.registry.self_id()) {
+            if !self.registry.in_party(id) {
+                continue;
+            }
+            match self.combat.get(&id) {
+                Some((true, _)) => return Some(false),
+                Some((false, at)) if *at >= start => known = true,
+                _ => {}
+            }
+        }
+        known.then_some(true)
+    }
+
+    /// Ends the fight when the game says it's over: its bosses died, or everyone left combat.
+    fn check_end(&mut self, ts_us: u64) {
+        let Some(enc) = &self.current else { return };
+        let targets = self.counted_targets(enc);
+        let dead = |t: &u64| self.died.get(t).is_some_and(|d| enc.targets.get(t).is_some_and(|l| *d >= l.first_us));
+        let bosses: Vec<u64> = targets.iter().copied().filter(|t| self.is_boss(*t)).collect();
+        let out = self.party_out_of_combat(enc) == Some(true);
+        let end = if !bosses.is_empty() && bosses.iter().all(dead) {
+            Some(FightEnd::Kill)
+        } else if out && !bosses.is_empty() {
+            Some(FightEnd::Wipe)
+        } else if out {
+            Some(if targets.iter().all(dead) { FightEnd::Kill } else { FightEnd::Idle })
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            self.finish(end, ts_us);
+        }
+    }
+
+    /// A boss in the fight that took damage is back to full HP: it reset.
+    fn boss_reset(&self, entity: u64, hp: u64) -> bool {
+        let Some(enc) = &self.current else { return false };
+        let max = self.hp.max(entity);
+        max.is_some_and(|m| hp >= m)
+            && self.is_boss(entity)
+            && !self.died.contains_key(&entity)
+            && enc.targets.get(&entity).is_some_and(|t| t.total > 0)
+            && self.counted_targets(enc).contains(&entity)
+    }
+
+    fn finish(&mut self, end: FightEnd, now_us: u64) {
+        let Some(enc) = self.current.as_mut() else { return };
+        enc.end = Some(end);
         let Some(enc) = &self.current else { return };
         if let Some(view) = self.view(enc, false) {
             self.finished.push(FinishedFight {
@@ -824,6 +1065,12 @@ impl Meter {
         }
         self.last = self.current.take();
         self.completed += 1;
+    }
+
+    /// Ends the current encounter now, as if it had gone idle: it goes to the finished
+    /// fights and stays on show, and the next hit starts a new one.
+    pub fn end_fight(&mut self, now_us: u64) {
+        self.finish(FightEnd::Manual, now_us);
     }
 
     /// Names players we were told about earlier (e.g. before the meter restarted, in the
@@ -856,15 +1103,6 @@ impl Meter {
             encounter: enc.and_then(|e| self.view(e, active)),
             encounters_completed: self.completed,
         }
-    }
-
-    /// For an object that belongs to a player (a barrier on them), who cast it: whoever put
-    /// up that skill's effect on the player; once it's gone (a barrier breaks as it hits),
-    /// whoever last put that effect up on anyone; else the player (their own objects, such
-    /// as a dungeon's items they use, have no effect).
-    fn object_caster(&self, id: u64, skill: u32) -> Option<u64> {
-        let player = self.registry.object_player(id)?;
-        Some(self.effects.source_on(player, skill).or_else(|| self.effects.last_source(skill)).unwrap_or(player))
     }
 
     /// Your party with what we know of each member's class.
@@ -1117,7 +1355,48 @@ impl Meter {
             taken,
             total_healing,
             total_taken,
+            end: e.end,
+            deaths: e.deaths.iter().filter(|(_, d)| shown(d.entity)).map(|(at, d)| self.death_view(e, *at, d)).collect(),
+            berserk_us: main_target.and_then(|t| self.berserk.get(&t)).map(|ms| ms * 1000),
         })
+    }
+
+    /// What led to a player's death: the hits and heals since they were last at full HP.
+    fn death_view(&self, e: &Encounter, at: u64, d: &Death) -> DeathView {
+        let start = e.start_us();
+        let hp = self.hp.entities.get(&d.entity);
+        let full = hp
+            .and_then(|h| h.samples.iter().rev().find(|(t, v)| (start..at).contains(t) && *v >= h.max).map(|(t, _)| *t))
+            .unwrap_or(start);
+        let hp_after = |ts: u64| hp.and_then(|h| h.samples.iter().find(|(t, _)| *t >= ts && *t <= at).map(|(_, v)| *v));
+        let secs = |us: u64| at.saturating_sub(us) as f64 / 1e6;
+        let recap = |h: &Hit| RecapHit {
+            before_s: secs(h.ts_us),
+            skill: h.skill,
+            skill_name: None,
+            from: self.registry.label(h.attacker),
+            from_type: self.registry.mob_type(h.attacker),
+            amount: h.damage,
+            dot: h.is_dot,
+            hp: hp_after(h.ts_us),
+        };
+        let taken: Vec<&Hit> = e.taken.iter().filter(|h| h.target == d.entity && (full..=at).contains(&h.ts_us)).collect();
+        let healed = e.heals.iter().filter(|h| h.target == d.entity && (full..=at).contains(&h.ts_us)).map(|h| h.damage).sum();
+        DeathView {
+            entity: d.entity,
+            name: self.registry.label(d.entity),
+            at_s: at.saturating_sub(start) as f64 / 1e6,
+            killer: d.killer_name.clone().or_else(|| d.killer.map(|k| self.registry.label(k))),
+            killer_type: d.killer_type.or_else(|| d.killer.and_then(|k| self.registry.mob_type(k))),
+            skill: d.skill,
+            skill_name: None,
+            time_to_death_s: secs(full),
+            direct: taken.iter().filter(|h| !h.is_dot).map(|h| h.damage).sum(),
+            over_time: taken.iter().filter(|h| h.is_dot).map(|h| h.damage).sum(),
+            healed,
+            hits: taken.iter().rev().take(RECAP_HITS).rev().map(|h| recap(h)).collect(),
+            last_heal: e.heals.iter().rev().find(|h| h.target == d.entity && h.ts_us <= at).map(recap),
+        }
     }
 
     /// Rows for heals or damage taken, one per `key` (the healer, or who took the hits),
@@ -1203,7 +1482,7 @@ fn ratio(part: u64, whole: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::{OPCODE_PARTY_ROSTER, OPCODE_PLAYER_SPAWN, OPCODE_SELF_SPAWN, OPCODE_SELF_TICK};
+    use crate::entities::{OPCODE_PARTY_ROSTER, OPCODE_PLAYER_SPAWN, OPCODE_SELF_SPAWN, OPCODE_SELF_STATS};
     use crate::protocol::tests::encode_varint;
 
     const S: u64 = 1_000_000;
@@ -1540,7 +1819,7 @@ mod tests {
         m.feed(S, OPCODE_DAMAGE, &hit(2, 20, 11_010_340, 200));
         assert_eq!(m.snapshot().encounter.unwrap().total_damage, 300);
         // The self tick arrives: from now on it's our fight only.
-        m.feed(2 * S, OPCODE_SELF_TICK, &encode_varint(10));
+        m.feed(2 * S, OPCODE_SELF_STATS, &encode_varint(10));
         assert_eq!(m.snapshot().self_id, Some(10));
     }
 
@@ -1550,7 +1829,7 @@ mod tests {
         // Others fight while we don't know our ID yet.
         m.feed(S, OPCODE_DAMAGE, &hit(25002, 5788, 14_010_340, 1000));
         assert!(m.snapshot().encounter.is_some());
-        m.feed(2 * S, OPCODE_SELF_TICK, &encode_varint(ME));
+        m.feed(2 * S, OPCODE_SELF_STATS, &encode_varint(ME));
         m.feed(3 * S, OPCODE_DAMAGE, &hit(25002, 5788, 14_010_340, 1000));
         assert_eq!(m.snapshot().encounter, None);
         // Our own hit starts a real fight.
@@ -1718,6 +1997,121 @@ mod tests {
         assert_eq!(e.healing.len(), 3);
         let pingu = e.healing.iter().find(|p| p.name == "Pingu").unwrap();
         assert_eq!((pingu.damage, pingu.skills[0].skill), (200, 18_730_002));
+    }
+
+    /// Mob 17151 (type 2400002) coming into view with 76,643 of 119,700 HP (from test D),
+    /// on a meter that takes its type as a boss's.
+    fn meter_with_boss() -> Meter {
+        let mut m = meter_as_me();
+        m.set_boss_types([2_400_002]);
+        let spawn = [
+            0xff, 0x85, 0x01, 0x05, 0x20, 0x00, 0x02, 0x9f, 0x24, 0x00, 0x40, 0x02, 0xcc, 0x98, 0xa6, 0xc7, 0xd3, 0xef,
+            0xaa, 0xc7, 0x00, 0xd4, 0xe1, 0x46, 0x15, 0xdd, 0x3f, 0x43, 0x70, 0x88, 0x01, 0xe3, 0xd6, 0x04, 0x94, 0xa7,
+            0x07, 0x64, 0x00, 0x00, 0x00,
+        ];
+        m.feed(0, crate::entities::OPCODE_MOB_SPAWN, &spawn);
+        m
+    }
+    const BOSS: u64 = 17151;
+
+    /// A death (0x8d04): entity, skill, killer, server, no name or legion, then the rest.
+    fn death(entity: u64, skill: u32, killer: u64) -> Vec<u8> {
+        let mut p = encode_varint(entity);
+        p.extend(skill.to_le_bytes());
+        p.extend(encode_varint(killer));
+        p.extend([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2]);
+        p
+    }
+
+    /// In or out of combat (0x8d21).
+    fn combat(entity: u64, in_combat: bool) -> Vec<u8> {
+        let mut p = encode_varint(entity);
+        p.extend([0, u8::from(in_combat)]);
+        p
+    }
+
+    fn ends(m: &mut Meter) -> Vec<FightEnd> {
+        m.take_finished().into_iter().filter_map(|f| f.view.end).collect()
+    }
+
+    #[test]
+    fn a_bosss_death_ends_the_fight() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+        // Damage still ticking on the corpse doesn't start another fight.
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 300));
+        assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+    }
+
+    #[test]
+    fn a_boss_back_to_full_hp_is_a_wipe() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(BOSS, 71_643));
+        assert!(ends(&mut m).is_empty());
+        m.feed(5 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
+        assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+    }
+
+    #[test]
+    fn a_boss_still_fighting_gets_longer() {
+        let mut m = meter_with_boss();
+        m.feed(S, state::OPCODE_COMBAT_STATE, &combat(BOSS, true));
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // Out of reach for 30 s (a phase change): still the same fight.
+        m.tick(31 * S);
+        assert!(m.snapshot().encounter.unwrap().active);
+        m.tick(100 * S);
+        assert_eq!(ends(&mut m), [FightEnd::Idle]);
+    }
+
+    #[test]
+    fn trash_ends_when_you_leave_combat() {
+        let mut m = meter_as_me();
+        m.feed(S, state::OPCODE_COMBAT_STATE, &combat(ME, true));
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 5000));
+        m.feed(2 * S, OPCODE_DEATH, &death(DUMMY, 18_010_340, ME));
+        // The mob died, but you're still fighting (more may be coming).
+        assert!(ends(&mut m).is_empty());
+        m.feed(5 * S, state::OPCODE_COMBAT_STATE, &combat(ME, false));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+    }
+
+    #[test]
+    fn changing_map_ends_the_fight() {
+        let mut m = meter_as_me();
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 5000));
+        m.feed(2 * S, OPCODE_MAP_ENTERED, &[0x56, 0x04, 0, 0, 1]);
+        assert_eq!(ends(&mut m), [FightEnd::Zone]);
+    }
+
+    #[test]
+    fn deaths_are_recapped_and_party_hits_on_each_other_dont_count() {
+        let mut m = meter_with_boss();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PARTY_ROSTER, &roster(&["Pingu", "NeneneTowawa"]));
+        m.set_scope(Scope::Party);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // Pingu's effect on you isn't damage.
+        m.feed(S, OPCODE_DAMAGE, &hit(ME, 15772, 12_010_340, 777));
+        m.feed(S, hp::OPCODE_HP, &hp_update(15772, 9000));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(15772, BOSS, 100_018, 4000));
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(15772, 5000));
+        m.feed(3 * S, OPCODE_DOT, &heal(15772, ME, 18_120_120, 1000));
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(15772, BOSS, 100_019, 6000));
+        m.feed(4 * S, hp::OPCODE_HP, &hp_update(15772, 0));
+        m.feed(4 * S, OPCODE_DEATH, &death(15772, 100_019, BOSS));
+        let e = m.snapshot().encounter.unwrap();
+        assert!(e.active, "a party member's death doesn't end the fight");
+        assert_eq!(e.total_damage, 5000);
+        let d = &e.deaths[0];
+        assert_eq!((d.name.as_str(), d.skill, d.at_s), ("Pingu", 100_019, 3.0));
+        assert_eq!((d.time_to_death_s, d.direct, d.healed), (3.0, 10_000, 1000));
+        let hits: Vec<_> = d.hits.iter().map(|h| (h.before_s, h.amount, h.hp)).collect();
+        assert_eq!(hits, [(2.0, 4000, Some(5000)), (0.0, 6000, Some(0))]);
+        assert_eq!(d.last_heal.as_ref().map(|h| h.amount), Some(1000));
     }
 
     #[test]

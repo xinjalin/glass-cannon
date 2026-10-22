@@ -331,6 +331,8 @@ mod tests {
             has_details: false,
             dungeon: None,
             run: None,
+            end: None,
+            deaths: 0,
         }
     }
 
