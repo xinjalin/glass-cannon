@@ -179,7 +179,8 @@ function skillLabel(s) {
     img.alt = "";
     label.append(img);
   } else {
-    label.append(el("span", "skill-icon blank"));
+    // No icon in the game data (a mob's skill, say): its first letter instead.
+    label.append(el("span", "skill-icon blank", s.name ? s.name[0] : ""));
   }
   const name = el("span", "skill-name" + (s.name ? "" : " code"), s.name || String(s.skill));
   label.append(name);

@@ -370,7 +370,14 @@ legend {
 .skill.head { color: var(--faint); }
 .skill-label { display: flex; align-items: center; gap: 0.4em; min-width: 0; cursor: text; }
 .skill-icon { flex: none; width: 1.35em; height: 1.35em; border-radius: 0.25em; }
-.skill-icon.blank { background: var(--line-faint); }
+.skill-icon.blank {
+  display: inline-grid;
+  place-items: center;
+  background: var(--line-faint);
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 700;
+}
 .skill-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 .skill-name.code { color: var(--faint); }
 

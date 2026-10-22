@@ -885,7 +885,9 @@ impl Meter {
         let engaged = self.current.as_ref().is_some_and(|e| e.engaged.contains(&ev.target));
         let relevant = by_me || on_me || by_party || on_party || engaged || (everyone && player);
         // A mob's hit on a player: damage taken, when it's someone we know is a player.
+        // A player's skill ticking on a player (a shield or mantra) isn't a mob's damage.
         let on_player = !player
+            && classes::class_code_of_skill(ev.skill).is_none()
             && (on_me
                 || self.registry.player_name(ev.target).is_some()
                 || self.current.as_ref().is_some_and(|e| e.attackers.contains(&ev.target)));
