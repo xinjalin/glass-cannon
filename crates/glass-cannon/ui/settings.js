@@ -13,7 +13,7 @@ const OPACITY_STEP = 5;
 const WIDTH_EM = 55.5;
 
 const SCOPE_HINTS = {
-  mine: "your targets, with everyone's damage on them",
+  mine: "just you: your damage on the targets you hit",
   party: "your party's targets, and only your party's damage",
   everyone: "every player fighting nearby",
 };

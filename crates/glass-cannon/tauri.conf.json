@@ -51,6 +51,7 @@
         "center": false,
         "visible": false,
         "shadow": true,
+        "alwaysOnTop": true,
         "url": "analysis.html"
       }
     ],

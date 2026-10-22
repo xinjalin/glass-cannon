@@ -4,10 +4,11 @@
 //! refreshes. Pure bookkeeping — no threads, no I/O — so it runs the same on live
 //! traffic and on recorded sessions.
 //!
-//! An encounter is *your* fight: the targets you hit, and everyone's damage on those
-//! targets (including hits from just before you joined). Players fighting other things
-//! nearby don't count, unless the scope is set to [`Scope::Everyone`]. [`Scope::Party`]
-//! narrows it to your party or group: the targets any of you hit, and only your damage.
+//! An encounter is *your* fight: the targets you hit, and only your damage on them.
+//! [`Scope::Party`] widens it to your party or group (the targets any of you hit, and all
+//! of your damage), and [`Scope::Everyone`] to all player damage nearby. Everyone's hits on
+//! your targets are kept (including hits from just before you joined), so switching the
+//! scope mid-fight shows them.
 
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -44,7 +45,7 @@ const HP_PRUNE_EVERY: u32 = 4096;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
-    /// Targets you hit, and everyone's damage on them.
+    /// Targets you hit, and only your damage on them.
     #[default]
     Mine,
     /// Targets you or your party hit, and only your party's damage. On your own, just you.
@@ -159,10 +160,13 @@ struct PlayerStats {
     max_hit: u64,
     outcomes: Outcomes,
     skills: HashMap<u32, SkillStats>,
+    /// Their first and last hit.
+    span: Option<(u64, u64)>,
 }
 
 impl PlayerStats {
     fn add(&mut self, h: &Hit, new_cast: bool) {
+        self.span = Some(widen(self.span, (h.ts_us, h.ts_us)));
         let mut one = Outcomes::default();
         one.add(h, new_cast);
         self.damage += h.damage;
@@ -173,6 +177,9 @@ impl PlayerStats {
     }
 
     fn merge(&mut self, other: &PlayerStats) {
+        if let Some(span) = other.span {
+            self.span = Some(widen(self.span, span));
+        }
         self.damage += other.damage;
         self.hits += other.hits;
         self.max_hit = self.max_hit.max(other.max_hit);
@@ -181,6 +188,10 @@ impl PlayerStats {
             self.skills.entry(*id).or_default().add(s.damage, &s.outcomes, s.hits, s.max, s.min);
         }
     }
+}
+
+fn widen(span: Option<(u64, u64)>, (first, last): (u64, u64)) -> (u64, u64) {
+    span.map_or((first, last), |(a, b)| (a.min(first), b.max(last)))
 }
 
 /// All player damage on one target during an encounter.
@@ -1027,12 +1038,15 @@ impl Meter {
             return None;
         }
 
-        let first = counted.iter().map(|(_, t)| t.first_us).min()?;
-        let last = counted.iter().map(|(_, t)| t.last_us).max()?;
-        let duration_s = ((last - first) as f64 / 1e6).max(1.0);
-
-        // Party scope counts only your party's damage (just yours when on your own).
-        let party_only = self.scope == Scope::Party && self.registry.self_id().is_some();
+        // Whose damage counts: yours in mine scope, your party's in party scope (just yours
+        // when on your own), everyone's in everyone scope or before we know who we are.
+        let me = self.registry.self_id();
+        let shown = |id: u64| match self.scope {
+            _ if me.is_none() => true,
+            Scope::Mine => me == Some(id),
+            Scope::Party => self.registry.in_party(id),
+            Scope::Everyone => true,
+        };
         let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
         for (target, t) in &counted {
             for (id, p) in &t.players {
@@ -1041,14 +1055,15 @@ impl Meter {
                 if by == self.registry.credited(**target) {
                     continue;
                 }
-                if !party_only || self.registry.in_party(by) {
+                if shown(by) {
                     per_player.entry(by).or_default().merge(p);
                 }
             }
         }
-        if per_player.is_empty() {
-            return None;
-        }
+        // The fight lasts from the first to the last counted hit, so time someone else spent
+        // on the target before you arrived doesn't lower your DPS.
+        let (first, last) = per_player.values().filter_map(|p| p.span).reduce(|a, b| widen(Some(a), b))?;
+        let duration_s = ((last - first) as f64 / 1e6).max(1.0);
         let total: u64 = per_player.values().map(|p| p.damage).sum();
 
         let mut players: Vec<PlayerRow> = per_player
@@ -1062,10 +1077,9 @@ impl Meter {
             .max_by_key(|(id, t)| (t.total, std::cmp::Reverse(**id)))
             .map(|(id, _)| **id);
 
-        // Healing and damage taken for the people in this fight: in party scope your
-        // party; otherwise everyone dealing damage here (and you), and anyone healing them.
-        let everyone = self.scope == Scope::Everyone || self.registry.self_id().is_none();
-        let shown = |id: u64| !party_only || self.registry.in_party(id);
+        // Healing and damage taken for the people whose damage counts: in everyone scope,
+        // everyone dealing damage here, and anyone healing them.
+        let everyone = self.scope == Scope::Everyone || me.is_none();
         let in_fight = |id: u64| everyone || per_player.contains_key(&id) || self.registry.is_self(id);
         let (healing, total_healing) = self.flow_rows(
             e.heals
@@ -1412,13 +1426,18 @@ mod tests {
         assert_eq!(snap.self_name.as_deref(), Some("NeneneTowawa"));
         let e = snap.encounter.unwrap();
         assert!(e.active);
+        // Mine: only your damage.
         assert_eq!(e.duration_s, 10.0);
-        assert_eq!(e.total_damage, 19_000);
-        let me = e.players.iter().find(|p| p.is_self).unwrap();
+        assert_eq!((e.total_damage, e.players.len()), (10_000, 1));
+        let me = &e.players[0];
         assert_eq!(me.name, "NeneneTowawa");
         assert_eq!((me.damage, me.dps, me.class_code), (10_000, 1000.0, Some(18)));
         assert_eq!(me.class_name.as_deref(), Some("Chanter"));
         assert_eq!(me.skills[0].skill, 18_040_350);
+
+        m.set_scope(Scope::Everyone);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!(e.total_damage, 19_000);
         assert_eq!(e.players[1].name, "Other");
         assert_eq!(e.players[1].class_code, Some(12));
     }
@@ -1470,14 +1489,18 @@ mod tests {
         assert_eq!(names, ["Pingu", "NeneneTowawa"]);
         assert_eq!(e.total_damage, 5000);
 
-        // Switching back mid-fight keeps the fight's targets, now with everyone's damage.
+        // Mine: just yours, on the same targets.
         m.set_scope(Scope::Mine);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.players.len(), e.total_damage), (1, 1000));
+        // Everyone: all the damage on them.
+        m.set_scope(Scope::Everyone);
         let e = m.snapshot().encounter.unwrap();
         assert_eq!((e.players.len(), e.total_damage), (3, 14_000));
     }
 
     #[test]
-    fn late_join_includes_earlier_hits_on_your_target() {
+    fn late_join_keeps_earlier_hits_on_your_target() {
         let mut m = meter_as_me();
         // Another player starts on the boss before we arrive.
         m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, 777, 11_010_340, 5000));
@@ -1485,9 +1508,13 @@ mod tests {
         assert_eq!(m.snapshot().encounter, None);
         m.feed(6 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 1000));
 
+        // Mine: just your hit, and their time on it before you came doesn't count.
         let e = m.snapshot().encounter.unwrap();
-        assert_eq!(e.total_damage, 11_000);
-        assert_eq!(e.duration_s, 5.0);
+        assert_eq!((e.total_damage, e.duration_s), (1000, 1.0));
+        // Everyone: their earlier hits are there too.
+        m.set_scope(Scope::Everyone);
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.total_damage, e.duration_s), (11_000, 5.0));
         // And their later hits on it keep counting.
         m.feed(8 * S, OPCODE_DAMAGE, &hit(DUMMY, 777, 11_010_340, 5000));
         assert_eq!(m.snapshot().encounter.unwrap().total_damage, 16_000);
@@ -1670,9 +1697,8 @@ mod tests {
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.total_damage, 1000, "heals and hits on you aren't damage dealt");
         let healing: Vec<(&str, u64)> = e.healing.iter().map(|p| (p.name.as_str(), p.damage)).collect();
-        assert_eq!(healing, [("NeneneTowawa", 1576), ("Pingu", 200)]);
-        assert_eq!(e.total_healing, 1776);
-        assert_eq!(e.healing[1].skills[0].skill, 18_730_002);
+        assert_eq!(healing, [("NeneneTowawa", 1576)], "mine: only your healing");
+        assert_eq!(e.total_healing, 1576);
         let self_heal = e.healing[0].skills.iter().find(|s| s.skill == 18_170_010).unwrap();
         assert_eq!(self_heal.damage, 600, "what HP rose by, not the 1000 the message said");
         assert!(!e.healing[0].skills.iter().any(|s| s.skill == 18_720_001), "a shield isn't a heal");
@@ -1682,14 +1708,16 @@ mod tests {
         assert_eq!(e.taken[0].class_code, Some(18), "class from your damage, not the mob's skill");
 
         let a = m.analysis(6 * S).unwrap();
-        assert_eq!(a.heals.len(), 3);
+        assert_eq!(a.heals.len(), 2, "mine: your two heals, not Pingu's");
         assert_eq!(a.taken.iter().map(|h| (h.t, h.damage)).collect::<Vec<_>>(), [(1000, 500), (2000, 300)]);
         assert!(a.names.contains_key(&MOB));
 
-        // Everyone: the stranger's heal counts too.
+        // Everyone: Pingu's chant on you and the stranger's heal count too.
         m.set_scope(Scope::Everyone);
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.healing.len(), 3);
+        let pingu = e.healing.iter().find(|p| p.name == "Pingu").unwrap();
+        assert_eq!((pingu.damage, pingu.skills[0].skill), (200, 18_730_002));
     }
 
     #[test]

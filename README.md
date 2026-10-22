@@ -43,6 +43,7 @@ It starts capturing straight away and waits for the game if it isn't running.
 
 - **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
   party: your party's fight while you're in a party or expedition, yours on your own.
+  *mine* is only your damage, *all* everyone's nearby.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
   gear score. The party shows by itself when someone joins or leaves between fights, and a

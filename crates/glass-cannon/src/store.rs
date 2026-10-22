@@ -40,8 +40,8 @@ pub struct Settings {
     /// Also save each session's packets to `captures/`.
     #[serde(default)]
     pub record: bool,
-    /// Whose damage counts when chosen by hand: your targets ("mine"), your party, or
-    /// everyone nearby. Only used with `manual_scope`.
+    /// Whose damage counts when chosen by hand: yours ("mine"), your party's, or
+    /// everyone's nearby. Only used with `manual_scope`.
     #[serde(default)]
     pub scope: Scope,
     /// The scope was chosen by hand. Otherwise it follows your party: your party's fight

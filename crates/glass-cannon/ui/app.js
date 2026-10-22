@@ -21,7 +21,7 @@ const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
 const SCOPES = ["auto", "mine", "party", "everyone"];
 const SCOPE_LABELS = { mine: "mine", party: "party", everyone: "all" };
 const SCOPE_TITLES = {
-  mine: "Your fight: targets you hit, with everyone's damage on them",
+  mine: "Just you: your damage on the targets you hit",
   party: "Your party: targets any of you hit, and only your party's damage",
   everyone: "Everyone fighting nearby",
 };
