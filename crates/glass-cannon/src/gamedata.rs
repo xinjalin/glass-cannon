@@ -312,6 +312,12 @@ impl GameData {
         if let Some(enc) = snap.encounter.as_mut() {
             self.annotate_view(enc);
         }
+        if let Some(t) = snap.target.as_mut() {
+            if let Some((name, boss)) = t.mob_type.and_then(|m| self.npc(m)) {
+                t.name = name;
+                t.boss = boss;
+            }
+        }
     }
 
     /// A skill's name and icon key (for skills outside a view, e.g. the timelines).

@@ -21,7 +21,8 @@ use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
 use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
 use crate::cooldowns::{CooldownView, Cooldowns};
 use crate::pvp::{PvpSession, PvpTracker};
-use crate::state::{self, REMOVED_DIED};
+use crate::fieldboss::{parse_world_map, FieldBoss, OPCODE_WORLD_MAP};
+use crate::state::{self, Stagger, REMOVED_DIED};
 use crate::hp;
 use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
 
@@ -36,6 +37,8 @@ const DEATHS_KEPT_US: u64 = 120_000_000;
 const RECAP_HITS: usize = 12;
 /// Pings kept for the median.
 const PINGS_KEPT: usize = 6;
+/// Damage over this long sets how fast a target is going down (its time to kill).
+const KILL_RATE_US: u64 = 10_000_000;
 
 /// No activity in your fight for this long ends the encounter.
 pub const DEFAULT_IDLE_TIMEOUT_US: u64 = 15_000_000;
@@ -368,6 +371,34 @@ pub struct EncounterView {
     /// When the boss goes berserk (µs since the Unix epoch), if the game said.
     #[serde(default)]
     pub berserk_us: Option<u64>,
+    /// The main target's HP now and in full, when known (live fights).
+    #[serde(default)]
+    pub target_hp: Option<u64>,
+    #[serde(default)]
+    pub target_max_hp: Option<u64>,
+}
+
+/// What you're targeting (or fighting), for the target frame.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct TargetView {
+    pub entity: u64,
+    /// Its label: a player's name, or a mob's "#id" (the app names mobs by `mob_type`).
+    pub name: String,
+    pub mob_type: Option<u32>,
+    /// Set by the app from its mob data.
+    pub boss: bool,
+    pub hp: Option<u64>,
+    pub max_hp: Option<u64>,
+    /// When it goes berserk (µs since 1970).
+    pub berserk_us: Option<u64>,
+    /// Who it's attacking, and whether that's you.
+    pub attacking: Option<String>,
+    pub attacking_you: bool,
+    pub stagger: Option<Stagger>,
+    /// At the rate it lost HP over the last 10 s.
+    pub time_to_kill_s: Option<f64>,
+    /// You picked it (otherwise it's the fight's main target).
+    pub selected: bool,
 }
 
 /// Why a fight ended.
@@ -436,6 +467,10 @@ pub struct Snapshot {
     pub party_size: usize,
     /// Your party or group, you included, in roster order (empty when on your own).
     pub party: Vec<PartyView>,
+    /// What you're targeting, or fighting.
+    pub target: Option<TargetView>,
+    /// You're in combat (the game says so, or a fight is going on).
+    pub in_combat: bool,
     /// The current encounter, or the last one once it has ended.
     pub encounter: Option<EncounterView>,
     pub encounters_completed: u32,
@@ -648,6 +683,12 @@ pub struct Meter {
     cooldowns: Cooldowns,
     /// Fights with players outside your party.
     pvp: PvpTracker,
+    /// Your target, what each mob is attacking, and their stagger gauges.
+    selected: Option<u64>,
+    aggro: HashMap<u64, u64>,
+    stagger: HashMap<u64, Stagger>,
+    /// Field bosses read from a world map since the last [`Meter::take_field_bosses`].
+    field_bosses: Vec<FieldBoss>,
 }
 
 impl Default for Meter {
@@ -680,6 +721,10 @@ impl Meter {
             pings: VecDeque::new(),
             cooldowns: Cooldowns::default(),
             pvp: PvpTracker::default(),
+            selected: None,
+            aggro: HashMap::new(),
+            stagger: HashMap::new(),
+            field_bosses: Vec::new(),
         }
     }
 
@@ -724,6 +769,11 @@ impl Meter {
     /// PvP sessions that ended since the last call.
     pub fn take_pvp(&mut self) -> Vec<PvpSession> {
         self.pvp.take_finished()
+    }
+
+    /// Field bosses from world maps opened since the last call.
+    pub fn take_field_bosses(&mut self) -> Vec<FieldBoss> {
+        std::mem::take(&mut self.field_bosses)
     }
 
     /// Stays on a map (dungeon runs) that began or changed since the last call, oldest
@@ -812,6 +862,26 @@ impl Meter {
                 OPCODE_DEATH => {
                     if let Some(d) = parse_death(payload) {
                         self.on_death(ts_us, d);
+                    }
+                }
+                state::OPCODE_YOUR_TARGET => {
+                    if let Some(t) = state::parse_your_target(payload) {
+                        self.selected = t;
+                    }
+                }
+                state::OPCODE_MOB_TARGET => {
+                    if let Some((mob, target)) = state::parse_mob_target(payload) {
+                        self.aggro.insert(mob, target);
+                    }
+                }
+                state::OPCODE_STAGGER => {
+                    if let Some((mob, s)) = state::parse_stagger(payload) {
+                        self.stagger.insert(mob, s);
+                    }
+                }
+                OPCODE_WORLD_MAP => {
+                    if let Some(bosses) = parse_world_map(payload) {
+                        self.field_bosses.extend(bosses);
                     }
                 }
                 _ => {}
@@ -1151,6 +1221,9 @@ impl Meter {
             scope: self.scope,
             party_size: self.registry.party().len(),
             party: self.party_view(),
+            target: self.target_view(),
+            in_combat: self.current.is_some()
+                || self.registry.self_id().is_some_and(|me| self.combat.get(&me).is_some_and(|(c, _)| *c)),
             encounter: enc.and_then(|e| self.view(e, active)),
             encounters_completed: self.completed,
         }
@@ -1409,6 +1482,48 @@ impl Meter {
             end: e.end,
             deaths: e.deaths.iter().filter(|(_, d)| shown(d.entity)).map(|(at, d)| self.death_view(e, *at, d)).collect(),
             berserk_us: main_target.and_then(|t| self.berserk.get(&t)).map(|ms| ms * 1000),
+            target_hp: main_target.filter(|_| active).and_then(|t| self.hp.last(t)),
+            target_max_hp: main_target.filter(|_| active).and_then(|t| self.hp.max(t)),
+        })
+    }
+
+    /// Your target if you've picked one that's alive, else the live fight's main target.
+    fn target_view(&self) -> Option<TargetView> {
+        let alive = |t: &u64| !self.died.contains_key(t) && !self.registry.is_self(*t);
+        let picked = self.selected.filter(alive);
+        let fighting = self.current.as_ref().and_then(|e| {
+            e.targets.iter().filter(|(t, _)| alive(t)).max_by_key(|(id, t)| (t.total, std::cmp::Reverse(**id))).map(|(id, _)| *id)
+        });
+        let entity = picked.or(fighting)?;
+        let hp = self.hp.last(entity);
+        // Its time to kill: its HP over the damage it took in the last 10 s.
+        let time_to_kill_s = self.current.as_ref().and_then(|e| {
+            let last = e.hits.last()?.0.ts_us;
+            let recent: u64 = e
+                .hits
+                .iter()
+                .rev()
+                .take_while(|(h, _)| last.saturating_sub(h.ts_us) <= KILL_RATE_US)
+                .filter(|(h, _)| h.target == entity)
+                .map(|(h, _)| h.damage)
+                .sum();
+            let rate = recent as f64 / (KILL_RATE_US as f64 / 1e6);
+            (rate > 0.0).then(|| hp.unwrap_or(0) as f64 / rate).filter(|_| hp.is_some())
+        });
+        let attacking = self.aggro.get(&entity).copied().filter(|t| *t != 0);
+        Some(TargetView {
+            entity,
+            name: self.registry.label(entity),
+            mob_type: self.registry.mob_type(entity),
+            boss: false,
+            hp,
+            max_hp: self.hp.max(entity),
+            berserk_us: self.berserk.get(&entity).map(|ms| ms * 1000),
+            attacking: attacking.map(|t| self.registry.label(t)),
+            attacking_you: attacking.is_some() && attacking == self.registry.self_id(),
+            stagger: self.stagger.get(&entity).copied(),
+            time_to_kill_s,
+            selected: picked.is_some(),
         })
     }
 

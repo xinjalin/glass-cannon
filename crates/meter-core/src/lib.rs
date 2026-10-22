@@ -11,6 +11,7 @@ pub mod cooldowns;
 pub mod damage;
 pub mod dungeon;
 pub mod entities;
+pub mod fieldboss;
 pub mod game;
 pub mod hp;
 pub mod join;

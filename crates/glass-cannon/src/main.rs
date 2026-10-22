@@ -149,6 +149,8 @@ pub struct AppState {
     players_saved: AtomicUsize,
     /// PvP sessions.
     pvp: Mutex<store::PvpLog>,
+    /// Field bosses from the world map.
+    field_bosses: Mutex<store::FieldBosses>,
     /// Side windows placed beside the meter once already.
     panels_placed: Mutex<std::collections::HashSet<String>>,
 }
@@ -177,6 +179,12 @@ struct View {
     meter_view: store::MeterView,
     /// The game's own ping (live capture only).
     ping_ms: Option<u32>,
+    /// For the alerts the overlay shows before events.
+    timer_region: String,
+    alerts: Vec<String>,
+    alert_lead_min: u32,
+    hide_after_s: u32,
+    boss_hp: bool,
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
@@ -186,7 +194,7 @@ struct View {
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -196,8 +204,9 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             meter.set_scope(scope);
         }
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp())
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses())
     };
+    lock(&app.field_bosses).update(field_bosses);
     if !pvp.is_empty() {
         let mut log = lock(&app.pvp);
         for s in pvp {
@@ -252,6 +261,11 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         locked: settings.locked,
         meter_view: settings.meter_view,
         ping_ms,
+        timer_region: settings.timer_region,
+        alerts: settings.alerts,
+        alert_lead_min: settings.alert_lead_min,
+        hide_after_s: settings.hide_after_s,
+        boss_hp: settings.boss_hp,
     }
 }
 
@@ -638,6 +652,7 @@ fn main() {
         known_players: Mutex::new(Some(known_players)),
         players_saved: AtomicUsize::new(0),
         pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
+        field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
         panels_placed: Mutex::new(std::collections::HashSet::new()),
     });
     state.locked.store(lock(&state.settings).locked, Ordering::SeqCst);
@@ -684,6 +699,14 @@ fn main() {
             panels::pvp_list,
             panels::timer_region,
             panels::set_timer_region,
+            panels::target,
+            panels::field_bosses,
+            panels::rename_field_boss,
+            panels::set_alert,
+            panels::set_alert_lead,
+            panels::set_hide_after,
+            panels::set_boss_hp,
+            panels::timer_settings,
         ])
         .setup(move |app| {
             restyle_windows(app.handle(), &lock(&state.settings).appearance.clone());

@@ -96,6 +96,8 @@ fn join_views(views: &[EncounterView]) -> EncounterView {
             .flatten()
             .collect(),
         berserk_us: None,
+        target_hp: None,
+        target_max_hp: None,
     }
 }
 
@@ -232,6 +234,8 @@ mod tests {
                 end: None,
                 deaths: Vec::new(),
                 berserk_us: None,
+                target_hp: None,
+                target_max_hp: None,
             },
             hits: vec![TimelineHit { t: hit_t, player: 1, target: 9, skill: 1, cast: 0, damage: 1, flags: 0, n: 1 }],
             effects: Vec::new(),

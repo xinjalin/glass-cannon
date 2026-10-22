@@ -7,6 +7,8 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use meter_core::fieldboss::FieldBoss;
+use meter_core::meter::TargetView;
 use meter_core::pvp::PvpSession;
 
 use crate::layout::Side;
@@ -14,7 +16,7 @@ use crate::settings::place_beside;
 use crate::store::TIMER_REGIONS;
 use crate::{lock, AppState, OVERLAY};
 
-pub const PANELS: [&str; 3] = ["history", "cooldowns", "timers"];
+pub const PANELS: [&str; 4] = ["history", "cooldowns", "timers", "target"];
 /// The smallest each may be squeezed to (logical pixels) to fit beside the meter.
 const MIN_SIZE: (f64, f64) = (260.0, 200.0);
 
@@ -147,4 +149,79 @@ pub fn set_timer_region(app: State<'_, Arc<AppState>>, region: String) -> Result
     s.timer_region = region;
     s.save(&app.config_dir);
     Ok(())
+}
+
+/// What you're targeting (or fighting), named.
+#[tauri::command]
+pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetView> {
+    let mut snap = app.engine.meter().snapshot();
+    lock(&app.data).annotate(&mut snap);
+    snap.target
+}
+
+#[derive(Serialize)]
+pub struct FieldBossRow {
+    #[serde(flatten)]
+    pub boss: FieldBoss,
+    /// The name you gave it.
+    pub name: Option<String>,
+}
+
+/// Field bosses as world maps last showed them.
+#[tauri::command]
+pub fn field_bosses(app: State<'_, Arc<AppState>>) -> Vec<FieldBossRow> {
+    let f = lock(&app.field_bosses);
+    f.bosses.values().map(|b| FieldBossRow { boss: b.clone(), name: f.names.get(&b.id).cloned() }).collect()
+}
+
+#[tauri::command]
+pub fn rename_field_boss(app: State<'_, Arc<AppState>>, id: u32, name: String) {
+    lock(&app.field_bosses).rename(id, &name);
+}
+
+/// Be told (or not) before an event or field boss starts.
+#[tauri::command]
+pub fn set_alert(app: State<'_, Arc<AppState>>, id: String, on: bool) {
+    let mut s = lock(&app.settings);
+    s.alerts.retain(|a| a != &id);
+    if on {
+        s.alerts.push(id);
+    }
+    s.save(&app.config_dir);
+}
+
+#[tauri::command]
+pub fn set_alert_lead(app: State<'_, Arc<AppState>>, minutes: u32) {
+    let mut s = lock(&app.settings);
+    s.alert_lead_min = minutes.clamp(1, 60);
+    s.save(&app.config_dir);
+}
+
+/// Seconds after combat before the meter fades (0: never).
+#[tauri::command]
+pub fn set_hide_after(app: State<'_, Arc<AppState>>, seconds: u32) {
+    let mut s = lock(&app.settings);
+    s.hide_after_s = seconds.min(600);
+    s.save(&app.config_dir);
+}
+
+#[tauri::command]
+pub fn set_boss_hp(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.boss_hp = on;
+    s.save(&app.config_dir);
+}
+
+#[derive(Serialize)]
+pub struct TimerSettings {
+    pub region: String,
+    pub alerts: Vec<String>,
+    pub alert_lead_min: u32,
+}
+
+#[tauri::command]
+pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
+    let s = lock(&app.settings);
+    let region = if TIMER_REGIONS.contains(&s.timer_region.as_str()) { s.timer_region.clone() } else { TIMER_REGIONS[0].into() };
+    TimerSettings { region, alerts: s.alerts.clone(), alert_lead_min: s.alert_lead_min }
 }

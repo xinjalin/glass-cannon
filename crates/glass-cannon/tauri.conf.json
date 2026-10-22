@@ -104,6 +104,23 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": false
+      },
+      {
+        "label": "target",
+        "title": "Glass Cannon target",
+        "width": 320,
+        "height": 190,
+        "minWidth": 220,
+        "minHeight": 120,
+        "url": "target.html",
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
       }
     ],
     "security": {

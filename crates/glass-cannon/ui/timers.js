@@ -1,130 +1,11 @@
-// World timers: the game's recurring events on a fixed schedule in each region's time.
-// The schedule follows Questlog's list (2026-10); times are minutes after midnight in the
-// region's time zone, days 0 = Sunday.
-
-const REGIONS = {
-  as: { label: "Asia", schedule: "global", timeZone: "Asia/Tokyo" },
-  naw: { label: "NA", schedule: "global", timeZone: "America/Los_Angeles" },
-  eu: { label: "EU", schedule: "global", timeZone: "Europe/Berlin" },
-  la: { label: "LA", schedule: "global", timeZone: "America/Sao_Paulo" },
-  kr: { label: "Korea", schedule: "kr", timeZone: "Asia/Seoul" },
-  tw: { label: "Taiwan", schedule: "tw", timeZone: "Asia/Taipei" },
-};
-
-const at = (hhmm) => {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-};
-// From `first`, every `step` minutes until midnight.
-const every = (first, step) => {
-  const out = [];
-  for (let t = at(first); t < 1440; t += step) out.push(t);
-  return out;
-};
-const MON_THU_SAT = [1, 4, 6];
-const WED_SAT = [3, 6];
-const SUN_FRI = [0, 5];
-
-const EVENTS = {
-  "spacetime-rift": "Spacetime Rift",
-  "shugo-festival": "Shugo Festival",
-  "dimensional-invasion": "Dimensional Invasion",
-  "watcher-kaira": "Watcher Kaira",
-  "artifact-siege": "Artifact Siege",
-  "siege-bosses": "Siege Bosses",
-  "guardian-lord-nahma": "Guardian Lord Nahma",
-  "daily-reset": "Daily reset",
-  "weekly-reset": "Weekly reset",
-};
-
-const shared = {
-  "spacetime-rift": { times: every("02:00", 180), minutes: 60 },
-  "shugo-festival": { times: every("00:00", 60), minutes: 10 },
-  "dimensional-invasion": { times: every("00:30", 60), minutes: 13 },
-};
-const SCHEDULES = {
-  global: {
-    ...shared,
-    "watcher-kaira": { times: every("01:00", 180) },
-    "artifact-siege": { days: MON_THU_SAT, times: [at("21:00")], minutes: 30 },
-    "siege-bosses": { days: MON_THU_SAT, times: [at("21:30")], minutes: 30 },
-    "guardian-lord-nahma": { days: SUN_FRI, times: [at("21:00")], minutes: 30 },
-    "daily-reset": { times: [at("16:00")], timeZone: "Asia/Seoul" },
-    "weekly-reset": { days: [3], times: [at("16:00")], timeZone: "Asia/Seoul" },
-  },
-  kr: {
-    ...shared,
-    "watcher-kaira": { times: every("01:00", 240) },
-    "artifact-siege": { days: WED_SAT, times: [at("21:20"), at("21:50"), at("22:20")], minutes: 30 },
-    "siege-bosses": { days: WED_SAT, times: [at("21:45"), at("22:15"), at("22:45")], minutes: 30 },
-    "guardian-lord-nahma": { days: SUN_FRI, times: [at("22:00"), at("22:30"), at("23:00")], minutes: 30 },
-    "daily-reset": { times: [at("05:00")] },
-    "weekly-reset": { days: [3], times: [at("05:00")] },
-  },
-  tw: {
-    ...shared,
-    "watcher-kaira": { times: every("01:00", 240) },
-    "artifact-siege": { days: WED_SAT, times: [at("21:30")], minutes: 30 },
-    "siege-bosses": { days: WED_SAT, times: [at("21:45")], minutes: 30 },
-    "guardian-lord-nahma": { days: SUN_FRI, times: [at("22:00")], minutes: 30 },
-    "daily-reset": { times: [at("05:00")] },
-    "weekly-reset": { days: [3], times: [at("05:00")] },
-  },
-};
-
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-// Soon: highlighted in the list.
-const SOON_MS = 15 * 60_000;
+// World timers: the events' schedule (schedule.js) for your region, field bosses from the
+// world map, and which of them to be alerted about (the bell; the meter shows the alert).
 
 let region = "as";
-
-// The wall clock in a time zone: its date, minutes after midnight, weekday, and how far
-// ahead of UTC it is (minutes).
-const zoneFormats = new Map();
-function zoned(now, timeZone) {
-  if (!zoneFormats.has(timeZone)) {
-    zoneFormats.set(
-      timeZone,
-      new Intl.DateTimeFormat("en-US", {
-        timeZone,
-        hourCycle: "h23",
-        year: "numeric",
-        month: "numeric",
-        day: "numeric",
-        hour: "numeric",
-        minute: "numeric",
-        second: "numeric",
-        weekday: "short",
-      }),
-    );
-  }
-  const p = Object.fromEntries(zoneFormats.get(timeZone).formatToParts(now).map((x) => [x.type, x.value]));
-  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
-  return {
-    y: +p.year,
-    m: +p.month - 1,
-    d: +p.day,
-    weekday: DAY_NAMES.indexOf(p.weekday),
-    offsetMin: Math.round((asUtc - now) / 60_000),
-  };
-}
-
-// The next start of an event (or the one going on), as ms since 1970.
-function next(event, timeZone, now) {
-  const z = zoned(now, timeZone);
-  const lasts = (event.minutes || 0) * 60_000;
-  let best = null;
-  for (let k = 0; k <= 7; k++) {
-    if (event.days && !event.days.includes((z.weekday + k) % 7)) continue;
-    for (const t of event.times) {
-      const start = Date.UTC(z.y, z.m, z.d + k) + t * 60_000 - z.offsetMin * 60_000;
-      if (start + lasts <= now) continue;
-      if (best == null || start < best) best = start;
-    }
-    if (best != null) break;
-  }
-  return best;
-}
+let alerts = new Set();
+let lead = 5;
+let bosses = [];
+const LEADS = [1, 3, 5, 10, 15];
 
 function every_text(e) {
   if (e.times.length > 3 && !e.days) {
@@ -152,41 +33,122 @@ function drawRegions() {
     });
     nav.append(b);
   }
+  const leadBox = el("span", "lead");
+  leadBox.append(el("span", "note", "alert"));
+  for (const m of LEADS) {
+    const b = el("button", "", `[${m}m]`);
+    b.type = "button";
+    b.setAttribute("aria-selected", String(m === lead));
+    b.title = `Alerts ${m} minute${m === 1 ? "" : "s"} before`;
+    b.addEventListener("click", () => {
+      lead = m;
+      invoke("set_alert_lead", { minutes: m }).catch(() => {});
+      drawRegions();
+    });
+    leadBox.append(b);
+  }
+  nav.append(leadBox);
+}
+
+function bell(id, name) {
+  const on = alerts.has(id);
+  const b = el("button", "bell" + (on ? " on" : ""), on ? "🔔" : "🔕");
+  b.type = "button";
+  b.title = on ? `Alerting before ${name} · click to stop` : `Alert me before ${name}`;
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (on) alerts.delete(id);
+    else alerts.add(id);
+    invoke("set_alert", { id, on: !on }).catch(() => {});
+    draw();
+  });
+  return b;
+}
+
+function row(name, meta, when, cls, id, title) {
+  const li = el("li", "timer " + cls);
+  const text = el("div", "timer-text");
+  text.append(el("span", "timer-name", name), el("span", "timer-meta", meta));
+  const w = el("span", "timer-when", when);
+  if (title) w.title = title;
+  li.append(bell(id, name), text, w);
+  return li;
 }
 
 function draw() {
-  const r = REGIONS[region];
   const now = Date.now();
-  const rows = Object.entries(SCHEDULES[r.schedule])
-    .map(([id, e]) => ({ id, e, start: next(e, e.timeZone || r.timeZone, now) }))
-    .filter((x) => x.start != null)
-    .sort((a, b) => a.start - b.start);
   const list = $("list");
   list.replaceChildren();
-  for (const { id, e, start } of rows) {
+  for (const { id, name, e, start } of upcoming(region, now, Infinity)) {
     const on = start <= now;
     const left = on ? start + e.minutes * 60_000 - now : start - now;
-    const li = el("li", "timer" + (on ? " on" : left <= SOON_MS ? " soon" : ""));
-    const text = el("div", "timer-text");
-    text.append(el("span", "timer-name", EVENTS[id] || id));
     const how = [every_text(e), e.minutes ? `${e.minutes} min` : ""].filter(Boolean).join(" · ");
-    text.append(el("span", "timer-meta", `${on ? "started" : dayAndTime(start)} · ${how}`));
-    const when = el("span", "timer-when", on ? `on · ${clock(left / 1000)}` : clock(left / 1000));
-    when.title = on ? "Time left" : `Starts ${new Date(start).toLocaleString()}`;
-    li.append(text, when);
-    list.append(li);
+    list.append(
+      row(
+        name,
+        `${on ? "started" : dayAndTime(start)} · ${how}`,
+        on ? `on · ${clock(left / 1000)}` : clock(left / 1000),
+        on ? "on" : left <= SOON_MS ? "soon" : "",
+        id,
+        on ? "Time left" : `Starts ${new Date(start).toLocaleString()}`,
+      ),
+    );
+  }
+  drawBosses(now);
+}
+
+// Field bosses: from the world map (open it in game to read them). Up ones first, then by
+// when they spawn. Double-click a name to name one.
+function drawBosses(now) {
+  const box = $("bosses");
+  box.replaceChildren();
+  $("bosses-empty").hidden = bosses.length > 0;
+  const sorted = [...bosses].sort((a, b) => (a.time_ms <= now) - (b.time_ms <= now) || a.time_ms - b.time_ms);
+  sorted.sort((a, b) => (b.time_ms <= now) - (a.time_ms <= now));
+  for (const b of sorted) {
+    const up = b.time_ms <= now;
+    const name = b.name || `Field boss ${b.id}`;
+    const li = row(
+      name,
+      `map ${b.map} · ${up ? `up since ${dayAndTime(b.time_ms)}` : `spawns ${dayAndTime(b.time_ms)}`}`,
+      up ? "up" : clock((b.time_ms - now) / 1000),
+      up ? "on" : b.time_ms - now <= SOON_MS ? "soon" : "",
+      `boss:${b.id}`,
+      up ? "Up (as of when you last opened the world map)" : `Spawns ${new Date(b.time_ms).toLocaleString()}`,
+    );
+    li.querySelector(".timer-name").title = "Double-click to name it";
+    li.querySelector(".timer-name").addEventListener("dblclick", () => {
+      const given = window.prompt(`Name for field boss ${b.id} (as the world map shows it):`, b.name || "");
+      if (given == null) return;
+      invoke("rename_field_boss", { id: b.id, name: given }).then(loadBosses).catch(() => {});
+    });
+    box.append(li);
   }
 }
 
-invoke("timer_region")
-  .then((r) => {
-    if (REGIONS[r]) region = r;
+async function loadBosses() {
+  try {
+    bosses = await invoke("field_bosses");
+  } catch {
+    bosses = [];
+  }
+  draw();
+}
+
+invoke("timer_settings")
+  .then((s) => {
+    if (REGIONS[s.region]) region = s.region;
+    alerts = new Set(s.alerts);
+    lead = s.alert_lead_min;
   })
   .catch(() => {})
   .finally(() => {
     drawRegions();
-    draw();
+    loadBosses();
   });
 setInterval(() => {
   if (!document.hidden) draw();
 }, 1000);
+setInterval(() => {
+  if (!document.hidden) loadBosses();
+}, 15_000);

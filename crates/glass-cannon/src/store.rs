@@ -69,6 +69,26 @@ pub struct Settings {
     /// Whose event schedule the timers follow: one of [`TIMER_REGIONS`].
     #[serde(default = "default_timer_region")]
     pub timer_region: String,
+    /// Events (their timer IDs) and field bosses ("boss:<id>") to be told about before
+    /// they start, and how many minutes before.
+    #[serde(default)]
+    pub alerts: Vec<String>,
+    #[serde(default = "default_alert_lead")]
+    pub alert_lead_min: u32,
+    /// The meter fades away this many seconds after combat ends (0: it doesn't), and comes
+    /// back in the next fight or under the mouse.
+    #[serde(default)]
+    pub hide_after_s: u32,
+    /// The boss's HP and enrage timer under the target's name.
+    #[serde(default = "default_true")]
+    pub boss_hp: bool,
+}
+
+fn default_alert_lead() -> u32 {
+    5
+}
+fn default_true() -> bool {
+    true
 }
 
 /// Regions with their own event times (the global client's by time zone, Korea, Taiwan).
@@ -391,6 +411,56 @@ const INSTANCES_LIMIT: usize = 500;
 /// PvP sessions kept.
 const PVP_LIMIT: usize = 300;
 
+/// Field bosses as world maps last showed them, and names you gave them
+/// (`fieldbosses.json`).
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct FieldBosses {
+    #[serde(skip)]
+    path: PathBuf,
+    #[serde(default)]
+    pub names: BTreeMap<u32, String>,
+    #[serde(default)]
+    pub bosses: BTreeMap<u32, meter_core::fieldboss::FieldBoss>,
+}
+
+impl FieldBosses {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("fieldbosses.json");
+        let mut f: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        f.path = path;
+        f
+    }
+
+    fn save(&self) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(s) = serde_json::to_string_pretty(self) {
+            let _ = fs::write(&self.path, s);
+        }
+    }
+
+    pub fn update(&mut self, seen: Vec<meter_core::fieldboss::FieldBoss>) {
+        if seen.is_empty() {
+            return;
+        }
+        for b in seen {
+            self.bosses.insert(b.id, b);
+        }
+        self.save();
+    }
+
+    pub fn rename(&mut self, id: u32, name: &str) {
+        let name = name.trim();
+        if name.is_empty() {
+            self.names.remove(&id);
+        } else {
+            self.names.insert(id, name.chars().take(40).collect());
+        }
+        self.save();
+    }
+}
+
 /// PvP sessions, oldest first (`pvp.jsonl`).
 pub struct PvpLog {
     path: PathBuf,
@@ -660,6 +730,8 @@ mod tests {
             scope: Scope::Mine,
             party_size: 0,
             party: Vec::new(),
+            target: None,
+            in_combat: false,
             encounter: Some(view),
             encounters_completed: 0,
         })
