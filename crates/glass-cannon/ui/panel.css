@@ -1,0 +1,223 @@
+/* The side windows (history, cooldowns, timers): the settings window's glass, title bar
+   and type. Colours come from theme.css. */
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html { font-size: var(--fs); }
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  line-height: 1.4;
+  text-shadow: var(--shadow);
+  overflow: hidden;
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  background: none;
+  border: 0;
+  padding: 0 0.25em;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+#panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 0.7em 0.6em;
+  background: rgba(var(--tint-rgb), max(var(--alpha), 0.6));
+  border: 1px solid var(--line-faint);
+}
+
+#bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5em;
+  height: 2.3em;
+  cursor: grab;
+}
+.brand { flex: 1; color: var(--muted); letter-spacing: 0.12em; font-size: 0.9em; white-space: nowrap; }
+.close { width: 1.7em; height: 1.7em; padding: 0.2em; color: var(--muted); }
+.close:hover { color: var(--text); background: var(--line-faint); }
+.close svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+/* [tab] choices under the title bar. */
+.tabs { display: flex; flex: none; flex-wrap: wrap; gap: 0.2em; margin-bottom: 0.4em; }
+.tabs button { color: var(--accent); }
+.tabs button:hover { background: var(--line-faint); }
+.tabs button[aria-selected="true"] { color: var(--ink); background: var(--accent); text-shadow: none; }
+
+.scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-right: 0.35em; }
+.scroll::-webkit-scrollbar { width: 0.4em; }
+.scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
+
+.empty { color: var(--muted); text-align: center; padding: 2em 0.5em; }
+.note { color: var(--faint); font-size: 0.85em; }
+.list { margin: 0; padding: 0; list-style: none; }
+
+.icon, .icon.blank {
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 0.25em;
+}
+.icon.blank {
+  display: inline-grid;
+  place-items: center;
+  background: var(--line-faint);
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- cooldowns */
+
+.cd {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.2em 0.2em;
+}
+.cd-main { display: flex; flex-direction: column; gap: 0.2em; min-width: 0; }
+.cd-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cd-bar { height: 0.35em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+.cd-fill { height: 100%; background: var(--bar, var(--accent)); }
+.cd-time { color: var(--accent-2); font-variant-numeric: tabular-nums; text-align: right; min-width: 3.2em; }
+.cd-charges { color: var(--ok); font-size: 0.85em; }
+.cd.soon .cd-time { color: var(--ok); }
+
+/* ---------------------------------------------------------------- timers */
+
+.timer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.3em 0.3em;
+  border-radius: 0.3em;
+}
+.timer + .timer { margin-top: 0.1em; }
+.timer-text { display: flex; flex-direction: column; min-width: 0; }
+.timer-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.timer-meta { color: var(--muted); font-size: 0.85em; }
+.timer-when { color: var(--accent-2); font-variant-numeric: tabular-nums; text-align: right; }
+.timer.soon .timer-when { color: var(--warn); }
+.timer.on { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.timer.on .timer-when { color: var(--ok); }
+
+/* ---------------------------------------------------------------- history (as the meter's list) */
+
+.fight-item, .run-item {
+  display: grid;
+  grid-template-columns: 1.8em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em;
+  border-radius: 0.3em;
+  cursor: pointer;
+}
+.fight-item:hover { background: var(--line-faint); }
+.fight-item.selected { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.fight-no { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+.fight-text { display: flex; flex-direction: column; min-width: 0; }
+.fight-what { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.fight-target { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.fight-dps, .kd { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.run-item {
+  margin-top: 0.15em;
+  border: 1px solid var(--line-faint);
+  background: rgba(0, 0, 0, 0.22);
+}
+.run-item:hover { background: rgba(0, 0, 0, 0.3); }
+.run-chevron { color: var(--muted); text-align: center; }
+.run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
+.run-tag {
+  flex: none;
+  margin-right: 0.2em;
+  padding: 0 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 0.25em;
+  color: var(--accent-2);
+  font-size: 0.8em;
+  text-shadow: none;
+}
+.run-item.pvp .run-tag { border-color: var(--bad); color: var(--bad); }
+.run-clear { flex: none; color: var(--ok); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
+.fight-item.opponent { cursor: default; }
+.boss {
+  flex: none;
+  padding: 0 0.35em;
+  border-radius: 0.25em;
+  background: var(--accent);
+  color: var(--ink);
+  text-shadow: none;
+  font-size: 0.8em;
+  font-weight: 700;
+}
+.end-tag { flex: none; color: var(--muted); white-space: nowrap; }
+.end-tag.kill { color: var(--ok); }
+.end-tag.wipe { color: var(--bad); }
+
+.timer { grid-template-columns: auto minmax(0, 1fr) auto; }
+.bell { padding: 0; font-size: 0.9em; opacity: 0.45; filter: grayscale(1); }
+.bell.on { opacity: 1; filter: none; }
+.bell:hover { opacity: 1; }
+.lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
+.lead button { color: var(--accent); }
+.lead button[aria-selected="true"] { color: var(--ink); background: var(--accent); text-shadow: none; }
+.section {
+  margin: 0.8em 0 0.3em;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  border-bottom: 1px dashed var(--line-faint);
+}
+
+/* ---------------------------------------------------------------- target frame */
+
+#frame { display: flex; flex-direction: column; gap: 0.3em; }
+.tf-head { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.tf-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 700; }
+.tf-pct { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.tf-hp { height: 0.8em; border-radius: 0.25em; background: var(--line-faint); overflow: hidden; }
+#tf-hp-fill { display: block; height: 100%; background: var(--bad); }
+.tf-line { display: flex; justify-content: space-between; gap: 0.6em; color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+#tf-attacking.you { color: var(--warn); font-weight: 700; }
+#tf-enrage { color: var(--warn); }
+#tf-enrage.soon { color: var(--bad); font-weight: 700; }
+.tf-stagger { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#tf-stagger-fill { display: block; height: 100%; background: var(--warn); }
+#tf-stagger-fill.broken { background: var(--ok); }
+.timer.stale .timer-when { color: var(--faint); }
+
+/* ---------------------------------------------------------------- party cooldowns */
+
+.member { margin-bottom: 0.6em; }
+.member-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding-bottom: 0.15em;
+  margin-bottom: 0.15em;
+  border-bottom: 1px dashed var(--line-faint);
+}
+.member-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
+.member.self .member-name { font-weight: 700; }
+.icon.class { width: 1.4em; height: 1.4em; }
+.cd.ready .cd-time { color: var(--ok); }
+.cd.ready .cd-name { color: var(--text); }
+.party-mark { color: var(--accent-2); font-size: 0.8em; }

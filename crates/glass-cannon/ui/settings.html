@@ -32,6 +32,7 @@
                 <button type="button" class="swatch" data-theme-choice="sky" title="sky"></button>
                 <button type="button" class="swatch" data-theme-choice="amber" title="amber"></button>
                 <button type="button" class="swatch" data-theme-choice="mono" title="mono"></button>
+                <button type="button" class="swatch custom" data-theme-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Theme colour"></button>
               </span>
             </div>
             <div class="line">
@@ -48,6 +49,7 @@
                   <button type="button" class="swatch" data-bar-choice="sky" title="sky"></button>
                   <button type="button" class="swatch" data-bar-choice="amber" title="amber"></button>
                   <button type="button" class="swatch" data-bar-choice="mono" title="mono"></button>
+                  <button type="button" class="swatch custom" data-bar-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Bar colour"></button>
                 </span>
               </span>
             </div>
@@ -85,6 +87,7 @@
               <span class="choice" role="radiogroup" aria-label="Highlight">
                 <button type="button" data-highlight-choice="self" title="Fill only your row">[you]</button>
                 <button type="button" data-highlight-choice="all" title="Fill every row in its colour">[all]</button>
+                <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
               </span>
             </div>
             <button id="minimal" type="button" class="opt" aria-pressed="false">
@@ -111,7 +114,8 @@
             <div class="line">
               <span class="key">count</span>
               <span class="choice" role="radiogroup" aria-label="Whose damage counts">
-                <button type="button" data-scope-choice="mine" title="Targets you hit, and everyone's damage on them">[mine]</button>
+                <button type="button" data-scope-choice="auto" title="Follows your party: your party's fight while you're in a party or expedition, yours on your own">[auto]</button>
+                <button type="button" data-scope-choice="mine" title="Just you: your damage on the targets you hit">[mine]</button>
                 <button type="button" data-scope-choice="party" title="Targets your party hits, and only your party's damage">[party]</button>
                 <button type="button" data-scope-choice="everyone" title="Every player fighting nearby">[all]</button>
               </span>
@@ -125,6 +129,18 @@
                 <button type="button" data-refresh-choice="500" title="Twice a second (default)">[0.5s]</button>
                 <button type="button" data-refresh-choice="1000" title="Once a second">[1s]</button>
                 <button type="button" data-refresh-choice="2000" title="Every two seconds">[2s]</button>
+              </span>
+            </div>
+            <button id="boss-hp" type="button" class="opt" aria-pressed="false" title="The boss's HP and enrage timer under its name, in live boss fights">
+              <span class="key">boss hp &amp; enrage</span><span class="state">[on]</span>
+            </button>
+            <div class="line">
+              <span class="key">fade outside combat</span>
+              <span class="choice" role="radiogroup" aria-label="Fade the meter outside combat">
+                <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
+                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight or under the mouse">[10s]</button>
+                <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
+                <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
               </span>
             </div>
             <button id="locked" type="button" class="opt" aria-pressed="false">
@@ -144,6 +160,18 @@
             </button>
             <button id="shortcut" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
+            </button>
+            <button id="open-cooldowns" type="button" class="opt" title="Your skills' cooldowns in a window of their own">
+              <span class="key">cooldowns</span><span class="state">[ open ]</span>
+            </button>
+            <button id="open-party-cooldowns" type="button" class="opt" title="Your party's long cooldowns and party buffs: ready, or how long left">
+              <span class="key">party cooldowns</span><span class="state">[ open ]</span>
+            </button>
+            <button id="open-timers" type="button" class="opt" title="When the world events and field bosses start, with alerts">
+              <span class="key">world timers</span><span class="state">[ open ]</span>
+            </button>
+            <button id="open-target" type="button" class="opt" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
+              <span class="key">target frame</span><span class="state">[ open ]</span>
             </button>
             <button id="reset" type="button" class="opt" title="Theme, font, colours, background and window size back to the defaults">
               <span class="key">reset appearance</span><span class="state">[ reset ]</span>

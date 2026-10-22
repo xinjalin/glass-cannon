@@ -9,11 +9,11 @@ const FONT_MAX = 18;
 const OPACITY_MIN = 0;
 const OPACITY_MAX = 100;
 const OPACITY_STEP = 5;
-// Window width in em: two 26em columns, the gap between them and the margins.
-const WIDTH_EM = 55.5;
+// Window width in em: two 29em columns, the gap between them and the margins.
+const WIDTH_EM = 61.5;
 
 const SCOPE_HINTS = {
-  mine: "your targets, with everyone's damage on them",
+  mine: "just you: your damage on the targets you hit",
   party: "your party's targets, and only your party's damage",
   everyone: "every player fighting nearby",
 };
@@ -95,6 +95,8 @@ function drawAppearance(a) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(b.dataset.barChoice === a.bar_color));
   }
+  drawCustom(document.querySelector("[data-theme-custom]"), a.theme);
+  drawCustom(document.querySelector("[data-bar-custom]"), a.bar_color);
   for (const b of document.querySelectorAll("[data-backdrop-choice]")) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(b.dataset.backdropChoice === a.backdrop));
@@ -113,13 +115,17 @@ function drawAppearance(a) {
   fitWindow();
 }
 
-function drawScope(scope, partySize) {
+function drawScope(scope, partySize, auto) {
   for (const b of document.querySelectorAll("[data-scope-choice]")) {
     b.setAttribute("role", "radio");
-    b.setAttribute("aria-checked", String(b.dataset.scopeChoice === scope));
+    b.setAttribute("aria-checked", String(auto ? b.dataset.scopeChoice === "auto" : b.dataset.scopeChoice === scope));
   }
   let hint = SCOPE_HINTS[scope] || "";
-  if (scope === "party") hint += partySize > 1 ? ` · ${partySize} in your party` : " · not in a party";
+  if (auto) {
+    hint = partySize > 1 ? `follows your party · now your party of ${partySize}` : "follows your party · now just you (not in a party)";
+  } else if (scope === "party") {
+    hint += partySize > 1 ? ` · ${partySize} in your party` : " · not in a party";
+  }
   $("scope-hint").textContent = hint;
 }
 
@@ -132,13 +138,18 @@ async function refresh() {
     setCheck("check-data", state.data);
     setCheck("check-details", state.details);
     drawAppearance(state.appearance);
-    drawScope(state.scope, state.party_size);
+    drawScope(state.scope, state.party_size, state.auto_scope);
     for (const b of document.querySelectorAll("[data-refresh-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.refreshChoice) === state.refresh_ms));
     }
     setToggle("locked", state.locked);
     setToggle("record", state.record);
+    setToggle("boss-hp", state.boss_hp);
+    for (const b of document.querySelectorAll("[data-fade-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
+    }
     // Capture is already running, so a changed choice applies next time.
     const pending = state.record !== state.recording_now;
     $("record-hint").textContent = pending
@@ -181,6 +192,32 @@ $("opacity-up").addEventListener("click", () => {
   const o = state.appearance.opacity;
   setAppearance({ opacity: Math.min(OPACITY_MAX, Math.floor(o / OPACITY_STEP) * OPACITY_STEP + OPACITY_STEP) });
 });
+// The last swatch of each row: a colour of your own, picked in the system's colour dialog.
+function drawCustom(button, value) {
+  const picked = isHexColor(value);
+  button.setAttribute("role", "radio");
+  button.setAttribute("aria-checked", String(picked));
+  const input = button.querySelector("input");
+  if (picked) {
+    button.style.setProperty("--swatch", value);
+    // Not while the picker is open: setting it would close the picker.
+    if (document.activeElement !== input) input.value = value;
+  } else button.style.removeProperty("--swatch");
+  button.title = picked ? `${value} · click to pick another colour` : "Pick any colour";
+}
+for (const [kind, key] of [["theme", "theme"], ["bar", "barColor"]]) {
+  const button = document.querySelector(`[data-${kind}-custom]`);
+  const input = button.querySelector("input");
+  button.addEventListener("click", () => input.click());
+  // While dragging in the picker only this page previews the colour: saving it restyles
+  // every window, this one too, which would close the picker. It's saved on letting go.
+  const field = kind === "theme" ? "theme" : "bar_color";
+  input.addEventListener("input", () => {
+    if (state) applyAppearance({ ...state.appearance, [field]: input.value });
+    button.style.setProperty("--swatch", input.value);
+  });
+  input.addEventListener("change", () => setAppearance({ [key]: input.value }));
+}
 for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }
@@ -189,7 +226,8 @@ $("info-bar").addEventListener("click", () => setAppearance({ infoBar: !state.ap
 
 for (const b of document.querySelectorAll("[data-scope-choice]")) {
   b.addEventListener("click", async () => {
-    await invoke("set_scope", { scope: b.dataset.scopeChoice });
+    const choice = b.dataset.scopeChoice;
+    await invoke("set_scope", { scope: choice === "auto" ? null : choice });
     refresh();
   });
 }
@@ -197,6 +235,18 @@ for (const b of document.querySelectorAll("[data-scope-choice]")) {
 for (const b of document.querySelectorAll("[data-refresh-choice]")) {
   b.addEventListener("click", async () => {
     await invoke("set_refresh", { ms: Number(b.dataset.refreshChoice) }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
+
+$("boss-hp").addEventListener("click", async () => {
+  await invoke("set_boss_hp", { on: !(state && state.boss_hp) });
+  refresh();
+});
+
+for (const b of document.querySelectorAll("[data-fade-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_hide_after", { seconds: Number(b.dataset.fadeChoice) });
     refresh();
   });
 }
@@ -356,6 +406,9 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("history").addEventListener("click", () => invoke("open_history").catch((e) => say(String(e), "error")));
+for (const name of ["cooldowns", "party-cooldowns", "timers", "target"]) {
+  $(`open-${name}`).addEventListener("click", () => invoke("toggle_panel", { name }).catch((e) => say(String(e), "error")));
+}
 
 $("shortcut").addEventListener("click", async () => {
   try {

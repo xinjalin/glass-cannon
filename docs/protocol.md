@@ -235,6 +235,24 @@ its max. Mobs in the open world were all 119,700 max; a mob that comes into view
 says so (test D, mob 17151: `e3 d6 04 94 a7 07` = 76,643 of 119,700), and corpses come
 in as `00`, HP 0.
 
+### Mobs made in a player's likeness (confirmed 2026-10-22)
+
+Some `0x3641` spawns carry a party member's name:
+
+```text
+varint  entity ID
+1c 00 01
+u8      length, then the player's name (UTF-8)
+u32     mob type (2920364 Gluttonous Tiere, 2920371 Thamon, 2920360 / 2920663 Vakron's
+        Thorn Root in Vakron Sky Island)
+...     a position, the summon mark below with its own ID, no owner
+```
+
+Bosses copy the party: in Vakron Sky Island Tiere made six of each member and Thamon
+three, and the copies attack the party with mob skills (`1604521`, `1604531`). They're
+mobs: your hits on them are damage dealt, theirs on you damage taken. Read as players they
+made a party of five show as eleven.
+
 ### Summoned creatures and their owners (confirmed 2026-10-20)
 
 Elementalist spirits, Cleric servants and Sorcerer summons arrive as mob spawns
@@ -283,19 +301,44 @@ summon's skills), and leaves out hits between a player and their own summons (th
 and Spirit Communion). A spirit's hits before its first echo can't be placed: in
 `…184817` that's 1 hit of 38.
 
-### A player engages a mob: opcode `0x8d04` (confirmed)
+### A death: opcode `0x8d04` (confirmed 2026-10-22)
 
 ```text
-varint  mob entity ID
-u32     skill used
-varint  player entity ID
-varint  server
-u8      name length, then the player's name (UTF-8)
+varint  the entity that died
+u32     the skill that did it (0: none)
+varint  who did it (0: nobody named)
+u16     a player killer's server
+u8      length, then a player killer's name (UTF-8; 0: none)
+u8      length, then their legion
+u16
+varint  a mob killer's type
+u32, u8, u8
 ```
 
-Sent when a player first hits a mob, for every player in view, including you. That makes
-it the quickest way to learn your own name without a zone change. It isn't sent for
-training dummies.
+Our notes had this as "a player engages a mob" (it names the player in open-world kills,
+which is how it named you). Questlog's message list called it a death, and the Vakron
+Sky Island capture agrees: all 101 arrive with the entity's HP at 0. In that dungeon
+kills carry no player; a party member's death names the mob that did it.
+
+### Combat state, NPCs leaving and the game's ping (confirmed 2026-10-22)
+
+| opcode   | layout | what |
+| -------- | ------ | ---- |
+| `0x8d21` | varint entity, u8 flags, u8 state, flag 1: u64 berserk time (ms since 1970) | in combat (1) or out (0); a boss's carries when it goes berserk (Vakron's: 5 minutes after the pull) |
+| `0x3642` | varint entity, u8 flags, u8 reason, flag 1: u32 | an NPC left view: reason 3 = it died (all 97 deaths in Vakron), 1 and 7 others |
+| `0x3603` | u16 result, u64 client time, u64 server time | the game's ping coming back, every 10 s |
+
+The client time in a ping is the client's clock: milliseconds since the PC started (its
+high-resolution counter) plus 2^24 seconds (16,777,216,000 ms). The game's ping is when
+the reply arrives, on that clock, minus that time; the meter works it out the same way.
+In the Vakron dungeon it came to 60-176 ms (median 123). On the world server the replies
+came at a steady 310-320 ms in two sessions and 39 ms in another, which looks like the
+server's own timing more than the network.
+
+Fights end the way the game says: on the boss's death (`0x8d04` / `0x3642` reason 3),
+when its HP is back to full after taking damage (a reset), when everyone in the party has
+left combat (`0x8d21`), after 15 s without damage (90 s while a boss is alive and in
+combat), or on a map change (`0x4002`).
 
 ### Classes (confirmed)
 
@@ -334,10 +377,52 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 | `0x9702` | a cross-server group's full roster (expeditions)      |
 | `0x970b` | one member joining that group                         |
 | `0x971d` | you left the group (`00 00`)                          |
+| `0x971e` | a member left the group: u32 character ID, `00 00`, u16 server |
+| `0x9221` | a member left the party (same layout)                 |
+| `0x9716` | a group member readied up or stopped: character ID, `00 00`, server, u8 ready |
+| `0x9715` | you readied up or stopped: `00 00`, u8 ready          |
+| `0x9211` | the party's leader changed: character ID, `00 00`, server (Vakron: to us near the end) |
+| `0x921f` | the party broke up: u8 reason (Vakron's end: 8)       |
+| `0x972a` | the party finder group removed you: u8 reason (the expedition capture) |
+| `0x9219` | you were kicked from the party: u8 by vote (Questlog's list; not captured yet) |
+| `0x931f`, `0x961a`, `0x962e` | you left the party; an expedition broke up; you left it (Questlog's list; not captured yet) |
 
 Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen), `u8
-length`, UTF-8 name, then level, class, legion name and other fields. Entries aren't at
-fixed offsets, so the meter scans for that shape (`entities::parse_roster`). Seen in the
+length`, UTF-8 name, then level, class, legion name and other fields. In group rosters
+(`0x9702`, `0x970b`) two bytes come first: flags (`0x0c` always, `0x02` ready, `0x10`
+inside the dungeon) and the slot (1 = the leader, who starts rather than readies).
+Seen in the Vakron capture's party finder: robi03, TAQE and Chandra readied (TAQE
+unreadied and readied again) by `0x9716`, ours by `0x9715`, and robi03 leaving at the end
+by `0x971e` and `0x9221` together. A kick hasn't been captured; the meter takes
+`0x9219` and `0x972a`, and `0x9221`/`0x971e` with your own character ID, as you being removed. Entries aren't at
+fixed offsets, so the meter scans for that shape (`entities::parse_roster`).
+
+After the name, **group** rosters (`0x9702`) have: u32 (not the class), u32 level, u32
+**gear score**, the server again (one entry had an extra byte first), 3 bytes, u32 **combat
+power**. **Party** rosters (`0x9200`) have HP, MP, the map, a position and the legion name
+first, then u32 level, u32 0, u32 gear score, u32 combat power (one entry of five had 8
+more bytes before combat power). Checked against the game for our character (gear score
+2,023, combat power 88.27K) in the Vakron Sky Island capture.
+
+`0x921c` (**a member's update**, resent every few seconds, never for you):
+
+```text
+u32     character ID
+00 00
+u16     server
+u32     (not the class)
+12 B    zeros
+12 B    position (3 floats)
+u32     level
+u32
+u32     gear score
+u8      length, then the legion name (0: none)
+u32     (0 or 1)
+u8
+u32     combat power
+```
+
+All 1,333 in the Vakron capture parse this way and match the roster's numbers. Seen in the
 "joining a party and leaving a party" capture (5 → 4 members, leave, rejoin with a new
 member, leave) and in the expedition capture (several groups joined and left). A `0x9702`
 without your own name is someone else's group and is ignored.
@@ -446,6 +531,23 @@ and may be the basic attack. Needs a name table from our own observations.
 9. Summon spawns: what are the byte after the owner (02..14) and the `07 02 06` /
    `07 02 01` / `09 01` tags? A spirit that's already out when the meter starts and never
    uses an echo skill (e.g. `#39331` in `…184039`, one hit) still gets its own row.
+
+## Maps and dungeons (confirmed 2026-10-22)
+
+Worked out from a Vakron Sky Island run with screenshots every 3 seconds. Entering the
+dungeon moved the game to **another server connection** (the world's stopped the same
+second), and leaving moved it back; each connection starts with `0x4002`.
+
+| opcode   | layout                                              | what                                     |
+| -------- | --------------------------------------------------- | ---------------------------------------- |
+| `0x4002` | u32 map ID, u8                                      | you're on this map (600072 = Vakron Sky Island, Conquest; 1110 = the world map we left from) |
+| `0x6100` | u32 map ID, u8 step, u64 ms, u64 ms                 | a dungeon's progress: step 1 on entering, **2 when the countdown ends**, **3 at "Expedition Complete"** |
+| `0x6101` | u8 0, u32 map ID, u8 1, u8 0                         | the dungeon was completed (with step 3)  |
+
+The map ID is also in `0x3633` (your character), `0x9702` (the group roster's header)
+and `0x921c`. The meter keeps each stay on a map, and a dungeon's start and completion
+(`instances.jsonl`): a history run is the fights of one stay, and its clear time runs
+from step 2 to step 3.
 
 ## Capturing (how packet-lab and the meter get the traffic)
 

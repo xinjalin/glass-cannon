@@ -9,7 +9,7 @@ None of the `gamedata` folder is covered by Glass Cannon's MIT licence. The name
 numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 
 - [NOIA2](https://github.com/ZDYoung0519/NOIA2) by ZDYoung0519, GPL-3.0: skill names,
-  skill and class icons, boss lists.
+  skill and class icons, boss lists, and which field boss each world-map ID is.
 - [RATmeter (AIon2-Dps-Meter)](https://github.com/Kuroukihime/AIon2-Dps-Meter) by
   Kuroukihime, GPL-3.0: English mob names and extra skill names.
 - [aion2.app](https://aion2.app/db/skills), **no licence**: `skill-details.json`

@@ -1,12 +1,16 @@
 //! Opcode 0x3802: a skill cast, by players and mobs alike.
 //!
 //! ```text
-//! varint caster, u8 flags, u32 skill, u8 cast_id, u8, varint target, …
+//! varint caster, u8 flags, u32 skill, u8 cast_id, [flags 1: u8],
+//! target: u8 flags2, varint target, [flags2 1: u32 part], f32 facing, [flags2 2: 3 × f32],
+//! varint attack speed, u8, [flags 2: varint], varint cooldown (ms),
+//! [flags 4: u8 charges left], [flags 8: varint recharge (ms)], …
 //! ```
 //!
 //! `cast_id` is the same number the cast's hits carry in `0x3804`: in our reference fight
-//! every one of 153 casts seen in hits had a matching `0x3802`. Bits in `flags` add fields
-//! after the target that we don't read. Mob skills are 6–7 digits, player skills 8.
+//! every one of 153 casts seen in hits had a matching `0x3802`. Mob skills are 6–7 digits,
+//! player skills 8. The cooldown and charges follow Questlog's message list; Recuperation's
+//! cast reads as 1 charge left, 14.4 s to the next.
 
 use crate::protocol::read_varint;
 
@@ -18,23 +22,44 @@ pub struct Cast {
     pub skill: u32,
     pub cast_id: u8,
     pub target: u64,
+    /// How long until it can be cast again (0: no cooldown, or it has charges left).
+    pub cooldown_ms: u32,
+    /// For skills with charges: how many are left, and how long until the next one.
+    pub charges: Option<(u8, u32)>,
 }
 
 /// Parses the payload of an opcode 0x3802 message (the bytes after the opcode).
 pub fn parse_cast(p: &[u8]) -> Option<Cast> {
     let mut i = 0;
     let caster = read_varint(p, &mut i)?;
-    i += 1; // flags
+    let flags = *p.get(i)?;
+    i += 1;
     let skill = u32::from_le_bytes(p.get(i..i + 4)?.try_into().ok()?);
     i += 4;
     let cast_id = *p.get(i)?;
-    i += 2; // the cast ID and one byte we don't use
+    i += 1 + usize::from(flags & 1 != 0);
+    let target_flags = *p.get(i)?;
+    i += 1;
     let target = read_varint(p, &mut i)?;
-    Some(Cast {
-        caster,
-        skill,
-        cast_id,
-        target,
+    let base = Cast { caster, skill, cast_id, target, cooldown_ms: 0, charges: None };
+    // The rest may be cut short (older captures' tests); the cast itself is still good.
+    let rest = || -> Option<(u32, Option<(u8, u32)>)> {
+        let mut i = i;
+        i += if target_flags & 1 != 0 { 4 } else { 0 } + 4 + if target_flags & 2 != 0 { 12 } else { 0 };
+        read_varint(p, &mut i)?; // attack speed
+        i += 1;
+        if flags & 2 != 0 {
+            read_varint(p, &mut i)?;
+        }
+        let cooldown = u32::try_from(read_varint(p, &mut i)?).ok()?;
+        let left = if flags & 4 != 0 { *p.get(i)? } else { 0 };
+        i += usize::from(flags & 4 != 0);
+        let recharge = if flags & 8 != 0 { u32::try_from(read_varint(p, &mut i)?).ok()? } else { 0 };
+        Some((cooldown, (flags & 12 != 0).then_some((left, recharge))))
+    };
+    Some(match rest() {
+        Some((cooldown_ms, charges)) => Cast { cooldown_ms, charges, ..base },
+        None => base,
     })
 }
 
@@ -58,7 +83,9 @@ mod tests {
                 caster: 11792,
                 skill: 18_120_120,
                 cast_id: 0x92,
-                target: 11792
+                target: 11792,
+                cooldown_ms: 0,
+                charges: Some((1, 14_400)),
             }
         );
     }

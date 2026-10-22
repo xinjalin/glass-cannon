@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::meter::{Analysis, EncounterView, Outcomes, PlayerRow, SkillRow};
+use crate::meter::{Analysis, DeathView, EncounterView, Outcomes, PlayerRow, SkillRow};
 
 /// Joins fights (oldest first) into one analysis. Returns it with where each fight starts
 /// on the joined timeline (ms), or `None` when there are none.
@@ -78,10 +78,26 @@ fn join_views(views: &[EncounterView]) -> EncounterView {
         start_us: views.iter().map(|v| v.start_us).min().unwrap_or(0),
         end_us: views.iter().map(|v| v.end_us).max().unwrap_or(0),
         players: join_rows(views.iter().map(|v| &v.players), duration_s, total_damage),
+        map: main.map,
+        instance_us: main.instance_us,
         healing: join_rows(views.iter().map(|v| &v.healing), duration_s, total_healing),
         taken: join_rows(views.iter().map(|v| &v.taken), duration_s, total_taken),
         total_healing,
         total_taken,
+        end: views.last().and_then(|v| v.end),
+        // Each fight's deaths, timed from the run's start.
+        deaths: views
+            .iter()
+            .scan(0.0, |offset, v| {
+                let at = *offset;
+                *offset += v.duration_s;
+                Some(v.deaths.iter().map(move |d| DeathView { at_s: d.at_s + at, ..d.clone() }))
+            })
+            .flatten()
+            .collect(),
+        berserk_us: None,
+        target_hp: None,
+        target_max_hp: None,
     }
 }
 
@@ -183,6 +199,7 @@ mod tests {
                 skill,
                 name: None,
                 icon_key: None,
+                source_type: None,
                 damage,
                 hits: 2,
                 max: damage / 2,
@@ -209,10 +226,17 @@ mod tests {
                 start_us: 0,
                 end_us: 0,
                 players: rows,
+                map: None,
+                instance_us: None,
                 healing: Vec::new(),
                 taken: Vec::new(),
                 total_healing: 0,
                 total_taken: 0,
+                end: None,
+                deaths: Vec::new(),
+                berserk_us: None,
+                target_hp: None,
+                target_max_hp: None,
             },
             hits: vec![TimelineHit { t: hit_t, player: 1, target: 9, skill: 1, cast: 0, damage: 1, flags: 0, n: 1 }],
             effects: Vec::new(),

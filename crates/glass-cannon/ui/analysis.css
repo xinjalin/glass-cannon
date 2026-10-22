@@ -183,6 +183,7 @@ table.grid {
 .cell-name span { overflow: hidden; text-overflow: ellipsis; }
 .cell-name img, .cell-name .blank { flex: none; width: 1.45em; height: 1.45em; border-radius: 0.25em; }
 .cell-name .blank { background: var(--line-faint); }
+.blank { display: inline-grid; place-items: center; color: var(--muted); font-size: 0.75em; font-weight: 700; }
 .bar-cell { position: relative; }
 .bar-cell .bar {
   position: absolute;

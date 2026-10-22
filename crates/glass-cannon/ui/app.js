@@ -16,23 +16,27 @@ const SEGMENTS = 12; // blocks in each meter bar
 const FIT_ROWS = 5; // the window's default height shows this many players
 const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
 
-// Whose damage counts; the button cycles through them in this order.
-const SCOPES = ["mine", "party", "everyone"];
+// Whose damage counts; the button cycles through them in this order. "auto" follows your
+// party: your party's fight while you're in one, yours on your own.
+const SCOPES = ["auto", "mine", "party", "everyone"];
 const SCOPE_LABELS = { mine: "mine", party: "party", everyone: "all" };
 const SCOPE_TITLES = {
-  mine: "Your fight: targets you hit, with everyone's damage on them",
+  mine: "Just you: your damage on the targets you hit",
   party: "Your party: targets any of you hit, and only your party's damage",
   everyone: "Everyone fighting nearby",
 };
 
 // What the rows show; the legend's button cycles through them in this order.
-const VIEWS = ["damage", "healing", "taken"];
-const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken" };
+const VIEWS = ["damage", "healing", "taken", "party"];
+const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken", party: "party" };
 const VIEW_TITLES = {
   damage: "Damage dealt",
   healing: "Healing done (heals over time and self-heals)",
   taken: "Damage taken from mobs",
+  party: "Your party: combat power and gear score",
 };
+// How long a "joined" or "left" notice stays.
+const NOTICE_MS = 8000;
 // The words for a row's amount in each view.
 const VIEW_UNITS = { damage: "dmg", healing: "healed", taken: "taken" };
 
@@ -143,14 +147,14 @@ function skillList(p) {
   const box = el("div", "skills");
   const stats = el("div", "stats");
   stats.append(
-    el("span", "", `${fmt(p.damage)} ${VIEW_UNITS[meterView()]}`),
-    el("span", "", `${p.hits} ${meterView() === "healing" ? "ticks" : "hits"}`),
+    el("span", "", `${fmt(p.damage)} ${VIEW_UNITS[rowView()]}`),
+    el("span", "", `${p.hits} ${rowView() === "healing" ? "ticks" : "hits"}`),
     el("span", "", `max ${fmt(p.max_hit)}`),
   );
   box.append(stats);
   const head = el("div", "skill head");
-  const amount = { damage: "damage", healing: "healing", taken: "taken" }[meterView()];
-  head.append(el("span", "", meterView() === "taken" ? "hit by" : "skill"), el("span", "", amount), el("span", "", "%"), el("span", "", "hits"));
+  const amount = { damage: "damage", healing: "healing", taken: "taken" }[rowView()];
+  head.append(el("span", "", rowView() === "taken" ? "hit by" : "skill"), el("span", "", amount), el("span", "", "%"), el("span", "", "hits"));
   box.append(head);
   for (const s of p.skills) {
     const r = el("div", "skill");
@@ -175,7 +179,8 @@ function skillLabel(s) {
     img.alt = "";
     label.append(img);
   } else {
-    label.append(el("span", "skill-icon blank"));
+    // No icon in the game data: its first letter instead.
+    label.append(el("span", "skill-icon blank", s.name ? s.name[0] : ""));
   }
   const name = el("span", "skill-name" + (s.name ? "" : " code"), s.name || String(s.skill));
   label.append(name);
@@ -238,7 +243,7 @@ function classBadge(p) {
 
 // The rows for the chosen view (older saved fights have no healing or taken rows).
 function rowsOf(enc) {
-  const view = meterView();
+  const view = rowView();
   return (view === "damage" ? enc.players : enc[view]) || [];
 }
 
@@ -284,6 +289,9 @@ function update(r, key, value, apply) {
 function drawRows(enc) {
   const list = $("rows");
   const rows = rowsOf(enc);
+  // Deaths per player, marked after their name.
+  const died = new Map();
+  for (const d of enc.deaths || []) died.set(d.entity, (died.get(d.entity) || 0) + 1);
   const top = rows.length ? rows[0].dps || 1 : 1;
   const ids = new Set();
   rows.forEach((p, i) => {
@@ -298,13 +306,17 @@ function drawRows(enc) {
       r.badge = badge;
     });
     update(r, "name", p.name, (v) => (r.name.textContent = v));
+    update(r, "deaths", died.get(p.id) || 0, (n) => {
+      if (n) r.name.dataset.deaths = n > 1 ? String(n) : "";
+      else delete r.name.dataset.deaths;
+    });
     const lit = Math.max(1, Math.round((p.dps / top) * SEGMENTS));
     update(r, "lit", lit, (v) => r.segs.forEach((seg, s) => seg.classList.toggle("on", s < v)));
     update(r, "dps", fmtRate(p.dps), (v) => (r.dps.textContent = v));
     update(r, "share", `${(p.share * 100).toFixed(0)}%`, (v) => (r.share.textContent = v));
     // The skill list, when open: rebuilt only when something in it changed.
     const open = expanded.has(p.id);
-    const skillsKey = open ? `${meterView()}|${iconsLoaded}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
+    const skillsKey = open ? `${rowView()}|${iconsLoaded}|${p.damage}|${p.hits}|${p.max_hit}|${JSON.stringify(p.skills)}` : "";
     update(r, "skills", skillsKey, () => {
       if (r.skills) r.skills.remove();
       r.skills = open ? skillList(p) : null;
@@ -317,6 +329,9 @@ function drawRows(enc) {
     r.row.remove();
     rowCache.delete(id);
   }
+  // Rows another view left behind (the party's) aren't in the cache.
+  const kept = new Set([...rowCache.values()].map((r) => r.row));
+  for (const child of [...list.children]) if (!kept.has(child)) child.remove();
 }
 
 // Opens or closes a player's skill list. The live meter only sends the skills of open
@@ -332,6 +347,140 @@ function toggleRow(id) {
   }
 }
 
+// ---------------------------------------------------------------- party
+
+// The party as rows: slot, class, name, combat power as a bar against the strongest, and
+// gear score. Members' stats arrive a moment after they join; until then they show "–".
+function drawParty(party) {
+  const list = $("rows");
+  list.replaceChildren();
+  rowCache.clear();
+  const top = Math.max(1, ...party.map((m) => m.combat_power || 0));
+  party.forEach((m, i) => {
+    const row = el("li", "row party-row" + (m.is_self ? " self" : "") + (m.class_code ? ` c${m.class_code}` : ""));
+    row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ");
+    const line = el("div", "line");
+    const meter = el("span", "meter");
+    const lit = m.combat_power ? Math.max(1, Math.round((m.combat_power / top) * SEGMENTS)) : 0;
+    for (let s = 0; s < SEGMENTS; s++) meter.append(el("span", s < lit ? "seg on" : "seg"));
+    const who = el("span", "who");
+    who.append(classBadge(m), el("span", "name", m.name));
+    if (m.leader) {
+      const lead = el("span", "leader-mark", "★");
+      lead.title = "Leader";
+      who.append(lead);
+    }
+    // In a party-finder group before the start: who has readied up.
+    if (m.ready != null) {
+      const mark = el("span", "ready-mark" + (m.ready ? " ready" : ""), m.ready ? "✓" : "○");
+      mark.title = m.ready ? "Ready" : "Not ready yet";
+      who.append(mark);
+    }
+    const cp = el("span", "dps", m.combat_power ? fmt(m.combat_power) : "–");
+    cp.title = "Combat power";
+    const gs = el("span", "share", m.gear_score ? m.gear_score.toLocaleString("en-US") : "–");
+    gs.title = "Gear score";
+    line.append(el("span", "rank", String(i + 1)), who, meter, cp, gs);
+    row.append(line);
+    list.append(row);
+  });
+}
+
+// Who's ready of those who need to be ("2/4"), or "" when nobody has a ready mark.
+function readyCount(party) {
+  const marked = party.filter((m) => m.ready != null);
+  return marked.length ? `${marked.filter((m) => m.ready).length}/${marked.length}` : "";
+}
+
+// Joins, leaves and ready-ups since the last roster, as notices; the first roster after
+// starting isn't news. Returns whether anything changed.
+let lastParty = null;
+let lastReady = "";
+function noticePartyChanges(party) {
+  const names = party.map((m) => m.name);
+  const before = lastParty;
+  lastParty = names;
+  const ready = readyCount(party);
+  const readyChanged = ready !== lastReady;
+  lastReady = ready;
+  if (!before) return false;
+  if (readyChanged && ready) {
+    const [n, of] = ready.split("/");
+    if (n === of) notice("everyone's ready");
+  }
+  if (names.length === 0 && before.length > 0) {
+    notice("you left the party");
+    return true;
+  }
+  // You joining a party (or an expedition): one notice, not one per member.
+  if (before.length === 0 && names.length > 0) {
+    notice(`joined a party of ${names.length}`);
+    return true;
+  }
+  const me = lastView && lastView.meter.self_name;
+  const joined = party.filter((m) => !before.includes(m.name) && !m.is_self && m.name !== me);
+  const left = before.filter((n) => !names.includes(n));
+  for (const m of joined) {
+    const stats = [m.combat_power ? `CP ${fmt(m.combat_power)}` : "", m.gear_score ? `GS ${m.gear_score.toLocaleString("en-US")}` : ""].filter(Boolean).join(" · ");
+    notice(`+ ${m.name} joined${stats ? ` · ${stats}` : ""}`);
+  }
+  for (const n of left) notice(`− ${n} left`);
+  return joined.length > 0 || left.length > 0 || (before.length === 0 && names.length > 0) || (readyChanged && !!ready);
+}
+
+function notice(text, ms = NOTICE_MS, kind = "") {
+  const item = el("li", `notice ${kind}`.trim(), text);
+  $("notices").append(item);
+  while ($("notices").children.length > 3) $("notices").firstChild.remove();
+  setTimeout(() => item.remove(), ms);
+}
+
+// ---------------------------------------------------------------- alerts
+
+// Events and field bosses you've rung the bell for (in the timers window): a notice when
+// they're `alert_lead_min` away, and another as they start. Each once per start.
+const ALERT_MS = 60_000;
+const alerted = new Set();
+let fieldBosses = [];
+let bossesAt = 0;
+
+async function checkAlerts() {
+  const v = lastView;
+  if (!v || !v.alerts || !v.alerts.length) return;
+  const now = Date.now();
+  if (now - bossesAt > 60_000 && v.alerts.some((a) => a.startsWith("boss:"))) {
+    bossesAt = now;
+    fieldBosses = await invoke("field_bosses").catch(() => []);
+  }
+  const lead = v.alert_lead_min * 60_000;
+  const soon = upcoming(v.timer_region, now, lead).map((x) => ({ id: x.id, name: x.name, start: x.start }));
+  for (const b of fieldBosses) {
+    if (b.time_ms > now - 5000 && b.time_ms - now <= lead) soon.push({ id: `boss:${b.id}`, name: b.name || `Field boss ${b.id}`, start: b.time_ms });
+  }
+  for (const x of soon) {
+    if (!v.alerts.includes(x.id)) continue;
+    const left = x.start - now;
+    const key = `${x.id}@${x.start}/${left <= 0 ? "now" : "soon"}`;
+    if (alerted.has(key) || left < -10_000) continue;
+    alerted.add(key);
+    if (left <= 0) notice(`🔔 ${x.name} is starting`, ALERT_MS, "alert");
+    else notice(`🔔 ${x.name} in ${Math.ceil(left / 60_000)} min (${timeOfDay(x.start)})`, ALERT_MS, "alert");
+  }
+}
+setInterval(checkAlerts, 5000);
+
+// ---------------------------------------------------------------- fading outside combat
+
+// With "fade outside combat" set, the meter fades away that long after the last fight
+// and comes back with the next one (or under the mouse).
+let lastCombatAt = Date.now();
+function fadeOutsideCombat(view) {
+  const enc = view.meter.encounter;
+  if (view.meter.in_combat || (enc && enc.active) || mode !== "live") lastCombatAt = Date.now();
+  const after = (view.hide_after_s || 0) * 1000;
+  document.documentElement.classList.toggle("faded", after > 0 && Date.now() - lastCombatAt > after);
+}
+
 function drawTotals(enc) {
   $("totals").hidden = false;
   const target = $("target");
@@ -340,6 +489,8 @@ function drawTotals(enc) {
   const more = enc.target_count > 1 ? ` +${enc.target_count - 1}` : "";
   const name = el("span", "target-name", (enc.target || "") + more);
   target.append(name);
+  const end = !enc.active && endTag(enc.end, (enc.deaths || []).length);
+  if (end) target.append(end);
   target.title = enc.target_type ? `mob type ${enc.target_type} · double-click to name it` : "";
   const current = enc.target && !enc.target.startsWith("Mob ") && !enc.target.startsWith("#") ? enc.target : "";
   target.ondblclick = enc.target_type
@@ -348,15 +499,36 @@ function drawTotals(enc) {
           invoke("rename_npc", { typeId: enc.target_type, name: value }),
         )
     : null;
-  const view = meterView();
+  const view = rowView();
   const total = view === "damage" ? enc.total_damage : (view === "healing" ? enc.total_healing : enc.total_taken) || 0;
   $("total").textContent = `${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
+  drawBossBar(enc);
+}
+
+// A live boss fight's HP and enrage (settings → boss hp).
+function drawBossBar(enc) {
+  const bar = $("boss-bar");
+  const show = mode === "live" && enc.active && enc.target_boss && enc.target_max_hp && lastView && lastView.boss_hp;
+  bar.hidden = !show;
+  if (!show) return;
+  const pct = Math.max(0, Math.min(1, (enc.target_hp ?? enc.target_max_hp) / enc.target_max_hp));
+  $("boss-hp-fill").style.width = `${pct * 100}%`;
+  $("boss-hp-text").textContent = `${(pct * 100).toFixed(1)}%`;
+  $("boss-hp-text").title = `${fmt(enc.target_hp ?? 0)} / ${fmt(enc.target_max_hp)} HP`;
+  const left = enc.berserk_us ? enc.berserk_us / 1000 - Date.now() : null;
+  const enrage = $("enrage");
+  enrage.hidden = left == null || left < -60_000 || left > 3_600_000;
+  enrage.textContent = left > 0 ? `enrage ${clock(left / 1000)}` : "enraged";
+  enrage.className = left != null && left < 30_000 ? "soon" : "";
+  enrage.title = "When the boss goes berserk";
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";
+// What the rows of a fight show: the party view has no fight rows, so damage.
+const rowView = () => (meterView() === "party" ? "damage" : meterView());
 
 function drawViewSwitch() {
-  const view = meterView();
+  const view = partyPeek && mode === "live" ? "party" : meterView();
   const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
   for (const b of [$("view"), $("f-view")]) {
     b.textContent = VIEW_LABELS[view];
@@ -367,104 +539,27 @@ function drawViewSwitch() {
 
 // ---------------------------------------------------------------- history
 
-async function showList() {
-  mode = "list";
-  fightIndex = null;
-  fightView = null;
-  await drawList();
+// How a fight ended, for kills and wipes (and its deaths): null for the rest.
+function endTag(end, deaths) {
+  const parts = [];
+  if (end === "kill") parts.push("✓ kill");
+  if (end === "wipe") parts.push("✗ wipe");
+  if (deaths) parts.push(`☠${deaths > 1 ? deaths : ""}`);
+  if (!parts.length) return null;
+  const tag = el("span", `end-tag ${end || ""}`, ` · ${parts.join(" ")}`);
+  tag.title = [end === "kill" ? "Ended on the kill" : end === "wipe" ? "The boss reset (a wipe)" : "", deaths ? `${deaths} death${deaths > 1 ? "s" : ""}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  return tag;
 }
 
-// Dungeon runs shown open (by when they started). The newest run starts open.
-const openRuns = new Set();
-let runsSeen = false;
-
-async function drawList() {
-  const { fights, runs } = await invoke("history_list");
-  const list = $("fights");
-  list.replaceChildren();
-  if (!runsSeen && runs.length) {
-    runsSeen = true;
-    const newest = fights.find((f) => f.run != null);
-    if (newest) openRuns.add(runs[newest.run].started_ms);
-  }
-  // A run's fights come together (newest first): a header, then its fights if it's open.
-  let shownRun = null;
-  fights.forEach((f, i) => {
-    if (f.run != null) {
-      const run = runs[f.run];
-      if (shownRun !== f.run) {
-        shownRun = f.run;
-        list.append(runItem(run));
-      }
-      if (openRuns.has(run.started_ms)) list.append(fightItem(f, i, true));
-    } else {
-      list.append(fightItem(f, i, false));
-    }
-  });
-  $("legend-text").textContent = "history";
-  $("clock").textContent = fights.length ? `[${fights.length}]` : "";
-  $("empty").hidden = fights.length > 0;
-  $("empty").textContent = "no finished fights yet";
-}
-
-function fightItem(f, i, inRun) {
-  const item = el("li", "fight-item" + (inRun ? " in-run" : ""));
-  const what = el("span", "fight-what");
-  if (f.target_boss) what.append(el("span", "boss", "BOSS"));
-  what.append(el("span", "fight-target", f.target || "unknown target"));
-  const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
-  // A dungeon fight on its own (not part of a run) says where it was.
-  const where = !inRun && f.dungeon ? `${f.dungeon.name} · ` : "";
-  const meta = el("span", "fight-meta", `${where}${timeOfDay(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
-  const text = el("span", "fight-text");
-  text.append(what, meta);
-  const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
-  dps.title = f.my_dps != null ? "your DPS" : "total DPS";
-  item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
-  item.title = "Click to open · right-click for its analysis";
-  item.addEventListener("click", () => openFight(f.index));
-  item.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    invoke("open_analysis", { fight: f.index, run: null, player: null }).catch(showError);
-  });
-  return item;
-}
-
-// A dungeon run: where and in which mode, when it started, the time spent fighting, its
-// fights and bosses, and its total damage. Click to show or hide its fights.
-function runItem(run) {
-  const open = openRuns.has(run.started_ms);
-  const item = el("li", "run-item" + (open ? " open" : ""));
-  const text = el("span", "fight-text");
-  const when = el("span", "fight-what");
-  const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
-  if (tag) when.append(el("span", "run-tag", tag));
-  when.append(el("span", "fight-meta", timeOfDay(run.started_ms)));
-  const bosses = run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : "";
-  const meta = el("span", "fight-meta", `${clock(run.fight_s)} · ${run.fights} fights${bosses} · ${run.players}p`);
-  text.append(el("span", "run-name", run.place.name), when, meta);
-  const total = el("span", "fight-dps", fmt(run.total_damage));
-  const dps = run.my_dps != null ? ` · your DPS ${fmt(run.my_dps)}` : "";
-  item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, total);
-  item.title = `${clock(run.fight_s)} fighting, ${clock((run.ended_ms - run.started_ms) / 1000)} from first pull to last kill
-${fmt(run.total_damage)} damage${dps}
-Click to ${open ? "hide" : "show"} its fights · right-click for the run's analysis`;
-  // Right-click: the whole run in the analysis window (again: closes it).
-  item.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    invoke("open_analysis", { fight: null, run: [run.first, run.last], player: null }).catch(showError);
-  });
-  item.addEventListener("click", () => {
-    if (open) openRuns.delete(run.started_ms);
-    else openRuns.add(run.started_ms);
-    drawList();
-  });
-  return item;
-}
-
+// A saved fight on the meter (picked in the history window); back goes live again.
 async function openFight(index) {
   fightView = await invoke("history_fight", { index });
-  if (!fightView) return showList();
+  if (!fightView) {
+    mode = "live";
+    return redraw();
+  }
   mode = "fight";
   fightIndex = index;
   redraw();
@@ -472,17 +567,20 @@ async function openFight(index) {
 
 // ---------------------------------------------------------------- drawing
 
-function drawScope(meter) {
+function drawScope(meter, auto) {
   const scope = meter.scope;
-  const next = SCOPES[(SCOPES.indexOf(scope) + 1) % SCOPES.length];
+  const choice = auto ? "auto" : scope;
+  const next = SCOPES[(SCOPES.indexOf(choice) + 1) % SCOPES.length];
   const b = $("scope");
   b.textContent = SCOPE_LABELS[scope] || scope;
   b.classList.toggle("on", scope !== "mine");
+  b.classList.toggle("auto", auto);
   let title = SCOPE_TITLES[scope] || "";
   if (scope === "party") {
     title += meter.party_size > 1 ? ` (${meter.party_size} people)` : " (not in a party: just you)";
   }
-  b.title = `${title}\nClick for ${SCOPE_LABELS[next]}`;
+  if (auto) title = `Auto: follows your party (your party's fight in a party or expedition, yours on your own)\nNow: ${title}`;
+  b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
 }
 
 // How tall the window must be to show `rows` players with the current font and layout:
@@ -513,9 +611,11 @@ function heightFor(rows) {
     }),
   );
   part("totals").hidden = false;
+  // Room for the boss's HP line when it's on, so a boss fight's rows still fit.
+  part("boss-bar").hidden = !bossBarRoom();
   part("target").textContent = "x";
   part("total").textContent = "x";
-  for (const id of ["fights", "empty", "status"]) part(id).hidden = true;
+  for (const id of ["empty", "status"]) part(id).hidden = true;
   document.body.append(copy);
   const height = Math.ceil(copy.getBoundingClientRect().height);
   copy.remove();
@@ -550,8 +650,10 @@ function widthFor(text) {
 // on first start, after a layout change or a reset, never to a width you chose).
 let fitFor = null;
 let resetWidth = null; // set by "reset appearance": the width goes back to the default too
+const bossBarRoom = () => !!(lastView && lastView.boss_hp && !minimal());
+
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}`;
+  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}`;
   if (key === fitFor) return;
   const exact = fitFor !== null;
   fitFor = key;
@@ -566,11 +668,11 @@ function fitHeight(a) {
 function drawStatus(view) {
   const { status, meter } = view;
   const enc = meter.encounter;
-  drawScope(meter);
+  drawScope(meter, view.auto_scope);
   $("dot").className = "dot " + (enc && enc.active ? "fighting" : status.phase);
   $("dot").title = status.message;
 
-  const ms = status.ping_ms;
+  const ms = view.ping_ms;
   const ping = $("ping");
   ping.hidden = ms == null;
   ping.textContent = ms == null ? "" : `${ms}ms`;
@@ -627,13 +729,19 @@ function redraw() {
   $("back").hidden = live;
   $("f-back").hidden = live;
   $("fight").textContent = phaseText(lastView);
-  $("rows").hidden = mode === "list";
-  $("fights").hidden = mode !== "list";
-  $("history").classList.toggle("on", !live);
+  for (const b of [$("history"), $("f-history")]) b.classList.toggle("on", !live);
   if (lastView) drawStatus(lastView);
 
-  if (mode === "list") {
+  const party = (lastView && lastView.meter.party) || [];
+  if (live && (meterView() === "party" || partyPeek)) {
+    const ready = readyCount(party);
+    $("legend-text").textContent = ready ? `party · ${ready} ready` : "party";
+    $("clock").textContent = party.length ? `[${party.length}]` : "";
     $("totals").hidden = true;
+    $("boss-bar").hidden = true;
+    drawParty(party);
+    $("empty").hidden = party.length > 0;
+    $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
     return;
   }
   const enc = live ? lastView && lastView.meter.encounter : fightView;
@@ -641,6 +749,7 @@ function redraw() {
     $("legend-text").textContent = "fight";
     $("clock").textContent = "";
     $("totals").hidden = true;
+    $("boss-bar").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;
@@ -661,13 +770,15 @@ function redraw() {
   drawRows(enc);
   const none = rowsOf(enc).length === 0;
   $("empty").hidden = !none;
-  if (none) $("empty").textContent = meterView() === "healing" ? "no healing in this fight" : "no damage taken in this fight";
+  if (none) $("empty").textContent = rowView() === "healing" ? "no healing in this fight" : "no damage taken in this fight";
 }
 
 // The last snapshot as text: when a new one is the same (no fight going on), the panel
 // isn't rebuilt.
 let lastKey = "";
 let drawnMode = "";
+// Showing the party for a while (after someone joins or leaves), whatever the view.
+let partyPeek = false;
 
 async function refresh() {
   if (editing) return;
@@ -679,11 +790,18 @@ async function refresh() {
     drawnMode = `${mode}/${fightIndex}`;
     lastView = view;
     if (same) return;
+    // A join or leave while you're not fighting shows the party until the next fight.
+    const party = view.meter.party || [];
+    const fighting = !!(view.meter.encounter && view.meter.encounter.active);
+    if (noticePartyChanges(party) && !fighting) partyPeek = true;
+    if (fighting) partyPeek = false;
+    // Before any fight, a party is more useful than "waiting for a fight".
+    if (!view.meter.encounter && party.length > 1) partyPeek = true;
     applyAppearance(lastView.appearance);
+    fadeOutsideCombat(lastView);
     snapSizes();
     fitHeight(lastView.appearance);
     drawLock(lastView.locked);
-    if (mode === "list") await drawList();
     redraw();
   } catch (e) {
     showError(e);
@@ -729,9 +847,10 @@ tauri.event.listen("appearance", (e) => {
 
 // ---------------------------------------------------------------- controls
 
-async function goBack() {
-  if (mode === "fight") await showList();
-  else mode = "live";
+function goBack() {
+  mode = "live";
+  fightView = null;
+  fightIndex = null;
   redraw();
 }
 $("back").addEventListener("click", goBack);
@@ -744,15 +863,19 @@ function openAnalysis(player) {
 }
 $("analysis").addEventListener("click", () => openAnalysis(null));
 
-$("history").addEventListener("click", async () => {
-  if (mode === "live") await showList();
-  else mode = "live";
-  redraw();
-});
+// The history has its own window.
+function toggleHistory() {
+  invoke("toggle_panel", { name: "history" }).catch(showError);
+}
+$("history").addEventListener("click", toggleHistory);
+$("f-history").addEventListener("click", toggleHistory);
 
-// Damage → healing → taken.
+// Damage → healing → taken → party.
 async function cycleView() {
-  const next = VIEWS[(VIEWS.indexOf(meterView()) + 1) % VIEWS.length];
+  // A peek at the party isn't a choice: the next click goes back to the rows.
+  const from = partyPeek ? "taken" : meterView();
+  partyPeek = false;
+  const next = VIEWS[(VIEWS.indexOf(from) + 1) % VIEWS.length];
   await invoke("set_meter_view", { view: next });
   if (lastView) lastView.meter_view = next;
   expanded.clear();
@@ -779,8 +902,9 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("scope").addEventListener("click", async () => {
-  const now = lastView ? lastView.meter.scope : "mine";
-  await invoke("set_scope", { scope: SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length] });
+  const now = !lastView || lastView.auto_scope ? "auto" : lastView.meter.scope;
+  const next = SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length];
+  await invoke("set_scope", { scope: next === "auto" ? null : next });
   refresh();
 });
 
@@ -862,10 +986,7 @@ tauri.event.listen("reset-size", () => {
   fitFor = "reset";
 });
 
-// The settings window's "history" opens this window straight on the list.
-tauri.event.listen("show-history", async () => {
-  await showList();
-  redraw();
-});
+// A fight picked in the history window.
+tauri.event.listen("show-fight", (e) => openFight(e.payload));
 
 poll();

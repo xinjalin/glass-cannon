@@ -124,14 +124,33 @@ function classIconUrl(code) {
   return classIcons.get(code);
 }
 
-function iconOrBlank(url, className) {
+// An icon, or a placeholder with the first letter of `label` (skills the game data has no
+// icon for).
+function iconOrBlank(url, className, label) {
   if (url) {
     const img = el("img", className);
     img.src = url;
     img.alt = "";
     return img;
   }
-  return el("span", `${className || ""} blank`);
+  const letter = label && !/^[#\d]/.test(label) ? label[0] : "";
+  return el("span", `${className || ""} blank`, letter);
+}
+
+// The same placeholder on a canvas.
+function drawBlankIcon(ctx, x, y, size, label) {
+  ctx.save();
+  ctx.fillStyle = css("--line-faint");
+  roundRect(ctx, x, y, size, size, 3);
+  ctx.fill();
+  if (label && !/^[#\d]/.test(label)) {
+    ctx.fillStyle = css("--muted");
+    ctx.font = `700 ${Math.round(size * 0.55)}px ${css("--mono")}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label[0], x + size / 2, y + size / 2 + 1);
+  }
+  ctx.restore();
 }
 
 function queueRedraw() {
@@ -338,6 +357,8 @@ function drawTabs() {
   for (const b of document.querySelectorAll("#tabs [data-tab]")) {
     b.setAttribute("aria-selected", String(b.dataset.tab === tab));
   }
+  const deaths = (data && data.view.deaths) || [];
+  $("deaths-tab").textContent = deaths.length ? `[deaths ${deaths.length}]` : "[deaths]";
   for (const s of document.querySelectorAll(".tab")) s.hidden = !data || s.id !== `tab-${tab}`;
 }
 
@@ -693,7 +714,7 @@ function drawSkills() {
     const who = el("td", "left");
     const cell = el("div", "cell-name");
     cell.dataset.skill = id;
-    cell.append(iconOrBlank(skillIconUrl(id), ""), el("span", "", skillName(id)));
+    cell.append(iconOrBlank(skillIconUrl(id), "", skillName(id)), el("span", "", skillName(id)));
     who.append(cell);
     const spec = el("td", "muted", specText(id));
     spec.dataset.skill = id;
@@ -859,7 +880,7 @@ function drawFlow(kind) {
       const cell = el("div", "cell-name");
       if (iconOf) cell.dataset.skill = key;
       else cell.title = String(key);
-      if (iconOf) cell.append(iconOrBlank(iconOf(key), ""));
+      if (iconOf) cell.append(iconOrBlank(iconOf(key), "", labelOf(key)));
       cell.append(el("span", "", labelOf(key)));
       who.append(cell);
       tr.append(who, barCell(fmt(s.amount), s.amount / best), el("td", "", pct(s.amount, row.amount)), el("td", "", String(s.n)), el("td", "", fmt(s.max)));
@@ -1029,7 +1050,7 @@ function drawOpener() {
   casts.forEach((c, i) => {
     const step = el("span", "step");
     if (i) step.append(document.createTextNode("›"));
-    const icon = iconOrBlank(skillIconUrl(c.skill), "");
+    const icon = iconOrBlank(skillIconUrl(c.skill), "", skillName(c.skill));
     icon.dataset.skill = c.skill;
     step.append(icon);
     box.append(step);
@@ -1062,6 +1083,7 @@ function drawRotation() {
     }
     const img = skillIconImage(skill);
     if (img) ctx.drawImage(img, 4, yMid - icon / 2, icon, icon);
+    else drawBlankIcon(ctx, 4, yMid - icon / 2, icon, skillName(skill));
     ctx.fillStyle = css("--text");
     ctx.font = canvasFont();
     ctx.fillText(clipText(ctx, skillName(skill), gutter - icon - 16), icon + 10, yMid);
@@ -1195,8 +1217,12 @@ function effectIconKey(e) {
 // Lanes of effect spans, one per effect: on the player (buffs), then on the target
 // (debuffs). Also kept by key for the tooltips.
 let lanesByKey = new Map();
+// Every effect, or (the default) only what players put up that isn't there all fight.
+let allEffects = false;
+let hiddenEffects = 0;
 function buffLanes() {
   const debuffTarget = target != null ? target : data.view.target_id;
+  const players = new Set([...data.view.players, ...(data.view.healing || [])].map((p) => p.id));
   const lanes = new Map();
   for (const e of data.effects) {
     let kind = null;
@@ -1208,6 +1234,23 @@ function buffLanes() {
       lanes.set(key, { key, kind, label: effectLabel(e), effect: e.effect, skill: e.skill, iconKey: effectIconKey(e), spans: [] });
     }
     lanes.get(key).spans.push(e);
+  }
+  // Mobs' effects, effects the data can't name, and passives up the whole fight (gear,
+  // titles and the like) are noise unless asked for.
+  const shown = (lane) => {
+    const byPlayer = lane.spans.some((s) => players.has(s.source));
+    const unnamed = /^(effect )?\d+$/.test(lane.label);
+    const passive = lane.skill == null && lane.spans.every((s) => s.before && s.open);
+    return byPlayer && !unnamed && !passive;
+  };
+  hiddenEffects = 0;
+  if (!allEffects) {
+    for (const [key, lane] of lanes) {
+      if (!shown(lane)) {
+        lanes.delete(key);
+        hiddenEffects++;
+      }
+    }
   }
   const end = Math.max(1000, derived.endMs);
   for (const lane of lanes.values()) {
@@ -1227,7 +1270,8 @@ function buffLanes() {
     lane.uptime = Math.min(1, covered / end);
     // How long it lasts: what the game said, else the longest span that started and
     // ended in the fight (a shield that breaks, or a buff cast again, ends early).
-    lane.lasts = Math.max(0, ...lane.spans.map((s) => s.duration_ms || 0));
+    // (An effect without an end says 2^32 - 1 ms.)
+    lane.lasts = Math.max(0, ...lane.spans.map((s) => (s.duration_ms < 2 ** 31 ? s.duration_ms : 0) || 0));
     lane.longest = lane.lasts || Math.max(0, ...lane.spans.filter((s) => !s.before && !s.open).map((s) => s.end - s.start));
   }
   const list = [...lanes.values()];
@@ -1258,6 +1302,11 @@ function drawBuffTimeline() {
   const box = $("buff-timeline");
   const canvas = box.querySelector("canvas");
   const { list, debuffTarget } = buffLanes();
+  const toggle = $("all-effects");
+  toggle.textContent = allEffects ? "[players' effects]" : `[all effects${hiddenEffects ? ` +${hiddenEffects}` : ""}]`;
+  toggle.title = allEffects
+    ? "Show only what players put up"
+    : "Also show mobs' effects, unnamed effects and passives that are up the whole fight";
   $("buffs-on-label").textContent = `on ${name(selection.player)}`;
   $("debuffs-on-label").textContent = `on ${debuffTarget != null ? name(debuffTarget) : "the target"}`;
   const laneH = Math.round(LANE_H * 0.8);
@@ -1291,12 +1340,8 @@ function drawBuffTimeline() {
     const icon = laneH - 6;
     const img = iconImageFor(lane.iconKey);
     if (img) ctx.drawImage(img, 4, y + 3, icon, icon);
-    else {
-      ctx.fillStyle = css("--line-faint");
-      roundRect(ctx, 4, y + 3, icon, icon, 3);
-      ctx.fill();
-      ctx.fillStyle = css("--text");
-    }
+    else drawBlankIcon(ctx, 4, y + 3, icon, lane.label);
+    ctx.fillStyle = css("--text");
     ctx.fillText(clipText(ctx, lane.label, gutter - 5 * fontPx() - icon - 6), icon + 10, y + laneH / 2);
     ctx.textAlign = "right";
     ctx.fillStyle = css("--muted");
@@ -1419,7 +1464,7 @@ function drawBuffsPerSkill() {
     const card = el("div", "card");
     const head = el("div", "card-head");
     head.dataset.skill = id;
-    head.append(iconOrBlank(skillIconUrl(id), ""), el("span", "name", skillName(id)), el("span", "share", pct(s.damage, p.damage)));
+    head.append(iconOrBlank(skillIconUrl(id), "", skillName(id)), el("span", "name", skillName(id)), el("span", "share", pct(s.damage, p.damage)));
     card.append(head, el("div", "sub", `${s.castTimes.length} casts · ${fmt(s.damage)}`));
     const rows = list.map((lane) => ({ lane, share: s.castTimes.filter((t) => up(lane, t)).length / s.castTimes.length })).filter((r) => r.share > 0);
     const always = rows.filter((r) => r.share >= 1);
@@ -1487,7 +1532,79 @@ function render() {
     drawFollow("buffs");
   } else if (tab === "healing" || tab === "taken") {
     drawFlow(tab);
+  } else if (tab === "deaths") {
+    drawDeaths();
   }
+}
+
+// ---------------------------------------------------------------- deaths
+
+let deathPick = 0;
+
+function drawDeaths() {
+  const deaths = data.view.deaths || [];
+  const table = $("deaths-table");
+  table.replaceChildren();
+  if (!deaths.length) {
+    table.append(el("caption", "note", "nobody died in this fight"));
+    $("recap-legend").textContent = "recap";
+    $("recap-tiles").replaceChildren();
+    $("recap-hits").replaceChildren();
+    $("recap-heal").textContent = "";
+    return;
+  }
+  deathPick = Math.min(deathPick, deaths.length - 1);
+  const head = el("tr");
+  head.append(th("time", null, true), th("who", null, true), th("killed by", null, true), th("to death"));
+  table.append(head);
+  deaths.forEach((d, i) => {
+    const tr = el("tr", "clickable" + (i === deathPick ? " selected" : ""));
+    tr.append(
+      el("td", "left", clock(d.at_s * 1000)),
+      el("td", "left", d.name),
+      el("td", "left", [d.killer || "?", d.skill_name || (d.skill ? `#${d.skill}` : "")].filter(Boolean).join(" · ")),
+      el("td", "", `${d.time_to_death_s.toFixed(1)} s`),
+    );
+    tr.addEventListener("click", () => {
+      deathPick = i;
+      drawDeaths();
+    });
+    table.append(tr);
+  });
+  drawRecap(deaths[deathPick]);
+}
+
+function drawRecap(d) {
+  $("recap-legend").textContent = `${d.name} at ${clock(d.at_s * 1000)}`;
+  const tiles = $("recap-tiles");
+  tiles.replaceChildren(
+    tile("time to death", `${d.time_to_death_s.toFixed(1)} s`, "since full HP"),
+    tile("taken", fmt(d.direct + d.over_time), `${fmt(d.direct)} direct · ${fmt(d.over_time)} over time`),
+    tile("healed", fmt(d.healed), "in that time"),
+  );
+  const table = $("recap-hits");
+  table.replaceChildren();
+  const head = el("tr");
+  head.append(th("before", null, true), th("from", null, true), th("skill", null, true), th("damage"), th("hp after"));
+  table.append(head);
+  const hits = d.hits || [];
+  hits.forEach((h, i) => {
+    const last = i === hits.length - 1;
+    const tr = el("tr", last ? "selected" : "");
+    tr.append(
+      el("td", "left", `-${h.before_s.toFixed(1)} s`),
+      el("td", "left", h.from),
+      el("td", "left", (h.skill_name || `#${h.skill}`) + (h.dot ? " (over time)" : "")),
+      el("td", "", fmt(h.amount)),
+      el("td", "", h.hp == null ? "–" : fmt(h.hp)),
+    );
+    table.append(tr);
+  });
+  if (!hits.length) table.append(el("caption", "note", "no hits seen on them before this"));
+  const heal = d.last_heal;
+  $("recap-heal").textContent = heal
+    ? `last heal: ${heal.skill_name || `#${heal.skill}`} from ${heal.from}, ${heal.before_s.toFixed(1)} s before (${fmt(heal.amount)})`
+    : "no heals on them in this fight";
 }
 
 function selectPlayer(id) {
@@ -2028,3 +2145,8 @@ tauri.event.listen("appearance", (e) => {
   };
   setTimeout(poll, POLL_MS);
 })();
+
+$("all-effects").addEventListener("click", () => {
+  allEffects = !allEffects;
+  render();
+});

@@ -30,6 +30,8 @@ use meter_core::session;
 mod analysis;
 mod clickthrough;
 mod fonts;
+mod panels;
+mod ping;
 mod gamedata;
 mod layout;
 mod placement;
@@ -39,7 +41,7 @@ mod store;
 mod style;
 
 use gamedata::GameData;
-use store::{Appearance, Fight, FightDetails, History, KnownPlayers, Profile, Settings};
+use store::{Appearance, Fight, FightDetails, History, Instances, KnownPlayers, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 const OVERLAY: &str = "main";
@@ -62,8 +64,6 @@ struct Status {
     phase: Phase,
     message: String,
     dropped: u64,
-    /// Round trip to the game server.
-    ping_ms: Option<u32>,
 }
 
 struct Engine {
@@ -123,6 +123,8 @@ pub struct AppState {
     history: Mutex<History>,
     /// Full analyses of recent fights.
     details: FightDetails,
+    /// Dungeon runs' start and completion, as the game reported them.
+    instances: Mutex<Instances>,
     /// What the analysis window shows.
     analysis_selection: Mutex<analysis::Selection>,
     /// The analysis window has been sized and placed once.
@@ -145,6 +147,12 @@ pub struct AppState {
     known_players: Mutex<Option<KnownPlayers>>,
     /// How many named players were last saved to `players.json`.
     players_saved: AtomicUsize,
+    /// PvP sessions.
+    pvp: Mutex<store::PvpLog>,
+    /// Field bosses from the world map.
+    field_bosses: Mutex<store::FieldBosses>,
+    /// Side windows placed beside the meter once already.
+    panels_placed: Mutex<std::collections::HashSet<String>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -162,11 +170,21 @@ struct View {
     /// Your name came from memory (the game hasn't said who you are yet this session).
     name_remembered: bool,
     history_count: usize,
+    /// Whose damage counts follows your party (not chosen by hand).
+    auto_scope: bool,
     appearance: Appearance,
     /// How often the overlay should ask again, in milliseconds.
     refresh_ms: u32,
     locked: bool,
     meter_view: store::MeterView,
+    /// The game's own ping (live capture only).
+    ping_ms: Option<u32>,
+    /// For the alerts the overlay shows before events.
+    timer_region: String,
+    alerts: Vec<String>,
+    alert_lead_min: u32,
+    hide_after_s: u32,
+    boss_hp: bool,
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
@@ -175,12 +193,32 @@ struct View {
 #[tauri::command]
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
-    let (mut snap, finished, known) = {
+    let auto_scope = !lock(&app.settings).manual_scope;
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
-        (meter.snapshot(), meter.take_finished(), known)
+        // Whose damage counts follows your party, unless chosen by hand.
+        let scope = lock(&app.settings).scope_for(meter.registry().party().len());
+        if meter.scope() != scope {
+            meter.set_scope(scope);
+        }
+        let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses())
     };
+    lock(&app.field_bosses).update(field_bosses);
+    if !pvp.is_empty() {
+        let mut log = lock(&app.pvp);
+        for s in pvp {
+            log.record(s);
+        }
+    }
+    if !entered.is_empty() {
+        let mut instances = lock(&app.instances);
+        for i in entered {
+            instances.record(i);
+        }
+    }
     if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
         let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
         for row in rows.filter(|r| !open.contains(&r.id)) {
@@ -217,10 +255,17 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         skills_problem: data.problem().map(str::to_string),
         name_remembered,
         history_count: history.len(),
+        auto_scope,
         appearance: settings.appearance,
         refresh_ms: settings.refresh_ms,
         locked: settings.locked,
         meter_view: settings.meter_view,
+        ping_ms,
+        timer_region: settings.timer_region,
+        alerts: settings.alerts,
+        alert_lead_min: settings.alert_lead_min,
+        hide_after_s: settings.hide_after_s,
+        boss_hp: settings.boss_hp,
     }
 }
 
@@ -303,18 +348,27 @@ fn reset(app: State<'_, Arc<AppState>>) {
 }
 
 /// Whose damage counts (mine, party or everyone); saved for next time.
+/// Whose damage counts: a scope chosen by hand, or `None` to follow your party.
 #[tauri::command]
-fn set_scope(app: State<'_, Arc<AppState>>, scope: Scope) {
-    app.engine.meter().set_scope(scope);
+fn set_scope(app: State<'_, Arc<AppState>>, scope: Option<Scope>) {
     let mut s = lock(&app.settings);
-    s.scope = scope;
+    s.manual_scope = scope.is_some();
+    if let Some(scope) = scope {
+        s.scope = scope;
+    }
     s.save(&app.config_dir);
+    let settings = s.clone();
+    drop(s);
+    // Settings released before the meter: the snapshot takes them the other way round.
+    let mut meter = app.engine.meter();
+    let scope = settings.scope_for(meter.registry().party().len());
+    meter.set_scope(scope);
 }
 
 #[tauri::command]
 fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
     let fights = lock(&app.history).summaries(&app.details);
-    runs::history_list(fights, &lock(&app.data))
+    runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
 
 #[tauri::command]
@@ -359,7 +413,7 @@ fn start_engine(app: &Arc<AppState>) {
         return;
     }
     let settings = lock(&app.settings).clone();
-    app.engine.meter().set_scope(settings.scope);
+    app.engine.meter().set_scope(settings.scope_for(0));
     app.recording_now.store(settings.record && app.args.replay.is_none(), Ordering::SeqCst);
     app.engine.set_status(Phase::Starting, "starting…");
     let state = Arc::clone(app);
@@ -391,10 +445,7 @@ fn run_live(app: &AppState, record: bool) {
                 engine.set_status(Phase::Capturing, format!("capturing on {}", devices.join(", ")))
             }
             LiveEvent::Warning(msg) => engine.update_status(|s| s.message = msg),
-            LiveEvent::Status(st) => engine.update_status(|s| {
-                s.dropped = st.dropped;
-                s.ping_ms = st.ping_ms;
-            }),
+            LiveEvent::Status(st) => engine.update_status(|s| s.dropped = st.dropped),
             LiveEvent::Messages(msgs) => {
                 let mut meter = engine.meter();
                 for m in &msgs {
@@ -565,14 +616,18 @@ fn main() {
     let known_players = KnownPlayers::load(&config_dir);
     // Known from the start: the page can ask to be fitted before the overlay is placed.
     let overlay_new = placement::load(&placement::state_path(&config_dir)).is_none();
+    let config_dir_for_pvp = config_dir.clone();
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
-            meter: Mutex::new(Meter::default()),
+            meter: Mutex::new({
+                let mut m = Meter::default();
+                m.set_boss_types(data.boss_types());
+                m
+            }),
             status: Mutex::new(Status {
                 phase: Phase::Idle,
                 message: "not started".into(),
                 dropped: 0,
-                ping_ms: None,
             }),
             started: AtomicBool::new(false),
             replay_clock: replay.then(|| AtomicU64::new(0)),
@@ -581,6 +636,7 @@ fn main() {
         data: Mutex::new(data),
         history: Mutex::new(History::load(&config_dir)),
         details: FightDetails::new(&config_dir),
+        instances: Mutex::new(Instances::load(&config_dir)),
         analysis_selection: Mutex::new(analysis::Selection::default()),
         analysis_placed: AtomicBool::new(false),
         profile: Mutex::new(Profile::load(&config_dir)),
@@ -595,6 +651,9 @@ fn main() {
         lock_button: Mutex::new(None),
         known_players: Mutex::new(Some(known_players)),
         players_saved: AtomicUsize::new(0),
+        pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
+        field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
+        panels_placed: Mutex::new(std::collections::HashSet::new()),
     });
     state.locked.store(lock(&state.settings).locked, Ordering::SeqCst);
 
@@ -633,6 +692,22 @@ fn main() {
             settings::open_history,
             settings::toggle_settings,
             settings::hide_settings,
+            panels::toggle_panel,
+            panels::panels_open,
+            panels::show_fight,
+            panels::cooldowns,
+            panels::pvp_list,
+            panels::timer_region,
+            panels::set_timer_region,
+            panels::target,
+            panels::field_bosses,
+            panels::rename_field_boss,
+            panels::set_alert,
+            panels::set_alert_lead,
+            panels::set_hide_after,
+            panels::set_boss_hp,
+            panels::timer_settings,
+            panels::party_cooldowns,
         ])
         .setup(move |app| {
             restyle_windows(app.handle(), &lock(&state.settings).appearance.clone());
@@ -641,6 +716,7 @@ fn main() {
             show_overlay(app.handle())?;
             clickthrough::watch(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
+            panels::reopen(app.handle(), &state);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -667,7 +743,7 @@ fn main() {
 /// Applies the background effect, corners and border to every window, and tells each
 /// page so the theme and font change everywhere at once.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
-    for label in [OVERLAY, SETTINGS, ANALYSIS] {
+    for label in [OVERLAY, SETTINGS, ANALYSIS].into_iter().chain(panels::PANELS) {
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }

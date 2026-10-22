@@ -43,11 +43,15 @@ pub struct SettingsStatus {
     /// Whether the capture running now is recording (the switch applies on next start).
     recording_now: bool,
     scope: Scope,
+    /// The scope follows your party (not chosen by hand).
+    auto_scope: bool,
     /// People in your party or group, you included (0 when on your own).
     party_size: usize,
     appearance: Appearance,
     refresh_ms: u32,
     locked: bool,
+    boss_hp: bool,
+    hide_after_s: u32,
 }
 
 #[tauri::command]
@@ -108,6 +112,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         (data, details)
     };
     let s = lock(&app.settings).clone();
+    // Once: a second lock of the meter in the same expression would wait on the first.
+    let party_size = app.engine.meter().registry().party().len();
     SettingsStatus {
         version: env!("CARGO_PKG_VERSION"),
         npcap,
@@ -116,11 +122,14 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         details,
         record: s.record,
         recording_now: app.recording_now.load(std::sync::atomic::Ordering::SeqCst),
-        scope: s.scope,
-        party_size: app.engine.meter().registry().party().len(),
+        scope: s.scope_for(party_size),
+        auto_scope: !s.manual_scope,
+        party_size,
         appearance: s.appearance,
         refresh_ms: s.refresh_ms,
         locked: s.locked,
+        boss_hp: s.boss_hp,
+        hide_after_s: s.hide_after_s,
     }
 }
 
@@ -194,12 +203,14 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
     Ok("added to Desktop and Start menu".into())
 }
 
-/// Opens the overlay's history list.
+/// Opens the history window.
 #[tauri::command]
-pub fn open_history(handle: AppHandle) -> Result<(), String> {
+pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
     show_overlay(&handle).map_err(|e| e.to_string())?;
-    notify_overlay(&handle, "show-history");
-    Ok(())
+    if handle.get_webview_window("history").is_some_and(|w| w.is_visible().unwrap_or(false)) {
+        return Ok(());
+    }
+    crate::panels::toggle_panel(handle, app, "history".into())
 }
 
 /// Shows the settings next to the overlay, or hides them if they're already open.

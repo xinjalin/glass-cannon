@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon target</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body data-panel="target">
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>─ target</span>
+      <button id="close" type="button" class="close" title="Close (Esc)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+      </button>
+    </header>
+    <div id="frame" hidden>
+      <div class="tf-head">
+        <span id="tf-boss" class="boss" hidden>BOSS</span>
+        <span id="tf-name" class="tf-name"></span>
+        <span id="tf-pct" class="tf-pct"></span>
+      </div>
+      <div class="tf-hp"><span id="tf-hp-fill"></span></div>
+      <div class="tf-line">
+        <span id="tf-hp-text"></span>
+        <span id="tf-ttk"></span>
+      </div>
+      <div class="tf-line">
+        <span id="tf-attacking"></span>
+        <span id="tf-enrage"></span>
+      </div>
+      <div id="tf-stagger-box" hidden>
+        <div class="tf-stagger"><span id="tf-stagger-fill"></span></div>
+        <span id="tf-stagger-text" class="note"></span>
+      </div>
+    </div>
+    <p id="empty" class="empty">no target: pick one, or start a fight</p>
+  </main>
+  <script src="theme.js"></script>
+  <script src="panel.js"></script>
+  <script src="target.js"></script>
+</body>
+</html>

@@ -5,11 +5,12 @@
 //! - `history.jsonl`  finished fights, one per line (newest last)
 //! - `players.json`   names of players seen this login, for when the meter restarts
 
+use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use meter_core::meter::{Analysis, EncounterView, Scope, Snapshot};
+use meter_core::meter::{Analysis, EncounterView, FightEnd, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Fights kept in memory and shown in the history list.
@@ -34,14 +35,19 @@ fn save<T: Serialize>(path: &Path, value: &T) {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     /// Also save each session's packets to `captures/`.
     #[serde(default)]
     pub record: bool,
-    /// Whose damage counts: your targets ("mine"), your party, or everyone nearby.
+    /// Whose damage counts when chosen by hand: yours ("mine"), your party's, or
+    /// everyone's nearby. Only used with `manual_scope`.
     #[serde(default)]
     pub scope: Scope,
+    /// The scope was chosen by hand. Otherwise it follows your party: your party's fight
+    /// while you're in one, yours on your own.
+    #[serde(default)]
+    pub manual_scope: bool,
     /// Older settings files: `true` becomes `scope: "everyone"`.
     #[serde(default, skip_serializing)]
     everyone: bool,
@@ -57,6 +63,58 @@ pub struct Settings {
     /// What the meter's rows show.
     #[serde(default)]
     pub meter_view: MeterView,
+    /// The windows left open (history, cooldowns, timers), opened again at start.
+    #[serde(default)]
+    pub panels: Vec<String>,
+    /// Whose event schedule the timers follow: one of [`TIMER_REGIONS`].
+    #[serde(default = "default_timer_region")]
+    pub timer_region: String,
+    /// Events (their timer IDs) and field bosses ("boss:<id>") to be told about before
+    /// they start, and how many minutes before.
+    #[serde(default)]
+    pub alerts: Vec<String>,
+    #[serde(default = "default_alert_lead")]
+    pub alert_lead_min: u32,
+    /// The meter fades away this many seconds after combat ends (0: it doesn't), and comes
+    /// back in the next fight or under the mouse.
+    #[serde(default)]
+    pub hide_after_s: u32,
+    /// The boss's HP and enrage timer under the target's name.
+    #[serde(default = "default_true")]
+    pub boss_hp: bool,
+}
+
+fn default_alert_lead() -> u32 {
+    5
+}
+fn default_true() -> bool {
+    true
+}
+
+/// Regions with their own event times (the global client's by time zone, Korea, Taiwan).
+pub const TIMER_REGIONS: [&str; 6] = ["as", "naw", "eu", "la", "kr", "tw"];
+
+fn default_timer_region() -> String {
+    "as".into()
+}
+
+/// No settings file: the same as an empty one, so each setting gets its own default (some
+/// are on unless turned off).
+impl Default for Settings {
+    fn default() -> Self {
+        serde_json::from_str("{}").expect("every setting has a default")
+    }
+}
+
+impl Settings {
+    /// Whose damage counts now, for a party of `party` people (you included; 0 alone).
+    pub fn scope_for(&self, party: usize) -> Scope {
+        match (self.manual_scope, party > 1) {
+            (true, _) => self.scope,
+            (false, true) => Scope::Party,
+            (false, false) => Scope::Mine,
+        }
+    }
 }
 
 /// What the meter's rows show: damage dealt, healing done or damage taken.
@@ -67,6 +125,8 @@ pub enum MeterView {
     Damage,
     Healing,
     Taken,
+    /// Who's in your party or group, with their combat power and gear score.
+    Party,
 }
 
 pub const REFRESH_RATES: [u32; 5] = [REALTIME, 200, 500, 1000, 2000];
@@ -76,7 +136,7 @@ pub const REALTIME: u32 = 100;
 pub const DEFAULT_REFRESH_MS: u32 = 500;
 
 pub const THEMES: [&str; 6] = ["rose", "lavender", "mint", "sky", "amber", "mono"];
-pub const HIGHLIGHTS: [&str; 2] = ["self", "all"];
+pub const HIGHLIGHTS: [&str; 3] = ["self", "all", "off"];
 pub const BACKDROPS: [&str; 3] = ["frosted", "tinted", "clear"];
 /// Bar colours: follow the theme, each player's class, or one of the theme colours.
 pub const BAR_COLORS: [&str; 8] = ["theme", "class", "rose", "lavender", "mint", "sky", "amber", "mono"];
@@ -86,16 +146,18 @@ pub const OPACITIES: std::ops::RangeInclusive<u8> = 0..=100;
 /// How the windows look. Unknown or out-of-range values fall back to the defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Appearance {
-    /// Accent colour: one of [`THEMES`].
+    /// Accent colour: one of [`THEMES`], or a colour of your own (`#rrggbb`).
     #[serde(default = "default_theme")]
     pub theme: String,
-    /// The colour of the bars and filled rows, independent of the theme: one of [`BAR_COLORS`].
+    /// The colour of the bars and filled rows, independent of the theme: one of
+    /// [`BAR_COLORS`], or a colour of your own (`#rrggbb`).
     #[serde(default = "default_bar_color")]
     pub bar_color: String,
     /// Older settings files: `true` becomes `bar_color: "class"`.
     #[serde(default, skip_serializing)]
     class_colors: bool,
-    /// "self": only your row is filled; "all": every row is filled in its colour.
+    /// "self": only your row is filled; "all": every row is filled in its colour; "off":
+    /// no row is filled, and the bars show the bar colour.
     #[serde(default = "default_highlight")]
     pub highlight: String,
     /// Text size in pixels.
@@ -113,9 +175,14 @@ pub struct Appearance {
     /// Only the target name and the meter bars: no title bar, frame or border.
     #[serde(default)]
     pub minimal: bool,
-    /// A thin strip at the top with the local time and ping.
+    /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
+}
+
+/// A colour picked by hand: `#` and six hex digits.
+fn is_hex_color(s: &str) -> bool {
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn default_theme() -> String {
@@ -174,11 +241,11 @@ pub struct AppearanceChange {
 impl Appearance {
     /// Applies the given changes, keeping every value valid.
     pub fn update(&mut self, c: AppearanceChange) {
-        if let Some(t) = c.theme.filter(|t| THEMES.contains(&t.as_str())) {
-            self.theme = t;
+        if let Some(t) = c.theme.filter(|t| THEMES.contains(&t.as_str()) || is_hex_color(t)) {
+            self.theme = t.to_ascii_lowercase();
         }
-        if let Some(b) = c.bar_color.filter(|b| BAR_COLORS.contains(&b.as_str())) {
-            self.bar_color = b;
+        if let Some(b) = c.bar_color.filter(|b| BAR_COLORS.contains(&b.as_str()) || is_hex_color(b)) {
+            self.bar_color = b.to_ascii_lowercase();
         }
         if let Some(h) = c.highlight.filter(|h| HIGHLIGHTS.contains(&h.as_str())) {
             self.highlight = h;
@@ -209,13 +276,13 @@ impl Appearance {
         if !self.font.is_empty() && !crate::fonts::usable_name(&self.font) {
             self.font = fixed.font.clone();
         }
-        if !THEMES.contains(&self.theme.as_str()) {
+        if !THEMES.contains(&self.theme.as_str()) && !is_hex_color(&self.theme) {
             self.theme = fixed.theme;
         }
         if std::mem::take(&mut self.class_colors) && self.bar_color == "theme" {
             self.bar_color = "class".into();
         }
-        if !BAR_COLORS.contains(&self.bar_color.as_str()) {
+        if !BAR_COLORS.contains(&self.bar_color.as_str()) && !is_hex_color(&self.bar_color) {
             self.bar_color = fixed.bar_color;
         }
         if !HIGHLIGHTS.contains(&self.highlight.as_str()) {
@@ -348,6 +415,142 @@ impl Profile {
 /// Fights kept with their full analysis (the rest of the history keeps its summary).
 const DETAILS_LIMIT: usize = 50;
 
+const INSTANCES_LIMIT: usize = 500;
+/// PvP sessions kept.
+const PVP_LIMIT: usize = 300;
+
+/// Field bosses as world maps last showed them, and names you gave them
+/// (`fieldbosses.json`).
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct FieldBosses {
+    #[serde(skip)]
+    path: PathBuf,
+    #[serde(default)]
+    pub names: BTreeMap<u32, String>,
+    #[serde(default)]
+    pub bosses: BTreeMap<u32, meter_core::fieldboss::FieldBoss>,
+    /// When each was last read from a world map (ms since 1970).
+    #[serde(default)]
+    pub seen_ms: BTreeMap<u32, u64>,
+}
+
+impl FieldBosses {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("fieldbosses.json");
+        let mut f: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        f.path = path;
+        f
+    }
+
+    fn save(&self) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(s) = serde_json::to_string_pretty(self) {
+            let _ = fs::write(&self.path, s);
+        }
+    }
+
+    pub fn update(&mut self, seen: Vec<meter_core::fieldboss::FieldBoss>) {
+        if seen.is_empty() {
+            return;
+        }
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+        for b in seen {
+            self.seen_ms.insert(b.id, now);
+            self.bosses.insert(b.id, b);
+        }
+        self.save();
+    }
+
+    pub fn rename(&mut self, id: u32, name: &str) {
+        let name = name.trim();
+        if name.is_empty() {
+            self.names.remove(&id);
+        } else {
+            self.names.insert(id, name.chars().take(40).collect());
+        }
+        self.save();
+    }
+}
+
+/// PvP sessions, oldest first (`pvp.jsonl`).
+pub struct PvpLog {
+    path: PathBuf,
+    sessions: Vec<meter_core::pvp::PvpSession>,
+}
+
+impl PvpLog {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("pvp.jsonl");
+        let mut sessions: Vec<meter_core::pvp::PvpSession> = fs::read_to_string(&path)
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+        let extra = sessions.len().saturating_sub(PVP_LIMIT);
+        sessions.drain(..extra);
+        Self { path, sessions }
+    }
+
+    pub fn record(&mut self, s: meter_core::pvp::PvpSession) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let (Ok(line), Ok(mut f)) = (serde_json::to_string(&s), OpenOptions::new().create(true).append(true).open(&self.path)) {
+            let _ = writeln!(f, "{line}");
+        }
+        self.sessions.push(s);
+    }
+
+    /// Newest first.
+    pub fn list(&self) -> Vec<meter_core::pvp::PvpSession> {
+        self.sessions.iter().rev().cloned().collect()
+    }
+}
+
+/// Dungeon runs as the game reported them: when you entered, when the countdown ended and
+/// when it was completed. Kept in `instances.jsonl`, one line per change (the last line for
+/// an entry wins).
+pub struct Instances {
+    path: PathBuf,
+    by_entered: BTreeMap<u64, meter_core::dungeon::Instance>,
+}
+
+impl Instances {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("instances.jsonl");
+        let mut by_entered = BTreeMap::new();
+        for line in fs::read_to_string(&path).unwrap_or_default().lines() {
+            if let Ok(i) = serde_json::from_str::<meter_core::dungeon::Instance>(line) {
+                by_entered.insert(i.entered_us, i);
+            }
+        }
+        while by_entered.len() > INSTANCES_LIMIT {
+            by_entered.pop_first();
+        }
+        Self { path, by_entered }
+    }
+
+    /// Saves a dungeon run's progress (stays without a countdown aren't dungeons).
+    pub fn record(&mut self, i: meter_core::dungeon::Instance) {
+        if i.started_us.is_none() || self.by_entered.get(&i.entered_us) == Some(&i) {
+            return;
+        }
+        self.by_entered.insert(i.entered_us, i);
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let (Ok(line), Ok(mut f)) = (serde_json::to_string(&i), OpenOptions::new().create(true).append(true).open(&self.path)) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+
+    pub fn get(&self, entered_us: u64) -> Option<&meter_core::dungeon::Instance> {
+        self.by_entered.get(&entered_us)
+    }
+}
+
 /// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
 pub struct FightDetails {
     dir: PathBuf,
@@ -418,6 +621,8 @@ pub struct FightSummary {
     pub target: Option<String>,
     /// The main target's mob type.
     pub target_type: Option<u32>,
+    /// When you entered the map it was on (the same for a dungeon run's fights).
+    pub instance_us: Option<u64>,
     pub target_boss: bool,
     pub duration_s: f64,
     pub total_damage: u64,
@@ -432,6 +637,10 @@ pub struct FightSummary {
     pub dungeon: Option<crate::runs::Place>,
     /// The dungeon run it's part of: a position in the list's runs.
     pub run: Option<usize>,
+    /// How it ended (unknown for fights saved before this was read).
+    pub end: Option<FightEnd>,
+    /// Deaths of the players shown.
+    pub deaths: usize,
 }
 
 pub struct History {
@@ -483,6 +692,7 @@ impl History {
                 ended_ms: f.ended_ms,
                 target: f.view.target.clone(),
                 target_type: f.view.target_type,
+                instance_us: f.view.instance_us,
                 target_boss: f.view.target_boss,
                 duration_s: f.view.duration_s,
                 total_damage: f.view.total_damage,
@@ -493,6 +703,8 @@ impl History {
                 has_details: details.has(f.ended_ms),
                 dungeon: None,
                 run: None,
+                end: f.view.end,
+                deaths: f.view.deaths.len(),
             })
             .collect()
     }
@@ -530,6 +742,9 @@ mod tests {
             self_id: Some(3199),
             scope: Scope::Mine,
             party_size: 0,
+            party: Vec::new(),
+            target: None,
+            in_combat: false,
             encounter: Some(view),
             encounters_completed: 0,
         })
@@ -659,6 +874,42 @@ mod tests {
     }
 
     #[test]
+    fn a_new_install_gets_the_defaults() {
+        let s = Settings::load(&temp_dir("no-settings"));
+        assert!(s.boss_hp);
+        assert_eq!((s.alert_lead_min, s.timer_region.as_str(), s.hide_after_s), (5, "as", 0));
+    }
+
+    #[test]
+    fn the_scope_follows_your_party_unless_chosen() {
+        let mut s = Settings::default();
+        assert_eq!((s.scope_for(0), s.scope_for(1), s.scope_for(5)), (Scope::Mine, Scope::Mine, Scope::Party));
+        s.manual_scope = true;
+        s.scope = Scope::Everyone;
+        assert_eq!(s.scope_for(5), Scope::Everyone);
+        // Settings from before this follow the party.
+        let dir = temp_dir("auto-scope");
+        fs::write(dir.join("settings.json"), r#"{ "scope": "everyone" }"#).unwrap();
+        assert_eq!(Settings::load(&dir).scope_for(5), Scope::Party);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn dungeon_runs_are_kept() {
+        use meter_core::dungeon::Instance;
+        let dir = temp_dir("instances");
+        let mut i = Instances::load(&dir);
+        let entered = Instance { map: 600_072, entered_us: 1, started_us: None, completed_us: None };
+        i.record(entered);
+        assert!(i.get(1).is_none(), "no countdown: not a dungeon");
+        i.record(Instance { started_us: Some(2), ..entered });
+        i.record(Instance { started_us: Some(2), completed_us: Some(9), ..entered });
+        let again = Instances::load(&dir);
+        assert_eq!(again.get(1).and_then(|i| i.completed_us), Some(9));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn old_show_everyone_becomes_the_everyone_scope() {
         let dir = temp_dir("scope");
         fs::write(dir.join("settings.json"), r#"{ "everyone": true }"#).unwrap();
@@ -666,6 +917,24 @@ mod tests {
         fs::write(dir.join("settings.json"), r#"{ "scope": "party" }"#).unwrap();
         assert_eq!(Settings::load(&dir).scope, Scope::Party);
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn colours_of_your_own() {
+        let mut a = Appearance::default();
+        a.update(AppearanceChange {
+            theme: Some("#3A7BD5".into()),
+            bar_color: Some("#00ff88".into()),
+            highlight: Some("off".into()),
+            ..AppearanceChange::default()
+        });
+        assert_eq!((a.theme.as_str(), a.bar_color.as_str(), a.highlight.as_str()), ("#3a7bd5", "#00ff88", "off"));
+        // Not quite a colour: kept as it was.
+        for bad in ["#12345", "#1234567", "3a7bd5x", "#ggg000", "red"] {
+            a.update(AppearanceChange { theme: Some(bad.into()), ..AppearanceChange::default() });
+        }
+        assert_eq!(a.theme, "#3a7bd5");
+        assert_eq!(a.clone().sanitized(), a);
     }
 
     #[test]

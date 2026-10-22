@@ -1,0 +1,493 @@
+{
+ "_source": "World-map field boss IDs -> map and mob type: NOIA2 (github.com/ZDYoung0519/NOIA2, GPL-3.0, src-tauri/src/dps_meter/capture/parser/field_boss_timer.rs). Level and location: the scraped data bundle (no licence). Names come from npcs.json.",
+ "maps": {
+  "1010": "Verteron",
+  "1110": "Altgard",
+  "20": "Chaotic Lower Reshanta"
+ },
+ "bosses": {
+  "101001": {
+   "map": 1010,
+   "npc": 2100003,
+   "level": 45
+  },
+  "101002": {
+   "map": 1010,
+   "npc": 2100040,
+   "level": 45,
+   "where": "Verteron · Ellun River Marsh"
+  },
+  "101003": {
+   "map": 1010,
+   "npc": 2100050,
+   "level": 45,
+   "where": "Verteron · Western Cantas Valley"
+  },
+  "101004": {
+   "map": 1010,
+   "npc": 2100076,
+   "level": 45,
+   "where": "Verteron · Verteron Fortress Ruins"
+  },
+  "101005": {
+   "map": 1010,
+   "npc": 2100077,
+   "level": 45,
+   "where": "Verteron · Verteron Fortress Ruins"
+  },
+  "101006": {
+   "map": 1010,
+   "npc": 2100079,
+   "level": 45,
+   "where": "Verteron · Destroyed Abyss Gate"
+  },
+  "101007": {
+   "map": 1010,
+   "npc": 2100141,
+   "level": 45,
+   "where": "Verteron · Ellun River Midstream"
+  },
+  "101008": {
+   "map": 1010,
+   "npc": 2100177,
+   "level": 45,
+   "where": "Verteron · Night Dew Cave"
+  },
+  "101009": {
+   "map": 1010,
+   "npc": 2100178,
+   "level": 45,
+   "where": "Verteron · Northern Tolbas Forest"
+  },
+  "101010": {
+   "map": 1010,
+   "npc": 2100582,
+   "level": 45,
+   "where": "Verteron · Rock Tomb Hill"
+  },
+  "101011": {
+   "map": 1010,
+   "npc": 2100617,
+   "level": 45,
+   "where": "Verteron · Altamia Canyon"
+  },
+  "101012": {
+   "map": 1010,
+   "npc": 2100661,
+   "level": 45,
+   "where": "Verteron · Garden of the Illusion God"
+  },
+  "101013": {
+   "map": 1010,
+   "npc": 2100708,
+   "level": 45,
+   "where": "Verteron · Destroyed Temple Site"
+  },
+  "101014": {
+   "map": 1010,
+   "npc": 2100718,
+   "level": 45,
+   "where": "Verteron · Contaminated Sanctum"
+  },
+  "101015": {
+   "map": 1010,
+   "npc": 2100876,
+   "level": 45,
+   "where": "Verteron · Drana Processing Area"
+  },
+  "101016": {
+   "map": 1010,
+   "npc": 2100877,
+   "level": 45,
+   "where": "Verteron · Drana Processing Area"
+  },
+  "101017": {
+   "map": 1010,
+   "npc": 2100988,
+   "level": 45,
+   "where": "Verteron · Aullaeu Village"
+  },
+  "101018": {
+   "map": 1010,
+   "npc": 2100989,
+   "level": 45,
+   "where": "Verteron · Aullaeu Village"
+  },
+  "101019": {
+   "map": 1010,
+   "npc": 2100991,
+   "level": 45,
+   "where": "Verteron · Forest of Exiles"
+  },
+  "101020": {
+   "map": 1010,
+   "npc": 2101016,
+   "level": 45,
+   "where": "Verteron · Nahid Brigade Fortress"
+  },
+  "101021": {
+   "map": 1010,
+   "npc": 2101074,
+   "level": 51,
+   "where": "Verteron · Eternal Isle"
+  },
+  "101022": {
+   "map": 1010,
+   "npc": 2101120,
+   "level": 45,
+   "where": "Verteron · Southern Altamia Highland"
+  },
+  "101023": {
+   "map": 1010,
+   "npc": 2101122,
+   "level": 45
+  },
+  "101024": {
+   "map": 1010,
+   "npc": 2101131,
+   "level": 45,
+   "where": "Verteron · Drana Plantation"
+  },
+  "111001": {
+   "map": 1110,
+   "npc": 2400017,
+   "level": 45,
+   "where": "Altgard · Dredgion Crash Site"
+  },
+  "111002": {
+   "map": 1110,
+   "npc": 2400074,
+   "level": 45,
+   "where": "Altgard · Nameless Cemetery"
+  },
+  "111003": {
+   "map": 1110,
+   "npc": 2400140,
+   "level": 45,
+   "where": "Altgard · Sanctum Outpost"
+  },
+  "111004": {
+   "map": 1110,
+   "npc": 2400141,
+   "level": 45,
+   "where": "Altgard · Sanctum Outpost"
+  },
+  "111005": {
+   "map": 1110,
+   "npc": 2400212,
+   "level": 45,
+   "where": "Altgard · Moslan Forest"
+  },
+  "111006": {
+   "map": 1110,
+   "npc": 2400223,
+   "level": 45,
+   "where": "Altgard · Moslan Forest"
+  },
+  "111007": {
+   "map": 1110,
+   "npc": 2400274,
+   "level": 45,
+   "where": "Altgard · Uruthumheim"
+  },
+  "111008": {
+   "map": 1110,
+   "npc": 2400335,
+   "level": 45,
+   "where": "Altgard · Purifying Forest"
+  },
+  "111009": {
+   "map": 1110,
+   "npc": 2400353,
+   "level": 45,
+   "where": "Altgard · Dranactus"
+  },
+  "111010": {
+   "map": 1110,
+   "npc": 2400358,
+   "level": 45,
+   "where": "Altgard · Dranactus"
+  },
+  "111011": {
+   "map": 1110,
+   "npc": 2400419,
+   "level": 45,
+   "where": "Altgard · Basfelt Ruins"
+  },
+  "111012": {
+   "map": 1110,
+   "npc": 2400424,
+   "level": 45,
+   "where": "Altgard · Legion Base Ruins"
+  },
+  "111013": {
+   "map": 1110,
+   "npc": 2400425,
+   "level": 45,
+   "where": "Altgard · Basfelt Ruins"
+  },
+  "111014": {
+   "map": 1110,
+   "npc": 2400474,
+   "level": 45,
+   "where": "Altgard · Fafnite Deposit"
+  },
+  "111015": {
+   "map": 1110,
+   "npc": 2400504,
+   "level": 45,
+   "where": "Altgard · Western Gribade Highland"
+  },
+  "111016": {
+   "map": 1110,
+   "npc": 2400593,
+   "level": 45,
+   "where": "Altgard · Eastern Gribade Highland"
+  },
+  "111017": {
+   "map": 1110,
+   "npc": 2400607,
+   "level": 45
+  },
+  "111018": {
+   "map": 1110,
+   "npc": 2400608,
+   "level": 45,
+   "where": "Altgard · Black Claw Village"
+  },
+  "111019": {
+   "map": 1110,
+   "npc": 2400659,
+   "level": 45,
+   "where": "Altgard · Lagta Fortress"
+  },
+  "111020": {
+   "map": 1110,
+   "npc": 2400709,
+   "level": 45,
+   "where": "Altgard · Impetusium Square"
+  },
+  "111021": {
+   "map": 1110,
+   "npc": 2400800,
+   "level": 51,
+   "where": "Altgard · Immortal Isle"
+  },
+  "111022": {
+   "map": 1110,
+   "npc": 2400853,
+   "level": 45,
+   "where": "Altgard · Lagta Fortress"
+  },
+  "111023": {
+   "map": 1110,
+   "npc": 2400854,
+   "level": 45,
+   "where": "Altgard · Fafnite Deposit"
+  },
+  "111024": {
+   "map": 1110,
+   "npc": 2400855,
+   "level": 45,
+   "where": "Altgard · Basfelt Ruins"
+  },
+  "2101217": {
+   "map": 1011,
+   "npc": 2101217,
+   "level": 80
+  },
+  "2101218": {
+   "map": 1011,
+   "npc": 2101218,
+   "level": 80
+  },
+  "2101257": {
+   "map": 1011,
+   "npc": 2101257,
+   "level": 80
+  },
+  "2101278": {
+   "map": 1011,
+   "npc": 2101278,
+   "level": 80
+  },
+  "2101279": {
+   "map": 1011,
+   "npc": 2101279,
+   "level": 80
+  },
+  "2101306": {
+   "map": 1011,
+   "npc": 2101306,
+   "level": 80
+  },
+  "2101343": {
+   "map": 1011,
+   "npc": 2101343,
+   "level": 49
+  },
+  "2101349": {
+   "map": 1011,
+   "npc": 2101343,
+   "level": 49
+  },
+  "2101350": {
+   "map": 1011,
+   "npc": 2101350,
+   "level": 80
+  },
+  "2101415": {
+   "map": 1011,
+   "npc": 2101415,
+   "level": 80
+  },
+  "2101416": {
+   "map": 1011,
+   "npc": 2101416,
+   "level": 80
+  },
+  "2101600": {
+   "map": 1011,
+   "npc": 2101600,
+   "level": 80
+  },
+  "2101601": {
+   "map": 1011,
+   "npc": 2101601,
+   "level": 80
+  },
+  "2406034": {
+   "map": 1111,
+   "npc": 2406034,
+   "level": 80
+  },
+  "2406035": {
+   "map": 1111,
+   "npc": 2406035,
+   "level": 80
+  },
+  "2406071": {
+   "map": 1111,
+   "npc": 2406071,
+   "level": 80
+  },
+  "2406093": {
+   "map": 1111,
+   "npc": 2406093,
+   "level": 80
+  },
+  "2406094": {
+   "map": 1111,
+   "npc": 2406094,
+   "level": 80
+  },
+  "2406129": {
+   "map": 1111,
+   "npc": 2406129,
+   "level": 80
+  },
+  "2406131": {
+   "map": 1111,
+   "npc": 2406131,
+   "level": 80
+  },
+  "2406132": {
+   "map": 1111,
+   "npc": 2406132,
+   "level": 80
+  },
+  "2406181": {
+   "map": 1111,
+   "npc": 2406181,
+   "level": 80
+  },
+  "2406182": {
+   "map": 1111,
+   "npc": 2406182,
+   "level": 80
+  },
+  "2406990": {
+   "map": 1111,
+   "npc": 2406990,
+   "level": 80
+  },
+  "2406991": {
+   "map": 1111,
+   "npc": 2406991,
+   "level": 80
+  },
+  "2001": {
+   "map": 20,
+   "npc": 2600068,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Archipelago of Siel's Wings"
+  },
+  "2002": {
+   "map": 20,
+   "npc": 2600089,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Archipelago of Siel's Wings"
+  },
+  "2003": {
+   "map": 20,
+   "npc": 2600084,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Reshanta's Root"
+  },
+  "2004": {
+   "map": 20,
+   "npc": 2600093,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Devastated Remnants"
+  },
+  "2005": {
+   "map": 20,
+   "npc": 2600094,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Black Fragments Area"
+  },
+  "2006": {
+   "map": 20,
+   "npc": 2600096,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Reshanta's Root"
+  },
+  "2007": {
+   "map": 20,
+   "npc": 2600097,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Archipelago of Siel's Wings"
+  },
+  "2008": {
+   "map": 20,
+   "npc": 2600098,
+   "level": 65,
+   "where": "Chaotic Lower Reshanta · Sulfur Tree Island"
+  },
+  "2201": {
+   "map": 22,
+   "npc": 2600150,
+   "level": 80
+  },
+  "2202": {
+   "map": 22,
+   "npc": 2600520,
+   "level": 80
+  },
+  "2203": {
+   "map": 22,
+   "npc": 2600521,
+   "level": 80
+  },
+  "2204": {
+   "map": 22,
+   "npc": 2600156,
+   "level": 80
+  },
+  "2205": {
+   "map": 22,
+   "npc": 2600522,
+   "level": 80
+  }
+ }
+}

@@ -40,6 +40,7 @@
       <button type="button" role="tab" data-tab="buffs">[buffs]</button>
       <button type="button" role="tab" data-tab="healing">[healing]</button>
       <button type="button" role="tab" data-tab="taken">[taken]</button>
+      <button type="button" role="tab" data-tab="deaths" id="deaths-tab">[deaths]</button>
     </nav>
 
     <div id="scroll">
@@ -99,6 +100,7 @@
             <button type="button" data-zoom="buffs" data-step="2">[−]</button>
             <button type="button" data-zoom="buffs" data-step="0">[fit]</button>
             <button type="button" data-now="buffs" title="Jump to the newest effects and follow them while the fight goes on">[now]</button>
+            <button type="button" id="all-effects"></button>
             <span class="following" data-follow-state="buffs" hidden>● following</span>
             <span class="legend inline">
               <span class="swatch-mark buff"></span><span id="buffs-on-label">on the player</span>
@@ -162,6 +164,22 @@
           </fieldset>
         </div>
         <p class="note flow-note">Damage players took from mobs. Training dummies don't hit back.</p>
+      </section>
+
+      <section id="tab-deaths" class="tab" hidden>
+        <div class="pair">
+          <fieldset class="box">
+            <legend>deaths <span class="note">· click one for what led to it</span></legend>
+            <table id="deaths-table" class="grid"></table>
+          </fieldset>
+          <fieldset class="box">
+            <legend id="recap-legend">recap</legend>
+            <div id="recap-tiles" class="tiles"></div>
+            <table id="recap-hits" class="grid"></table>
+            <p id="recap-heal" class="note"></p>
+          </fieldset>
+        </div>
+        <p class="note flow-note">From the last time they were at full HP (or the fight's start) to the death: hits taken, healing received, and the killing blow.</p>
       </section>
     </div>
     <div id="skill-tip" class="skill-tip" hidden></div>

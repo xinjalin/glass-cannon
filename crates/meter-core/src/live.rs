@@ -48,8 +48,6 @@ pub struct LiveStatus {
     pub game_udp: usize,
     pub received: u64,
     pub dropped: u64,
-    /// Round trip to the game server (needs `decode`, to know which connection it is).
-    pub ping_ms: Option<u32>,
     pub stats: PipelineStats,
 }
 
@@ -249,7 +247,6 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                 game_udp: current.udp_count(),
                 received: counters.iter().map(|c| c.received.load(Ordering::Relaxed)).sum(),
                 dropped: counters.iter().map(|c| c.dropped.load(Ordering::Relaxed)).sum(),
-                ping_ms: game.game_flow().and_then(|f| pipeline.ping_ms(f, now_us())),
                 stats: pipeline.stats(),
             }));
         }

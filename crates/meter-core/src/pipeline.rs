@@ -15,7 +15,6 @@ use serde_json::json;
 use crate::conns::{TcpConn, UdpEndpoint};
 use crate::decode::{self, tcp_flags, Segment, Transport};
 use crate::reassembly::{HalfStream, StreamEvent};
-use crate::rtt::RttTracker;
 use crate::recorder::{FlowFiles, Recorder, Side};
 
 const LIMBO_MAX_AGE_US: u64 = 3_000_000;
@@ -139,7 +138,6 @@ struct Flow {
     out: HalfStream,
     inn: HalfStream,
     packets: u64,
-    rtt: RttTracker,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -208,11 +206,6 @@ impl Pipeline {
     /// Starts collecting reassembled TCP data for [`Pipeline::take_streams`].
     pub fn collect_streams(&mut self) {
         self.streams.get_or_insert_with(Vec::new);
-    }
-
-    /// Ping to the server of one TCP flow (median round trip of the last few seconds).
-    pub fn ping_ms(&self, flow: u32, now_us: u64) -> Option<u32> {
-        self.flows.values().find(|f| f.id == flow)?.rtt.ping_ms(now_us)
     }
 
     /// Everything collected since the last call.
@@ -401,7 +394,6 @@ impl Pipeline {
                     out: HalfStream::default(),
                     inn: HalfStream::default(),
                     packets: 0,
-                    rtt: RttTracker::default(),
                 },
             );
         }
@@ -417,12 +409,7 @@ impl Pipeline {
                     add_bytes(&mut self.stats, side, seg.payload.len() as u64);
                 }
             }
-            Transport::Tcp { seq, ack, flags } => {
-                match side {
-                    Side::Out => flow.rtt.on_send(ts_us, seq, seg.payload.len()),
-                    Side::In if flags & tcp_flags::ACK != 0 => flow.rtt.on_ack(ts_us, ack),
-                    Side::In => {}
-                }
+            Transport::Tcp { seq, flags, .. } => {
                 let half = match side {
                     Side::Out => &mut flow.out,
                     Side::In => &mut flow.inn,

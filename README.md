@@ -4,27 +4,31 @@ A frosted-glass DPS meter for **Aion 2** on Windows. It reads the game's network
 passively through Npcap, so it never touches the game or its memory. No admin rights, no
 auto-updates, and it never goes online.
 
-![The meter in a fight with eight players](docs/screenshots/overlay.png)
+![The meter in a boss fight: the boss's HP, deaths and five players](docs/screenshots/overlay.png)
 
 | Skill breakdown | Minimal mode, class-coloured bars |
 | --- | --- |
 | ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
 
-![Dungeon runs in the fight history](docs/screenshots/history.png)
+![A boss fight with the target frame, cooldowns, party cooldowns and world timers](docs/screenshots/windows.png)
 
-![Settings beside the meter](docs/screenshots/settings.png)
+| Fight history | Settings |
+| --- | --- |
+| ![A dungeon run in the fight history window](docs/screenshots/history.png) | ![Settings beside the meter](docs/screenshots/settings.png) |
 
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
 
-![Skills with each player's specialties, and a skill's tooltip](docs/screenshots/analysis-skills.png)
+![Skills with each player's specialties](docs/screenshots/analysis-skills.png)
 
 | Rotation | Buffs |
 | --- | --- |
 | ![Skill rotation timeline](docs/screenshots/analysis-rotation.png) | ![Buff timeline and buffs per skill](docs/screenshots/analysis-buffs.png) |
 
-![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png)
+| Healing | Deaths |
+| --- | --- |
+| ![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png) | ![Deaths, and the hits and heals before one](docs/screenshots/analysis-deaths.png) |
 
-<sub>Real fights replayed from recordings, with other players' names made up. The dungeon runs were recorded by another meter and loaded into the history.</sub>
+<sub>A real dungeon run replayed from a recording, with other players' names made up.</sub>
 
 ## Install
 
@@ -41,14 +45,22 @@ Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
 It starts capturing straight away and waits for the game if it isn't running.
 
-- **mine / party / all**: count your targets, your party's, or everyone nearby.
-- **dmg / heal / taken**: damage dealt, healing done (heals over time and self-heals), or
-  damage taken from mobs.
+- **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
+  party: your party's fight while you're in a party or expedition, yours on your own.
+  *mine* is only your damage, *all* everyone's nearby.
+- **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
+  self-heals), damage taken from mobs, or your party with each member's combat power and
+  gear score, and a ✓ for who's readied up in the party finder. The party shows by itself
+  when someone joins, leaves or readies up between fights, and a line under the meter
+  says who.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
-- **▷|** ends the fight now (otherwise 15 s of quiet does); **↺** resets.
+- A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
+  party leaves combat, on a map change, or after 15 s of quiet. **▷|** ends it now; **↺**
+  resets. A live boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
 - **Lock** (bottom right): clicks pass through to the game. Click it again to unlock.
-- **≡** opens the settings: theme, font, background, minimal mode, update rate (*live* or
-  every 0.2–2 s), recording, and status checks.
+- **≡** opens the settings: theme (or any colour), font, background, minimal mode, update
+  rate (*live* or every 0.2–2 s), fading outside combat, recording, status checks, and
+  the windows below.
 
 ### Analysis
 
@@ -60,16 +72,30 @@ close it. Tabs:
 - **rotation**: the opener and a zoomable cast timeline that follows a live fight.
 - **buffs**: buff and debuff uptime with icons, and which buffs were up for each skill.
 - **healing** and **taken**: who healed whom and what hit whom.
+- **deaths**: who died to what, the last hits with HP after each, and the healing before.
 
 **[copy text]** and **[copy image]** put a summary on the clipboard for Discord.
 
 ### History and dungeon runs
 
-The **clock icon** lists the last 200 fights (the newest 50 keep their full analysis).
-Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses
-and damage. Right-click a run for one analysis of all its fights, or a fight for that
-fight. A run ends after 10 minutes without a fight, in another dungeon, or when you
-start the same dungeon again.
+The **clock icon** opens the history window with the last 200 fights (the newest 50 keep
+their full analysis), dungeon runs, bosses and PvP sessions; click a fight to show it on
+the meter.
+Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
+damage and, when the game says it was completed, the clear time (✓). Right-click a run for
+one analysis of all its fights, or a fight for that fight. A run is one entry into the
+dungeon (older fights: no break over 10 minutes and no boss fought twice).
+
+### Windows
+
+Open from the settings; each stays where you put it and opens again next time.
+
+- **cooldowns**: your skills that aren't ready, with time left and charges.
+- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left.
+- **target frame**: your target's HP, time to kill, enrage, who it's attacking, stagger.
+- **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
+  in game to read them) in your time; ring the 🔔 for an alert on the meter before one
+  starts.
 
 ### Names
 

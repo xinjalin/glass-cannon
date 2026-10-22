@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon timers</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body data-panel="timers">
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>─ world timers</span>
+      <button id="close" type="button" class="close" title="Close (Esc)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+      </button>
+    </header>
+    <nav id="regions" class="tabs" role="tablist" aria-label="Region"></nav>
+    <div class="scroll">
+      <ol id="list" class="list"></ol>
+      <h2 class="section">field bosses</h2>
+      <ol id="bosses" class="list"></ol>
+      <p id="bosses-empty" class="note">Open the world map in game to read its field bosses.</p>
+    </div>
+    <p class="note">Your time · 🔔 alerts on the meter before it starts</p>
+  </main>
+  <script src="theme.js"></script>
+  <script src="panel.js"></script>
+  <script src="schedule.js"></script>
+  <script src="timers.js"></script>
+</body>
+</html>

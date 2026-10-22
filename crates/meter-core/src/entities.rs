@@ -6,15 +6,18 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::protocol::read_varint;
 
 pub const OPCODE_SELF_SPAWN: u16 = 0x3633;
-pub const OPCODE_SELF_TICK: u16 = 0x364a;
+/// Your character's stats (varint entity, a list of stats, max HP); names your entity.
+pub const OPCODE_SELF_STATS: u16 = 0x364a;
 pub const OPCODE_MOB_SPAWN: u16 = 0x3641;
 pub const OPCODE_PLAYER_SPAWN: u16 = 0x3645;
-/// A player engaging a mob: carries the player's entity ID and name. Fires on the first
-/// hit of every real fight (not on training dummies), so it names you without a zone change.
-pub const OPCODE_ENGAGE: u16 = 0x8d04;
+/// Something died: the entity, the skill and who did it (a player's entity, server and
+/// name, or a mob's type). A kill by you names you without a zone change. See [`Death`].
+pub const OPCODE_DEATH: u16 = 0x8d04;
 /// Your party's full roster, resent whenever someone joins or leaves.
 pub const OPCODE_PARTY_ROSTER: u16 = 0x9200;
 /// You left the party (or it broke up).
@@ -25,6 +28,40 @@ pub const OPCODE_GROUP_ROSTER: u16 = 0x9702;
 pub const OPCODE_GROUP_JOIN: u16 = 0x970b;
 /// You left the group.
 pub const OPCODE_GROUP_LEFT: u16 = 0x971d;
+/// A member left the party: u32 character ID, 2 zero bytes, u16 server. Taken to mean
+/// you're out when it carries your own ID (being kicked; not seen in a capture yet).
+pub const OPCODE_PARTY_MEMBER_LEFT: u16 = 0x9221;
+/// A member left the group (same layout as [`OPCODE_PARTY_MEMBER_LEFT`]).
+pub const OPCODE_GROUP_MEMBER_LEFT: u16 = 0x971e;
+/// A group member readied up or stopped: u32 character ID, 2 zero bytes, u16 server, u8
+/// ready (1 or 0).
+pub const OPCODE_GROUP_READY: u16 = 0x9716;
+/// You readied up or stopped: `00 00`, u8 ready.
+pub const OPCODE_GROUP_SELF_READY: u16 = 0x9715;
+/// The party's leader changed: u32 character ID, 2 zero bytes, u16 server.
+pub const OPCODE_PARTY_LEADER: u16 = 0x9211;
+/// You were kicked from the party (u8: by vote).
+pub const OPCODE_PARTY_KICKED: u16 = 0x9219;
+/// The party broke up (u8 reason).
+pub const OPCODE_PARTY_DISBANDED: u16 = 0x921f;
+/// You left the party (u64 party, u8 reason).
+pub const OPCODE_PARTY_LEFT_NOTICE: u16 = 0x931f;
+/// The party finder group removed you (u8 reason).
+pub const OPCODE_GROUP_KICKED: u16 = 0x972a;
+/// The expedition (a large group) broke up, or you left it.
+pub const OPCODE_FORCE_DISBANDED: u16 = 0x961a;
+pub const OPCODE_FORCE_LEFT: u16 = 0x962e;
+/// One party or group member's level, gear score, legion and combat power (not sent for
+/// you). Resent often.
+pub const OPCODE_PARTY_MEMBER: u16 = 0x921c;
+/// In a mob spawn, after the entity ID: a mob made in a party member's likeness (bosses
+/// such as Tiere and Thamon copy each member), followed by that member's name.
+const PLAYER_COPY_MARK: [u8; 3] = [0x1c, 0x00, 0x01];
+/// Levels, gear scores and combat power as rosters carry them; anything outside is a
+/// different field.
+const LEVELS: std::ops::RangeInclusive<u32> = 1..=99;
+const GEAR_SCORES: std::ops::RangeInclusive<u32> = 100..=9_999;
+const COMBAT_POWER: std::ops::RangeInclusive<u32> = 1_000..=10_000_000;
 
 /// Bytes between the entity ID and the name length in player/self spawns.
 const SPAWN_NAME_SKIP: usize = 5;
@@ -78,8 +115,28 @@ pub struct Registry {
     mobs: HashMap<u64, u32>,
     /// Summoned creatures and who summoned them.
     owners: HashMap<u64, u64>,
-    /// Names in your party or group, you included. Empty when you're on your own.
-    party: Vec<String>,
+    /// Your party or group, you included, in roster order. Empty when you're on your own.
+    party: Vec<PartyMember>,
+}
+
+/// Someone in your party or group, as the rosters and member updates describe them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PartyMember {
+    /// A character ID that lasts across logins (not an entity ID).
+    pub character: u32,
+    pub name: String,
+    pub server: u16,
+    pub level: Option<u32>,
+    pub gear_score: Option<u32>,
+    pub combat_power: Option<u32>,
+    pub legion: Option<String>,
+    /// In a party-finder group that hasn't started: whether they've readied up. None
+    /// outside such a group, once inside, and for the group's leader (who starts it).
+    #[serde(default)]
+    pub ready: Option<bool>,
+    /// Leads the party or group (the first slot of a group, or named by a leader change).
+    #[serde(default)]
+    pub leader: bool,
 }
 
 impl Registry {
@@ -102,15 +159,23 @@ impl Registry {
         self.players.get(&id).map(String::as_str)
     }
 
-    /// Names in your party or group (you included), in roster order.
-    pub fn party(&self) -> &[String] {
+    /// Your party or group (you included), in roster order.
+    pub fn party(&self) -> &[PartyMember] {
         &self.party
     }
 
     /// You, or a player whose name is on your party's roster. Rosters carry names, not
     /// entity IDs, so a member counts once their name is known.
     pub fn in_party(&self, id: u64) -> bool {
-        self.is_self(id) || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m == n))
+        self.is_self(id) || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m.name == n))
+    }
+
+    /// The entity of the player (or you) with this name, if we've seen them.
+    pub fn entity_named(&self, name: &str) -> Option<u64> {
+        if self.self_name.as_deref() == Some(name) {
+            return self.self_id;
+        }
+        self.players.iter().find(|(_, n)| n.as_str() == name).map(|(id, _)| *id)
     }
 
     pub fn mob_type(&self, id: u64) -> Option<u32> {
@@ -191,8 +256,8 @@ impl Registry {
                 self.self_name = Some(name.clone());
                 renamed.then_some(Change::SelfIdentified { id, name: Some(name) })
             }
-            OPCODE_SELF_TICK => {
-                let id = parse_self_tick(payload)?;
+            OPCODE_SELF_STATS => {
+                let id = parse_self_stats(payload)?;
                 self.set_self(id)
             }
             OPCODE_PLAYER_SPAWN => {
@@ -205,8 +270,9 @@ impl Registry {
                 self.players.insert(id, name.clone());
                 Some(Change::PlayerNamed { id, name })
             }
-            OPCODE_ENGAGE => {
-                let (id, name) = parse_engage(payload)?;
+            OPCODE_DEATH => {
+                let d = parse_death(payload)?;
+                let (id, name) = (d.killer?, d.killer_name?);
                 if self.is_self(id) {
                     if self.self_name.as_deref() == Some(&name) {
                         return None;
@@ -223,33 +289,107 @@ impl Registry {
                 Some(Change::PlayerNamed { id, name })
             }
             OPCODE_PARTY_ROSTER | OPCODE_GROUP_ROSTER => {
-                let members = parse_roster(payload);
+                let mut members = parse_roster(payload, opcode == OPCODE_GROUP_ROSTER);
                 // A roster without us is someone else's group (a party-finder post).
                 let ours = match &self.self_name {
-                    Some(me) => members.contains(me),
+                    Some(me) => members.iter().any(|m| &m.name == me),
                     None => !members.is_empty(),
                 };
-                if !ours || members == self.party {
+                if !ours {
                     return None;
                 }
+                // Keep what member updates told us that this roster doesn't say.
+                for m in &mut members {
+                    if let Some(old) = self.party.iter().find(|o| o.character == m.character) {
+                        m.level = m.level.or(old.level);
+                        m.gear_score = m.gear_score.or(old.gear_score);
+                        m.combat_power = m.combat_power.or(old.combat_power);
+                        m.legion = m.legion.take().or_else(|| old.legion.clone());
+                        // Party rosters don't say; group rosters do.
+                        if opcode == OPCODE_PARTY_ROSTER {
+                            m.ready = old.ready;
+                            m.leader = old.leader;
+                        }
+                    }
+                }
+                if members == self.party {
+                    return None;
+                }
+                let names_changed = members.iter().map(|m| &m.name).ne(self.party.iter().map(|m| &m.name));
                 self.party = members;
-                Some(Change::PartyChanged { members: self.party.len() })
+                names_changed.then_some(Change::PartyChanged { members: self.party.len() })
             }
             OPCODE_GROUP_JOIN => {
                 let before = self.party.len();
-                for name in parse_roster(payload) {
-                    if !self.party.contains(&name) {
-                        self.party.push(name);
+                for m in parse_roster(payload, true) {
+                    if !self.party.iter().any(|o| o.character == m.character) {
+                        self.party.push(m);
                     }
                 }
                 (self.party.len() != before).then_some(Change::PartyChanged { members: self.party.len() })
             }
-            OPCODE_PARTY_LEFT | OPCODE_GROUP_LEFT => {
+            OPCODE_PARTY_MEMBER => {
+                let u = parse_member_update(payload)?;
+                let m = self.party.iter_mut().find(|m| m.character == u.character)?;
+                m.level = u.level.or(m.level);
+                m.gear_score = u.gear_score.or(m.gear_score);
+                m.combat_power = u.combat_power.or(m.combat_power);
+                m.legion = u.legion.or_else(|| m.legion.take());
+                None
+            }
+            OPCODE_GROUP_READY => {
+                let (character, _) = parse_member_id(payload)?;
+                let ready = *payload.get(8)? != 0;
+                let m = self.party.iter_mut().find(|m| m.character == character && m.ready.is_some())?;
+                m.ready = Some(ready);
+                None
+            }
+            OPCODE_GROUP_SELF_READY => {
+                let ready = *payload.get(2)? != 0;
+                let me = self.self_name.clone()?;
+                let m = self.party.iter_mut().find(|m| m.name == me && m.ready.is_some())?;
+                m.ready = Some(ready);
+                None
+            }
+            OPCODE_PARTY_MEMBER_LEFT | OPCODE_GROUP_MEMBER_LEFT => {
+                let (character, _) = parse_member_id(payload)?;
+                let me = self.self_name.as_deref();
+                let mine = self.party.iter().any(|m| m.character == character && Some(m.name.as_str()) == me);
+                let before = self.party.len();
+                if mine {
+                    self.party.clear();
+                } else {
+                    self.party.retain(|m| m.character != character);
+                }
+                (self.party.len() != before).then_some(Change::PartyChanged { members: self.party.len() })
+            }
+            OPCODE_PARTY_LEADER => {
+                let (character, _) = parse_member_id(payload)?;
+                for m in &mut self.party {
+                    m.leader = m.character == character;
+                }
+                None
+            }
+            OPCODE_PARTY_LEFT
+            | OPCODE_GROUP_LEFT
+            | OPCODE_PARTY_KICKED
+            | OPCODE_PARTY_DISBANDED
+            | OPCODE_PARTY_LEFT_NOTICE
+            | OPCODE_GROUP_KICKED
+            | OPCODE_FORCE_DISBANDED
+            | OPCODE_FORCE_LEFT => {
                 if self.party.is_empty() {
                     return None;
                 }
                 self.party.clear();
                 Some(Change::PartyChanged { members: 0 })
+            }
+            // A boss's copy of a party member: a mob, though it carries their name.
+            OPCODE_MOB_SPAWN if parse_player_copy(payload).is_some() => {
+                let (id, _, type_id) = parse_player_copy(payload)?;
+                self.owners.remove(&id);
+                self.players.remove(&id);
+                (self.mobs.insert(id, type_id) != Some(type_id)).then_some(Change::MobSeen { id, type_id })
             }
             OPCODE_MOB_SPAWN => {
                 // Summons with a named layout have no type we can read, but still an owner.
@@ -317,42 +457,167 @@ pub fn parse_named_spawn(p: &[u8]) -> Option<(u64, String)> {
 }
 
 /// `0x8d04`: varint mob, u32 skill, varint player, varint server, u8 length, UTF-8 name.
-pub fn parse_engage(p: &[u8]) -> Option<(u64, String)> {
-    let mut i = 0;
-    read_varint(p, &mut i)?; // the mob
-    i += 4; // skill used
-    let id = read_varint(p, &mut i)?;
-    read_varint(p, &mut i)?; // server
-    let len = *p.get(i)? as usize;
-    i += 1;
-    if id == 0 || len == 0 || len > MAX_NAME_BYTES {
-        return None;
-    }
-    let name = std::str::from_utf8(p.get(i..i + len)?).ok()?;
-    if name.chars().any(char::is_control) {
-        return None;
-    }
-    Some((id, name.to_string()))
+/// A death (`0x8d04`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Death {
+    pub entity: u64,
+    /// The skill that did it (0 when none, e.g. a mob killed by a script).
+    pub skill: u32,
+    /// Who did it: a player's or mob's entity.
+    pub killer: Option<u64>,
+    /// A player killer's name.
+    pub killer_name: Option<String>,
+    /// A mob killer's type.
+    pub killer_type: Option<u32>,
 }
 
-/// Rosters (`0x9200`, `0x9702`, `0x970b`): each member is a u32 character ID, two zero
-/// bytes, a u16 server ID, a u8 length and the UTF-8 name, among other fields we don't
-/// use. Entries aren't at fixed offsets, so this scans for that shape.
-pub fn parse_roster(p: &[u8]) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
+/// `0x8d04`: varint entity, u32 skill, varint killer, u16 killer's server, u8 length + the
+/// killer's name, u8 length + their legion, u16, varint killer's mob type, u32, u8, u8.
+/// Checked on Vakron Sky Island: all 101 arrive when the entity's HP is 0.
+pub fn parse_death(p: &[u8]) -> Option<Death> {
+    let mut i = 0;
+    let entity = read_varint(p, &mut i)?;
+    let skill = u32_at(p, i)?;
+    i += 4;
+    let killer = read_varint(p, &mut i)?;
+    i += 2; // the killer's server
+    let len = *p.get(i)? as usize;
+    i += 1;
+    let name = std::str::from_utf8(p.get(i..i + len)?).ok()?;
+    i += len;
+    if len > MAX_NAME_BYTES || name.chars().any(char::is_control) {
+        return None;
+    }
+    let legion = *p.get(i)? as usize;
+    i += 1 + legion + 2;
+    let killer_type = read_varint(p, &mut i).and_then(|t| u32::try_from(t).ok()).filter(|t| *t > 0);
+    Some(Death {
+        entity,
+        skill,
+        killer: (killer > 0).then_some(killer),
+        killer_name: (!name.is_empty()).then(|| name.to_string()),
+        killer_type,
+    })
+}
+
+/// A roster: each member's entry is u32 character ID, 2 zero bytes, u16 server, u8 length
+/// and their name, then other fields. In `group` rosters (`0x9702`, `0x970b`) the entry
+/// starts two bytes earlier: u8 flags (`0x0c` always set, `0x02` ready, `0x10` inside the
+/// dungeon) and u8 slot (1 is the leader).
+pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
+    // Where each entry starts and its name ends; an entry's other fields run to the next.
+    let mut found: Vec<(usize, String, usize)> = Vec::new();
     let mut i = 0;
     while i < p.len() {
         match roster_entry(p, i) {
             Some((name, end)) => {
-                if !names.contains(&name) {
-                    names.push(name);
-                }
+                found.push((i, name, end));
                 i = end;
             }
             None => i += 1,
         }
     }
-    names
+    let mut members: Vec<PartyMember> = Vec::new();
+    for (k, (start, name, end)) in found.iter().enumerate() {
+        if members.iter().any(|m| &m.name == name) {
+            continue;
+        }
+        let next = found.get(k + 1).map_or(p.len(), |f| f.0);
+        let server = u16::from_le_bytes([p[start + 6], p[start + 7]]);
+        let (level, gear_score, combat_power) = roster_stats(&p[*end..next], server);
+        let head = start.checked_sub(2).map(|f| (p[f], p[f + 1])).filter(|(flags, _)| group && flags & 0x0c == 0x0c);
+        let leader = head.is_some_and(|(_, slot)| slot == 1);
+        let ready = head.filter(|(flags, slot)| flags & 0x10 == 0 && *slot > 1).map(|(flags, _)| flags & 0x02 != 0);
+        members.push(PartyMember {
+            character: u32_at(p, *start).expect("an entry has 9 bytes before its name"),
+            name: name.clone(),
+            server,
+            level,
+            gear_score,
+            combat_power,
+            legion: None,
+            ready,
+            leader,
+        });
+    }
+    members
+}
+
+/// u32 character ID, 2 zero bytes, u16 server.
+fn parse_member_id(p: &[u8]) -> Option<(u32, u16)> {
+    if p.get(4..6)? != [0, 0] {
+        return None;
+    }
+    Some((u32_at(p, 0)?, u16::from_le_bytes(p.get(6..8)?.try_into().ok()?)))
+}
+
+fn u32_at(p: &[u8], i: usize) -> Option<u32> {
+    Some(u32::from_le_bytes(p.get(i..i + 4)?.try_into().ok()?))
+}
+
+/// Level, gear score and combat power from the bytes after a roster entry's name. Group
+/// rosters (`0x9702`): u32, level, gear score, the server again (sometimes a byte later),
+/// three bytes, combat power. Party rosters (`0x9200`) put a varying amount first, then
+/// level, a zero, gear score and combat power in a row.
+fn roster_stats(body: &[u8], server: u16) -> (Option<u32>, Option<u32>, Option<u32>) {
+    let (level, gear) = (u32_at(body, 4), u32_at(body, 8));
+    if level.is_some_and(|l| LEVELS.contains(&l)) && gear.is_some_and(|g| GEAR_SCORES.contains(&g)) {
+        let echo = server.to_le_bytes();
+        if let Some(at) = (12..=13).find(|&j| body.get(j..j + 2) == Some(&echo[..])) {
+            if let Some(cp) = u32_at(body, at + 5).filter(|c| COMBAT_POWER.contains(c)) {
+                return (level, gear, Some(cp));
+            }
+        }
+    }
+    for i in 0..body.len().saturating_sub(15) {
+        let [l, z, g, c] = [i, i + 4, i + 8, i + 12].map(|j| u32_at(body, j).unwrap_or(u32::MAX));
+        if LEVELS.contains(&l) && z == 0 && GEAR_SCORES.contains(&g) && COMBAT_POWER.contains(&c) {
+            return (Some(l), Some(g), Some(c));
+        }
+    }
+    (None, None, None)
+}
+
+/// `0x921c`: u32 character ID, 2 zero bytes, u16 server, u32, 12 bytes, 12 bytes (a
+/// position), u32 level, u32, u32 gear score, u8 length + legion name, u32, u8, u32
+/// combat power.
+pub fn parse_member_update(p: &[u8]) -> Option<PartyMember> {
+    let level = u32_at(p, 36).filter(|l| LEVELS.contains(l))?;
+    let gear_score = u32_at(p, 44).filter(|g| GEAR_SCORES.contains(g));
+    let len = *p.get(48)? as usize;
+    let legion = std::str::from_utf8(p.get(49..49 + len)?)
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let combat_power = u32_at(p, 49 + len + 5).filter(|c| COMBAT_POWER.contains(c));
+    Some(PartyMember {
+        character: u32_at(p, 0)?,
+        name: String::new(),
+        server: u16::from_le_bytes(p.get(6..8)?.try_into().ok()?),
+        level: Some(level),
+        gear_score,
+        combat_power,
+        legion,
+        ready: None,
+        leader: false,
+    })
+}
+
+/// A mob spawn for an object that belongs to a player: varint entity ID,
+/// [`NAMED_OBJECT_MARK`], u8 length and the player's name.
+pub fn parse_player_copy(p: &[u8]) -> Option<(u64, String, u32)> {
+    let mut i = 0;
+    let id = read_varint(p, &mut i)?;
+    if p.get(i..i + 3)? != PLAYER_COPY_MARK {
+        return None;
+    }
+    let len = *p.get(i + 3)? as usize;
+    if !ROSTER_NAME_BYTES.contains(&len) {
+        return None;
+    }
+    let name = std::str::from_utf8(p.get(i + 4..i + 4 + len)?).ok()?;
+    let type_id = u32_at(p, i + 4 + len)?;
+    name.chars().all(char::is_alphanumeric).then(|| (id, name.to_string(), type_id))
 }
 
 /// A roster entry starting at `i`: the name and where it ends.
@@ -372,8 +637,8 @@ fn roster_entry(p: &[u8], i: usize) -> Option<(String, usize)> {
         .then(|| (name.to_string(), i + 9 + len))
 }
 
-/// `0x364a`: varint entity ID (ours), then mostly zeros.
-pub fn parse_self_tick(p: &[u8]) -> Option<u64> {
+/// `0x364a`: varint entity ID (ours), then the stats.
+pub fn parse_self_stats(p: &[u8]) -> Option<u64> {
     let mut i = 0;
     read_varint(p, &mut i)
 }
@@ -433,6 +698,126 @@ pub(crate) mod tests {
 
     // Prefixes below are from our own captures.
 
+    // From the Vakron Sky Island capture (2026-10-22): a party of five in an expedition.
+    const VAKRON_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 ff 01 02 05 1e 01 80 62 01 00 00 00 e5 05 03 41 6a 61 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 9e 11 04 52 3e 01 00 00 00 00 00 00 ad 00 00 00 00 00 00 00 01 00 1e 02 a7 de 03 00 00 00 df 05 06 72 6f 62 69 30 33 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 9e 11 04 73 47 01 00 00 00 00 00 00 3b 00 00 00 00 00 00 00 01 00 1e 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 9e 11 04 d2 58 01 00 00 00 00 00 00 8f 00 00 00 00 00 00 00 01 00 1e 04 0f 1a 04 00 00 00 e4 05 04 54 41 51 45 0e 00 00 00 2d 00 00 00 c3 05 00 00 07 e4 05 9e 11 04 f6 f9 00 00 00 00 00 00 00 59 00 00 00 00 00 00 00 01 00 1e 05 5b 3c 03 00 00 00 e1 05 07 43 68 61 6e 64 72 61 22 00 00 00 2d 00 00 00 57 06 00 00 e1 05 9e 11 04 1a 39 01 00 00 00 00 00 00 6d 00 00 00 00 00 00 00 01 00 00 07";
+    const ROBI_UPDATE: &str = "a7 de 03 00 00 00 df 05 1d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 10 07 00 00 00 00 00 00 00 01 73 47 01 00 00 00 00 00 00";
+    const CHANDRA_UPDATE: &str = "5b 3c 03 00 00 00 e1 05 22 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 57 06 00 00 0c 45 74 65 72 6e 61 6c 57 69 6e 47 73 01 00 00 00 01 1a 39 01 00 00 00 00 00 00";
+    const AJA_COPY: &str = "b3 d1 05 1c 00 01 03 41 6a 61 ac 8f 2c 00 00 02 39 ba 80 46 f5 af 7f 46 00 52 1c 47";
+
+    #[test]
+    fn group_rosters_carry_gear_score_and_combat_power() {
+        let m = parse_roster(&hex(VAKRON_ROSTER), true);
+        let got: Vec<_> = m.iter().map(|m| (m.name.as_str(), m.level, m.gear_score, m.combat_power)).collect();
+        assert_eq!(
+            got,
+            vec![
+                ("Aja", Some(45), Some(1635), Some(81_490)),
+                ("robi03", Some(45), Some(1808), Some(83_827)),
+                // In game: gear score 2,023 and combat power 88.27K.
+                ("NeneneTowawa", Some(45), Some(2023), Some(88_274)),
+                // The server comes a byte later in this entry.
+                ("TAQE", Some(45), Some(1475), Some(63_990)),
+                ("Chandra", Some(45), Some(1623), Some(80_154)),
+            ]
+        );
+        assert_eq!((m[2].character, m[2].server), (253_528, 2503));
+    }
+
+    #[test]
+    fn member_updates_fill_in_the_party() {
+        let u = parse_member_update(&hex(ROBI_UPDATE)).unwrap();
+        assert_eq!((u.character, u.level, u.gear_score, u.combat_power, u.legion), (253_607, Some(45), Some(1808), Some(83_827), None));
+        let c = parse_member_update(&hex(CHANDRA_UPDATE)).unwrap();
+        assert_eq!((c.gear_score, c.combat_power, c.legion.as_deref()), (Some(1623), Some(80_154), Some("EternalWinGs")));
+
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        assert!(r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER)).is_some());
+        assert_eq!(r.party().len(), 5);
+        r.observe(OPCODE_PARTY_MEMBER, &hex(CHANDRA_UPDATE));
+        let chandra = r.party().iter().find(|m| m.name == "Chandra").unwrap();
+        assert_eq!(chandra.legion.as_deref(), Some("EternalWinGs"));
+        // The roster again (resent often) keeps the legion it doesn't carry.
+        assert!(r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER)).is_none());
+        assert_eq!(r.party()[4].legion.as_deref(), Some("EternalWinGs"));
+    }
+
+    /// From the Vakron capture, in the party finder before the start: the group's roster
+    /// (Aja leads; robi03 and you not ready), TAQE joining, and the ready messages.
+    const ROOM_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 0f 01 00 05 0c 01 80 62 01 00 00 00 e5 05 03 41 6a 61 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 e5 05 04 52 3e 01 00 00 00 00 00 00 01 01 0c 02 a7 de 03 00 00 00 df 05 06 72 6f 62 69 30 33 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 df 05 04 73 47 01 00 00 00 00 00 00 01 01 0c 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 c7 09 04 d2 58 01 00 00 00 00 00 00 01 02 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 02";
+    const TAQE_JOINS: &str = "0c 04 0f 1a 04 00 00 00 e4 05 04 54 41 51 45 0e 00 00 00 2d 00 00 00 c3 05 00 00 01 e4 05 e4 05 04 f6 f9 00 00 00 00 00 00 00 01 01";
+
+    #[test]
+    fn group_members_ready_up() {
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_GROUP_ROSTER, &hex(ROOM_ROSTER));
+        let ready = |r: &Registry| r.party().iter().map(|m| (m.name.clone(), m.ready)).collect::<Vec<_>>();
+        let s = |n: &str| n.to_string();
+        assert_eq!(ready(&r), [(s("Aja"), None), (s("robi03"), Some(false)), (s("NeneneTowawa"), Some(false))]);
+        r.observe(OPCODE_GROUP_READY, &hex("a7 de 03 00 00 00 df 05 01"));
+        r.observe(OPCODE_GROUP_SELF_READY, &hex("00 00 01"));
+        assert!(r.observe(OPCODE_GROUP_JOIN, &hex(TAQE_JOINS)).is_some());
+        assert_eq!(r.party()[3].ready, Some(false));
+        r.observe(OPCODE_GROUP_READY, &hex("0f 1a 04 00 00 00 e4 05 01"));
+        assert_eq!(
+            ready(&r),
+            [(s("Aja"), None), (s("robi03"), Some(true)), (s("NeneneTowawa"), Some(true)), (s("TAQE"), Some(true))]
+        );
+        // Inside the dungeon the group roster marks everyone as in: no ready marks.
+        r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER));
+        assert!(r.party().iter().all(|m| m.ready.is_none()));
+    }
+
+    #[test]
+    fn members_leaving_and_being_removed() {
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER));
+        // robi03 leaves (from the end of the Vakron run).
+        assert_eq!(
+            r.observe(OPCODE_GROUP_MEMBER_LEFT, &hex("a7 de 03 00 00 00 df 05")),
+            Some(Change::PartyChanged { members: 4 })
+        );
+        assert!(r.party().iter().all(|m| m.name != "robi03"));
+        assert_eq!(r.observe(OPCODE_PARTY_MEMBER_LEFT, &hex("a7 de 03 00 00 00 df 05")), None);
+        // The same message with your own ID: you're out (kicked), so the party is gone.
+        assert_eq!(
+            r.observe(OPCODE_PARTY_MEMBER_LEFT, &hex("58 de 03 00 00 00 c7 09")),
+            Some(Change::PartyChanged { members: 0 })
+        );
+        assert!(r.party().is_empty());
+    }
+
+    #[test]
+    fn leader_changes_and_the_party_ending() {
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_GROUP_ROSTER, &hex(ROOM_ROSTER));
+        let leader = |r: &Registry| r.party().iter().find(|m| m.leader).map(|m| m.name.clone());
+        assert_eq!(leader(&r).as_deref(), Some("Aja"), "the group's first slot leads");
+        // Vakron Sky Island, near the end: you became the leader, then the party broke up.
+        r.observe(OPCODE_PARTY_LEADER, &hex("58 de 03 00 00 00 c7 09"));
+        assert_eq!(leader(&r).as_deref(), Some("NeneneTowawa"));
+        assert_eq!(r.observe(OPCODE_PARTY_DISBANDED, &hex("08")), Some(Change::PartyChanged { members: 0 }));
+        // Removed from a party finder group (the expedition capture), or kicked from a party.
+        for (opcode, payload) in [(OPCODE_GROUP_KICKED, "00"), (OPCODE_PARTY_KICKED, "00")] {
+            r.observe(OPCODE_GROUP_ROSTER, &hex(ROOM_ROSTER));
+            assert_eq!(r.observe(opcode, &hex(payload)), Some(Change::PartyChanged { members: 0 }));
+        }
+    }
+
+    #[test]
+    fn a_bosss_copy_of_a_player_is_a_mob() {
+        // Tiere's copy of Aja (Vakron Sky Island): it attacks the party with mob skills.
+        let mut r = Registry::default();
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("8b 26 01 20 a2 01 07", "Aja", ""));
+        assert_eq!(parse_player_copy(&hex(AJA_COPY)), Some((92_339, "Aja".to_string(), 2_920_364)));
+        r.observe(OPCODE_MOB_SPAWN, &hex(AJA_COPY));
+        assert_eq!(r.mob_type(92_339), Some(2_920_364));
+        assert_eq!(r.player_name(92_339), None, "not a player");
+    }
+
     #[test]
     fn self_spawn_names_us() {
         let p = with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", "00 00 00 02");
@@ -450,11 +835,11 @@ pub(crate) mod tests {
     #[test]
     fn self_tick_identifies_us_without_a_name() {
         let mut r = Registry::default();
-        r.observe(OPCODE_SELF_TICK, &hex("ff 18 00 00 00 00 00 00 00 00 00"));
+        r.observe(OPCODE_SELF_STATS, &hex("ff 18 00 00 00 00 00 00 00 00 00"));
         assert_eq!(r.self_id(), Some(3199));
         assert_eq!(r.label(3199), "You (#3199)");
         // Repeated ticks change nothing.
-        assert_eq!(r.observe(OPCODE_SELF_TICK, &hex("ff 18 00 00")), None);
+        assert_eq!(r.observe(OPCODE_SELF_STATS, &hex("ff 18 00 00")), None);
     }
 
     #[test]
@@ -486,26 +871,37 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn engage_names_us_and_others() {
-        // From the zone-change capture: mob 19776 engaged by us (3199) with 18010340.
+    fn a_kill_names_the_killer() {
+        // From the zone-change capture: we (3199) killed mob 19776 with 18010340.
         let mut p = hex("c0 9a 01 e4 d0 12 01 ff 18 c7 09");
         p.push(12);
         p.extend_from_slice(b"NeneneTowawa");
         p.extend(hex("00 00"));
-        assert_eq!(parse_engage(&p), Some((3199, "NeneneTowawa".into())));
+        let d = parse_death(&p).unwrap();
+        assert_eq!((d.entity, d.skill, d.killer, d.killer_name.as_deref()), (19_776, 18_010_340, Some(3199), Some("NeneneTowawa")));
 
         let mut r = Registry::default();
-        r.observe(OPCODE_SELF_TICK, &hex("ff 18 00"));
+        r.observe(OPCODE_SELF_STATS, &hex("ff 18 00"));
         assert_eq!(r.label(3199), "You (#3199)");
-        r.observe(OPCODE_ENGAGE, &p);
+        r.observe(OPCODE_DEATH, &p);
         assert_eq!(r.label(3199), "NeneneTowawa");
         assert_eq!(r.self_name(), Some("NeneneTowawa"));
     }
 
     #[test]
+    fn deaths_in_a_dungeon() {
+        // Vakron Sky Island: a mob killed with nobody named, and a party member (8829)
+        // killed by a mob-type object (2920364, a Protection Circle barrier).
+        let mob = parse_death(&hex("f7 bf 05 f4 ae bb 00 00 00 00 00 00 00 00 00 00 00 00 00 01 02")).unwrap();
+        assert_eq!((mob.entity, mob.killer, mob.killer_name, mob.killer_type), (90_103, None, None, None));
+        let member = parse_death(&hex("fd 44 b3 7b 18 00 ae ba 02 00 00 00 00 00 00 ac 9f b2 01 00 00 00 00 01 02")).unwrap();
+        assert_eq!((member.entity, member.skill, member.killer, member.killer_type), (8829, 1_604_531, Some(40_238), Some(2_920_364)));
+    }
+
+    #[test]
     fn relogin_clears_stale_ids() {
         let mut r = Registry::default();
-        r.observe(OPCODE_SELF_TICK, &hex("ff 18 00"));
+        r.observe(OPCODE_SELF_STATS, &hex("ff 18 00"));
         r.observe(OPCODE_PLAYER_SPAWN, &with_name("e2 4f 01 20 a2 01 07", "Silke", ""));
         assert_eq!(r.label(10210), "Silke");
 
@@ -546,8 +942,9 @@ pub(crate) mod tests {
     #[test]
     fn parses_roster_names() {
         let p = roster(&[(173846, 2503, "\u{7c92}\u{5bfb}\u{6b22}"), (182272, 2503, "Pingu"), (253528, 2503, "NeneneTowawa")]);
-        assert_eq!(parse_roster(&p), ["\u{7c92}\u{5bfb}\u{6b22}", "Pingu", "NeneneTowawa"]);
-        assert!(parse_roster(&hex("00 00 00 00 00 00 00 00 00 00")).is_empty());
+        let names: Vec<String> = parse_roster(&p, false).into_iter().map(|m| m.name).collect();
+        assert_eq!(names, ["\u{7c92}\u{5bfb}\u{6b22}", "Pingu", "NeneneTowawa"]);
+        assert!(parse_roster(&hex("00 00 00 00 00 00 00 00 00 00"), false).is_empty());
     }
 
     #[test]

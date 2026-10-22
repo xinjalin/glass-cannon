@@ -153,6 +153,30 @@ button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
    label ("party") so it doesn't change size. */
 #scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent); color: var(--ink); text-shadow: none; }
 #scope:hover { filter: brightness(1.1); }
+/* Auto: a small mark in the corner (the scope follows your party). */
+#scope { position: relative; }
+#scope.auto::after {
+  content: "";
+  position: absolute;
+  top: 0.15em;
+  right: 0.15em;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* People joining and leaving the party. */
+#notices { margin: 0; padding: 0; list-style: none; }
+#notices:empty { display: none; }
+.notice {
+  padding: 0.15em 0.45em;
+  color: var(--accent-2);
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 svg {
   width: 1.05em;
@@ -214,8 +238,29 @@ legend {
   border-bottom: 1px dashed var(--line-faint);
 }
 #target { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+#boss-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0 0.3em 0.35em;
+  margin-top: -0.15em;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.hp-track { flex: 1; height: 0.45em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#boss-hp-fill { display: block; height: 100%; background: var(--bad); }
+#enrage { flex: none; color: var(--warn); }
+#enrage.soon { color: var(--bad); font-weight: 700; }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 #total { flex: none; font-variant-numeric: tabular-nums; }
+
+.end-tag { flex: none; color: var(--muted); white-space: nowrap; }
+.end-tag.kill { color: var(--ok); }
+.end-tag.wipe { color: var(--bad); }
+.name[data-deaths]::after { content: " ☠" attr(data-deaths); color: var(--bad); }
+[data-highlight="self"] .row.self .name[data-deaths]::after,
+[data-highlight="all"] .row .name[data-deaths]::after { color: var(--ink); }
 
 .boss {
   flex: none;
@@ -232,8 +277,7 @@ legend {
 
 /* ---------------------------------------------------------------- player rows */
 
-#rows,
-#fights {
+#rows {
   flex: 1;
   margin: 0;
   padding: 0;
@@ -261,6 +305,9 @@ legend {
 .rank { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
 .who { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
 .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ready-mark { flex: none; color: var(--faint); }
+.ready-mark.ready { color: var(--ok); }
+.leader-mark { flex: none; color: var(--warn); }
 .dps { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); }
 .share { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 
@@ -286,31 +333,33 @@ legend {
 }
 .seg.on { background: var(--row); }
 
-/* A filled row: you (always), or every row with highlight "all". */
-.row.self .line,
-.row.self:hover .line,
+/* A filled row: yours with highlight "you", every row with "all", none with "off" (then
+   the bars show the bar colour on every row, yours too). */
+[data-highlight="self"] .row.self .line,
+[data-highlight="self"] .row.self:hover .line,
 [data-highlight="all"] .row .line {
   background: var(--row);
   color: var(--ink);
   text-shadow: none;
 }
 [data-highlight="all"] .row:hover .line { filter: brightness(1.08); }
-.row.self .dps,
-.row.self .share,
-.row.self .rank,
+[data-highlight="self"] .row.self .dps,
+[data-highlight="self"] .row.self .share,
+[data-highlight="self"] .row.self .rank,
 [data-highlight="all"] .row .dps,
 [data-highlight="all"] .row .share,
 [data-highlight="all"] .row .rank { color: var(--ink); }
 .row.self .name { font-weight: 700; }
 .row.self .rank { font-size: 0; }
 .row.self .rank::before { content: "»"; font-size: var(--fs); }
-.row.self .seg,
+[data-highlight="off"] .row.self .rank::before { color: var(--row); }
+[data-highlight="self"] .row.self .seg,
 [data-highlight="all"] .row .seg { background: rgba(27, 15, 17, 0.2); }
-.row.self .seg.on,
+[data-highlight="self"] .row.self .seg.on,
 [data-highlight="all"] .row .seg.on { background: var(--ink); }
-.row.self .class-icon,
+[data-highlight="self"] .row.self .class-icon,
 [data-highlight="all"] .row .class-icon { filter: none; }
-.row.self .class-icon.blank,
+[data-highlight="self"] .row.self .class-icon.blank,
 [data-highlight="all"] .row .class-icon.blank { background: var(--ink); }
 
 /* ---------------------------------------------------------------- skill breakdown */
@@ -334,7 +383,14 @@ legend {
 .skill.head { color: var(--faint); }
 .skill-label { display: flex; align-items: center; gap: 0.4em; min-width: 0; cursor: text; }
 .skill-icon { flex: none; width: 1.35em; height: 1.35em; border-radius: 0.25em; }
-.skill-icon.blank { background: var(--line-faint); }
+.skill-icon.blank {
+  display: inline-grid;
+  place-items: center;
+  background: var(--line-faint);
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 700;
+}
 .skill-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 .skill-name.code { color: var(--faint); }
 
@@ -350,57 +406,6 @@ legend {
   font: inherit;
   outline: none;
 }
-
-/* ---------------------------------------------------------------- history */
-
-.fight-item {
-  display: grid;
-  grid-template-columns: 1.8em minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0.3em;
-  border-radius: 0.3em;
-  cursor: pointer;
-}
-.fight-item:hover { background: var(--line-faint); }
-.fight-no { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
-.fight-text { display: flex; flex-direction: column; min-width: 0; }
-.fight-what { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
-.fight-target { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.fight-meta { color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
-.fight-dps { color: var(--accent-2); font-variant-numeric: tabular-nums; }
-
-/* Room between the list and its scrollbar, so a run's border doesn't touch it. */
-#fights { padding-right: 0.35em; }
-
-/* A dungeon run: a header row, with its fights indented under it while open. */
-.run-item {
-  display: grid;
-  grid-template-columns: 1.8em minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5em;
-  margin-top: 0.15em;
-  padding: 0.3em;
-  border: 1px solid var(--line-faint);
-  border-radius: 0.3em;
-  /* Darker than the fights, so runs stand out on the glass. */
-  background: rgba(0, 0, 0, 0.22);
-  cursor: pointer;
-}
-.run-item:hover { background: rgba(0, 0, 0, 0.3); }
-.run-chevron { color: var(--muted); text-align: center; }
-.run-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--accent); }
-.run-tag {
-  flex: none;
-  margin-right: 0.2em;
-  padding: 0 0.4em;
-  border: 1px solid var(--line);
-  border-radius: 0.25em;
-  color: var(--accent-2);
-  font-size: 0.8em;
-  text-shadow: none;
-}
-.fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
 
 #empty {
   flex: 1;
@@ -482,3 +487,10 @@ body:hover #lock { opacity: 0.8; }
 
 ::-webkit-scrollbar { width: 0.4em; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
+
+.notice.alert { color: var(--warn); }
+
+/* Faded outside combat (settings → fade outside combat): back under the mouse. */
+#panel { transition: opacity 0.4s ease; }
+.faded #panel { opacity: 0; transition: opacity 1.2s ease; }
+.faded body:hover #panel { opacity: 1; transition: opacity 0.2s ease; }
