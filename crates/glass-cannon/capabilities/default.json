@@ -1,11 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The overlay, settings and analysis windows: our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
+  "description": "The overlay, settings, analysis and side windows (history, cooldowns, timers, target): our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
   "windows": [
     "main",
     "settings",
-    "analysis"
+    "analysis",
+    "history",
+    "cooldowns",
+    "timers",
+    "target"
   ],
   "permissions": [
     "core:default",

@@ -8,6 +8,8 @@ const invoke = tauri.core.invoke;
 const win = tauri.window.getCurrentWindow();
 
 const DEFAULT_POLL_MS = 500;
+// Player skills have 8-digit IDs; mobs' are shorter.
+const PLAYER_SKILL_MIN = 10_000_000;
 // The "live" update rate: redraw when new data arrives (the app says so), and once a
 // second anyway for the clock, ping and fights that end by going quiet.
 const REALTIME = 100;
@@ -178,8 +180,14 @@ function skillLabel(s) {
     img.src = url;
     img.alt = "";
     label.append(img);
+  } else if (s.skill < PLAYER_SKILL_MIN) {
+    // A mob's skill: the game data has no icons for those.
+    const img = el("img", "skill-icon");
+    img.src = "mob-skill.svg";
+    img.alt = "";
+    label.append(img);
   } else {
-    // No icon in the game data (a mob's skill, say): its first letter instead.
+    // No icon in the game data: its first letter instead.
     label.append(el("span", "skill-icon blank", s.name ? s.name[0] : ""));
   }
   const name = el("span", "skill-name" + (s.name ? "" : " code"), s.name || String(s.skill));
