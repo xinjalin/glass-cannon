@@ -197,9 +197,11 @@ function drawCustom(button, value) {
   const picked = isHexColor(value);
   button.setAttribute("role", "radio");
   button.setAttribute("aria-checked", String(picked));
+  const input = button.querySelector("input");
   if (picked) {
     button.style.setProperty("--swatch", value);
-    button.querySelector("input").value = value;
+    // Not while the picker is open: setting it would close the picker.
+    if (document.activeElement !== input) input.value = value;
   } else button.style.removeProperty("--swatch");
   button.title = picked ? `${value} · click to pick another colour` : "Pick any colour";
 }
@@ -207,7 +209,14 @@ for (const [kind, key] of [["theme", "theme"], ["bar", "barColor"]]) {
   const button = document.querySelector(`[data-${kind}-custom]`);
   const input = button.querySelector("input");
   button.addEventListener("click", () => input.click());
-  input.addEventListener("input", () => setAppearance({ [key]: input.value }));
+  // While dragging in the picker only this page previews the colour: saving it restyles
+  // every window, this one too, which would close the picker. It's saved on letting go.
+  const field = kind === "theme" ? "theme" : "bar_color";
+  input.addEventListener("input", () => {
+    if (state) applyAppearance({ ...state.appearance, [field]: input.value });
+    button.style.setProperty("--swatch", input.value);
+  });
+  input.addEventListener("change", () => setAppearance({ [key]: input.value }));
 }
 for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));

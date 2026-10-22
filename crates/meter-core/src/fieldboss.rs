@@ -6,8 +6,9 @@
 //! ```
 //!
 //! The time is when it spawned while it's up, else when it next spawns. A few entries
-//! have one more byte before the time (Questlog's list calls one an "is spawned" flag,
-//! but most entries don't have it); the time is found either way. Checked on the map of
+//! have a byte or two more before the time (Questlog's list calls one an "is spawned"
+//! flag, but most entries don't have it); the time is found either way. Which boss each
+//! ID is comes from NOIA2's table (gamedata/field-bosses.json). Checked on the map of
 //! Altgard (1110): 24 bosses, up since hours ago or back within two hours.
 
 use serde::{Deserialize, Serialize};
@@ -52,13 +53,10 @@ pub fn parse_world_map(p: &[u8]) -> Option<Vec<FieldBoss>> {
         } else {
             None
         };
-        let time_ms = match time_at(p, i) {
-            Some(t) => t,
-            None => {
-                i += 1;
-                time_at(p, i)?
-            }
-        };
+        // Up to two bytes may come before the time (NOIA2's parser allows the same).
+        let gap = (0..=2).find(|g| time_at(p, i + g).is_some())?;
+        i += gap;
+        let time_ms = time_at(p, i)?;
         i += 8;
         out.push(FieldBoss { id, map, pos, time_ms });
     }

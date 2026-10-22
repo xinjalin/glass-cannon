@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- A mob's skill (the game data has no icon for it): claw marks. -->
-  <rect x="1" y="1" width="30" height="30" rx="6" fill="#3a1d1f" stroke="#7a3a3c" stroke-width="1.5"/>
-  <g fill="none" stroke="#ff9393" stroke-width="2.6" stroke-linecap="round">
-    <path d="M9 7c2 6 2 12-1 18"/>
-    <path d="M16 6c2 7 2 13-1 20"/>
-    <path d="M23 7c2 6 2 12-1 18"/>
-  </g>
-</svg>

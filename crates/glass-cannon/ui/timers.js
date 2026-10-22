@@ -109,13 +109,13 @@ function drawBosses(now) {
   sorted.sort((a, b) => (b.time_ms <= now) - (a.time_ms <= now));
   for (const b of sorted) {
     const up = b.time_ms <= now;
-    const name = b.name || `Field boss ${b.id}`;
+    const name = (b.name || `Field boss ${b.id}`) + (b.level ? ` · Lv ${b.level}` : "");
     // Up as of the last world map; after a few hours it may well have been killed.
     const seen = b.seen_ms || b.time_ms;
     const stale = up && now - seen > STALE_MS;
     const li = row(
       name,
-      `map ${b.map} · ${up ? `up since ${dayAndTime(b.time_ms)}` : `spawns ${dayAndTime(b.time_ms)}`}${stale ? ` · as of ${dayAndTime(seen)}` : ""}`,
+      `${b.place || b.map_name || `map ${b.map}`} · ${up ? `up since ${dayAndTime(b.time_ms)}` : `spawns ${dayAndTime(b.time_ms)}`}${stale ? ` · as of ${dayAndTime(seen)}` : ""}`,
       up ? (stale ? "up?" : "up") : clock((b.time_ms - now) / 1000),
       up ? (stale ? "stale" : "on") : b.time_ms - now <= SOON_MS ? "soon" : "",
       `boss:${b.id}`,

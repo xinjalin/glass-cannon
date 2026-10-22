@@ -32,6 +32,26 @@ const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
+/// Player skills have 8-digit IDs; mobs' are shorter.
+const PLAYER_SKILL_MIN: u32 = 10_000_000;
+const FIELD_BOSSES_FILE: &str = "field-bosses.json";
+
+/// Field bosses by their world-map ID: map, mob type, level and where (field-bosses.json).
+#[derive(Debug, Default, Deserialize)]
+struct FieldBossFile {
+    #[serde(default)]
+    maps: BTreeMap<u32, String>,
+    #[serde(default)]
+    bosses: BTreeMap<u32, FieldBossInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FieldBossInfo {
+    npc: u32,
+    level: Option<u32>,
+    #[serde(rename = "where")]
+    place: Option<String>,
+}
 const MAX_ICON_BYTES: u64 = 256 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// Theostone (item) skills as the game sends them: 7 digits starting 30.
@@ -159,6 +179,8 @@ pub struct GameData {
     theostones: TheostoneFile,
     /// Dungeon mobs, for the history's dungeon runs (optional).
     dungeons: DungeonFile,
+    /// Field bosses on the world map (optional).
+    field_bosses: FieldBossFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -178,6 +200,7 @@ impl GameData {
             details: DetailsFile::default(),
             theostones: TheostoneFile::default(),
             dungeons: DungeonFile::default(),
+            field_bosses: FieldBossFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -204,6 +227,7 @@ impl GameData {
                     self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
+                    self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     // Consumables' icons fill in skills that have none.
                     let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
                     for (id, file) in items.icons {
@@ -322,13 +346,9 @@ impl GameData {
 
     /// A skill's name and icon key (for skills outside a view, e.g. the timelines).
     pub fn skill_meta(&self, skill: u32) -> (Option<String>, Option<u32>) {
-        match self.resolve_skill(skill) {
-            Some((key, e)) => (
-                (!e.name.is_empty()).then(|| e.name.clone()),
-                e.icon.is_some().then_some(key),
-            ),
-            None => (None, None),
-        }
+        let resolved = self.resolve_skill(skill);
+        let name = resolved.and_then(|(_, e)| (!e.name.is_empty()).then(|| e.name.clone()));
+        (name, self.icon_key(skill, resolved))
     }
 
     /// What the data says about a player skill (cooldown, cost, description, its
@@ -365,6 +385,14 @@ impl GameData {
         Some(info)
     }
 
+    /// A field boss's name, level, where it is and its map's name, by world-map ID.
+    pub fn field_boss(&self, id: u32, map: u32) -> (Option<String>, Option<u32>, Option<String>, Option<String>) {
+        let info = self.field_bosses.bosses.get(&id);
+        let name = info.and_then(|b| self.npc(b.npc)).map(|(n, _)| n);
+        let map_name = self.field_bosses.maps.get(&map).cloned();
+        (name, info.and_then(|b| b.level), info.and_then(|b| b.place.clone()), map_name)
+    }
+
     /// The mob types that are bosses: their death ends a fight, and HP back to full is a
     /// wipe. Training dummies are marked as bosses in the data but reset all the time.
     pub fn boss_types(&self) -> Vec<u32> {
@@ -385,12 +413,11 @@ impl GameData {
     pub fn annotate_view(&self, enc: &mut EncounterView) {
         let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
         for row in rows.flat_map(|p| p.skills.iter_mut()) {
-            if let Some((key, e)) = self.resolve_skill(row.skill) {
+            let resolved = self.resolve_skill(row.skill);
+            row.icon_key = self.icon_key(row.skill, resolved).or(row.icon_key);
+            if let Some((_, e)) = resolved {
                 if !e.name.is_empty() {
                     row.name = Some(e.name.clone());
-                }
-                if e.icon.is_some() {
-                    row.icon_key = Some(key);
                 }
             }
         }
@@ -486,8 +513,29 @@ impl GameData {
 
     /// A skill's icon as a `data:` URL, so the page needs no file access.
     pub fn skill_icon(&self, skill: u32) -> Option<String> {
-        let file = self.skills.skills.get(&skill)?.icon.as_deref()?;
-        self.icon_data_url(file)
+        match self.skills.skills.get(&skill).and_then(|e| e.icon.as_deref()) {
+            Some(file) => self.icon_data_url(file),
+            None => self.family_icon(skill).and_then(|f| self.icon_data_url(&f)),
+        }
+    }
+
+    /// A mob's skill without an icon of its own: its family's. Mob skills' icons are named
+    /// after their ID's first four digits (1,782 of the 1,789 with icons in skills.json:
+    /// Surging Thorn 1604390 has 1604.png), so 1604420 gets 1604.png too.
+    fn family_icon(&self, skill: u32) -> Option<String> {
+        if !(1000..PLAYER_SKILL_MIN).contains(&skill) {
+            return None;
+        }
+        let file = format!("{}.png", skill / 1000);
+        self.dir.join(&file).is_file().then_some(file)
+    }
+
+    /// Which skill's icon to show for `skill`, given the entry it resolved to.
+    fn icon_key(&self, skill: u32, resolved: Option<(u32, &Entry)>) -> Option<u32> {
+        match resolved {
+            Some((key, e)) if e.icon.is_some() => Some(key),
+            _ => self.family_icon(skill).map(|_| skill),
+        }
     }
 
     /// A class icon (class_<code>.webp or .png) as a `data:` URL.

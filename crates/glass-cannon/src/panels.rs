@@ -163,8 +163,12 @@ pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetView> {
 pub struct FieldBossRow {
     #[serde(flatten)]
     pub boss: FieldBoss,
-    /// The name you gave it.
+    /// The name you gave it, else the game data's.
     pub name: Option<String>,
+    pub level: Option<u32>,
+    /// Where it is ("Altgard · Sanctum Outpost"), and the map's name.
+    pub place: Option<String>,
+    pub map_name: Option<String>,
     /// When the world map last showed it.
     pub seen_ms: Option<u64>,
 }
@@ -173,9 +177,20 @@ pub struct FieldBossRow {
 #[tauri::command]
 pub fn field_bosses(app: State<'_, Arc<AppState>>) -> Vec<FieldBossRow> {
     let f = lock(&app.field_bosses);
+    let data = lock(&app.data);
     f.bosses
         .values()
-        .map(|b| FieldBossRow { boss: b.clone(), name: f.names.get(&b.id).cloned(), seen_ms: f.seen_ms.get(&b.id).copied() })
+        .map(|b| {
+            let (name, level, place, map_name) = data.field_boss(b.id, b.map);
+            FieldBossRow {
+                boss: b.clone(),
+                name: f.names.get(&b.id).cloned().or(name),
+                level,
+                place,
+                map_name,
+                seen_ms: f.seen_ms.get(&b.id).copied(),
+            }
+        })
         .collect()
 }
 

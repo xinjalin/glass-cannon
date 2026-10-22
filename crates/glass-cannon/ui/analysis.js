@@ -124,17 +124,9 @@ function classIconUrl(code) {
   return classIcons.get(code);
 }
 
-// Player skills have 8-digit IDs; mobs' are shorter, and the game data has no icons for
-// them: they get a claw-marks icon.
-const PLAYER_SKILL_MIN = 10_000_000;
-const mobIcon = new Image();
-mobIcon.onload = () => queueRedraw();
-mobIcon.src = "mob-skill.svg";
-
-// An icon; for a mob's skill (`skill` given) the claw marks; else a placeholder with the
-// first letter of `label`.
-function iconOrBlank(url, className, label, skill) {
-  if (!url && skill != null && skill < PLAYER_SKILL_MIN) url = "mob-skill.svg";
+// An icon, or a placeholder with the first letter of `label` (skills the game data has no
+// icon for).
+function iconOrBlank(url, className, label) {
   if (url) {
     const img = el("img", className);
     img.src = url;
@@ -146,11 +138,7 @@ function iconOrBlank(url, className, label, skill) {
 }
 
 // The same placeholder on a canvas.
-function drawBlankIcon(ctx, x, y, size, label, skill) {
-  if (skill != null && skill < PLAYER_SKILL_MIN && mobIcon.complete) {
-    ctx.drawImage(mobIcon, x, y, size, size);
-    return;
-  }
+function drawBlankIcon(ctx, x, y, size, label) {
   ctx.save();
   ctx.fillStyle = css("--line-faint");
   roundRect(ctx, x, y, size, size, 3);
@@ -726,7 +714,7 @@ function drawSkills() {
     const who = el("td", "left");
     const cell = el("div", "cell-name");
     cell.dataset.skill = id;
-    cell.append(iconOrBlank(skillIconUrl(id), "", skillName(id), id), el("span", "", skillName(id)));
+    cell.append(iconOrBlank(skillIconUrl(id), "", skillName(id)), el("span", "", skillName(id)));
     who.append(cell);
     const spec = el("td", "muted", specText(id));
     spec.dataset.skill = id;
@@ -892,7 +880,7 @@ function drawFlow(kind) {
       const cell = el("div", "cell-name");
       if (iconOf) cell.dataset.skill = key;
       else cell.title = String(key);
-      if (iconOf) cell.append(iconOrBlank(iconOf(key), "", labelOf(key), Number(key)));
+      if (iconOf) cell.append(iconOrBlank(iconOf(key), "", labelOf(key)));
       cell.append(el("span", "", labelOf(key)));
       who.append(cell);
       tr.append(who, barCell(fmt(s.amount), s.amount / best), el("td", "", pct(s.amount, row.amount)), el("td", "", String(s.n)), el("td", "", fmt(s.max)));
@@ -1062,7 +1050,7 @@ function drawOpener() {
   casts.forEach((c, i) => {
     const step = el("span", "step");
     if (i) step.append(document.createTextNode("›"));
-    const icon = iconOrBlank(skillIconUrl(c.skill), "", skillName(c.skill), c.skill);
+    const icon = iconOrBlank(skillIconUrl(c.skill), "", skillName(c.skill));
     icon.dataset.skill = c.skill;
     step.append(icon);
     box.append(step);
@@ -1095,7 +1083,7 @@ function drawRotation() {
     }
     const img = skillIconImage(skill);
     if (img) ctx.drawImage(img, 4, yMid - icon / 2, icon, icon);
-    else drawBlankIcon(ctx, 4, yMid - icon / 2, icon, skillName(skill), skill);
+    else drawBlankIcon(ctx, 4, yMid - icon / 2, icon, skillName(skill));
     ctx.fillStyle = css("--text");
     ctx.font = canvasFont();
     ctx.fillText(clipText(ctx, skillName(skill), gutter - icon - 16), icon + 10, yMid);
@@ -1352,7 +1340,7 @@ function drawBuffTimeline() {
     const icon = laneH - 6;
     const img = iconImageFor(lane.iconKey);
     if (img) ctx.drawImage(img, 4, y + 3, icon, icon);
-    else drawBlankIcon(ctx, 4, y + 3, icon, lane.label, lane.skill);
+    else drawBlankIcon(ctx, 4, y + 3, icon, lane.label);
     ctx.fillStyle = css("--text");
     ctx.fillText(clipText(ctx, lane.label, gutter - 5 * fontPx() - icon - 6), icon + 10, y + laneH / 2);
     ctx.textAlign = "right";
@@ -1476,7 +1464,7 @@ function drawBuffsPerSkill() {
     const card = el("div", "card");
     const head = el("div", "card-head");
     head.dataset.skill = id;
-    head.append(iconOrBlank(skillIconUrl(id), "", skillName(id), id), el("span", "name", skillName(id)), el("span", "share", pct(s.damage, p.damage)));
+    head.append(iconOrBlank(skillIconUrl(id), "", skillName(id)), el("span", "name", skillName(id)), el("span", "share", pct(s.damage, p.damage)));
     card.append(head, el("div", "sub", `${s.castTimes.length} casts · ${fmt(s.damage)}`));
     const rows = list.map((lane) => ({ lane, share: s.castTimes.filter((t) => up(lane, t)).length / s.castTimes.length })).filter((r) => r.share > 0);
     const always = rows.filter((r) => r.share >= 1);

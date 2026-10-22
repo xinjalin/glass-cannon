@@ -155,7 +155,6 @@ fn darker(rgb: u32) -> u32 {
     to(rgb >> 16 & 0xff) << 16 | to(rgb >> 8 & 0xff) << 8 | to(rgb & 0xff)
 }
 
-
 /// Styles the overlay (`is_overlay`) or the settings window for the given appearance.
 /// The settings window always stays frosted and framed so it's readable.
 pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance, is_overlay: bool) {
