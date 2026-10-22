@@ -238,6 +238,20 @@ legend {
   border-bottom: 1px dashed var(--line-faint);
 }
 #target { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+#boss-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0 0.3em 0.35em;
+  margin-top: -0.15em;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.hp-track { flex: 1; height: 0.45em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#boss-hp-fill { display: block; height: 100%; background: var(--bad); }
+#enrage { flex: none; color: var(--warn); }
+#enrage.soon { color: var(--bad); font-weight: 700; }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 #total { flex: none; font-variant-numeric: tabular-nums; }
 
@@ -473,3 +487,10 @@ body:hover #lock { opacity: 0.8; }
 
 ::-webkit-scrollbar { width: 0.4em; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
+
+.notice.alert { color: var(--warn); }
+
+/* Faded outside combat (settings → fade outside combat): back under the mouse. */
+#panel { transition: opacity 0.4s ease; }
+.faded #panel { opacity: 0; transition: opacity 1.2s ease; }
+.faded body:hover #panel { opacity: 1; transition: opacity 0.2s ease; }

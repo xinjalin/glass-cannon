@@ -131,6 +131,18 @@
                 <button type="button" data-refresh-choice="2000" title="Every two seconds">[2s]</button>
               </span>
             </div>
+            <button id="boss-hp" type="button" class="opt" aria-pressed="false" title="The boss's HP and enrage timer under its name, in live boss fights">
+              <span class="key">boss hp &amp; enrage</span><span class="state">[on]</span>
+            </button>
+            <div class="line">
+              <span class="key">fade outside combat</span>
+              <span class="choice" role="radiogroup" aria-label="Fade the meter outside combat">
+                <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
+                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight or under the mouse">[10s]</button>
+                <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
+                <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
+              </span>
+            </div>
             <button id="locked" type="button" class="opt" aria-pressed="false">
               <span class="key">click-through</span><span class="state">[off]</span>
             </button>
@@ -152,8 +164,11 @@
             <button id="open-cooldowns" type="button" class="opt" title="Your skills' cooldowns in a window of their own">
               <span class="key">cooldowns</span><span class="state">[ open ]</span>
             </button>
-            <button id="open-timers" type="button" class="opt" title="When the world events start (rifts, invasions, sieges, resets)">
+            <button id="open-timers" type="button" class="opt" title="When the world events and field bosses start, with alerts">
               <span class="key">world timers</span><span class="state">[ open ]</span>
+            </button>
+            <button id="open-target" type="button" class="opt" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
+              <span class="key">target frame</span><span class="state">[ open ]</span>
             </button>
             <button id="reset" type="button" class="opt" title="Theme, font, colours, background and window size back to the defaults">
               <span class="key">reset appearance</span><span class="state">[ reset ]</span>

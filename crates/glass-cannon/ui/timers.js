@@ -6,6 +6,8 @@ let alerts = new Set();
 let lead = 5;
 let bosses = [];
 const LEADS = [1, 3, 5, 10, 15];
+// A field boss "up" as of a world map read longer ago than this may have been killed.
+const STALE_MS = 3 * 3_600_000;
 
 function every_text(e) {
   if (e.times.length > 3 && !e.days) {
@@ -108,13 +110,16 @@ function drawBosses(now) {
   for (const b of sorted) {
     const up = b.time_ms <= now;
     const name = b.name || `Field boss ${b.id}`;
+    // Up as of the last world map; after a few hours it may well have been killed.
+    const seen = b.seen_ms || b.time_ms;
+    const stale = up && now - seen > STALE_MS;
     const li = row(
       name,
-      `map ${b.map} · ${up ? `up since ${dayAndTime(b.time_ms)}` : `spawns ${dayAndTime(b.time_ms)}`}`,
-      up ? "up" : clock((b.time_ms - now) / 1000),
-      up ? "on" : b.time_ms - now <= SOON_MS ? "soon" : "",
+      `map ${b.map} · ${up ? `up since ${dayAndTime(b.time_ms)}` : `spawns ${dayAndTime(b.time_ms)}`}${stale ? ` · as of ${dayAndTime(seen)}` : ""}`,
+      up ? (stale ? "up?" : "up") : clock((b.time_ms - now) / 1000),
+      up ? (stale ? "stale" : "on") : b.time_ms - now <= SOON_MS ? "soon" : "",
       `boss:${b.id}`,
-      up ? "Up (as of when you last opened the world map)" : `Spawns ${new Date(b.time_ms).toLocaleString()}`,
+      up ? `Up when you last opened the world map (${new Date(seen).toLocaleString()}); open it again to update` : `Spawns ${new Date(b.time_ms).toLocaleString()}`,
     );
     li.querySelector(".timer-name").title = "Double-click to name it";
     li.querySelector(".timer-name").addEventListener("dblclick", () => {

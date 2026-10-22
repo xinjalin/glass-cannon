@@ -60,6 +60,12 @@
         <span id="target"></span>
         <span id="total"></span>
       </div>
+      <!-- In a live boss fight: its HP and when it goes berserk. -->
+      <div id="boss-bar" hidden>
+        <span class="hp-track"><span id="boss-hp-fill"></span></span>
+        <span id="boss-hp-text"></span>
+        <span id="enrage"></span>
+      </div>
       <ol id="rows"></ol>
       <p id="empty">waiting for a fight…</p>
     </fieldset>
@@ -95,6 +101,7 @@
     </button>
   </main>
   <script src="theme.js"></script>
+  <script src="schedule.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

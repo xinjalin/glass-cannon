@@ -428,11 +428,57 @@ function noticePartyChanges(party) {
   return joined.length > 0 || left.length > 0 || (before.length === 0 && names.length > 0) || (readyChanged && !!ready);
 }
 
-function notice(text) {
-  const item = el("li", "notice", text);
+function notice(text, ms = NOTICE_MS, kind = "") {
+  const item = el("li", `notice ${kind}`.trim(), text);
   $("notices").append(item);
   while ($("notices").children.length > 3) $("notices").firstChild.remove();
-  setTimeout(() => item.remove(), NOTICE_MS);
+  setTimeout(() => item.remove(), ms);
+}
+
+// ---------------------------------------------------------------- alerts
+
+// Events and field bosses you've rung the bell for (in the timers window): a notice when
+// they're `alert_lead_min` away, and another as they start. Each once per start.
+const ALERT_MS = 60_000;
+const alerted = new Set();
+let fieldBosses = [];
+let bossesAt = 0;
+
+async function checkAlerts() {
+  const v = lastView;
+  if (!v || !v.alerts || !v.alerts.length) return;
+  const now = Date.now();
+  if (now - bossesAt > 60_000 && v.alerts.some((a) => a.startsWith("boss:"))) {
+    bossesAt = now;
+    fieldBosses = await invoke("field_bosses").catch(() => []);
+  }
+  const lead = v.alert_lead_min * 60_000;
+  const soon = upcoming(v.timer_region, now, lead).map((x) => ({ id: x.id, name: x.name, start: x.start }));
+  for (const b of fieldBosses) {
+    if (b.time_ms > now - 5000 && b.time_ms - now <= lead) soon.push({ id: `boss:${b.id}`, name: b.name || `Field boss ${b.id}`, start: b.time_ms });
+  }
+  for (const x of soon) {
+    if (!v.alerts.includes(x.id)) continue;
+    const left = x.start - now;
+    const key = `${x.id}@${x.start}/${left <= 0 ? "now" : "soon"}`;
+    if (alerted.has(key) || left < -10_000) continue;
+    alerted.add(key);
+    if (left <= 0) notice(`🔔 ${x.name} is starting`, ALERT_MS, "alert");
+    else notice(`🔔 ${x.name} in ${Math.ceil(left / 60_000)} min (${timeOfDay(x.start)})`, ALERT_MS, "alert");
+  }
+}
+setInterval(checkAlerts, 5000);
+
+// ---------------------------------------------------------------- fading outside combat
+
+// With "fade outside combat" set, the meter fades away that long after the last fight
+// and comes back with the next one (or under the mouse).
+let lastCombatAt = Date.now();
+function fadeOutsideCombat(view) {
+  const enc = view.meter.encounter;
+  if (view.meter.in_combat || (enc && enc.active) || mode !== "live") lastCombatAt = Date.now();
+  const after = (view.hide_after_s || 0) * 1000;
+  document.documentElement.classList.toggle("faded", after > 0 && Date.now() - lastCombatAt > after);
 }
 
 function drawTotals(enc) {
@@ -456,6 +502,25 @@ function drawTotals(enc) {
   const view = rowView();
   const total = view === "damage" ? enc.total_damage : (view === "healing" ? enc.total_healing : enc.total_taken) || 0;
   $("total").textContent = `${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
+  drawBossBar(enc);
+}
+
+// A live boss fight's HP and enrage (settings → boss hp).
+function drawBossBar(enc) {
+  const bar = $("boss-bar");
+  const show = mode === "live" && enc.active && enc.target_boss && enc.target_max_hp && lastView && lastView.boss_hp;
+  bar.hidden = !show;
+  if (!show) return;
+  const pct = Math.max(0, Math.min(1, (enc.target_hp ?? enc.target_max_hp) / enc.target_max_hp));
+  $("boss-hp-fill").style.width = `${pct * 100}%`;
+  $("boss-hp-text").textContent = `${(pct * 100).toFixed(1)}%`;
+  $("boss-hp-text").title = `${fmt(enc.target_hp ?? 0)} / ${fmt(enc.target_max_hp)} HP`;
+  const left = enc.berserk_us ? enc.berserk_us / 1000 - Date.now() : null;
+  const enrage = $("enrage");
+  enrage.hidden = left == null || left < -60_000 || left > 3_600_000;
+  enrage.textContent = left > 0 ? `enrage ${clock(left / 1000)}` : "enraged";
+  enrage.className = left != null && left < 30_000 ? "soon" : "";
+  enrage.title = "When the boss goes berserk";
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";
@@ -669,6 +734,7 @@ function redraw() {
     $("legend-text").textContent = ready ? `party · ${ready} ready` : "party";
     $("clock").textContent = party.length ? `[${party.length}]` : "";
     $("totals").hidden = true;
+    $("boss-bar").hidden = true;
     drawParty(party);
     $("empty").hidden = party.length > 0;
     $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
@@ -679,6 +745,7 @@ function redraw() {
     $("legend-text").textContent = "fight";
     $("clock").textContent = "";
     $("totals").hidden = true;
+    $("boss-bar").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;
@@ -727,6 +794,7 @@ async function refresh() {
     // Before any fight, a party is more useful than "waiting for a fight".
     if (!view.meter.encounter && party.length > 1) partyPeek = true;
     applyAppearance(lastView.appearance);
+    fadeOutsideCombat(lastView);
     snapSizes();
     fitHeight(lastView.appearance);
     drawLock(lastView.locked);

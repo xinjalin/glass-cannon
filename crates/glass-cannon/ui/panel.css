@@ -186,3 +186,20 @@ button {
   letter-spacing: 0.12em;
   border-bottom: 1px dashed var(--line-faint);
 }
+
+/* ---------------------------------------------------------------- target frame */
+
+#frame { display: flex; flex-direction: column; gap: 0.3em; }
+.tf-head { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.tf-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 700; }
+.tf-pct { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.tf-hp { height: 0.8em; border-radius: 0.25em; background: var(--line-faint); overflow: hidden; }
+#tf-hp-fill { display: block; height: 100%; background: var(--bad); }
+.tf-line { display: flex; justify-content: space-between; gap: 0.6em; color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+#tf-attacking.you { color: var(--warn); font-weight: 700; }
+#tf-enrage { color: var(--warn); }
+#tf-enrage.soon { color: var(--bad); font-weight: 700; }
+.tf-stagger { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#tf-stagger-fill { display: block; height: 100%; background: var(--warn); }
+#tf-stagger-fill.broken { background: var(--ok); }
+.timer.stale .timer-when { color: var(--faint); }

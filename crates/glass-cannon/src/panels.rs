@@ -165,13 +165,18 @@ pub struct FieldBossRow {
     pub boss: FieldBoss,
     /// The name you gave it.
     pub name: Option<String>,
+    /// When the world map last showed it.
+    pub seen_ms: Option<u64>,
 }
 
 /// Field bosses as world maps last showed them.
 #[tauri::command]
 pub fn field_bosses(app: State<'_, Arc<AppState>>) -> Vec<FieldBossRow> {
     let f = lock(&app.field_bosses);
-    f.bosses.values().map(|b| FieldBossRow { boss: b.clone(), name: f.names.get(&b.id).cloned() }).collect()
+    f.bosses
+        .values()
+        .map(|b| FieldBossRow { boss: b.clone(), name: f.names.get(&b.id).cloned(), seen_ms: f.seen_ms.get(&b.id).copied() })
+        .collect()
 }
 
 #[tauri::command]

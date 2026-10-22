@@ -421,6 +421,9 @@ pub struct FieldBosses {
     pub names: BTreeMap<u32, String>,
     #[serde(default)]
     pub bosses: BTreeMap<u32, meter_core::fieldboss::FieldBoss>,
+    /// When each was last read from a world map (ms since 1970).
+    #[serde(default)]
+    pub seen_ms: BTreeMap<u32, u64>,
 }
 
 impl FieldBosses {
@@ -444,7 +447,9 @@ impl FieldBosses {
         if seen.is_empty() {
             return;
         }
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
         for b in seen {
+            self.seen_ms.insert(b.id, now);
             self.bosses.insert(b.id, b);
         }
         self.save();

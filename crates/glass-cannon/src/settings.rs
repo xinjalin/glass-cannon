@@ -50,6 +50,8 @@ pub struct SettingsStatus {
     appearance: Appearance,
     refresh_ms: u32,
     locked: bool,
+    boss_hp: bool,
+    hide_after_s: u32,
 }
 
 #[tauri::command]
@@ -126,6 +128,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         appearance: s.appearance,
         refresh_ms: s.refresh_ms,
         locked: s.locked,
+        boss_hp: s.boss_hp,
+        hide_after_s: s.hide_after_s,
     }
 }
 

@@ -365,9 +365,15 @@ impl GameData {
         Some(info)
     }
 
-    /// The mob types that are bosses.
+    /// The mob types that are bosses: their death ends a fight, and HP back to full is a
+    /// wipe. Training dummies are marked as bosses in the data but reset all the time.
     pub fn boss_types(&self) -> Vec<u32> {
-        self.npcs.npcs.iter().filter(|(_, e)| e.boss).map(|(id, _)| *id).collect()
+        self.npcs
+            .npcs
+            .iter()
+            .filter(|(_, e)| e.boss && !e.name.contains("Training Scarecrow"))
+            .map(|(id, _)| *id)
+            .collect()
     }
 
     /// A mob type's name and boss flag.

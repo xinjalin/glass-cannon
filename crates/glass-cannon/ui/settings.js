@@ -145,6 +145,11 @@ async function refresh() {
     }
     setToggle("locked", state.locked);
     setToggle("record", state.record);
+    setToggle("boss-hp", state.boss_hp);
+    for (const b of document.querySelectorAll("[data-fade-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
+    }
     // Capture is already running, so a changed choice applies next time.
     const pending = state.record !== state.recording_now;
     $("record-hint").textContent = pending
@@ -221,6 +226,18 @@ for (const b of document.querySelectorAll("[data-scope-choice]")) {
 for (const b of document.querySelectorAll("[data-refresh-choice]")) {
   b.addEventListener("click", async () => {
     await invoke("set_refresh", { ms: Number(b.dataset.refreshChoice) }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
+
+$("boss-hp").addEventListener("click", async () => {
+  await invoke("set_boss_hp", { on: !(state && state.boss_hp) });
+  refresh();
+});
+
+for (const b of document.querySelectorAll("[data-fade-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_hide_after", { seconds: Number(b.dataset.fadeChoice) });
     refresh();
   });
 }
@@ -380,7 +397,7 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("history").addEventListener("click", () => invoke("open_history").catch((e) => say(String(e), "error")));
-for (const name of ["cooldowns", "timers"]) {
+for (const name of ["cooldowns", "timers", "target"]) {
   $(`open-${name}`).addEventListener("click", () => invoke("toggle_panel", { name }).catch((e) => say(String(e), "error")));
 }
 
