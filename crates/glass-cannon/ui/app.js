@@ -316,6 +316,9 @@ function drawRows(enc) {
     r.row.remove();
     rowCache.delete(id);
   }
+  // Rows another view left behind (the party's) aren't in the cache.
+  const kept = new Set([...rowCache.values()].map((r) => r.row));
+  for (const child of [...list.children]) if (!kept.has(child)) child.remove();
 }
 
 // Opens or closes a player's skill list. The live meter only sends the skills of open

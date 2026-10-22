@@ -9,8 +9,8 @@ const FONT_MAX = 18;
 const OPACITY_MIN = 0;
 const OPACITY_MAX = 100;
 const OPACITY_STEP = 5;
-// Window width in em: two 26em columns, the gap between them and the margins.
-const WIDTH_EM = 55.5;
+// Window width in em: two 29em columns, the gap between them and the margins.
+const WIDTH_EM = 61.5;
 
 const SCOPE_HINTS = {
   mine: "just you: your damage on the targets you hit",
@@ -95,6 +95,8 @@ function drawAppearance(a) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(b.dataset.barChoice === a.bar_color));
   }
+  drawCustom(document.querySelector("[data-theme-custom]"), a.theme);
+  drawCustom(document.querySelector("[data-bar-custom]"), a.bar_color);
   for (const b of document.querySelectorAll("[data-backdrop-choice]")) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(b.dataset.backdropChoice === a.backdrop));
@@ -185,6 +187,23 @@ $("opacity-up").addEventListener("click", () => {
   const o = state.appearance.opacity;
   setAppearance({ opacity: Math.min(OPACITY_MAX, Math.floor(o / OPACITY_STEP) * OPACITY_STEP + OPACITY_STEP) });
 });
+// The last swatch of each row: a colour of your own, picked in the system's colour dialog.
+function drawCustom(button, value) {
+  const picked = isHexColor(value);
+  button.setAttribute("role", "radio");
+  button.setAttribute("aria-checked", String(picked));
+  if (picked) {
+    button.style.setProperty("--swatch", value);
+    button.querySelector("input").value = value;
+  } else button.style.removeProperty("--swatch");
+  button.title = picked ? `${value} · click to pick another colour` : "Pick any colour";
+}
+for (const [kind, key] of [["theme", "theme"], ["bar", "barColor"]]) {
+  const button = document.querySelector(`[data-${kind}-custom]`);
+  const input = button.querySelector("input");
+  button.addEventListener("click", () => input.click());
+  input.addEventListener("input", () => setAppearance({ [key]: input.value }));
+}
 for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }

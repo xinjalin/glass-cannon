@@ -95,7 +95,7 @@ pub const REALTIME: u32 = 100;
 pub const DEFAULT_REFRESH_MS: u32 = 500;
 
 pub const THEMES: [&str; 6] = ["rose", "lavender", "mint", "sky", "amber", "mono"];
-pub const HIGHLIGHTS: [&str; 2] = ["self", "all"];
+pub const HIGHLIGHTS: [&str; 3] = ["self", "all", "off"];
 pub const BACKDROPS: [&str; 3] = ["frosted", "tinted", "clear"];
 /// Bar colours: follow the theme, each player's class, or one of the theme colours.
 pub const BAR_COLORS: [&str; 8] = ["theme", "class", "rose", "lavender", "mint", "sky", "amber", "mono"];
@@ -105,16 +105,18 @@ pub const OPACITIES: std::ops::RangeInclusive<u8> = 0..=100;
 /// How the windows look. Unknown or out-of-range values fall back to the defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Appearance {
-    /// Accent colour: one of [`THEMES`].
+    /// Accent colour: one of [`THEMES`], or a colour of your own (`#rrggbb`).
     #[serde(default = "default_theme")]
     pub theme: String,
-    /// The colour of the bars and filled rows, independent of the theme: one of [`BAR_COLORS`].
+    /// The colour of the bars and filled rows, independent of the theme: one of
+    /// [`BAR_COLORS`], or a colour of your own (`#rrggbb`).
     #[serde(default = "default_bar_color")]
     pub bar_color: String,
     /// Older settings files: `true` becomes `bar_color: "class"`.
     #[serde(default, skip_serializing)]
     class_colors: bool,
-    /// "self": only your row is filled; "all": every row is filled in its colour.
+    /// "self": only your row is filled; "all": every row is filled in its colour; "off":
+    /// no row is filled, and the bars show the bar colour.
     #[serde(default = "default_highlight")]
     pub highlight: String,
     /// Text size in pixels.
@@ -135,6 +137,11 @@ pub struct Appearance {
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
+}
+
+/// A colour picked by hand: `#` and six hex digits.
+fn is_hex_color(s: &str) -> bool {
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn default_theme() -> String {
@@ -193,11 +200,11 @@ pub struct AppearanceChange {
 impl Appearance {
     /// Applies the given changes, keeping every value valid.
     pub fn update(&mut self, c: AppearanceChange) {
-        if let Some(t) = c.theme.filter(|t| THEMES.contains(&t.as_str())) {
-            self.theme = t;
+        if let Some(t) = c.theme.filter(|t| THEMES.contains(&t.as_str()) || is_hex_color(t)) {
+            self.theme = t.to_ascii_lowercase();
         }
-        if let Some(b) = c.bar_color.filter(|b| BAR_COLORS.contains(&b.as_str())) {
-            self.bar_color = b;
+        if let Some(b) = c.bar_color.filter(|b| BAR_COLORS.contains(&b.as_str()) || is_hex_color(b)) {
+            self.bar_color = b.to_ascii_lowercase();
         }
         if let Some(h) = c.highlight.filter(|h| HIGHLIGHTS.contains(&h.as_str())) {
             self.highlight = h;
@@ -228,13 +235,13 @@ impl Appearance {
         if !self.font.is_empty() && !crate::fonts::usable_name(&self.font) {
             self.font = fixed.font.clone();
         }
-        if !THEMES.contains(&self.theme.as_str()) {
+        if !THEMES.contains(&self.theme.as_str()) && !is_hex_color(&self.theme) {
             self.theme = fixed.theme;
         }
         if std::mem::take(&mut self.class_colors) && self.bar_color == "theme" {
             self.bar_color = "class".into();
         }
-        if !BAR_COLORS.contains(&self.bar_color.as_str()) {
+        if !BAR_COLORS.contains(&self.bar_color.as_str()) && !is_hex_color(&self.bar_color) {
             self.bar_color = fixed.bar_color;
         }
         if !HIGHLIGHTS.contains(&self.highlight.as_str()) {
@@ -762,6 +769,24 @@ mod tests {
         fs::write(dir.join("settings.json"), r#"{ "scope": "party" }"#).unwrap();
         assert_eq!(Settings::load(&dir).scope, Scope::Party);
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn colours_of_your_own() {
+        let mut a = Appearance::default();
+        a.update(AppearanceChange {
+            theme: Some("#3A7BD5".into()),
+            bar_color: Some("#00ff88".into()),
+            highlight: Some("off".into()),
+            ..AppearanceChange::default()
+        });
+        assert_eq!((a.theme.as_str(), a.bar_color.as_str(), a.highlight.as_str()), ("#3a7bd5", "#00ff88", "off"));
+        // Not quite a colour: kept as it was.
+        for bad in ["#12345", "#1234567", "3a7bd5x", "#ggg000", "red"] {
+            a.update(AppearanceChange { theme: Some(bad.into()), ..AppearanceChange::default() });
+        }
+        assert_eq!(a.theme, "#3a7bd5");
+        assert_eq!(a.clone().sanitized(), a);
     }
 
     #[test]

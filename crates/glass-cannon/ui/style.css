@@ -297,31 +297,33 @@ legend {
 }
 .seg.on { background: var(--row); }
 
-/* A filled row: you (always), or every row with highlight "all". */
-.row.self .line,
-.row.self:hover .line,
+/* A filled row: yours with highlight "you", every row with "all", none with "off" (then
+   the bars show the bar colour on every row, yours too). */
+[data-highlight="self"] .row.self .line,
+[data-highlight="self"] .row.self:hover .line,
 [data-highlight="all"] .row .line {
   background: var(--row);
   color: var(--ink);
   text-shadow: none;
 }
 [data-highlight="all"] .row:hover .line { filter: brightness(1.08); }
-.row.self .dps,
-.row.self .share,
-.row.self .rank,
+[data-highlight="self"] .row.self .dps,
+[data-highlight="self"] .row.self .share,
+[data-highlight="self"] .row.self .rank,
 [data-highlight="all"] .row .dps,
 [data-highlight="all"] .row .share,
 [data-highlight="all"] .row .rank { color: var(--ink); }
 .row.self .name { font-weight: 700; }
 .row.self .rank { font-size: 0; }
 .row.self .rank::before { content: "»"; font-size: var(--fs); }
-.row.self .seg,
+[data-highlight="off"] .row.self .rank::before { color: var(--row); }
+[data-highlight="self"] .row.self .seg,
 [data-highlight="all"] .row .seg { background: rgba(27, 15, 17, 0.2); }
-.row.self .seg.on,
+[data-highlight="self"] .row.self .seg.on,
 [data-highlight="all"] .row .seg.on { background: var(--ink); }
-.row.self .class-icon,
+[data-highlight="self"] .row.self .class-icon,
 [data-highlight="all"] .row .class-icon { filter: none; }
-.row.self .class-icon.blank,
+[data-highlight="self"] .row.self .class-icon.blank,
 [data-highlight="all"] .row .class-icon.blank { background: var(--ink); }
 
 /* ---------------------------------------------------------------- skill breakdown */

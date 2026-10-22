@@ -59,7 +59,7 @@ body {
 /* Two columns, like a table: appearance | status, meter, tools. */
 #columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(26em, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(29em, 1fr));
   align-items: start;
   gap: 0.6em 0.8em;
 }
@@ -181,10 +181,25 @@ legend {
 .swatch[data-theme-choice="amber"], .swatch[data-bar-choice="amber"] { --swatch: #f1c073; }
 .swatch[data-theme-choice="mono"], .swatch[data-bar-choice="mono"] { --swatch: #dcdcdc; }
 .swatch[aria-checked="true"] { outline: 2px solid var(--text); }
+/* Any colour: a rainbow until one is picked, then that colour. The picker itself is the
+   system's colour dialog, opened by the hidden input inside. */
+.swatch.custom {
+  position: relative;
+  background: var(--swatch, conic-gradient(#f2a8a4, #f1c073, #94dcb9, #95caf3, #c8b4f7, #f2a8a4));
+}
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
 /* Bar choices wrap as two groups: [theme] [class], then the colours. */
 .swatches .group { display: flex; align-items: center; gap: 0.35em; }
 /* Square swatches for bars, so they read as a different setting from the theme. */
-.swatch[data-bar-choice] { border-radius: 0.2em; }
+.swatch[data-bar-choice],
+.swatch[data-bar-custom] { border-radius: 0.2em; }
 .chip { padding: 0 0.15em; border-radius: 0.25em; color: var(--accent); }
 .chip:hover { background: var(--line-faint); }
 
