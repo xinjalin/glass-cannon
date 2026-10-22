@@ -199,6 +199,7 @@ mod tests {
                 skill,
                 name: None,
                 icon_key: None,
+                source_type: None,
                 damage,
                 hits: 2,
                 max: damage / 2,

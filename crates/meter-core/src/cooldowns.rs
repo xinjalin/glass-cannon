@@ -118,6 +118,65 @@ impl Cooldowns {
     }
 }
 
+/// Long cooldowns of everyone's casts (the game sends each cast's cooldown for every
+/// caster in view), for the party cooldowns window. Skills under [`PARTY_SHORTEST_MS`]
+/// aren't kept.
+pub const PARTY_SHORTEST_MS: u32 = 20_000;
+
+#[derive(Debug, Default)]
+pub struct CastCooldowns {
+    /// (caster, base skill) -> its cooldown.
+    by_cast: HashMap<(u64, u32), Cooldown>,
+}
+
+/// One of a player's skills: ready (`remaining_ms` 0) or how long left.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct CasterCooldown {
+    pub entity: u64,
+    pub skill: u32,
+    pub remaining_ms: u32,
+    /// The longest cooldown it has been cast with.
+    pub duration_ms: u32,
+}
+
+impl CastCooldowns {
+    pub fn cast(&mut self, ts_us: u64, caster: u64, skill: u32, cooldown_ms: u32) {
+        if cooldown_ms < PARTY_SHORTEST_MS {
+            return;
+        }
+        let e = self.by_cast.entry((caster, base(skill))).or_insert(Cooldown {
+            skill,
+            ends_us: 0,
+            duration_ms: 0,
+            charges: None,
+        });
+        e.skill = skill;
+        e.ends_us = ts_us + u64::from(cooldown_ms) * 1000;
+        e.duration_ms = e.duration_ms.max(cooldown_ms);
+    }
+
+    /// The skills of those `keep` lets through, by caster then longest cooldown first.
+    pub fn of(&self, now_us: u64, keep: impl Fn(u64) -> bool) -> Vec<CasterCooldown> {
+        let mut out: Vec<CasterCooldown> = self
+            .by_cast
+            .iter()
+            .filter(|((caster, _), _)| keep(*caster))
+            .map(|((caster, _), c)| CasterCooldown {
+                entity: *caster,
+                skill: c.skill,
+                remaining_ms: (c.ends_us.saturating_sub(now_us) / 1000) as u32,
+                duration_ms: c.duration_ms,
+            })
+            .collect();
+        out.sort_by_key(|c| (c.entity, std::cmp::Reverse(c.duration_ms), c.skill));
+        out
+    }
+
+    pub fn clear(&mut self) {
+        self.by_cast.clear();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,5 +205,18 @@ mod tests {
         c.feed(3 * S, OPCODE_COOLDOWN, &hex("01 50 15 17 01 00"), Some(11792));
         assert_eq!(c.active(3 * S).len(), 1);
         assert!(c.active(20 * S).is_empty());
+    }
+
+    #[test]
+    fn party_members_long_cooldowns() {
+        let mut c = CastCooldowns::default();
+        // From Vakron: a Cleric's Summon Resurrection (112 s), a short skill (not kept).
+        c.cast(S, 9268, 17_390_000, 111_950);
+        c.cast(S, 9268, 17_060_000, 4_000);
+        c.cast(2 * S, 4875, 12_450_000, 83_950);
+        let v = c.of(60 * S, |e| e != 4875);
+        assert_eq!(v, [CasterCooldown { entity: 9268, skill: 17_390_000, remaining_ms: 52_950, duration_ms: 111_950 }]);
+        // Ready again: still listed, with nothing left.
+        assert_eq!(c.of(200 * S, |_| true)[1].remaining_ms, 0);
     }
 }

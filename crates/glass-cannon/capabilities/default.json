@@ -9,7 +9,8 @@
     "history",
     "cooldowns",
     "timers",
-    "target"
+    "target",
+    "party-cooldowns"
   ],
   "permissions": [
     "core:default",

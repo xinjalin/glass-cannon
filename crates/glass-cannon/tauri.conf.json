@@ -121,6 +121,23 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": false
+      },
+      {
+        "label": "party-cooldowns",
+        "title": "Glass Cannon party cooldowns",
+        "width": 340,
+        "height": 460,
+        "minWidth": 240,
+        "minHeight": 160,
+        "url": "party-cooldowns.html",
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
       }
     ],
     "security": {

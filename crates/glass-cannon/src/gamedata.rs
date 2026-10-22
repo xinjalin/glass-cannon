@@ -415,6 +415,10 @@ impl GameData {
         for row in rows.flat_map(|p| p.skills.iter_mut()) {
             let resolved = self.resolve_skill(row.skill);
             row.icon_key = self.icon_key(row.skill, resolved).or(row.icon_key);
+            if row.name.is_none() {
+                // A mob's skill the data has no name for: after the mob that used it.
+                row.name = row.source_type.and_then(|t| self.npc(t)).map(|(mob, _)| format!("{mob}'s attack"));
+            }
             if let Some((_, e)) = resolved {
                 if !e.name.is_empty() {
                     row.name = Some(e.name.clone());

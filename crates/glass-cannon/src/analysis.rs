@@ -263,6 +263,12 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: O
     for id in ids {
         skills.entry(id).or_insert_with(|| {
             let (name, icon_key) = data.skill_meta(id);
+            // A mob's skill the data has no name for: after the mob that used it.
+            let name = name.or_else(|| {
+                let by = a.taken.iter().find(|h| h.skill == id)?.player;
+                let (mob, _) = data.npc(*a.mob_types.get(&by)?)?;
+                Some(format!("{mob}'s attack"))
+            });
             SkillMeta { name, icon_key }
         });
     }

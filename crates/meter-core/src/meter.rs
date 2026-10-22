@@ -19,7 +19,8 @@ use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
 use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
 use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
-use crate::cooldowns::{CooldownView, Cooldowns};
+use crate::cast::{parse_cast, OPCODE_CAST};
+use crate::cooldowns::{CastCooldowns, CasterCooldown, CooldownView, Cooldowns};
 use crate::pvp::{PvpSession, PvpTracker};
 use crate::fieldboss::{parse_world_map, FieldBoss, OPCODE_WORLD_MAP};
 use crate::state::{self, Stagger, REMOVED_DIED};
@@ -292,6 +293,9 @@ pub struct SkillRow {
     pub name: Option<String>,
     /// Which skill ID's icon to show (a variant may share its base skill's icon).
     pub icon_key: Option<u32>,
+    /// In damage taken: the mob type that used it (names a mob skill the data doesn't).
+    #[serde(default)]
+    pub source_type: Option<u32>,
     pub damage: u64,
     pub hits: u64,
     pub max: u64,
@@ -681,6 +685,8 @@ pub struct Meter {
     pings: VecDeque<(u64, i64)>,
     /// Your skills' cooldowns.
     cooldowns: Cooldowns,
+    /// Everyone's long cooldowns, for your party's.
+    cast_cooldowns: CastCooldowns,
     /// Fights with players outside your party.
     pvp: PvpTracker,
     /// Your target, what each mob is attacking, and their stagger gauges.
@@ -720,6 +726,7 @@ impl Meter {
             berserk: HashMap::new(),
             pings: VecDeque::new(),
             cooldowns: Cooldowns::default(),
+            cast_cooldowns: CastCooldowns::default(),
             pvp: PvpTracker::default(),
             selected: None,
             aggro: HashMap::new(),
@@ -761,6 +768,12 @@ impl Meter {
         self.cooldowns.active(now_us)
     }
 
+    /// Your party's (you included) long cooldowns seen this session: ready or time left.
+    pub fn party_cooldowns(&self, now_us: u64) -> Vec<CasterCooldown> {
+        let r = &self.registry;
+        self.cast_cooldowns.of(now_us, |e| r.is_self(e) || (!r.party().is_empty() && r.player_name(e).is_some() && r.in_party(e)))
+    }
+
     /// The PvP session going on, if any.
     pub fn pvp(&self) -> Option<PvpSession> {
         self.pvp.current()
@@ -800,6 +813,11 @@ impl Meter {
     /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
+        if opcode == OPCODE_CAST {
+            if let Some(c) = parse_cast(payload).filter(|c| c.skill >= PLAYER_SKILL_MIN) {
+                self.cast_cooldowns.cast(ts_us, c.caster, c.skill, c.cooldown_ms);
+            }
+        }
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }
@@ -894,6 +912,7 @@ impl Meter {
                 self.effects.clear();
                 self.hp = HpLog::default();
                 self.cooldowns.clear();
+                self.cast_cooldowns.clear();
                 self.pvp.end();
             }
             return;
@@ -1452,13 +1471,23 @@ impl Meter {
             duration_s,
             skill_cap,
         );
-        let (taken, total_taken) = self.flow_rows(
+        let (mut taken, total_taken) = self.flow_rows(
             e.taken.iter().filter(|h| shown(h.target) && in_fight(h.target)),
             |h| h.target,
             &per_player,
             duration_s,
             skill_cap,
         );
+        // Which mob used each skill that hit them (for naming skills the data doesn't).
+        for row in &mut taken {
+            for s in &mut row.skills {
+                s.source_type = e
+                    .taken
+                    .iter()
+                    .find(|h| h.target == row.id && h.skill == s.skill)
+                    .and_then(|h| self.registry.mob_type(h.attacker));
+            }
+        }
 
         Some(EncounterView {
             active,
@@ -1607,6 +1636,7 @@ impl Meter {
                 skill: *skill,
                 name: None,
                 icon_key: None,
+                source_type: None,
                 damage: s.damage,
                 hits: s.hits,
                 max: s.max,

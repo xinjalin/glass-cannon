@@ -707,6 +707,7 @@ fn main() {
             panels::set_hide_after,
             panels::set_boss_hp,
             panels::timer_settings,
+            panels::party_cooldowns,
         ])
         .setup(move |app| {
             restyle_windows(app.handle(), &lock(&state.settings).appearance.clone());

@@ -16,7 +16,7 @@ use crate::settings::place_beside;
 use crate::store::TIMER_REGIONS;
 use crate::{lock, AppState, OVERLAY};
 
-pub const PANELS: [&str; 4] = ["history", "cooldowns", "timers", "target"];
+pub const PANELS: [&str; 5] = ["history", "cooldowns", "timers", "target", "party-cooldowns"];
 /// The smallest each may be squeezed to (logical pixels) to fit beside the meter.
 const MIN_SIZE: (f64, f64) = (260.0, 200.0);
 
@@ -244,4 +244,66 @@ pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
     let s = lock(&app.settings);
     let region = if TIMER_REGIONS.contains(&s.timer_region.as_str()) { s.timer_region.clone() } else { TIMER_REGIONS[0].into() };
     TimerSettings { region, alerts: s.alerts.clone(), alert_lead_min: s.alert_lead_min }
+}
+
+/// Party cooldowns worth watching: 60 s or more, or a party-wide skill of 30 s or more.
+const LONG_MS: u32 = 60_000;
+const PARTY_SKILL_MS: u32 = 30_000;
+
+#[derive(Serialize)]
+pub struct MemberCooldowns {
+    pub entity: u64,
+    pub name: String,
+    pub class_code: Option<u32>,
+    pub is_self: bool,
+    pub skills: Vec<PartySkill>,
+}
+
+#[derive(Serialize)]
+pub struct PartySkill {
+    pub skill: u32,
+    pub name: Option<String>,
+    pub icon_key: Option<u32>,
+    pub remaining_ms: u32,
+    pub duration_ms: u32,
+    /// It affects the party (its description says so).
+    pub party: bool,
+}
+
+/// Your party's long cooldowns (you included), each member's longest first.
+#[tauri::command]
+pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
+    let now = app.engine.now();
+    let (list, labels, me) = {
+        let m = app.engine.meter();
+        let list = m.party_cooldowns(now);
+        let labels: Vec<(u64, String)> = list.iter().map(|c| (c.entity, m.registry().label(c.entity))).collect();
+        (list, labels, m.registry().self_id())
+    };
+    let data = lock(&app.data);
+    let mut out: Vec<MemberCooldowns> = Vec::new();
+    for c in list {
+        let party = data
+            .skill_details(c.skill)
+            .and_then(|d| d.get("desc").and_then(|v| v.as_str()).map(|s| s.to_lowercase().contains("party")))
+            .unwrap_or(false);
+        if c.duration_ms < LONG_MS && !(party && c.duration_ms >= PARTY_SKILL_MS) {
+            continue;
+        }
+        let (name, icon_key) = data.skill_meta(c.skill);
+        let skill = PartySkill { skill: c.skill, name, icon_key, remaining_ms: c.remaining_ms, duration_ms: c.duration_ms, party };
+        match out.iter_mut().find(|m| m.entity == c.entity) {
+            Some(m) => m.skills.push(skill),
+            None => out.push(MemberCooldowns {
+                entity: c.entity,
+                name: labels.iter().find(|(e, _)| *e == c.entity).map(|(_, n)| n.clone()).unwrap_or_default(),
+                class_code: meter_core::classes::class_code_of_skill(c.skill),
+                is_self: me == Some(c.entity),
+                skills: vec![skill],
+            }),
+        }
+    }
+    // You first, then the others by name.
+    out.sort_by(|a, b| b.is_self.cmp(&a.is_self).then(a.name.cmp(&b.name)));
+    out
 }
