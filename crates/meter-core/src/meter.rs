@@ -1219,11 +1219,15 @@ impl Meter {
                 self.classes.insert(by, code);
             }
         }
-        // Nor does a 1-damage hit (touching an object in a dungeon) or one on a corpse.
-        if self.current.is_none()
-            && (dmg <= 1 || self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US))
-        {
-            return;
+        // Nor does a 1-damage hit (touching an object in a dungeon), a mob's hit (it counts
+        // as damage taken once your side is fighting), or a hit on a corpse. A corpse doesn't
+        // join a fight it wasn't in either: in Fire Temple a hit landing just after Black
+        // Smoke Murute died made it look alive in the next fight.
+        let corpse = self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US);
+        match &self.current {
+            None if dmg <= 1 || corpse || !player => return,
+            Some(enc) if corpse && !enc.targets.contains_key(&ev.target) => return,
+            _ => {}
         }
         if self.current.is_none() {
             let mut enc = Encounter::new(ts_us);
@@ -2483,6 +2487,20 @@ mod tests {
         // Damage still ticking on the corpse doesn't start another fight.
         m.feed(4 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 300));
         assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+    }
+
+    #[test]
+    fn a_mob_hitting_you_after_a_kill_starts_nothing() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+        // Fire Temple: a mob hits you, then a late hit lands on the dead boss.
+        m.feed(3 * S + 100_000, OPCODE_DAMAGE, &hit(ME, DUMMY, 100_018, 1935));
+        m.feed(3 * S + 200_000, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 895));
+        assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+        m.tick(60 * S);
+        assert!(ends(&mut m).is_empty());
     }
 
     #[test]

@@ -111,7 +111,7 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x3623` | 9 | 5 | 24 |  |  | Aion2Flow: map arrival; A2Tools: zone change; a2_protocol-research: zone |
 | `0x3646` | 9 | 5 | 3 | yes | CharBarrierInfo_NT | Aion2Flow: state |
 | `0x3649` | 9 | 5 | 858.7 |  | CharAllStats_RS | Aion2Flow: state; A2Tools: all stats; RATmeter: player stats |
-| `0x920d` | 6 | 2 | 143 |  | PartyAddMember_NT | Aion2Flow: party profile |
+| `0x920d` | 6 | 2 | 143 |  | PartyAddMember_NT | Aion2Flow: party profile; read now: a member joined your party (confirmed 2026-10-24) |
 | `0x3816` | 6 | 2 | 24 | yes | Abnormal_Move_Instant_NT |  |
 | `0x8d33` | 6 | 2 | 25 |  | GatherSourceCompleted_NT |  |
 | `0x9000` | 5 | 3 | 2831.2 |  | RideInitData_NT |  |
@@ -344,7 +344,7 @@ Some may be older opcodes: A2Tools notes the game shifted opcodes in 2026-06.
 | `0x9009` | CharRideAcquire_NT |  |  |
 | `0x900e` | RideSoulPointDecrease_NT |  |  |
 | `0x9219` | PartyKickout_NT |  | kicked from the party (u8: by vote) |
-| `0x9222` | PartyReconnectMember_NT |  |  |
+| `0x9222` | PartyReconnectMember_NT |  | a party member back online: a roster entry (read like `0x920d`) |
 | `0x9409` |  | Aion2Flow: nickname |  |
 | `0x940b` |  | Aion2Flow: nickname |  |
 | `0x9602` | ForceInfo_NT | Aion2Flow: Force roster snapshot | the Force's roster: its members count as your party (confirmed: 20 members) |

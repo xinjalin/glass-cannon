@@ -436,7 +436,9 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 
 | opcode   | what                                                  |
 | -------- | ----------------------------------------------------- |
-| `0x9200` | your party's full roster, resent on every join/leave  |
+| `0x9200` | your party's full roster, resent on most joins/leaves |
+| `0x920d` | one member joining your party: a party roster entry (Questlog's PartyAddMember; confirmed 2026-10-24, two joined this way with no new roster) |
+| `0x9222` | a party member back online: the same (Questlog's PartyReconnectMember) |
 | `0x9213` | you left the party (`00 00`)                          |
 | `0x9702` | a cross-server group's full roster (expeditions)      |
 | `0x970b` | one member joining that group                         |

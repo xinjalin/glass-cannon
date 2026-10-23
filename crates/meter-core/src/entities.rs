@@ -26,6 +26,11 @@ pub const OPCODE_PARTY_LEFT: u16 = 0x9213;
 pub const OPCODE_GROUP_ROSTER: u16 = 0x9702;
 /// One member joining that group.
 pub const OPCODE_GROUP_JOIN: u16 = 0x970b;
+/// Someone joined your party, or a member came back online: one party roster entry
+/// (Questlog's PartyAddMember and PartyReconnectMember). In the capture of 2026-10-24 two
+/// joined a party this way before a dungeon, after its roster.
+pub const OPCODE_PARTY_ADD_MEMBER: u16 = 0x920d;
+pub const OPCODE_PARTY_RECONNECT: u16 = 0x9222;
 /// You left the group.
 pub const OPCODE_GROUP_LEFT: u16 = 0x971d;
 /// A member left the party: u32 character ID, 2 zero bytes, u16 server. Taken to mean
@@ -344,9 +349,9 @@ impl Registry {
                 self.party = members;
                 names_changed.then_some(Change::PartyChanged { members: self.party.len() })
             }
-            OPCODE_GROUP_JOIN => {
+            OPCODE_GROUP_JOIN | OPCODE_PARTY_ADD_MEMBER | OPCODE_PARTY_RECONNECT => {
                 let before = self.party.len();
-                for m in parse_roster(payload, true) {
+                for m in parse_roster(payload, opcode == OPCODE_GROUP_JOIN) {
                     if !self.party.iter().any(|o| o.character == m.character) {
                         self.party.push(m);
                     }
@@ -1025,6 +1030,15 @@ pub(crate) mod tests {
             Some(Change::PartyChanged { members: 3 })
         );
         assert!(r.in_party(10211));
+        // Joining the party itself: one roster entry.
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e4 4f 01 20 a2 01 07", "Latecomer", ""));
+        assert_eq!(
+            r.observe(OPCODE_PARTY_ADD_MEMBER, &roster(&[(4, 2504, "Latecomer")])),
+            Some(Change::PartyChanged { members: 4 })
+        );
+        assert!(r.in_party(10212));
+        // Back online: already a member.
+        assert_eq!(r.observe(OPCODE_PARTY_RECONNECT, &roster(&[(4, 2504, "Latecomer")])), None);
         assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("00 00")), Some(Change::PartyChanged { members: 0 }));
         assert!(!r.in_party(10210));
         assert!(r.in_party(3659));
