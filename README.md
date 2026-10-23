@@ -86,7 +86,8 @@ Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time
 damage and, when the game says it was completed, the clear time (✓). Right-click a run for
 one analysis of all its fights, or a fight for that fight. A run is one entry into the
 dungeon (older fights: no break over 10 minutes and no boss fought twice). **[clear]** at
-the bottom deletes every fight and PvP session (it asks first).
+the bottom deletes every fight, dungeon run and PvP session (it asks first); a dungeon
+you're in at the time keeps grouping its next fights as a run.
 
 ### Windows
 

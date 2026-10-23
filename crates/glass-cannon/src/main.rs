@@ -371,13 +371,15 @@ fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
 
-/// Forgets every finished fight and PvP session: the history, the fights' saved analyses
-/// and the PvP log. The dungeon entries runs are grouped by stay; on their own they show
-/// nothing, and the one you may be in keeps its name for the fights still to come.
+/// Forgets every finished fight, dungeon run and PvP session: the history, the fights'
+/// saved analyses, the dungeon runs' records and the PvP log. Only the dungeon you're in
+/// now, if you are, is kept, so its fights still to come are still grouped as a run.
 #[tauri::command]
 fn clear_history(handle: AppHandle, app: State<'_, Arc<AppState>>) {
+    let here = app.engine.meter().instance().map(|i| i.entered_us);
     lock(&app.history).clear();
     app.details.clear();
+    lock(&app.instances).clear_except(here);
     lock(&app.pvp).clear();
     // An analysis of a saved fight (or run) goes back to the live fight: its history index
     // would otherwise point at whatever fight takes that place next.

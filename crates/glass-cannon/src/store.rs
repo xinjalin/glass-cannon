@@ -554,6 +554,23 @@ impl Instances {
     pub fn get(&self, entered_us: u64) -> Option<&meter_core::dungeon::Instance> {
         self.by_entered.get(&entered_us)
     }
+
+    /// Forgets every dungeon run but the one entered at `keep` (the one you're in).
+    pub fn clear_except(&mut self, keep: Option<u64>) {
+        self.by_entered.retain(|entered, _| Some(*entered) == keep);
+        let lines: String = self
+            .by_entered
+            .values()
+            .filter_map(|i| serde_json::to_string(i).ok())
+            .map(|l| l + "
+")
+            .collect();
+        if lines.is_empty() {
+            let _ = fs::remove_file(&self.path);
+        } else {
+            let _ = fs::write(&self.path, lines);
+        }
+    }
 }
 
 /// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
@@ -858,6 +875,17 @@ mod tests {
         assert_eq!(History::load(&dir).len(), 0, "gone from disk too");
         assert!(!details.has(7));
         assert!(dir.join("fights/notes.txt").exists(), "only analyses are deleted");
+
+        // Dungeon runs: the past ones go, the one you're in stays.
+        let run = |entered_us| meter_core::dungeon::Instance { map: 600_072, entered_us, started_us: Some(entered_us + 1), completed_us: None };
+        let mut instances = Instances::load(&dir);
+        instances.record(run(100));
+        instances.record(run(200));
+        instances.clear_except(Some(200));
+        let again = Instances::load(&dir);
+        assert!(again.get(100).is_none() && again.get(200).is_some());
+        Instances::load(&dir).clear_except(None);
+        assert!(Instances::load(&dir).get(200).is_none());
         fs::remove_dir_all(dir).ok();
     }
 
