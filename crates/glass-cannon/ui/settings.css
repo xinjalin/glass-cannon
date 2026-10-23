@@ -31,7 +31,8 @@ body {
   flex-direction: column;
   height: 100%;
   padding: 0 0.8em 0.6em;
-  background: var(--tint);
+  /* Like the analysis window: frosted or clear as chosen, but always tinted enough to read. */
+  background: rgba(var(--tint-rgb), max(var(--alpha), 0.9));
 }
 
 #bar {

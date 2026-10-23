@@ -92,7 +92,8 @@ you're in at the time keeps grouping its next fights as a run.
 ### Windows
 
 Open from the settings; they open again next time. Every window, the meter and settings too,
-opens where you last left it, and takes the background chosen in the settings.
+opens where you last left it, and takes the background chosen in the settings (the
+settings and analysis windows stay tinted enough to read).
 
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
