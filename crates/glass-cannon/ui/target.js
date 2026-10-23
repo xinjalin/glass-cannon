@@ -1,5 +1,6 @@
 // The target frame: what you've picked (or what you're fighting), its HP, how long until
-// it dies at the current rate, when it enrages, who it's attacking and its stagger gauge.
+// it dies at the current rate, what it's casting, when it enrages, who it's attacking and
+// its stagger gauge.
 
 const POLL_MS = 250;
 
@@ -23,6 +24,13 @@ async function refresh() {
   $("tf-hp-text").textContent = known ? `${fmt(t.hp)} / ${fmt(t.max_hp)}` : "HP not seen yet";
   $("tf-ttk").textContent = t.time_to_kill_s != null ? `dies in ~${clock(t.time_to_kill_s)}` : "";
   $("tf-ttk").title = "At the damage it took in the last 10 seconds";
+  const c = t.cast;
+  $("tf-cast-box").hidden = !c;
+  if (c) {
+    $("tf-cast-name").textContent = `casting ${c.skill_name || `#${c.skill}`}`;
+    $("tf-cast-time").textContent = `${(c.remaining_ms / 1000).toFixed(1)} s`;
+    $("tf-cast-fill").style.width = `${Math.max(0, Math.min(100, (1 - c.remaining_ms / c.cast_ms) * 100))}%`;
+  }
   const att = $("tf-attacking");
   att.textContent = t.attacking ? `→ ${t.attacking_you ? "you" : t.attacking}` : "";
   att.className = t.attacking_you ? "you" : "";

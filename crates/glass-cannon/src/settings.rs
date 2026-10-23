@@ -12,7 +12,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{lock, notify_overlay, restyle_windows, show_overlay, AppState, OVERLAY, SETTINGS};
+use crate::{lock, notify_overlay, restyle_windows, restyle_windows_but, show_overlay, AppState, OVERLAY, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -143,6 +143,18 @@ pub fn set_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>, change: 
     s.appearance.clone()
 }
 
+/// A colour being picked in the settings window: saved and shown in every window as it
+/// changes. The settings window's own frame isn't restyled, since that closes its colour
+/// picker; [`set_appearance`] does it once the picker is closed.
+#[tauri::command]
+pub fn pick_colour(handle: AppHandle, app: State<'_, Arc<AppState>>, change: AppearanceChange) -> Appearance {
+    let mut s = lock(&app.settings);
+    s.appearance.update(change);
+    s.save(&app.config_dir);
+    restyle_windows_but(&handle, &s.appearance, Some(SETTINGS));
+    s.appearance.clone()
+}
+
 /// Puts every appearance setting back to its default, and the overlay back to its
 /// default size.
 #[tauri::command]
@@ -257,6 +269,11 @@ pub(crate) fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monit
 /// entirely within the overlay's monitor, leaving out the taskbar. On a screen too small
 /// for that it shrinks (its content scrolls) before it would cover the meter.
 fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
+    // Where you left it (its size follows its content), else beside the meter.
+    let saved = lock(&handle.state::<Arc<AppState>>().placements).get(SETTINGS);
+    if saved.is_some_and(|p| crate::placement::restore(s, p, false)) {
+        return;
+    }
     let Some(size) = s.outer_size().ok() else { return };
     let size = (size.width as i32, size.height as i32);
     place_beside(handle, s, size, MIN_SETTINGS, &[Side::Left, Side::Right, Side::Below, Side::Above]);

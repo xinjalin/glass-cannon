@@ -507,6 +507,11 @@ impl PvpLog {
     pub fn list(&self) -> Vec<meter_core::pvp::PvpSession> {
         self.sessions.iter().rev().cloned().collect()
     }
+
+    pub fn clear(&mut self) {
+        self.sessions.clear();
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 /// Dungeon runs as the game reported them: when you entered, when the countdown ended and
@@ -549,6 +554,23 @@ impl Instances {
     pub fn get(&self, entered_us: u64) -> Option<&meter_core::dungeon::Instance> {
         self.by_entered.get(&entered_us)
     }
+
+    /// Forgets every dungeon run but the one entered at `keep` (the one you're in).
+    pub fn clear_except(&mut self, keep: Option<u64>) {
+        self.by_entered.retain(|entered, _| Some(*entered) == keep);
+        let lines: String = self
+            .by_entered
+            .values()
+            .filter_map(|i| serde_json::to_string(i).ok())
+            .map(|l| l + "
+")
+            .collect();
+        if lines.is_empty() {
+            let _ = fs::remove_file(&self.path);
+        } else {
+            let _ = fs::write(&self.path, lines);
+        }
+    }
 }
 
 /// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
@@ -586,6 +608,16 @@ impl FightDetails {
 
     pub fn has(&self, ended_ms: u64) -> bool {
         self.path(ended_ms).is_file()
+    }
+
+    /// Deletes every saved analysis.
+    pub fn clear(&self) {
+        let Ok(entries) = fs::read_dir(&self.dir) else { return };
+        for e in entries.flatten() {
+            if e.file_name().to_str().is_some_and(|n| n.ends_with(".json")) {
+                let _ = fs::remove_file(e.path());
+            }
+        }
     }
 
     /// Keeps the newest [`DETAILS_LIMIT`] files.
@@ -712,6 +744,11 @@ impl History {
     pub fn fight(&self, index: usize) -> Option<&Fight> {
         self.fights.get(index)
     }
+
+    pub fn clear(&mut self) {
+        self.fights.clear();
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 #[cfg(test)]
@@ -819,6 +856,36 @@ mod tests {
         assert_eq!(list[0].index, 2);
         assert_eq!(list[0].my_dps, Some(10.0));
         assert_eq!(again.fight(0).unwrap().view.total_dps, 0.0);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn clearing_the_history_forgets_the_fights_and_their_analyses() {
+        let dir = temp_dir("clear");
+        let mut h = History::load(&dir);
+        h.push(Fight { ended_ms: 7, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        let details = FightDetails::new(&dir);
+        fs::create_dir_all(dir.join("fights")).unwrap();
+        fs::write(dir.join("fights/7.json"), "{}").unwrap();
+        fs::write(dir.join("fights/notes.txt"), "not ours").unwrap();
+        assert!(details.has(7));
+        h.clear();
+        details.clear();
+        assert_eq!(h.len(), 0);
+        assert_eq!(History::load(&dir).len(), 0, "gone from disk too");
+        assert!(!details.has(7));
+        assert!(dir.join("fights/notes.txt").exists(), "only analyses are deleted");
+
+        // Dungeon runs: the past ones go, the one you're in stays.
+        let run = |entered_us| meter_core::dungeon::Instance { map: 600_072, entered_us, started_us: Some(entered_us + 1), completed_us: None };
+        let mut instances = Instances::load(&dir);
+        instances.record(run(100));
+        instances.record(run(200));
+        instances.clear_except(Some(200));
+        let again = Instances::load(&dir);
+        assert!(again.get(100).is_none() && again.get(200).is_some());
+        Instances::load(&dir).clear_except(None);
+        assert!(Instances::load(&dir).get(200).is_none());
         fs::remove_dir_all(dir).ok();
     }
 

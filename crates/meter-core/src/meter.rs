@@ -19,7 +19,7 @@ use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
 use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
 use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
-use crate::cast::{parse_cast, OPCODE_CAST};
+use crate::cast::{parse_cast, parse_cast_start, parse_cast_stop, OPCODE_CAST, OPCODE_CAST_START, OPCODE_CAST_STOP};
 use crate::cooldowns::{CastCooldowns, CasterCooldown, CooldownView, Cooldowns};
 use crate::pvp::{PvpSession, PvpTracker};
 use crate::fieldboss::{parse_world_map, FieldBoss, OPCODE_WORLD_MAP};
@@ -243,6 +243,11 @@ struct Encounter {
     instance: Option<(u32, u64)>,
     /// Players who died during it.
     deaths: Vec<(u64, Death)>,
+    /// Players who came back to life during it: (when, who).
+    revived: Vec<(u64, u64)>,
+    /// Your party's players (you too) who did something in it, as the party was then: so
+    /// it still shows them after the party breaks up.
+    party: HashSet<u64>,
     end: Option<FightEnd>,
 }
 
@@ -259,6 +264,8 @@ impl Encounter {
             attackers: HashSet::new(),
             instance: None,
             deaths: Vec::new(),
+            revived: Vec::new(),
+            party: HashSet::new(),
             end: None,
         }
     }
@@ -403,6 +410,18 @@ pub struct TargetView {
     pub time_to_kill_s: Option<f64>,
     /// You picked it (otherwise it's the fight's main target).
     pub selected: bool,
+    /// What it's casting, if the cast has a cast time and hasn't gone off yet.
+    pub cast: Option<CastBar>,
+}
+
+/// A cast under way.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct CastBar {
+    pub skill: u32,
+    /// Filled in by the app from its skill table.
+    pub skill_name: Option<String>,
+    pub cast_ms: u32,
+    pub remaining_ms: u32,
 }
 
 /// Why a fight ended.
@@ -445,6 +464,9 @@ pub struct DeathView {
     pub hits: Vec<RecapHit>,
     /// The last heal received in the fight.
     pub last_heal: Option<RecapHit>,
+    /// How long until they were brought back, if it was during the fight.
+    #[serde(default)]
+    pub revived_after_s: Option<f64>,
 }
 
 /// One hit (or heal) in a death recap.
@@ -695,6 +717,10 @@ pub struct Meter {
     stagger: HashMap<u64, Stagger>,
     /// Field bosses read from a world map since the last [`Meter::take_field_bosses`].
     field_bosses: Vec<FieldBoss>,
+    /// Casts under way: caster -> (skill, when it started, cast time in ms).
+    casting: HashMap<u64, (u32, u64, u32)>,
+    /// The newest message's time.
+    latest_us: u64,
 }
 
 impl Default for Meter {
@@ -732,6 +758,8 @@ impl Meter {
             aggro: HashMap::new(),
             stagger: HashMap::new(),
             field_bosses: Vec::new(),
+            casting: HashMap::new(),
+            latest_us: 0,
         }
     }
 
@@ -766,6 +794,17 @@ impl Meter {
     /// Your skills that aren't ready at `now_us`, soonest first.
     pub fn cooldowns(&self, now_us: u64) -> Vec<CooldownView> {
         self.cooldowns.active(now_us)
+    }
+
+    /// How many of your party (you included) took part in the fight shown (the one going,
+    /// or the last): a fight from before the party broke up still counts as a party's.
+    pub fn shown_party_size(&self) -> usize {
+        self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.party.len())
+    }
+
+    /// Your skills (base ids), once the game has sent their list.
+    pub fn your_skills(&self) -> &[u32] {
+        self.cooldowns.known()
     }
 
     /// Your party's (you included) long cooldowns seen this session: ready or time left.
@@ -812,10 +851,17 @@ impl Meter {
 
     /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
+        self.latest_us = self.latest_us.max(ts_us);
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         if opcode == OPCODE_CAST {
-            if let Some(c) = parse_cast(payload).filter(|c| c.skill >= PLAYER_SKILL_MIN) {
-                self.cast_cooldowns.cast(ts_us, c.caster, c.skill, c.cooldown_ms);
+            if let Some(c) = parse_cast(payload) {
+                // The cast went off, so its cast time is over.
+                if self.casting.get(&c.caster).is_some_and(|(skill, _, _)| *skill == c.skill) {
+                    self.casting.remove(&c.caster);
+                }
+                if c.skill >= PLAYER_SKILL_MIN {
+                    self.cast_cooldowns.cast(ts_us, c.caster, c.skill, c.cooldown_ms);
+                }
             }
         }
         if self.effects.feed(ts_us, opcode, payload) {
@@ -902,6 +948,31 @@ impl Meter {
                         self.field_bosses.extend(bosses);
                     }
                 }
+                OPCODE_CAST_START => {
+                    if let Some(c) = parse_cast_start(payload).filter(|c| c.cast_ms > 0) {
+                        self.casting.insert(c.caster, (c.skill, ts_us, c.cast_ms));
+                    }
+                }
+                OPCODE_CAST_STOP => {
+                    if let Some((caster, skill)) = parse_cast_stop(payload) {
+                        if self.casting.get(&caster).is_some_and(|(s, _, _)| *s == skill) {
+                            self.casting.remove(&caster);
+                        }
+                    }
+                }
+                state::OPCODE_REVIVED => {
+                    if let Some(entity) = state::parse_revived(payload) {
+                        self.died.remove(&entity);
+                        if let Some(enc) = self.current.as_mut() {
+                            enc.revived.push((ts_us, entity));
+                        }
+                    }
+                }
+                state::OPCODE_MIDBOSS_KILLED => {
+                    if let Some(kind) = state::parse_midboss_killed(payload) {
+                        self.on_boss_killed(ts_us, kind);
+                    }
+                }
                 _ => {}
             }
             if let Some(Change::Relogin { .. }) = self.registry.observe(opcode, payload) {
@@ -913,6 +984,7 @@ impl Meter {
                 self.hp = HpLog::default();
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
+                self.casting.clear();
                 self.pvp.end();
             }
             return;
@@ -1038,6 +1110,7 @@ impl Meter {
             }
             self.current = Some(enc);
         }
+        let party_member = player && self.registry.in_party(by);
         let enc = self.current.as_mut().expect("encounter exists");
         enc.last_activity_us = enc.last_activity_us.max(ts_us);
         // Only your own hits make a target yours. Before we know who we are, everything
@@ -1047,6 +1120,9 @@ impl Meter {
         }
         if player {
             enc.record(&hit);
+            if party_member {
+                enc.party.insert(by);
+            }
         } else if on_player {
             enc.taken.push(hit);
         }
@@ -1138,6 +1214,18 @@ impl Meter {
                 enc.deaths.push((ts_us, d));
             }
             return;
+        }
+        self.check_end(ts_us);
+    }
+
+    /// The game says a boss of this type was killed: in case its own death was missed (it
+    /// died out of view), it counts as dead for ending the fight.
+    fn on_boss_killed(&mut self, ts_us: u64, kind: u32) {
+        let Some(enc) = &self.current else { return };
+        let killed: Vec<u64> =
+            enc.targets.keys().copied().filter(|t| self.registry.mob_type(*t) == Some(kind)).collect();
+        for t in killed {
+            self.died.entry(t).or_insert(ts_us);
         }
         self.check_end(ts_us);
     }
@@ -1425,7 +1513,7 @@ impl Meter {
         let shown = |id: u64| match self.scope {
             _ if me.is_none() => true,
             Scope::Mine => me == Some(id),
-            Scope::Party => self.registry.in_party(id),
+            Scope::Party => self.registry.in_party(id) || e.party.contains(&id),
             Scope::Everyone => true,
         };
         let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
@@ -1553,6 +1641,15 @@ impl Meter {
             stagger: self.stagger.get(&entity).copied(),
             time_to_kill_s,
             selected: picked.is_some(),
+            cast: self.casting.get(&entity).and_then(|&(skill, start, cast_ms)| {
+                let end = start + u64::from(cast_ms) * 1000;
+                (end > self.latest_us).then(|| CastBar {
+                    skill,
+                    skill_name: None,
+                    cast_ms,
+                    remaining_ms: ((end - self.latest_us) / 1000) as u32,
+                })
+            }),
         })
     }
 
@@ -1591,6 +1688,11 @@ impl Meter {
             healed,
             hits: taken.iter().rev().take(RECAP_HITS).rev().map(|h| recap(h)).collect(),
             last_heal: e.heals.iter().rev().find(|h| h.target == d.entity && h.ts_us <= at).map(recap),
+            revived_after_s: e
+                .revived
+                .iter()
+                .find(|(t, who)| *who == d.entity && *t >= at)
+                .map(|(t, _)| (t - at) as f64 / 1e6),
         }
     }
 
@@ -2308,6 +2410,78 @@ mod tests {
         let hits: Vec<_> = d.hits.iter().map(|h| (h.before_s, h.amount, h.hp)).collect();
         assert_eq!(hits, [(2.0, 4000, Some(5000)), (0.0, 6000, Some(0))]);
         assert_eq!(d.last_heal.as_ref().map(|h| h.amount), Some(1000));
+        assert_eq!(d.revived_after_s, None);
+        // Brought back 6 s later: alive again, and the recap says when.
+        m.feed(10 * S, state::OPCODE_REVIVED, &encode_varint(15772));
+        assert!(!m.died.contains_key(&15772));
+        assert_eq!(m.snapshot().encounter.unwrap().deaths[0].revived_after_s, Some(6.0));
+    }
+
+    /// A cast start (0x3809) with a cast time, aimed at `target`.
+    fn cast_start(caster: u64, skill: u32, target: u64, cast_ms: u64) -> Vec<u8> {
+        let mut p = encode_varint(caster);
+        p.push(0);
+        p.extend(skill.to_le_bytes());
+        p.extend([1, 0]);
+        p.extend(encode_varint(target));
+        p.extend([0, 0, 0, 0]);
+        p.extend(encode_varint(cast_ms));
+        p.push(1);
+        p
+    }
+
+    #[test]
+    fn the_target_frame_shows_a_cast_until_it_goes_off() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_604_380, ME, 3000));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        let cast = m.snapshot().target.unwrap().cast.unwrap();
+        assert_eq!((cast.skill, cast.cast_ms, cast.remaining_ms), (1_604_380, 3000, 2000));
+        // It went off.
+        let mut done = encode_varint(BOSS);
+        done.push(0);
+        done.extend(1_604_380u32.to_le_bytes());
+        done.extend([0x40, 0]);
+        done.extend(encode_varint(ME));
+        m.feed(4 * S, OPCODE_CAST, &done);
+        assert_eq!(m.snapshot().target.unwrap().cast, None);
+        // Another one, stopped (interrupted) before it finished.
+        m.feed(5 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_604_410, ME, 5000));
+        assert!(m.snapshot().target.unwrap().cast.is_some());
+        let mut stop = encode_varint(BOSS);
+        stop.extend([8, 0x18]);
+        stop.extend(1_604_410u32.to_le_bytes());
+        stop.push(0);
+        m.feed(6 * S, crate::cast::OPCODE_CAST_STOP, &stop);
+        assert_eq!(m.snapshot().target.unwrap().cast, None);
+    }
+
+    #[test]
+    fn a_fight_keeps_its_party_after_the_party_breaks_up() {
+        let mut m = meter_with_boss();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PARTY_ROSTER, &roster(&["Pingu", "NeneneTowawa"]));
+        m.set_scope(Scope::Party);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, 15772, 12_010_340, 3000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+        // The dungeon's done and the party breaks up: you left it.
+        m.feed(10 * S, crate::entities::OPCODE_PARTY_LEFT, &[0, 0]);
+        assert!(m.registry().party().is_empty());
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.players.len(), e.total_damage), (2, 8000), "Pingu still shows");
+        assert_eq!(m.shown_party_size(), 2);
+    }
+
+    #[test]
+    fn the_game_saying_a_middle_boss_was_killed_ends_the_fight() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // Its own death went unseen (out of view); the dungeon's notice is enough.
+        m.feed(3 * S, state::OPCODE_MIDBOSS_KILLED, &2_400_002u32.to_le_bytes());
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
     }
 
     #[test]

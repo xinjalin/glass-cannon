@@ -34,7 +34,7 @@ button {
   flex-direction: column;
   height: 100%;
   padding: 0 0.7em 0.6em;
-  background: rgba(var(--tint-rgb), max(var(--alpha), 0.6));
+  background: var(--tint);
   border: 1px solid var(--line-faint);
 }
 
@@ -55,7 +55,7 @@ button {
 .tabs { display: flex; flex: none; flex-wrap: wrap; gap: 0.2em; margin-bottom: 0.4em; }
 .tabs button { color: var(--accent); }
 .tabs button:hover { background: var(--line-faint); }
-.tabs button[aria-selected="true"] { color: var(--ink); background: var(--accent); text-shadow: none; }
+.tabs button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 
 .scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-right: 0.35em; }
 .scroll::-webkit-scrollbar { width: 0.4em; }
@@ -63,6 +63,11 @@ button {
 
 .empty { color: var(--muted); text-align: center; padding: 2em 0.5em; }
 .note { color: var(--faint); font-size: 0.85em; }
+.history-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6em; }
+.history-foot button { flex: none; color: var(--accent); font-size: 0.85em; }
+.clear-ask { flex: none; color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+.clear-ask button { font-size: 1em; }
+.history-foot button.danger { color: var(--bad); }
 .list { margin: 0; padding: 0; list-style: none; }
 
 .icon, .icon.blank {
@@ -92,7 +97,7 @@ button {
 .cd-main { display: flex; flex-direction: column; gap: 0.2em; min-width: 0; }
 .cd-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cd-bar { height: 0.35em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
-.cd-fill { height: 100%; background: var(--bar, var(--accent)); }
+.cd-fill { height: 100%; background: var(--bar, var(--accent-fill)); }
 .cd-time { color: var(--accent-2); font-variant-numeric: tabular-nums; text-align: right; min-width: 3.2em; }
 .cd-charges { color: var(--ok); font-size: 0.85em; }
 .cd.soon .cd-time { color: var(--ok); }
@@ -161,7 +166,7 @@ button {
   flex: none;
   padding: 0 0.35em;
   border-radius: 0.25em;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
   text-shadow: none;
   font-size: 0.8em;
@@ -177,7 +182,7 @@ button {
 .bell:hover { opacity: 1; }
 .lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
 .lead button { color: var(--accent); }
-.lead button[aria-selected="true"] { color: var(--ink); background: var(--accent); text-shadow: none; }
+.lead button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .section {
   margin: 0.8em 0 0.3em;
   color: var(--muted);
@@ -202,6 +207,9 @@ button {
 .tf-stagger { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
 #tf-stagger-fill { display: block; height: 100%; background: var(--warn); }
 #tf-stagger-fill.broken { background: var(--ok); }
+.tf-cast-line { color: var(--accent-2); }
+.tf-cast { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#tf-cast-fill { display: block; height: 100%; background: var(--accent-2); }
 .timer.stale .timer-when { color: var(--faint); }
 
 /* ---------------------------------------------------------------- party cooldowns */

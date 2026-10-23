@@ -35,7 +35,8 @@ body {
   flex-direction: column;
   height: 100%;
   padding: 0 0.9em 0.7em;
-  /* Charts need a steady background, so this window is always well tinted. */
+  /* Charts need a steady background, so this window stays well tinted whatever the
+     background chosen ("clear" only turns off the frosting). */
   background: rgba(var(--tint-rgb), max(var(--alpha), 0.9));
 }
 
@@ -98,7 +99,7 @@ svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-wi
 .chip .sub { color: var(--muted); font-size: 0.9em; }
 .chip[aria-checked="true"] {
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
   text-shadow: none;
 }
@@ -116,7 +117,7 @@ svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-wi
   margin-bottom: 0.6em;
 }
 #tabs button { color: var(--accent); padding: 0.05em 0.3em; }
-#tabs button[aria-selected="true"] { background: var(--accent); color: var(--ink); text-shadow: none; }
+#tabs button[aria-selected="true"] { background: var(--accent-fill); color: var(--ink); text-shadow: none; }
 
 #scroll { flex: 1; min-height: 0; overflow: auto; padding-right: 0.3em; }
 .tab { display: flex; flex-direction: column; gap: 0.8em; }

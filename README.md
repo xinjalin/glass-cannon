@@ -72,7 +72,8 @@ close it. Tabs:
 - **rotation**: the opener and a zoomable cast timeline that follows a live fight.
 - **buffs**: buff and debuff uptime with icons, and which buffs were up for each skill.
 - **healing** and **taken**: who healed whom and what hit whom.
-- **deaths**: who died to what, the last hits with HP after each, and the healing before.
+- **deaths**: who died to what, the last hits with HP after each, the healing before, and
+  how long until they were revived.
 
 **[copy text]** and **[copy image]** put a summary on the clipboard for Discord.
 
@@ -84,15 +85,21 @@ the meter.
 Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
 damage and, when the game says it was completed, the clear time (✓). Right-click a run for
 one analysis of all its fights, or a fight for that fight. A run is one entry into the
-dungeon (older fights: no break over 10 minutes and no boss fought twice).
+dungeon (older fights: no break over 10 minutes and no boss fought twice). **[clear]** at
+the bottom deletes every fight, dungeon run and PvP session (it asks first); a dungeon
+you're in at the time keeps grouping its next fights as a run.
 
 ### Windows
 
-Open from the settings; each stays where you put it and opens again next time.
+Open from the settings; they open again next time. Every window, the meter and settings too,
+opens where you last left it, and takes the background chosen in the settings (the
+settings and analysis windows stay tinted enough to read).
 
 - **cooldowns**: your skills that aren't ready, with time left and charges.
-- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left.
-- **target frame**: your target's HP, time to kill, enrage, who it's attacking, stagger.
+- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
+  (yours from the start, the others' once used).
+- **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
+  attacking, stagger.
 - **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
   in game to read them) in your time; ring the 🔔 for an alert on the meter before one
   starts.

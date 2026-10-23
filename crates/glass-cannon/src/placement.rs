@@ -1,14 +1,19 @@
-//! Where the overlay opens: where you last left it, otherwise on the game's monitor
-//! (or the primary one), near the right edge.
+//! Where the windows open: where you last left them. The overlay otherwise opens on the
+//! game's monitor (or the primary one), near the right edge; the others beside it.
+//!
+//! Every window's position and size are kept in `windows.json` as you move or resize it
+//! (written at most once a second), so they come back next time even after a crash.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::{Monitor, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, Window};
 
+/// The overlay's placement from before every window's was kept (read if there's no newer).
 const STATE_FILE: &str = "window.json";
+const WINDOWS_FILE: &str = "windows.json";
 /// Gap from the monitor's right edge, in logical pixels.
 const EDGE_MARGIN: f64 = 32.0;
 /// Top of the overlay, as a fraction of the monitor height (clear of the minimap).
@@ -23,62 +28,106 @@ pub struct Placement {
     pub height: u32,
 }
 
-pub fn state_path(config_dir: &Path) -> PathBuf {
-    config_dir.join(STATE_FILE)
+/// Every window's last placement, by label.
+pub struct Placements {
+    path: PathBuf,
+    by_label: BTreeMap<String, Placement>,
+    changed: bool,
 }
 
-pub fn load(path: &Path) -> Option<Placement> {
-    serde_json::from_slice(&fs::read(path).ok()?).ok()
-}
+impl Placements {
+    pub fn load(config_dir: &Path) -> Self {
+        let path = config_dir.join(WINDOWS_FILE);
+        let mut by_label: BTreeMap<String, Placement> =
+            fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        if !by_label.contains_key(crate::OVERLAY) {
+            let old = fs::read(config_dir.join(STATE_FILE)).ok().and_then(|b| serde_json::from_slice(&b).ok());
+            if let Some(p) = old {
+                by_label.insert(crate::OVERLAY.into(), p);
+            }
+        }
+        Self { path, by_label, changed: false }
+    }
 
-/// Saves the window's position and size so the next start opens in the same place.
-pub fn save<R: Runtime>(window: &Window<R>, path: &Path) {
-    let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) else {
-        return;
-    };
-    // A minimised window reports a position far off-screen; don't remember that.
-    if window.is_minimized().unwrap_or(false) {
-        return;
+    pub fn get(&self, label: &str) -> Option<Placement> {
+        self.by_label.get(label).copied()
     }
-    let p = Placement {
-        x: pos.x,
-        y: pos.y,
-        width: size.width,
-        height: size.height,
-    };
-    if let Some(dir) = path.parent() {
-        let _ = fs::create_dir_all(dir);
-    }
-    if let Ok(json) = serde_json::to_vec_pretty(&p) {
-        let _ = fs::write(path, json);
-    }
-}
 
-/// Positions the window before it is shown. Returns where it was put when that was
-/// an automatic choice (not a restored position), so a later game launch can move it.
-pub fn place<R: Runtime>(window: &WebviewWindow<R>, saved: Option<Placement>) -> Option<PhysicalPosition<i32>> {
-    let monitors = window.available_monitors().unwrap_or_default();
-    if let Some(p) = saved {
-        // Back where it was, pulled fully onto the screen it's mostly on (a screen can
-        // have changed size, or the window been left half off it).
-        let r = crate::layout::Rect::new(p.x, p.y, p.width as i32, p.height as i32);
-        let home = monitors
-            .iter()
-            .filter(|m| overlaps(m, &p))
-            .max_by_key(|m| r.overlap(&crate::settings::work_area(m)));
-        if let Some(m) = home {
-            let r = crate::layout::keep_inside(r, crate::settings::work_area(m));
-            // Saved as the window's outside; set_size takes the inside, so take off the frame
-            // (or the meter would grow by it every time it opens).
-            let frame = match (window.outer_size(), window.inner_size()) {
-                (Ok(o), Ok(i)) => (o.width as i32 - i.width as i32, o.height as i32 - i.height as i32),
-                _ => (0, 0),
-            };
-            let _ = window.set_size(PhysicalSize::new((r.w - frame.0).max(1) as u32, (r.h - frame.1).max(1) as u32));
-            let _ = window.set_position(PhysicalPosition::new(r.x, r.y));
-            return None;
+    pub fn set(&mut self, label: &str, p: Placement) {
+        if self.by_label.get(label) != Some(&p) {
+            self.by_label.insert(label.into(), p);
+            self.changed = true;
         }
     }
+
+    /// Writes the file if anything moved since the last time.
+    pub fn save_if_changed(&mut self) {
+        if !self.changed {
+            return;
+        }
+        self.changed = false;
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(json) = serde_json::to_vec_pretty(&self.by_label) {
+            let tmp = self.path.with_extension("json.tmp");
+            if fs::write(&tmp, json).is_ok() {
+                let _ = fs::rename(&tmp, &self.path);
+            }
+        }
+    }
+}
+
+/// Where a window is now (its outside: position and size), if it's showing. A minimised
+/// window reports a position far off-screen, and a hidden one isn't anywhere to keep.
+pub fn current<R: Runtime>(window: &Window<R>) -> Option<Placement> {
+    if window.is_minimized().unwrap_or(false) || !window.is_visible().unwrap_or(false) {
+        return None;
+    }
+    let (pos, size) = (window.outer_position().ok()?, window.outer_size().ok()?);
+    Some(Placement { x: pos.x, y: pos.y, width: size.width, height: size.height })
+}
+
+/// Puts a window back where it was saved, pulled fully onto the screen it's mostly on (a
+/// screen can have changed size, or the window been left half off it); with `size`, at its
+/// saved size too. False when no screen has it any more.
+pub fn restore<R: Runtime>(window: &WebviewWindow<R>, p: Placement, size: bool) -> bool {
+    let now = window.outer_size().ok();
+    let (width, height) = match (size, now) {
+        (false, Some(s)) => (s.width, s.height),
+        _ => (p.width, p.height),
+    };
+    let saved = Placement { width, height, ..p };
+    let r = crate::layout::Rect::new(p.x, p.y, width as i32, height as i32);
+    let monitors = window.available_monitors().unwrap_or_default();
+    let Some(m) = monitors
+        .iter()
+        .filter(|m| overlaps(m, &saved))
+        .max_by_key(|m| r.overlap(&crate::settings::work_area(m)))
+    else {
+        return false;
+    };
+    let r = crate::layout::keep_inside(r, crate::settings::work_area(m));
+    if size {
+        // Saved as the window's outside; set_size takes the inside, so take off the frame
+        // (or the window would grow by it every time it opens).
+        let frame = match (window.outer_size(), window.inner_size()) {
+            (Ok(o), Ok(i)) => (o.width as i32 - i.width as i32, o.height as i32 - i.height as i32),
+            _ => (0, 0),
+        };
+        let _ = window.set_size(PhysicalSize::new((r.w - frame.0).max(1) as u32, (r.h - frame.1).max(1) as u32));
+    }
+    let _ = window.set_position(PhysicalPosition::new(r.x, r.y));
+    true
+}
+
+/// Positions the overlay before it is shown. Returns where it was put when that was an
+/// automatic choice (not a restored position), so a later game launch can move it.
+pub fn place<R: Runtime>(window: &WebviewWindow<R>, saved: Option<Placement>) -> Option<PhysicalPosition<i32>> {
+    if saved.is_some_and(|p| restore(window, p, true)) {
+        return None;
+    }
+    let monitors = window.available_monitors().unwrap_or_default();
     let target = game_monitor(&monitors)
         .or_else(|| window.primary_monitor().ok().flatten())
         .or_else(|| monitors.first().cloned())?;
@@ -191,5 +240,28 @@ mod win32 {
         // SAFETY: the callback only touches `search`, which outlives the call.
         unsafe { EnumWindows(visit, &mut search as *mut Search as isize) };
         search.best.map(|(_, r)| r)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn placements_are_kept_and_the_old_overlay_file_still_counts() {
+        let dir = std::env::temp_dir().join(format!("gc-placements-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        // From before every window's was kept: just the overlay's.
+        fs::write(dir.join(STATE_FILE), r#"{ "x": 10, "y": 20, "width": 400, "height": 250 }"#).unwrap();
+        let mut p = Placements::load(&dir);
+        assert_eq!(p.get(crate::OVERLAY), Some(Placement { x: 10, y: 20, width: 400, height: 250 }));
+        let target = Placement { x: 600, y: 140, width: 340, height: 220 };
+        p.set("target", target);
+        p.save_if_changed();
+        let again = Placements::load(&dir);
+        assert_eq!(again.get("target"), Some(target));
+        assert_eq!(again.get(crate::OVERLAY).map(|o| o.x), Some(10), "kept in the new file too");
+        assert_eq!(again.get("history"), None);
+        fs::remove_dir_all(dir).ok();
     }
 }

@@ -109,12 +109,33 @@ pub fn parse_ping(p: &[u8]) -> Option<i64> {
     Some(i64::from_le_bytes(p.get(2..10)?.try_into().ok()?))
 }
 
+/// A player came back to life: varint entity. In Vakron Sky Island each of the 4 followed
+/// that player's death (`0x8d04`) by 4–8 s.
+pub const OPCODE_REVIVED: u16 = 0x8d26;
+/// A dungeon's middle boss was killed: u32 its mob type. Tiere and Thamon in Vakron Sky
+/// Island, each the moment it died (the last boss ends the dungeon with `0x6101` instead).
+pub const OPCODE_MIDBOSS_KILLED: u16 = 0x572e;
+
+pub fn parse_revived(p: &[u8]) -> Option<u64> {
+    read_varint(p, &mut 0)
+}
+
+pub fn parse_midboss_killed(p: &[u8]) -> Option<u32> {
+    Some(u32::from_le_bytes(p.get(..4)?.try_into().ok()?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn hex(s: &str) -> Vec<u8> {
         s.split_whitespace().map(|b| u8::from_str_radix(b, 16).unwrap()).collect()
+    }
+
+    #[test]
+    fn revived_and_midboss_killed() {
+        assert_eq!(parse_revived(&hex("fd 44")), Some(8829));
+        assert_eq!(parse_midboss_killed(&hex("8a 1b 23 00")), Some(2_300_810));
     }
 
     #[test]

@@ -29,18 +29,13 @@ body {
 }
 
 #panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.4em;
   height: 100%;
   padding: 0 0.65em 0.55em;
   background: var(--tint);
-}
-
-/* "clear": no tint at all, so the text gets a heavier outline to stay readable. */
-[data-backdrop="clear"] {
-  --tint: transparent;
-  --shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 /* ---------------------------------------------------------------- time & ping strip */
@@ -92,19 +87,29 @@ body {
   white-space: nowrap;
 }
 
+/* The status light: its own colour per state, with a glow so it reads at a glance; it
+   pulses while waiting for the game and in combat. */
 .dot {
+  --dot: var(--faint);
   flex: none;
-  width: 0.5em;
-  height: 0.5em;
+  width: 0.62em;
+  height: 0.62em;
   border-radius: 50%;
-  background: var(--faint);
+  background: var(--dot);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 0.35em var(--dot);
 }
-.dot.capturing { background: var(--accent); }
-.dot.fighting { background: var(--accent); box-shadow: 0 0 0.5em var(--accent); }
+.dot.capturing { --dot: var(--ok); }
+.dot.fighting { --dot: var(--bad); animation: dot-pulse 1.2s ease-in-out infinite; }
 .dot.waiting,
-.dot.starting { background: var(--warn); }
-.dot.error { background: var(--bad); }
-.dot.replay { background: var(--accent-2); }
+.dot.starting { --dot: var(--warn); animation: dot-pulse 2.4s ease-in-out infinite; }
+.dot.error { --dot: var(--bad); }
+.dot.replay { --dot: var(--accent-2); }
+@keyframes dot-pulse {
+  50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 0.75em 0.12em var(--dot); filter: brightness(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot { animation: none !important; }
+}
 
 #fight {
   flex: 1;
@@ -151,7 +156,7 @@ button.on { color: var(--accent); }
 button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 /* Whose damage counts: the same filled button whichever it shows, as wide as its longest
    label ("party") so it doesn't change size. */
-#scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent); color: var(--ink); text-shadow: none; }
+#scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
 #scope:hover { filter: brightness(1.1); }
 /* Auto: a small mark in the corner (the scope follows your party). */
 #scope { position: relative; }
@@ -167,16 +172,21 @@ button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 }
 
 /* People joining and leaving the party. */
-#notices { margin: 0; padding: 0; list-style: none; }
-#notices:empty { display: none; }
-.notice {
-  padding: 0.15em 0.45em;
+#notice {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 0.4em;
+  border-radius: 0.25em;
+  background: var(--tint-strong);
   color: var(--accent-2);
-  font-size: 0.9em;
+  font-size: 0.85em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
+#notice > span { overflow: hidden; text-overflow: ellipsis; }
 
 svg {
   width: 1.05em;
@@ -216,8 +226,8 @@ legend {
    longest ("taken") so it doesn't change size. Two classes, so `button.on` doesn't turn
    its text the colour of its background. */
 .view-switch,
-.view-switch.on { width: calc(5ch + 0.7em); min-width: 0; height: 1.35em; padding: 0; background: var(--accent); color: var(--ink); text-shadow: none; }
-.view-switch:hover { background: var(--accent); color: var(--ink); filter: brightness(1.1); }
+.view-switch.on { width: calc(5ch + 0.7em); min-width: 0; height: 1.35em; padding: 0; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
+.view-switch:hover { background: var(--accent-fill); color: var(--ink); filter: brightness(1.1); }
 #float .view-switch { height: 1.6em; font-size: 0.9em; }
 .back {
   min-width: 1.1em;
@@ -260,13 +270,13 @@ legend {
 .end-tag.wipe { color: var(--bad); }
 .name[data-deaths]::after { content: " ☠" attr(data-deaths); color: var(--bad); }
 [data-highlight="self"] .row.self .name[data-deaths]::after,
-[data-highlight="all"] .row .name[data-deaths]::after { color: var(--ink); }
+[data-highlight="all"] .row .name[data-deaths]::after { color: var(--row-ink); }
 
 .boss {
   flex: none;
   padding: 0 0.35em;
   border-radius: 0.25em;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
   text-shadow: none;
   font-size: 0.8em;
@@ -285,9 +295,11 @@ legend {
   overflow-y: auto;
 }
 
-/* Each row's colour: the bar colour (the theme's accent unless chosen), or its class colour. */
-.row { --row: var(--bar, var(--accent)); cursor: pointer; }
-[data-bars="class"] .row { --row: var(--class, var(--accent)); }
+/* Each row's colour: the bar colour (the theme's accent unless chosen), or its class colour;
+   and the text drawn on it when the row is filled. */
+.row { --row: var(--bar, var(--accent-fill)); --row-ink: var(--bar-ink, var(--ink)); cursor: pointer; }
+[data-bars="class"] .row { --row: var(--class, var(--accent-fill)); --row-ink: var(--ink); }
+[data-bars="class"] .row[class*=" c1"] { --row-ink: #1b0f11; }
 /* Row height and spacing are whole pixels (set by app.js) so every gap is the same. */
 .row + .row { margin-top: var(--row-gap, 2px); }
 
@@ -310,6 +322,9 @@ legend {
 .leader-mark { flex: none; color: var(--warn); }
 .dps { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); }
 .share { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+/* The party view's combat power and gear score: wider, each with its label. */
+.party-row .line { grid-template-columns: 1.3em minmax(0, 1fr) var(--meter-w, 4.5em) 4.6em 4.4em; }
+.stat-tag { margin-right: 0.35em; font-size: 0.78em; opacity: 0.65; }
 
 .class-icon {
   flex: none;
@@ -339,7 +354,7 @@ legend {
 [data-highlight="self"] .row.self:hover .line,
 [data-highlight="all"] .row .line {
   background: var(--row);
-  color: var(--ink);
+  color: var(--row-ink);
   text-shadow: none;
 }
 [data-highlight="all"] .row:hover .line { filter: brightness(1.08); }
@@ -348,19 +363,19 @@ legend {
 [data-highlight="self"] .row.self .rank,
 [data-highlight="all"] .row .dps,
 [data-highlight="all"] .row .share,
-[data-highlight="all"] .row .rank { color: var(--ink); }
+[data-highlight="all"] .row .rank { color: var(--row-ink); }
 .row.self .name { font-weight: 700; }
 .row.self .rank { font-size: 0; }
 .row.self .rank::before { content: "»"; font-size: var(--fs); }
 [data-highlight="off"] .row.self .rank::before { color: var(--row); }
 [data-highlight="self"] .row.self .seg,
-[data-highlight="all"] .row .seg { background: rgba(27, 15, 17, 0.2); }
+[data-highlight="all"] .row .seg { background: color-mix(in srgb, var(--row-ink) 20%, transparent); }
 [data-highlight="self"] .row.self .seg.on,
-[data-highlight="all"] .row .seg.on { background: var(--ink); }
+[data-highlight="all"] .row .seg.on { background: var(--row-ink); }
 [data-highlight="self"] .row.self .class-icon,
 [data-highlight="all"] .row .class-icon { filter: none; }
 [data-highlight="self"] .row.self .class-icon.blank,
-[data-highlight="all"] .row .class-icon.blank { background: var(--ink); }
+[data-highlight="all"] .row .class-icon.blank { background: var(--row-ink); }
 
 /* ---------------------------------------------------------------- skill breakdown */
 
@@ -488,7 +503,7 @@ body:hover #lock { opacity: 0.8; }
 ::-webkit-scrollbar { width: 0.4em; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
 
-.notice.alert { color: var(--warn); }
+#notice.alert { color: var(--warn); }
 
 /* Faded outside combat (settings → fade outside combat): back under the mouse. */
 #panel { transition: opacity 0.4s ease; }

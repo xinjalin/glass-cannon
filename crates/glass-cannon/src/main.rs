@@ -153,6 +153,8 @@ pub struct AppState {
     field_bosses: Mutex<store::FieldBosses>,
     /// Side windows placed beside the meter once already.
     panels_placed: Mutex<std::collections::HashSet<String>>,
+    /// Where every window was last (saved as they move, at most once a second).
+    placements: Mutex<placement::Placements>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -198,8 +200,9 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
-        // Whose damage counts follows your party, unless chosen by hand.
-        let scope = lock(&app.settings).scope_for(meter.registry().party().len());
+        // Whose damage counts follows your party, unless chosen by hand: the party now, or
+        // the one in the fight shown (it still shows them after the party breaks up).
+        let scope = lock(&app.settings).scope_for(party_size(&meter));
         if meter.scope() != scope {
             meter.set_scope(scope);
         }
@@ -361,14 +364,45 @@ fn set_scope(app: State<'_, Arc<AppState>>, scope: Option<Scope>) {
     drop(s);
     // Settings released before the meter: the snapshot takes them the other way round.
     let mut meter = app.engine.meter();
-    let scope = settings.scope_for(meter.registry().party().len());
+    let scope = settings.scope_for(party_size(&meter));
     meter.set_scope(scope);
+}
+
+/// The party size the auto scope follows: your party now, or the party that was in the
+/// fight shown, whichever is larger.
+fn party_size(meter: &Meter) -> usize {
+    meter.registry().party().len().max(meter.shown_party_size())
 }
 
 #[tauri::command]
 fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
     let fights = lock(&app.history).summaries(&app.details);
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
+}
+
+/// Forgets every finished fight, dungeon run and PvP session: the history, the fights'
+/// saved analyses, the dungeon runs' records and the PvP log. Only the dungeon you're in
+/// now, if you are, is kept, so its fights still to come are still grouped as a run.
+#[tauri::command]
+fn clear_history(handle: AppHandle, app: State<'_, Arc<AppState>>) {
+    let here = app.engine.meter().instance().map(|i| i.entered_us);
+    lock(&app.history).clear();
+    app.details.clear();
+    lock(&app.instances).clear_except(here);
+    lock(&app.pvp).clear();
+    // An analysis of a saved fight (or run) goes back to the live fight: its history index
+    // would otherwise point at whatever fight takes that place next.
+    let selection = {
+        let mut s = lock(&app.analysis_selection);
+        let saved = s.fight.is_some() || s.run.is_some();
+        s.fight = None;
+        s.run = None;
+        saved.then_some(*s)
+    };
+    if let (Some(selection), Some(w)) = (selection, handle.get_webview_window(ANALYSIS)) {
+        let _ = w.emit("analysis-select", selection);
+    }
+    let _ = handle.emit("history-cleared", ());
 }
 
 #[tauri::command]
@@ -509,8 +543,8 @@ fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
     };
     let app = handle.state::<Arc<AppState>>();
     if !app.overlay_placed.swap(true, Ordering::SeqCst) {
-        let state_file = placement::state_path(&app.config_dir);
-        if let Some(placed_at) = placement::place(&window, placement::load(&state_file)) {
+        let saved = lock(&app.placements).get(OVERLAY);
+        if let Some(placed_at) = placement::place(&window, saved) {
             app.overlay_new.store(true, Ordering::SeqCst);
             // Not restored from last time: move to the game's monitor once it starts.
             let w: WebviewWindow = window.clone();
@@ -615,7 +649,8 @@ fn main() {
     let replay = args.replay.is_some();
     let known_players = KnownPlayers::load(&config_dir);
     // Known from the start: the page can ask to be fitted before the overlay is placed.
-    let overlay_new = placement::load(&placement::state_path(&config_dir)).is_none();
+    let placements = placement::Placements::load(&config_dir);
+    let overlay_new = placements.get(OVERLAY).is_none();
     let config_dir_for_pvp = config_dir.clone();
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
@@ -654,6 +689,7 @@ fn main() {
         pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
         field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
         panels_placed: Mutex::new(std::collections::HashSet::new()),
+        placements: Mutex::new(placements),
     });
     state.locked.store(lock(&state.settings).locked, Ordering::SeqCst);
 
@@ -673,10 +709,12 @@ fn main() {
             rename_skill,
             rename_npc,
             history_list,
+            clear_history,
             history_fight,
             settings::settings_status,
             settings::set_record,
             settings::set_appearance,
+            settings::pick_colour,
             settings::fit_settings,
             analysis::open_analysis,
             analysis::follow_fight,
@@ -717,33 +755,64 @@ fn main() {
             clickthrough::watch(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
             panels::reopen(app.handle(), &state);
+            save_placements(Arc::clone(&state));
             Ok(())
         })
         .on_window_event(|window, event| {
-            let WindowEvent::CloseRequested { api, .. } = event else {
-                return;
-            };
             let app = window.state::<Arc<AppState>>();
-            match window.label() {
-                OVERLAY => {
-                    placement::save(window, &placement::state_path(&app.config_dir));
-                    window.app_handle().exit(0);
+            match event {
+                // Every window is put back where you leave it next time.
+                WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                    if let Some(p) = placement::current(window) {
+                        lock(&app.placements).set(window.label(), p);
+                    }
                 }
-                // Closing the settings only tucks them away.
-                _ => {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
+                WindowEvent::CloseRequested { api, .. } => match window.label() {
+                    OVERLAY => {
+                        let mut placements = lock(&app.placements);
+                        if let Some(p) = placement::current(window) {
+                            placements.set(OVERLAY, p);
+                        }
+                        placements.save_if_changed();
+                        drop(placements);
+                        window.app_handle().exit(0);
+                    }
+                    // Closing the settings only tucks them away.
+                    _ => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                },
+                _ => {}
             }
         })
         .run(tauri::generate_context!())
         .expect("running Glass Cannon");
 }
 
+/// Writes the windows' placements once a second when one moved.
+fn save_placements(app: Arc<AppState>) {
+    thread::Builder::new()
+        .name("placements".into())
+        .spawn(move || loop {
+            thread::sleep(Duration::from_secs(1));
+            lock(&app.placements).save_if_changed();
+        })
+        .expect("starting the placements thread");
+}
+
 /// Applies the background effect, corners and border to every window, and tells each
 /// page so the theme and font change everywhere at once.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
+    restyle_windows_but(handle, appearance, None);
+}
+
+/// Restyles every window but `skip` (its page still gets the new appearance).
+fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     for label in [OVERLAY, SETTINGS, ANALYSIS].into_iter().chain(panels::PANELS) {
+        if Some(label) == skip {
+            continue;
+        }
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }

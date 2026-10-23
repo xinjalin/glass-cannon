@@ -341,6 +341,9 @@ impl GameData {
                 t.name = name;
                 t.boss = boss;
             }
+            if let Some(c) = t.cast.as_mut() {
+                c.skill_name = self.skill_meta(c.skill).0;
+            }
         }
     }
 

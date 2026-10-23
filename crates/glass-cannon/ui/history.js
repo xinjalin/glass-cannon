@@ -172,6 +172,27 @@ function draw(force) {
   $("empty").textContent = empty[tab];
 }
 
+// Clearing asks first (it can't be undone), and stops asking after a few seconds.
+const CLEAR_ASK_MS = 6000;
+let clearAskTimer = null;
+function askClear(on) {
+  clearTimeout(clearAskTimer);
+  $("clear").hidden = on;
+  $("hint").hidden = on;
+  $("clear-ask").hidden = !on;
+  if (on) clearAskTimer = setTimeout(() => askClear(false), CLEAR_ASK_MS);
+}
+$("clear").addEventListener("click", () => askClear(true));
+$("clear-no").addEventListener("click", () => askClear(false));
+$("clear-yes").addEventListener("click", async () => {
+  askClear(false);
+  await invoke("clear_history").catch(() => {});
+  openRuns.clear();
+  openPvp.clear();
+  selected = null;
+  load();
+});
+
 for (const b of document.querySelectorAll("#tabs [data-tab]")) {
   b.addEventListener("click", () => {
     tab = b.dataset.tab;

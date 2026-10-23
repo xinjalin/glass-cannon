@@ -44,7 +44,7 @@ pub const OPCODE_PARTY_LEADER: u16 = 0x9211;
 pub const OPCODE_PARTY_KICKED: u16 = 0x9219;
 /// The party broke up (u8 reason).
 pub const OPCODE_PARTY_DISBANDED: u16 = 0x921f;
-/// You left the party (u64 party, u8 reason).
+/// You left the party (u64 party, u8 reason): seen leaving after an expedition's run.
 pub const OPCODE_PARTY_LEFT_NOTICE: u16 = 0x931f;
 /// The party finder group removed you (u8 reason).
 pub const OPCODE_GROUP_KICKED: u16 = 0x972a;

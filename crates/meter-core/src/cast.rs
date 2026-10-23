@@ -63,9 +63,71 @@ pub fn parse_cast(p: &[u8]) -> Option<Cast> {
     })
 }
 
+/// A cast with a cast time starting: like 0x3802 up to the target, then the cast time.
+///
+/// ```text
+/// varint caster, u8 flags, u32 skill, u8, target block (as 0x3802), varint cast time (ms), …
+/// ```
+///
+/// Mobs and bosses send it as well as players. In our captures all 184 that were followed
+/// by the caster's 0x3802 of the same skill got it within 20 % (or 300 ms) of the cast time.
+pub const OPCODE_CAST_START: u16 = 0x3809;
+
+/// A cast stopped before it finished: varint caster, u8, u8, u32 skill, varint. All 23 in
+/// our captures stop the caster's open 0x3809 of that skill.
+pub const OPCODE_CAST_STOP: u16 = 0x380c;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CastStart {
+    pub caster: u64,
+    pub skill: u32,
+    pub target: u64,
+    pub cast_ms: u32,
+}
+
+pub fn parse_cast_start(p: &[u8]) -> Option<CastStart> {
+    let mut i = 0;
+    let caster = read_varint(p, &mut i)?;
+    let flags = *p.get(i)?;
+    i += 1;
+    let skill = u32::from_le_bytes(p.get(i..i + 4)?.try_into().ok()?);
+    i += 5 + usize::from(flags & 1 != 0);
+    let target_flags = *p.get(i)?;
+    i += 1;
+    let target = read_varint(p, &mut i)?;
+    i += if target_flags & 1 != 0 { 4 } else { 0 } + 4 + if target_flags & 2 != 0 { 12 } else { 0 };
+    let cast_ms = u32::try_from(read_varint(p, &mut i)?).ok()?;
+    Some(CastStart { caster, skill, target, cast_ms })
+}
+
+/// The caster and skill of a 0x380c.
+pub fn parse_cast_stop(p: &[u8]) -> Option<(u64, u32)> {
+    let mut i = 0;
+    let caster = read_varint(p, &mut i)?;
+    let skill = u32::from_le_bytes(p.get(i + 2..i + 6)?.try_into().ok()?);
+    Some((caster, skill))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_boss_starts_and_stops_a_cast() {
+        // From Vakron Sky Island: Vakron casts 1604380 at a party member (9268), 2,167 ms.
+        let s = parse_cast_start(&hex(
+            "d1 f2 01 00 1c 7b 18 00 01 02 b4 48 8c fd f9 40 f9 6b 0c c7 1d 89 b5 c6 7a f3 58 47 f7 10 01",
+        ))
+        .unwrap();
+        assert_eq!(s, CastStart { caster: 31057, skill: 1_604_380, target: 9268, cast_ms: 2167 });
+        // With flags 2 (more after the cast time): 1,333 ms.
+        let s = parse_cast_start(&hex(
+            "d1 f2 01 02 30 7b 18 00 01 02 8b 26 a0 d7 1b 41 ca 39 16 c7 62 57 b5 c6 00 d9 58 47 b5 0a 01 90 4e",
+        ))
+        .unwrap();
+        assert_eq!((s.skill, s.target, s.cast_ms), (1_604_400, 4875, 1333));
+        assert_eq!(parse_cast_stop(&hex("d1 f2 01 08 18 3a 7b 18 00 98 75")), Some((31057, 1_604_410)));
+    }
 
     fn hex(s: &str) -> Vec<u8> {
         s.split_whitespace()

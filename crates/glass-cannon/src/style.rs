@@ -155,11 +155,11 @@ fn darker(rgb: u32) -> u32 {
     to(rgb >> 16 & 0xff) << 16 | to(rgb >> 8 & 0xff) << 8 | to(rgb & 0xff)
 }
 
-/// Styles the overlay (`is_overlay`) or the settings window for the given appearance.
-/// The settings window always stays frosted and framed so it's readable.
+/// Styles a window for the given appearance: every window takes the chosen background
+/// (frosted, tinted or clear); minimal mode (no frame or shadow) is the overlay's alone.
 pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance, is_overlay: bool) {
     let minimal = is_overlay && a.minimal;
-    let frosted = !is_overlay || a.backdrop == "frosted";
+    let frosted = a.backdrop == "frosted";
     // The drop shadow outlines the window, which minimal mode is meant to hide.
     let _ = window.set_shadow(!minimal);
 
@@ -198,6 +198,9 @@ mod tests {
         assert_eq!(readable(0x102040), 0x648bd8);
         assert_eq!(readable(0x202020), 0x9e9e9e);
         assert_eq!(readable(0xf2a8a4), 0xf2a8a4);
+        // Between red and magenta (more blue than green), where theme.js once went wrong.
+        assert_eq!(readable(0xeb0feb), 0xf349f3);
+        assert_eq!(readable(0xeb0f58), 0xf34981);
         assert_eq!(border_rgb("#f2a8a4"), 0xc98b88);
         assert_eq!(border_rgb("rose"), 0xc98a86);
     }

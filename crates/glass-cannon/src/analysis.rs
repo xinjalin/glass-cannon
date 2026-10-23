@@ -114,10 +114,26 @@ pub fn open_analysis(
     Ok(())
 }
 
+/// Whether the window covers any of the meter.
+fn covers_meter(handle: &AppHandle, w: &tauri::WebviewWindow) -> bool {
+    let (Some(o), Some(now)) = (handle.get_webview_window(crate::OVERLAY), outer_rect(w)) else {
+        return false;
+    };
+    outer_rect(&o).is_some_and(|m| now.overlap(&m) > 0)
+}
+
 /// Beside the meter on its monitor: the first time at the default size, and again later
 /// whenever it would cover the meter or isn't fully on a screen (a monitor was unplugged,
 /// the meter moved). Otherwise it stays where you put it, at the size you gave it.
 fn place(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
+    // The first time this session: where you left it last time, unless that covers the
+    // meter now (then beside it, as below).
+    if first {
+        let saved = lock(&handle.state::<Arc<AppState>>().placements).get(ANALYSIS);
+        if saved.is_some_and(|p| crate::placement::restore(w, p, true)) && !covers_meter(handle, w) {
+            return;
+        }
+    }
     let (Some(o), Some(mon), Some(now)) = (handle.get_webview_window(crate::OVERLAY), overlay_monitor(handle), outer_rect(w))
     else {
         return;

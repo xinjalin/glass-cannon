@@ -16,6 +16,32 @@ use crate::protocol::read_varint;
 /// time in ms (0: ready).
 pub const OPCODE_COOLDOWN: u16 = 0x3847;
 
+/// Your skills, sent at login and on entering a dungeon: a u8 count, then entries of a
+/// tag, a u32 id and more by kind (not all of them skills). The skills are the ids of a
+/// player skill's base form (`xxyy0000`), all of one class.
+pub const OPCODE_SKILL_LIST: u16 = 0x5100;
+
+/// The base skill ids in a skill list, found by their shape: of the 8-digit ids with no
+/// variant, the ones of the class most of them are.
+pub fn parse_skill_list(p: &[u8]) -> Vec<u32> {
+    let mut ids: Vec<u32> = p
+        .windows(4)
+        .map(|w| u32::from_le_bytes([w[0], w[1], w[2], w[3]]))
+        .filter(|v| (11_000_000..20_000_000).contains(v) && v % 10_000 == 0)
+        .collect();
+    let mut by_class: HashMap<u32, usize> = HashMap::new();
+    for v in &ids {
+        *by_class.entry(v / 1_000_000).or_default() += 1;
+    }
+    let Some((&class, _)) = by_class.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(**c))) else {
+        return Vec::new();
+    };
+    ids.retain(|v| v / 1_000_000 == class);
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Cooldown {
     /// The skill as cast (variants of a skill share its cooldown).
@@ -38,6 +64,8 @@ pub struct CooldownView {
 #[derive(Debug, Default)]
 pub struct Cooldowns {
     by_base: HashMap<u32, Cooldown>,
+    /// Your skills, from the last skill list.
+    known: Vec<u32>,
 }
 
 /// Skill variants (a chosen specialty changes the last digits) share one cooldown.
@@ -68,6 +96,12 @@ impl Cooldowns {
                     base(c.skill),
                     Cooldown { skill: c.skill, ends_us: ts_us + u64::from(ms) * 1000, duration_ms: ms, charges },
                 );
+            }
+            OPCODE_SKILL_LIST => {
+                let skills = parse_skill_list(payload);
+                if !skills.is_empty() {
+                    self.known = skills;
+                }
             }
             OPCODE_COOLDOWN => {
                 let mut i = 0;
@@ -113,6 +147,13 @@ impl Cooldowns {
         out
     }
 
+    /// Your skills (base ids), if the game has sent their list since the meter started.
+    pub fn known(&self) -> &[u32] {
+        &self.known
+    }
+
+    /// Forgets the cooldowns, not the skill list: a login sends the list just before your
+    /// character, which is what clears this.
     pub fn clear(&mut self) {
         self.by_base.clear();
     }
@@ -205,6 +246,20 @@ mod tests {
         c.feed(3 * S, OPCODE_COOLDOWN, &hex("01 50 15 17 01 00"), Some(11792));
         assert_eq!(c.active(3 * S).len(), 1);
         assert!(c.active(20 * S).is_empty());
+    }
+
+    #[test]
+    fn your_skill_list() {
+        // Entering Vakron Sky Island: a Chanter's 30 skills.
+        let p = hex(include_str!("../testdata/skill-list.hex"));
+        let skills = parse_skill_list(&p);
+        assert_eq!(skills.len(), 30);
+        assert!(skills.iter().all(|s| s / 1_000_000 == 18 && s % 10_000 == 0));
+        assert!(skills.contains(&18_120_000) && skills.contains(&18_290_000));
+        let mut c = Cooldowns::default();
+        c.feed(S, OPCODE_SKILL_LIST, &p, None);
+        assert_eq!(c.known(), &skills[..]);
+        assert!(parse_skill_list(&[0, 1, 2]).is_empty());
     }
 
     #[test]
