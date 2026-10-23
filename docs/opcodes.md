@@ -8,9 +8,9 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 
 | | opcodes | messages |
 | --- | ---: | ---: |
-| Decoded and used by the meter | 36 | 287,957 |
+| Decoded and used by the meter | 41 | 288,200 |
 | Understood, not used yet | 4 | 48 |
-| Named elsewhere only | 69 | 186,533 |
+| Named elsewhere only | 64 | 186,290 |
 | Unknown | 171 | 52,927 |
 | Named elsewhere, never seen | 34 | 0 |
 
@@ -36,8 +36,10 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 | `0x3603` | 320 | the game's ping reply (client time, server time) | Ping_RS | Aion2Flow: round trip; RATmeter: server time |
 | `0x3835` | 283 | what a mob is targeting | TargetUpdate_NT | Aion2Flow: sidecar; a2_protocol-research: summon or skill sequence |
 | `0x8d04` | 255 | a death: who, by which skill, killer | CharDie_NT | Aion2Flow: nickname; A2Tools: summon ownership; RATmeter: entity death |
+| `0x3809` | 211 | a cast with a cast time starting (target frame's cast bar) | SkillCastingStart_NT | a2_protocol-research: skill cast |
 | `0x9702` | 81 | party finder group roster (ready, inside, leader) | PartyFinderGroup_NT | A2Tools: party roster; RATmeter: party info; a2_protocol-research: party state |
 | `0x3834` | 73 | your target | SetMainTarget_RS |  |
+| `0x380c` | 23 | a cast stopped before it went off | SkillCastingStop_NT |  |
 | `0x9101` | 16 | world map contents: field boss timers | WorldMapContentsInfo_RS | A2Tools: field boss map |
 | `0x9200` | 10 | your party's roster | PartyInfo_NT | Aion2Flow: party member list |
 | `0x3633` | 7 | you appear: your entity, name, character data (login, zone change) | MyCharAppear_NT |  |
@@ -47,8 +49,11 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 | `0x971d` | 5 | you left the finder group | PartyFinderLeave_NT |  |
 | `0x9221` | 4 | a member left the party |  |  |
 | `0x971e` | 4 | a member left the finder group |  |  |
+| `0x8d26` | 4 | a player came back to life | UseRebirth_NT |  |
 | `0x6100` | 3 | dungeon progress: entered, countdown over, complete | DungeonState_NT |  |
+| `0x5100` | 3 | your skills, at login and entering a dungeon | MySkillList_NT |  |
 | `0x9213` | 2 | you left the party | PartyLeave_RS |  |
+| `0x572e` | 2 | a dungeon's middle boss was killed: its mob type | PartyDungeonRewardMiddleBossKill_NT |  |
 | `0x6101` | 1 | dungeon completed | DungeonCompleteResult_NT |  |
 | `0x9211` | 1 | party leader changed | PartyChangeLeader_NT |  |
 | `0x921f` | 1 | the party broke up | PartyDisband_NT |  |
@@ -86,7 +91,6 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 | `0x3634` | 281 | 17 | 55.5 |  | EnvObjSpawn_NT |  |
 | `0x5684` | 240 | 19 | 17.8 |  | AchievementCountUpdate_NT | Aion2Flow: wrapped envelope |
 | `0x3635` | 239 | 16 | 6 |  | EnvObjDespawn_NT | a2_protocol-research: summon spawn |
-| `0x3809` | 211 | 4 | 33.6 | yes | SkillCastingStart_NT | a2_protocol-research: skill cast |
 | `0x561c` | 193 | 11 | 78.8 | yes | ItemEquipChange_NT |  |
 | `0x381c` | 122 | 10 | 32.6 | yes | SkillChargingStart_NT |  |
 | `0x380e` | 61 | 2 | 45.7 | yes |  | a2_protocol-research: target selected |
@@ -94,7 +98,6 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 | `0x9220` | 40 | 1 | 1.9 | yes | PartySetTargetByBoss_NT |  |
 | `0x380f` | 36 | 2 | 13 |  | SkillAdd_NT |  |
 | `0x8d57` | 26 | 3 | 120.1 | some | RetrieveMyLatestSeasonRanking_RS |  |
-| `0x380c` | 23 | 3 | 10.4 | yes | SkillCastingStop_NT |  |
 | `0x922d` | 21 | 1 | 27.8 |  | MapEventUpdateProgress_NT |  |
 | `0x3814` | 11 | 2 | 28.1 | yes | Abnormal_Move_Start_NT |  |
 | `0x610c` | 10 | 5 | 8.3 |  | ContentsTicketUpdate_NT | A2Tools: Odyle energy update |
@@ -106,11 +109,9 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 | `0x3649` | 7 | 4 | 857.1 |  | CharAllStats_RS | Aion2Flow: state; A2Tools: all stats; RATmeter: player stats |
 | `0x3848` | 6 | 1 | 32 | yes | SkillRangeNoticeFilterLocation_NT |  |
 | `0x3816` | 5 | 1 | 24 | yes | Abnormal_Move_Instant_NT |  |
-| `0x8d26` | 4 | 1 | 2 | yes | UseRebirth_NT |  |
 | `0x9000` | 3 | 2 | 2825.3 |  | RideInitData_NT |  |
 | `0x5683` | 3 | 2 | 39975 |  | AchievementList_NT |  |
 | `0x3900` | 3 | 2 | 361 |  | SpecializedSkillLoad_NT |  |
-| `0x5100` | 3 | 2 | 1075 |  | MySkillList_NT |  |
 | `0x400a` | 3 | 2 | 9 |  | ArenaMatchingInfo_NT |  |
 | `0x610b` | 3 | 2 | 491.3 |  | ContentsTickets_NT | A2Tools: Odyle energy list |
 | `0x900d` | 3 | 2 | 9 |  | RideSoulPointIncrease_NT |  |
@@ -131,12 +132,11 @@ Every message type (opcode) in our captures: 280 opcodes, 527,465 messages, from
 | `0x3615` | 2 | 1 | 78 |  | Login_RS | a2_protocol-research: login or server transfer |
 | `0x3616` | 2 | 1 | 27.5 |  |  | a2_protocol-research: game server info |
 | `0x3821` | 2 | 2 | 9 | yes | SkillChargingStop_NT |  |
-| `0x572e` | 2 | 1 | 4 |  | PartyDungeonRewardMiddleBossKill_NT |  |
 | `0x922e` | 2 | 1 | 68 |  | MapEventJoin_NT | Aion2Flow: map |
 | `0x922f` | 2 | 1 | 4 |  | MapEventLeave_NT | Aion2Flow: map |
+| `0x6109` | 1 | 1 | 4 |  | DungeonDeathLimit_NT |  |
 | `0x8d15` | 1 | 1 | 51 |  | EventFuncAction_NT |  |
 | `0x8d2f` | 1 | 1 | 646 |  |  | a2_protocol-research: notice |
-| `0x6109` | 1 | 1 | 4 |  | DungeonDeathLimit_NT |  |
 
 Where a name doesn't fit our captures:
 

@@ -202,6 +202,9 @@ button {
 .tf-stagger { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
 #tf-stagger-fill { display: block; height: 100%; background: var(--warn); }
 #tf-stagger-fill.broken { background: var(--ok); }
+.tf-cast-line { color: var(--accent-2); }
+.tf-cast { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#tf-cast-fill { display: block; height: 100%; background: var(--accent-2); }
 .timer.stale .timer-when { color: var(--faint); }
 
 /* ---------------------------------------------------------------- party cooldowns */

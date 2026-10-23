@@ -342,6 +342,29 @@ when its HP is back to full after taking damage (a reset), when everyone in the 
 left combat (`0x8d21`), after 15 s without damage (90 s while a boss is alive and in
 combat), or on a map change (`0x4002`).
 
+### Casts with a cast time, revivals, middle bosses and your skills (confirmed 2026-10-23)
+
+Named in Questlog's message list, checked on our captures:
+
+| opcode   | layout | what |
+| -------- | ------ | ---- |
+| `0x3809` | varint caster, u8 flags, u32 skill, u8, target block (as `0x3802`), varint cast time (ms), … | a cast with a cast time starting, by players and mobs (bosses too) |
+| `0x380c` | varint caster, u8, u8, u32 skill, varint | that cast stopped before it went off |
+| `0x8d26` | varint entity | a player came back to life |
+| `0x572e` | u32 mob type | a dungeon's middle boss was killed |
+| `0x5100` | u8 count, entries of a tag, u32 id and more by kind | your skills, at login and on entering a dungeon (just before `0x3633`) |
+
+Of the 184 cast starts followed by the caster's `0x3802` of the same skill, all went off
+within 20 % (or 300 ms) of their cast time; the times are round (1,000, 1,500, 2,000,
+10,000 ms). All 23 `0x380c` stop the caster's open cast of that skill. In Vakron Sky Island
+the 4 revivals each follow that player's death by 4–8 s, and `0x572e` came the moment Tiere
+(2300810) and Thamon (2300811) died; the last boss ends the dungeon with `0x6101` instead.
+The skill list's entries vary in length, and not all are skills; its 30 base skill ids
+(`xxyy0000`) are all of the character's class. The meter uses them for the target frame's
+cast bar, revivals in the deaths tab (and to stop counting a revived player as dead), a
+second sign that a middle boss died, and your long cooldowns in the party cooldowns window
+before you've used them.
+
 ### Classes (confirmed)
 
 The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Templar,

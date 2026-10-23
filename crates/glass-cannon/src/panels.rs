@@ -270,29 +270,49 @@ pub struct PartySkill {
     pub party: bool,
 }
 
-/// Your party's long cooldowns (you included), each member's longest first.
+/// Your party's long cooldowns (you included), each member's longest first. Your own
+/// long-cooldown skills are listed from the game's list of your skills, ready until used.
 #[tauri::command]
 pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
     let now = app.engine.now();
-    let (list, labels, me) = {
+    let (list, labels, me, yours) = {
         let m = app.engine.meter();
         let list = m.party_cooldowns(now);
-        let labels: Vec<(u64, String)> = list.iter().map(|c| (c.entity, m.registry().label(c.entity))).collect();
-        (list, labels, m.registry().self_id())
+        let mut labels: Vec<(u64, String)> = list.iter().map(|c| (c.entity, m.registry().label(c.entity))).collect();
+        let me = m.registry().self_id();
+        if let Some(me) = me {
+            labels.push((me, m.registry().label(me)));
+        }
+        (list, labels, me, m.your_skills().to_vec())
     };
     let data = lock(&app.data);
-    let mut out: Vec<MemberCooldowns> = Vec::new();
-    for c in list {
-        let party = data
-            .skill_details(c.skill)
+    let affects_party = |skill: u32| {
+        data.skill_details(skill)
             .and_then(|d| d.get("desc").and_then(|v| v.as_str()).map(|s| s.to_lowercase().contains("party")))
-            .unwrap_or(false);
-        if c.duration_ms < LONG_MS && !(party && c.duration_ms >= PARTY_SKILL_MS) {
+            .unwrap_or(false)
+    };
+    let long = |duration_ms: u32, party: bool| duration_ms >= LONG_MS || (party && duration_ms >= PARTY_SKILL_MS);
+    let ready_ones = yours.iter().filter_map(|&skill| {
+        let cooldown_s = data.skill_details(skill)?.get("cooldown_s")?.as_f64()?;
+        Some(meter_core::cooldowns::CasterCooldown {
+            entity: me?,
+            skill,
+            remaining_ms: 0,
+            duration_ms: (cooldown_s * 1000.0) as u32,
+        })
+    });
+    // Skills used this session first, so a used skill isn't listed again as ready.
+    let all: Vec<_> = list.into_iter().chain(ready_ones).collect();
+    let mut out: Vec<MemberCooldowns> = Vec::new();
+    for c in all {
+        let party = affects_party(c.skill);
+        if !long(c.duration_ms, party) {
             continue;
         }
         let (name, icon_key) = data.skill_meta(c.skill);
         let skill = PartySkill { skill: c.skill, name, icon_key, remaining_ms: c.remaining_ms, duration_ms: c.duration_ms, party };
         match out.iter_mut().find(|m| m.entity == c.entity) {
+            Some(m) if m.skills.iter().any(|s| s.skill - s.skill % 10_000 == c.skill - c.skill % 10_000) => {}
             Some(m) => m.skills.push(skill),
             None => out.push(MemberCooldowns {
                 entity: c.entity,
@@ -302,6 +322,9 @@ pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
                 skills: vec![skill],
             }),
         }
+    }
+    for m in &mut out {
+        m.skills.sort_by_key(|s| std::cmp::Reverse(s.duration_ms));
     }
     // You first, then the others by name.
     out.sort_by(|a, b| b.is_self.cmp(&a.is_self).then(a.name.cmp(&b.name)));

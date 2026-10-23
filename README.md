@@ -72,7 +72,8 @@ close it. Tabs:
 - **rotation**: the opener and a zoomable cast timeline that follows a live fight.
 - **buffs**: buff and debuff uptime with icons, and which buffs were up for each skill.
 - **healing** and **taken**: who healed whom and what hit whom.
-- **deaths**: who died to what, the last hits with HP after each, and the healing before.
+- **deaths**: who died to what, the last hits with HP after each, the healing before, and
+  how long until they were revived.
 
 **[copy text]** and **[copy image]** put a summary on the clipboard for Discord.
 
@@ -91,8 +92,10 @@ dungeon (older fights: no break over 10 minutes and no boss fought twice).
 Open from the settings; each stays where you put it and opens again next time.
 
 - **cooldowns**: your skills that aren't ready, with time left and charges.
-- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left.
-- **target frame**: your target's HP, time to kill, enrage, who it's attacking, stagger.
+- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
+  (yours from the start, the others' once used).
+- **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
+  attacking, stagger.
 - **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
   in game to read them) in your time; ring the 🔔 for an alert on the meter before one
   starts.

@@ -1555,7 +1555,7 @@ function drawDeaths() {
   }
   deathPick = Math.min(deathPick, deaths.length - 1);
   const head = el("tr");
-  head.append(th("time", null, true), th("who", null, true), th("killed by", null, true), th("to death"));
+  head.append(th("time", null, true), th("who", null, true), th("killed by", null, true), th("to death"), th("back after"));
   table.append(head);
   deaths.forEach((d, i) => {
     const tr = el("tr", "clickable" + (i === deathPick ? " selected" : ""));
@@ -1564,6 +1564,7 @@ function drawDeaths() {
       el("td", "left", d.name),
       el("td", "left", [d.killer || "?", d.skill_name || (d.skill ? `#${d.skill}` : "")].filter(Boolean).join(" · ")),
       el("td", "", `${d.time_to_death_s.toFixed(1)} s`),
+      el("td", "", d.revived_after_s != null ? `${d.revived_after_s.toFixed(1)} s` : "–"),
     );
     tr.addEventListener("click", () => {
       deathPick = i;
@@ -1581,6 +1582,7 @@ function drawRecap(d) {
     tile("time to death", `${d.time_to_death_s.toFixed(1)} s`, "since full HP"),
     tile("taken", fmt(d.direct + d.over_time), `${fmt(d.direct)} direct · ${fmt(d.over_time)} over time`),
     tile("healed", fmt(d.healed), "in that time"),
+    tile("revived", d.revived_after_s != null ? `${d.revived_after_s.toFixed(1)} s` : "–", d.revived_after_s != null ? "after the death" : "not in this fight"),
   );
   const table = $("recap-hits");
   table.replaceChildren();
