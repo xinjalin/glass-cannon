@@ -148,6 +148,7 @@ async function refresh() {
     setToggle("locked", state.locked);
     setToggle("record", state.record);
     setToggle("boss-hp", state.boss_hp);
+    setToggle("boss-casts", state.boss_casts);
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
@@ -302,6 +303,11 @@ for (const b of document.querySelectorAll("[data-refresh-choice]")) {
 
 $("boss-hp").addEventListener("click", async () => {
   await invoke("set_boss_hp", { on: !(state && state.boss_hp) });
+  refresh();
+});
+
+$("boss-casts").addEventListener("click", async () => {
+  await invoke("set_boss_casts", { on: !(state && state.boss_casts) });
   refresh();
 });
 
@@ -467,7 +473,7 @@ $("reset").addEventListener("click", async () => {
 });
 
 $("history").addEventListener("click", () => invoke("open_history").catch((e) => say(String(e), "error")));
-for (const name of ["cooldowns", "party-cooldowns", "timers", "target", "boss-casts"]) {
+for (const name of ["cooldowns", "party-cooldowns", "timers", "target"]) {
   $(`open-${name}`).addEventListener("click", () => invoke("toggle_panel", { name }).catch((e) => say(String(e), "error")));
 }
 

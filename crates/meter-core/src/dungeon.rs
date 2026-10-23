@@ -13,10 +13,12 @@ use serde::{Deserialize, Serialize};
 
 /// You're on a map: u32 map ID, u8. First thing on every game server connection.
 pub const OPCODE_MAP_ENTERED: u16 = 0x4002;
-/// A dungeon's progress: u32 map ID, u8 step (1 entered, 2 started, 3 complete), two u64
-/// times in milliseconds.
+/// A dungeon's state (Questlog's DungeonState): u32 map ID, u8 state (1 entered, 2 started,
+/// 3 complete, 4 over), u64 start and u64 end of its time limit (ms since 1970).
 pub const OPCODE_DUNGEON_STEP: u16 = 0x6100;
-/// A dungeon was completed: u8, u32 map ID, u8 1, u8.
+/// A dungeon's result (Questlog's DungeonCompleteResult): u8 flags, u32 map ID, u8 1 when
+/// cleared, then its rewards. Only a clear counts, as in Questlog: it came with every
+/// state 3 in our captures.
 pub const OPCODE_DUNGEON_COMPLETE: u16 = 0x6101;
 
 /// A dungeon's objective (map event) progress: u32 event ID, u8 state (2 running, 3 done),
@@ -32,7 +34,6 @@ pub const MAX_STAGES: usize = 6;
 
 const STEP_ENTERED: u8 = 1;
 const STEP_STARTED: u8 = 2;
-const STEP_COMPLETE: u8 = 3;
 
 /// One stay on a map (a dungeon run, when the map is a dungeon's).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,12 +87,14 @@ impl Maps {
                         i.started_us = Some(ts_us);
                         i.stages[0] = ts_us;
                     }
-                    STEP_COMPLETE if i.completed_us.is_none() => i.completed_us = Some(ts_us),
                     _ => return None,
                 }
             }
             OPCODE_DUNGEON_COMPLETE => {
                 let map = u32_at(p, 1)?;
+                if *p.get(5)? != 1 {
+                    return None;
+                }
                 let i = self.current.as_mut().filter(|i| i.map == map && i.completed_us.is_none())?;
                 i.completed_us = Some(ts_us);
             }
@@ -131,10 +134,11 @@ mod tests {
         m.feed(1_100, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 01 8c 08 c4 62 a1 01 00 00 bc 7d c4 62 a1 01 00 00"));
         let started = m.feed(23_000, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 02 ef 7d c4 62 a1 01 00 00 6f 6c fb 62 a1 01 00 00"));
         assert_eq!(started.unwrap().started_us, Some(23_000));
-        let done = m.feed(716_000, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 03 b9 12 cf 62 a1 01 00 00 79 3a d8 62 a1 01 00 00"));
+        // "Complete" as its state changes nothing: its result says it was cleared.
+        assert!(m.feed(716_000, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 03 b9 12 cf 62 a1 01 00 00 79 3a d8 62 a1 01 00 00")).is_none());
+        assert!(m.feed(716_000, OPCODE_DUNGEON_COMPLETE, &hex("00 08 28 09 00 00 00")).is_none());
+        let done = m.feed(716_000, OPCODE_DUNGEON_COMPLETE, &hex("00 08 28 09 00 01 00"));
         assert_eq!(done.unwrap().completed_us, Some(716_000));
-        // Its completion message too, which changes nothing more.
-        assert!(m.feed(716_000, OPCODE_DUNGEON_COMPLETE, &hex("00 08 28 09 00 01 00")).is_none());
         let world = m.feed(780_000, OPCODE_MAP_ENTERED, &hex("56 04 00 00 00 01")).unwrap();
         assert_eq!((world.map, world.started_us), (1110, None));
         assert_eq!(world.stages, [0; MAX_STAGES]);
@@ -154,7 +158,7 @@ mod tests {
         m.feed(150, crate::state::OPCODE_MIDBOSS_KILLED, &killed(2_300_810));
         let i = m.feed(490, crate::state::OPCODE_MIDBOSS_KILLED, &killed(2_300_811)).unwrap();
         assert_eq!(i.stages, [30, 150, 490, 0, 0, 0]);
-        m.feed(723, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 03"));
+        m.feed(723, OPCODE_DUNGEON_COMPLETE, &hex("00 08 28 09 00 01 00"));
         // Completed: no more stages.
         assert!(m.feed(730, crate::state::OPCODE_MIDBOSS_KILLED, &killed(2_300_811)).is_none());
     }
@@ -171,7 +175,7 @@ mod tests {
         m.feed(144, crate::state::OPCODE_MIDBOSS_KILLED, &2_300_311u32.to_le_bytes());
         assert!(m.feed(179, OPCODE_MAP_ENTERED, &hex(&format!("{ft} 00 01"))).is_none());
         assert!(m.feed(179, OPCODE_DUNGEON_STEP, &hex(&format!("{ft} 02"))).is_none());
-        let i = m.feed(564, OPCODE_DUNGEON_STEP, &hex(&format!("{ft} 03"))).unwrap();
+        let i = m.feed(564, OPCODE_DUNGEON_COMPLETE, &hex(&format!("00 {ft} 01 00"))).unwrap();
         assert_eq!((i.map, i.entered_us, i.started_us, i.completed_us), (600_022, 7, Some(29), Some(564)));
         assert_eq!(i.stages[..3], [29, 144, 0]);
         // The next run: a new stay, whether the map comes first or step 1 does.

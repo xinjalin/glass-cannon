@@ -263,6 +263,26 @@ legend {
 #enrage { flex: none; color: var(--warn); }
 #enrage.soon { color: var(--bad); font-weight: 700; }
 #best { flex: none; color: var(--faint); }
+#boss-cast {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0 0.3em 0.35em;
+  margin-top: -0.15em;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+#bc-name { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#boss-cast .cast-track { flex: 1 0 3em; height: 0.45em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#bc-fill { display: block; height: 100%; width: 0; background: var(--accent); }
+#bc-time { flex: none; color: var(--muted); }
+#boss-cast.landing #bc-name,
+#boss-cast.landing #bc-time { color: var(--warn); }
+#boss-cast.landing #bc-fill { background: var(--warn); }
+#boss-cast.soon #bc-time { color: var(--bad); font-weight: 700; }
+#boss-cast.next #bc-name { color: var(--muted); }
+#boss-cast.next .cast-track { visibility: hidden; }
 #best.beating { color: var(--ok); }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 #total { flex: none; font-variant-numeric: tabular-nums; }

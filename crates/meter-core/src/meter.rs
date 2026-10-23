@@ -19,7 +19,9 @@ use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
 use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
 use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
-use crate::cast::{parse_cast, parse_cast_start, parse_cast_stop, OPCODE_CAST, OPCODE_CAST_START, OPCODE_CAST_STOP};
+use crate::cast::{
+    parse_cast, parse_cast_start, parse_cast_stop, parse_telegraph, OPCODE_CAST, OPCODE_CAST_START, OPCODE_CAST_STOP, OPCODE_TELEGRAPH,
+};
 use crate::cooldowns::{CastCooldowns, CasterCooldown, CooldownView, Cooldowns};
 use crate::pvp::{PvpSession, PvpTracker};
 use crate::fieldboss::{parse_world_map, FieldBoss, OPCODE_WORLD_MAP};
@@ -29,6 +31,12 @@ use crate::protocol::{OPCODE_DAMAGE, OPCODE_DOT};
 
 /// While a boss in the fight is alive and in combat, quiet this long ends it instead.
 const BOSS_IDLE_TIMEOUT_US: u64 = 90_000_000;
+/// How long bosses' casts are kept.
+const BOSS_LOG_US: u64 = 30 * 60 * 1_000_000;
+/// A pull this long before the fight's first hit still starts its boss timeline.
+const PULL_LEAD_US: u64 = 120_000_000;
+/// Landing areas belong to the cast with their ID that went off this soon before.
+const TELEGRAPH_WINDOW_US: u64 = 5_000_000;
 /// Hits on something that died this recently don't start a new fight (damage over time
 /// still ticking on a corpse).
 const AFTER_DEATH_US: u64 = 10_000_000;
@@ -127,6 +135,9 @@ pub struct Outcomes {
     pub multi: u64,
     /// Hits counting every part of a multi-hit (what the game's own counter shows).
     pub multi_hits: u64,
+    /// Hits the target evaded, resisted or was immune to (accuracy: hits / (hits + missed)).
+    #[serde(default)]
+    pub missed: u64,
 }
 
 impl Outcomes {
@@ -150,6 +161,7 @@ impl Outcomes {
         self.double += o.double;
         self.multi += o.multi;
         self.multi_hits += o.multi_hits;
+        self.missed += o.missed;
     }
 }
 
@@ -193,6 +205,13 @@ impl PlayerStats {
         self.max_hit = self.max_hit.max(h.damage);
         self.outcomes.merge(&one);
         self.skills.entry(h.skill).or_default().add(h.damage, &one, 1, h.damage, h.damage);
+    }
+
+    /// A hit the target avoided.
+    fn miss(&mut self, skill: u32) {
+        let one = Outcomes { missed: 1, ..Outcomes::default() };
+        self.outcomes.merge(&one);
+        self.skills.entry(skill).or_default().add(0, &one, 0, 0, 0);
     }
 
     fn merge(&mut self, other: &PlayerStats) {
@@ -245,8 +264,6 @@ struct Encounter {
     deaths: Vec<(u64, Death)>,
     /// Players who came back to life during it: (when, who).
     revived: Vec<(u64, u64)>,
-    /// Its bosses' casts, in order.
-    boss_casts: Vec<BossCast>,
     /// Your party's players (you too) who did something in it, as the party was then: so
     /// it still shows them after the party breaks up.
     party: HashSet<u64>,
@@ -267,7 +284,6 @@ impl Encounter {
             instance: None,
             deaths: Vec::new(),
             revived: Vec::new(),
-            boss_casts: Vec::new(),
             party: HashSet::new(),
             end: None,
         }
@@ -390,23 +406,18 @@ pub struct EncounterView {
     pub target_hp: Option<u64>,
     #[serde(default)]
     pub target_max_hp: Option<u64>,
-    /// Its bosses' casts, in order.
+    /// Its bosses' casts, in order, timed from the pull.
     #[serde(default)]
     pub boss_casts: Vec<BossCastView>,
+    /// Seconds since the boss was pulled (to the fight's last hit, once over).
+    #[serde(default)]
+    pub boss_now_s: Option<f64>,
+    /// What the boss is casting now (live fights).
+    #[serde(default)]
+    pub boss_cast: Option<LiveBossCast>,
 }
 
-/// The bosses' casts in the fight shown, for the cast timeline.
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct BossCasts {
-    pub active: bool,
-    pub start_us: u64,
-    /// Seconds into the fight now (its length, once over).
-    pub now_s: f64,
-    pub target_type: Option<u32>,
-    pub casts: Vec<BossCastView>,
-}
-
-/// A boss's cast during a fight.
+/// A boss's cast, from its start (or, with no cast time, when it went off).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BossCast {
     at_us: u64,
@@ -414,9 +425,15 @@ struct BossCast {
     skill: u32,
     /// Its cast time (0: none, it went off at once).
     cast_ms: u32,
-    went_off: bool,
+    /// When it went off, and the ID its hits and landing areas carry.
+    fired_us: Option<u64>,
+    cast_id: Option<u8>,
     /// Stopped before it went off.
     stopped: bool,
+    /// The longest time until it lands of the areas the game showed for it (0: none), and
+    /// how many areas.
+    lands_ms: u32,
+    areas: u8,
 }
 
 /// A boss's cast, for the cast timeline.
@@ -432,6 +449,25 @@ pub struct BossCastView {
     pub skill_name: Option<String>,
     pub cast_ms: u32,
     pub stopped: bool,
+    /// How long after it went off it landed, from the areas the game showed (0: none).
+    #[serde(default)]
+    pub lands_ms: u32,
+    #[serde(default)]
+    pub areas: u8,
+}
+
+/// What the boss is doing now, for the meter's cast line: casting (`cast_left_ms` > 0), or
+/// cast and about to land (`lands_left_ms` > 0).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LiveBossCast {
+    pub skill: u32,
+    /// Filled in by the app from its skill table.
+    #[serde(default)]
+    pub skill_name: Option<String>,
+    pub cast_ms: u32,
+    pub cast_left_ms: u32,
+    pub lands_ms: u32,
+    pub lands_left_ms: u32,
 }
 
 /// What you're targeting (or fighting), for the target frame.
@@ -776,6 +812,11 @@ pub struct Meter {
     contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
     casting: HashMap<u64, (u32, u64, u32)>,
+    /// Bosses' casts, oldest first (kept [`BOSS_LOG_US`]): a fight takes its bosses' from
+    /// their pull, so the casts before your first hit are in it too.
+    boss_log: VecDeque<BossCast>,
+    /// When each boss was pulled (it went into combat, or took aggro).
+    pulls: HashMap<u64, u64>,
     /// The newest message's time.
     latest_us: u64,
 }
@@ -817,6 +858,8 @@ impl Meter {
             field_bosses: Vec::new(),
             contents: Contents::default(),
             casting: HashMap::new(),
+            boss_log: VecDeque::new(),
+            pulls: HashMap::new(),
             latest_us: 0,
         }
     }
@@ -858,23 +901,6 @@ impl Meter {
     /// or the last): a fight from before the party broke up still counts as a party's.
     pub fn shown_party_size(&self) -> usize {
         self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.party.len())
-    }
-
-    /// The bosses' casts in the fight shown (the one going, or the last): whether it's
-    /// still going, how far in it is, and the main target's mob type.
-    pub fn boss_casts(&self) -> Option<BossCasts> {
-        // The fight going, or the last one while the new one has nothing to show yet.
-        let (e, active, view) = [(self.current.as_ref(), true), (self.last.as_ref(), false)]
-            .into_iter()
-            .find_map(|(e, active)| e.and_then(|e| self.view(e, active).map(|v| (e, active, v))))?;
-        let start = e.start_us();
-        Some(BossCasts {
-            active,
-            start_us: start,
-            now_s: if active { self.latest_us.saturating_sub(start) as f64 / 1e6 } else { view.duration_s },
-            target_type: view.target_type,
-            casts: view.boss_casts,
-        })
     }
 
     /// Your skills (base ids), once the game has sent their list.
@@ -941,11 +967,27 @@ impl Meter {
                     self.casting.remove(&c.caster);
                 }
                 if c.skill < PLAYER_SKILL_MIN && self.is_boss(c.caster) {
-                    if let Some(enc) = self.current.as_mut() {
-                        match enc.boss_casts.iter_mut().rev().find(|b| b.caster == c.caster && b.skill == c.skill && b.cast_ms > 0 && !b.went_off && !b.stopped) {
-                            Some(started) => started.went_off = true,
-                            None => enc.boss_casts.push(BossCast { at_us: ts_us, caster: c.caster, skill: c.skill, cast_ms: 0, went_off: true, stopped: false }),
+                    let started = self
+                        .boss_log
+                        .iter_mut()
+                        .rev()
+                        .find(|b| b.caster == c.caster && b.skill == c.skill && b.cast_ms > 0 && b.fired_us.is_none() && !b.stopped);
+                    match started {
+                        Some(b) => {
+                            b.fired_us = Some(ts_us);
+                            b.cast_id = Some(c.cast_id);
                         }
+                        None => self.log_boss_cast(BossCast {
+                            at_us: ts_us,
+                            caster: c.caster,
+                            skill: c.skill,
+                            cast_ms: 0,
+                            fired_us: Some(ts_us),
+                            cast_id: Some(c.cast_id),
+                            stopped: false,
+                            lands_ms: 0,
+                            areas: 0,
+                        }),
                     }
                 }
                 if c.skill >= PLAYER_SKILL_MIN {
@@ -991,6 +1033,14 @@ impl Meter {
             match opcode {
                 state::OPCODE_COMBAT_STATE => {
                     if let Some(s) = state::parse_combat_state(payload) {
+                        // A boss's pull: into combat (unless it took aggro just before).
+                        let was_in = self.combat.get(&s.entity).is_some_and(|(c, _)| *c);
+                        if s.in_combat && !was_in && self.is_boss(s.entity) {
+                            let aggro = self.pulls.get(&s.entity).is_some_and(|p| ts_us.saturating_sub(*p) < 30_000_000);
+                            if !aggro {
+                                self.pulls.insert(s.entity, ts_us);
+                            }
+                        }
                         self.combat.insert(s.entity, (s.in_combat, ts_us));
                         if let Some(b) = s.berserk_ms {
                             self.berserk.insert(s.entity, b);
@@ -998,12 +1048,23 @@ impl Meter {
                         self.check_end(ts_us);
                     }
                 }
-                state::OPCODE_NPC_REMOVED => {
-                    if let Some((entity, REMOVED_DIED)) = state::parse_npc_removed(payload) {
+                state::OPCODE_NPC_REMOVED => match state::parse_npc_removed(payload) {
+                    Some((entity, REMOVED_DIED)) => {
                         self.died.entry(entity).or_insert(ts_us);
                         self.check_end(ts_us);
                     }
-                }
+                    // A boss of the fight gone while alive: it reset (reason 7 in all three
+                    // in our captures, Atiel's two wipes among them).
+                    Some((entity, _)) => {
+                        let reset = self.current.as_ref().is_some_and(|enc| {
+                            self.is_boss(entity) && !self.died.contains_key(&entity) && self.counted_targets(enc).contains(&entity)
+                        });
+                        if reset {
+                            self.finish(FightEnd::Wipe, ts_us);
+                        }
+                    }
+                    None => {}
+                },
                 state::OPCODE_PING => {
                     if let Some(sent) = state::parse_ping(payload) {
                         self.pings.push_back((ts_us, sent));
@@ -1059,16 +1120,17 @@ impl Meter {
                     if let Some(c) = parse_cast_start(payload).filter(|c| c.cast_ms > 0) {
                         self.casting.insert(c.caster, (c.skill, ts_us, c.cast_ms));
                         if c.skill < PLAYER_SKILL_MIN && self.is_boss(c.caster) {
-                            if let Some(enc) = self.current.as_mut() {
-                                enc.boss_casts.push(BossCast {
-                                    at_us: ts_us,
-                                    caster: c.caster,
-                                    skill: c.skill,
-                                    cast_ms: c.cast_ms,
-                                    went_off: false,
-                                    stopped: false,
-                                });
-                            }
+                            self.log_boss_cast(BossCast {
+                                at_us: ts_us,
+                                caster: c.caster,
+                                skill: c.skill,
+                                cast_ms: c.cast_ms,
+                                fired_us: None,
+                                cast_id: None,
+                                stopped: false,
+                                lands_ms: 0,
+                                areas: 0,
+                            });
                         }
                     }
                 }
@@ -1077,10 +1139,41 @@ impl Meter {
                         if self.casting.get(&caster).is_some_and(|(s, _, _)| *s == skill) {
                             self.casting.remove(&caster);
                         }
-                        if let Some(enc) = self.current.as_mut() {
-                            if let Some(b) = enc.boss_casts.iter_mut().rev().find(|b| b.caster == caster && b.skill == skill && !b.went_off && !b.stopped) {
-                                b.stopped = true;
+                        if let Some(b) = self.boss_log.iter_mut().rev().find(|b| b.caster == caster && b.skill == skill && b.fired_us.is_none() && !b.stopped) {
+                            b.stopped = true;
+                        }
+                    }
+                }
+                OPCODE_TELEGRAPH => {
+                    if let Some(t) = parse_telegraph(payload).filter(|t| self.is_boss(t.caster)) {
+                        let cast = self.boss_log.iter_mut().rev().find(|b| {
+                            b.caster == t.caster
+                                && b.cast_id == Some(t.cast_id)
+                                && b.fired_us.is_some_and(|f| ts_us.saturating_sub(f) < TELEGRAPH_WINDOW_US)
+                        });
+                        match cast {
+                            Some(b) => {
+                                b.lands_ms = b.lands_ms.max(t.lands_ms);
+                                b.areas = b.areas.saturating_add(1);
                             }
+                            None => self.log_boss_cast(BossCast {
+                                at_us: ts_us,
+                                caster: t.caster,
+                                skill: t.skill,
+                                cast_ms: 0,
+                                fired_us: Some(ts_us),
+                                cast_id: Some(t.cast_id),
+                                stopped: false,
+                                lands_ms: t.lands_ms,
+                                areas: 1,
+                            }),
+                        }
+                    }
+                }
+                state::OPCODE_FIRST_AGGRO => {
+                    if let Some(entity) = state::parse_first_aggro(payload) {
+                        if self.is_boss(entity) && !self.combat.get(&entity).is_some_and(|(c, _)| *c) {
+                            self.pulls.insert(entity, ts_us);
                         }
                     }
                 }
@@ -1109,6 +1202,8 @@ impl Meter {
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
                 self.casting.clear();
+                self.boss_log.clear();
+                self.pulls.clear();
                 self.pvp.end();
             }
             return;
@@ -1120,7 +1215,23 @@ impl Meter {
 
     fn on_damage(&mut self, ts_us: u64, ev: &DamageEvent) {
         self.registry.observe_hit(ev.attacker, ev.target, ev.skill);
+        if ev.is_avoided() {
+            // A player's hit on a target of the fight that it avoided: a miss.
+            if self.is_player(ev.attacker, ev.skill) {
+                if let Some(t) = self.current.as_mut().and_then(|e| e.targets.get_mut(&ev.target)) {
+                    t.players.entry(ev.attacker).or_default().miss(ev.skill);
+                }
+            }
+            return;
+        }
         let Some(dmg) = ev.damage else { return };
+        // HP the hit gave back to the player who landed it (a drain): healing, as Questlog
+        // counts it.
+        if ev.healed > 0 && !ev.is_dot && self.is_player(ev.attacker, ev.skill) {
+            if let Some(enc) = self.current.as_mut() {
+                enc.heals.push(Hit::flow(ts_us, ev.attacker, ev.attacker, ev.skill, ev.healed));
+            }
+        }
         // Heal-over-time ticks carry the amount healed, not damage.
         if ev.is_heal() {
             // The tick names the entity the effect sits on (a debuff on a mob can heal
@@ -1297,8 +1408,8 @@ impl Meter {
         if quiet <= self.idle_timeout_us {
             return;
         }
-        // A boss still fighting (between phases, or out of reach) gets longer.
-        if !self.boss_fighting(enc) || quiet > BOSS_IDLE_TIMEOUT_US {
+        // A boss fight gets longer (between phases, or out of reach).
+        if !self.boss_alive(enc) || quiet > BOSS_IDLE_TIMEOUT_US {
             self.finish(FightEnd::Idle, now_us);
         }
     }
@@ -1318,6 +1429,72 @@ impl Meter {
         }
         let name = self.registry.label(other);
         self.pvp.hit(ts_us, other, name, class, damage, outgoing);
+    }
+
+    fn log_boss_cast(&mut self, c: BossCast) {
+        self.boss_log.push_back(c);
+        while self.boss_log.front().is_some_and(|b| c.at_us.saturating_sub(b.at_us) > BOSS_LOG_US) || self.boss_log.len() > 5000 {
+            self.boss_log.pop_front();
+        }
+    }
+
+    /// A fight's boss timeline: its bosses' casts from the pull (the earliest boss's going
+    /// into combat, if within [`PULL_LEAD_US`] of the first hit; else that hit), how long
+    /// since the pull, and, live, what the main boss is casting.
+    fn boss_timeline(
+        &self,
+        e: &Encounter,
+        counted: &HashSet<u64>,
+        main_target: Option<u64>,
+        first: u64,
+        active: bool,
+    ) -> (Vec<BossCastView>, Option<f64>, Option<LiveBossCast>) {
+        let bosses: HashSet<u64> = counted.iter().copied().filter(|t| self.is_boss(*t)).collect();
+        if bosses.is_empty() {
+            return (Vec::new(), None, None);
+        }
+        let pull = bosses
+            .iter()
+            .filter_map(|b| self.pulls.get(b).copied())
+            .filter(|p| p + PULL_LEAD_US >= first)
+            .min()
+            .map_or(first, |p| p.min(first));
+        let end = if active { self.latest_us } else { e.last_activity_us };
+        let casts = self
+            .boss_log
+            .iter()
+            .filter(|c| bosses.contains(&c.caster) && c.at_us >= pull && c.at_us <= end)
+            .map(|c| BossCastView {
+                at_s: (c.at_us - pull) as f64 / 1e6,
+                boss: self.registry.label(c.caster),
+                boss_type: self.registry.mob_type(c.caster),
+                skill: c.skill,
+                skill_name: None,
+                cast_ms: c.cast_ms,
+                stopped: c.stopped,
+                lands_ms: c.lands_ms,
+                areas: c.areas,
+            })
+            .collect();
+        let now = self.latest_us;
+        let live = active
+            .then(|| main_target.filter(|t| bosses.contains(t)).or_else(|| bosses.iter().copied().min()))
+            .flatten()
+            .and_then(|boss| self.boss_log.iter().rev().find(|c| c.caster == boss))
+            .and_then(|c| {
+                let cast_left = (c.at_us + u64::from(c.cast_ms) * 1000).saturating_sub(now);
+                let lands_left = c.fired_us.map_or(0, |f| (f + u64::from(c.lands_ms) * 1000).saturating_sub(now));
+                let casting = c.fired_us.is_none() && !c.stopped && cast_left > 0;
+                (casting || lands_left > 0).then_some(LiveBossCast {
+                    skill: c.skill,
+                    skill_name: None,
+                    cast_ms: c.cast_ms,
+                    cast_left_ms: if casting { (cast_left / 1000) as u32 } else { 0 },
+                    lands_ms: c.lands_ms,
+                    lands_left_ms: (lands_left / 1000) as u32,
+                })
+            });
+        (casts, Some(end.saturating_sub(pull) as f64 / 1e6), live)
     }
 
     fn is_boss(&self, entity: u64) -> bool {
@@ -1372,28 +1549,40 @@ impl Meter {
         known.then_some(true)
     }
 
-    /// A boss of the fight is alive and still in combat.
-    fn boss_fighting(&self, enc: &Encounter) -> bool {
-        self.counted_targets(enc)
-            .into_iter()
-            .any(|t| self.is_boss(t) && !self.died.contains_key(&t) && self.combat.get(&t).is_some_and(|(c, _)| *c))
+    /// A boss of the fight is alive.
+    fn boss_alive(&self, enc: &Encounter) -> bool {
+        self.counted_targets(enc).into_iter().any(|t| self.is_boss(t) && !self.died.contains_key(&t))
     }
 
-    /// Ends the fight when the game says it's over: its bosses died, or everyone left combat
-    /// (unless a boss is still in combat: in Fire Temple the whole party leaves combat at
-    /// Kromede's Desire's phase changes while it stays in).
+    /// Ends the fight when the game says it's over, as Questlog does: its bosses died; or
+    /// every target is dead or out of combat (a boss out of combat alive: a wipe); or, with
+    /// no boss, you and your party left combat. In a boss fight the party leaving combat
+    /// counts for nothing: in Fire Temple everyone leaves at Kromede's Desire's phase
+    /// changes while it stays in.
     fn check_end(&mut self, ts_us: u64) {
         let Some(enc) = &self.current else { return };
         let targets = self.counted_targets(enc);
-        let dead = |t: &u64| self.died.get(t).is_some_and(|d| enc.targets.get(t).is_some_and(|l| *d >= l.first_us));
+        let first = |t: &u64| enc.targets.get(t).map_or(u64::MAX, |l| l.first_us);
+        let dead = |t: &u64| self.died.get(t).is_some_and(|d| *d >= first(t));
+        let out = |t: &u64| self.combat.get(t).is_some_and(|(c, at)| !*c && *at >= first(t));
         let bosses: Vec<u64> = targets.iter().copied().filter(|t| self.is_boss(*t)).collect();
-        let out = self.party_out_of_combat(enc) == Some(true);
+        let party = self.party_out_of_combat(enc);
+        // Whether the game has ever said if any of you is in combat (Questlog goes by the
+        // mobs alone only then; watching others fight, you're known to be out).
+        let unknown = !enc
+            .attackers
+            .iter()
+            .copied()
+            .chain(self.registry.self_id())
+            .any(|id| self.registry.in_party(id) && self.combat.contains_key(&id));
+        let settled = !targets.is_empty() && targets.iter().all(|t| dead(t) || out(t));
+        let all_dead = targets.iter().all(dead);
         let end = if !bosses.is_empty() && bosses.iter().all(dead) {
             Some(FightEnd::Kill)
-        } else if out && !bosses.is_empty() {
-            (!self.boss_fighting(enc)).then_some(FightEnd::Wipe)
-        } else if out {
-            Some(if targets.iter().all(dead) { FightEnd::Kill } else { FightEnd::Idle })
+        } else if !bosses.is_empty() {
+            settled.then_some(FightEnd::Wipe)
+        } else if party == Some(true) || (unknown && settled) {
+            Some(if all_dead { FightEnd::Kill } else { FightEnd::Idle })
         } else {
             None
         };
@@ -1678,6 +1867,7 @@ impl Meter {
             .iter()
             .max_by_key(|(id, t)| (t.total, std::cmp::Reverse(**id)))
             .map(|(id, _)| **id);
+        let (boss_casts, boss_now_s, boss_cast) = self.boss_timeline(e, &counted_ids, main_target, first, active);
 
         // Healing and damage taken for the people whose damage counts: in everyone scope,
         // everyone dealing damage here, and anyone healing them.
@@ -1734,19 +1924,9 @@ impl Meter {
             berserk_us: main_target.and_then(|t| self.berserk.get(&t)).map(|ms| ms * 1000),
             target_hp: main_target.filter(|_| active).and_then(|t| self.hp.last(t)),
             target_max_hp: main_target.filter(|_| active).and_then(|t| self.hp.max(t)),
-            boss_casts: e
-                .boss_casts
-                .iter()
-                .map(|c| BossCastView {
-                    at_s: c.at_us.saturating_sub(first) as f64 / 1e6,
-                    boss: self.registry.label(c.caster),
-                    boss_type: self.registry.mob_type(c.caster),
-                    skill: c.skill,
-                    skill_name: None,
-                    cast_ms: c.cast_ms,
-                    stopped: c.stopped,
-                })
-                .collect(),
+            boss_casts,
+            boss_now_s,
+            boss_cast,
         })
     }
 
@@ -2000,6 +2180,7 @@ mod tests {
             double: 1,
             multi: 1,
             multi_hits: 7,
+            missed: 0,
         };
         assert_eq!(me.outcomes, want);
         assert_eq!(me.skills[0].outcomes, want);
@@ -2543,6 +2724,46 @@ mod tests {
     }
 
     #[test]
+    fn hits_the_target_avoided_are_misses() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // Evaded (hit type 1): no damage flag, result 1.
+        let mut evaded = encode_varint(BOSS);
+        evaded.extend(0u16.to_le_bytes());
+        evaded.extend(encode_varint(ME));
+        evaded.extend(18_010_340u32.to_le_bytes());
+        evaded.extend([1, 1]); // cast ID, result: evaded
+        evaded.extend(0u32.to_le_bytes());
+        evaded.extend(1u32.to_le_bytes());
+        evaded.extend(encode_varint(0));
+        evaded.extend(1u16.to_le_bytes());
+        m.feed(2 * S, OPCODE_DAMAGE, &evaded);
+        let e = m.snapshot().encounter.unwrap();
+        let me = &e.players[0];
+        assert_eq!((me.hits, me.outcomes.missed, me.skills[0].outcomes.missed), (1, 1, 1));
+        assert_eq!(e.total_damage, 5000);
+    }
+
+    #[test]
+    fn a_boss_gone_alive_is_a_wipe() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // Atiel resetting (2026-10-24): removed with reason 7.
+        let mut gone = encode_varint(BOSS);
+        gone.extend([0, 7]);
+        m.feed(2 * S, state::OPCODE_NPC_REMOVED, &gone);
+        assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+    }
+
+    #[test]
+    fn trash_ends_when_its_mobs_are_done_if_your_combat_is_unknown() {
+        let mut m = meter_as_me();
+        m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 5000));
+        m.feed(2 * S, OPCODE_DEATH, &death(DUMMY, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+    }
+
+    #[test]
     fn trash_ends_when_you_leave_combat() {
         let mut m = meter_as_me();
         m.feed(S, state::OPCODE_COMBAT_STATE, &combat(ME, true));
@@ -2687,6 +2908,39 @@ mod tests {
         m.feed(3 * S, crate::entities::OPCODE_FORCE_INFO, &force);
         m.feed(4 * S, crate::entities::OPCODE_FORCE_LEFT, &[0; 9]);
         assert!(!m.registry().in_force() && !m.registry().in_party(15772));
+    }
+
+    #[test]
+    fn a_boss_timeline_runs_from_the_pull() {
+        let mut m = meter_with_boss();
+        // Pulled at 1 s, casting from 2 s, your first hit at 3 s.
+        m.feed(S, state::OPCODE_COMBAT_STATE, &combat(BOSS, true));
+        m.feed(2 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_605_616, ME, 3000));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.boss_casts[0].at_s, e.boss_now_s), (1.0, Some(2.0)));
+        let live = e.boss_cast.unwrap();
+        assert_eq!((live.skill, live.cast_left_ms, live.lands_left_ms), (1_605_616, 2000, 0));
+        // It goes off at 5 s and shows two areas, landing 1.9 and 2.7 s later.
+        let mut fired = encode_varint(BOSS);
+        fired.push(0);
+        fired.extend(1_605_616u32.to_le_bytes());
+        fired.extend([9, 0]);
+        fired.extend(encode_varint(ME));
+        m.feed(5 * S, OPCODE_CAST, &fired);
+        for lands in [1900u16, 2700] {
+            let mut area = encode_varint(BOSS);
+            area.extend(1_605_616u32.to_le_bytes());
+            area.push(9);
+            area.extend([0; 22]);
+            area.extend(lands.to_le_bytes());
+            m.feed(5 * S, crate::cast::OPCODE_TELEGRAPH, &area);
+        }
+        m.feed(6 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.boss_casts[0].lands_ms, e.boss_casts[0].areas), (2700, 2));
+        let live = e.boss_cast.unwrap();
+        assert_eq!((live.cast_left_ms, live.lands_left_ms), (0, 1700));
     }
 
     #[test]

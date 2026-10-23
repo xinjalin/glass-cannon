@@ -437,6 +437,15 @@ impl GameData {
         // Death recaps: skills and mobs by name.
         let skill_name = |id: u32| self.resolve_skill(id).map(|(_, e)| e.name.clone()).filter(|n| !n.is_empty());
         let mob_name = |t: Option<u32>| t.and_then(|t| self.npc(t)).map(|(name, _)| name);
+        for c in &mut enc.boss_casts {
+            c.skill_name = self.boss_skill_name(c.skill);
+            if let Some(name) = mob_name(c.boss_type) {
+                c.boss = name;
+            }
+        }
+        if let Some(c) = enc.boss_cast.as_mut() {
+            c.skill_name = self.boss_skill_name(c.skill);
+        }
         for d in &mut enc.deaths {
             d.skill_name = skill_name(d.skill);
             if let Some(name) = mob_name(d.killer_type) {
@@ -449,6 +458,12 @@ impl GameData {
                 }
             }
         }
+    }
+
+    /// A boss skill's name: the data names most mob skills only "Attack", which says
+    /// nothing, so that counts as no name (yours from names.json still does).
+    pub fn boss_skill_name(&self, skill: u32) -> Option<String> {
+        self.skill_meta(skill).0.filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
     }
 
     /// Names a skill (an empty name goes back to the data's name). Saved to names.json.
@@ -526,15 +541,18 @@ impl GameData {
         }
     }
 
-    /// A mob's skill without an icon of its own: its family's. Mob skills' icons are named
-    /// after their ID's first four digits (1,782 of the 1,789 with icons in skills.json:
-    /// Surging Thorn 1604390 has 1604.png), so 1604420 gets 1604.png too.
+    /// A skill without an icon of its own: its family's. Mob skills' icons are named after
+    /// their ID's first four digits (1,782 of the 1,789 with icons in skills.json: Surging
+    /// Thorn 1604390 has 1604.png), so 1604420 gets 1604.png too. A class's skill the data
+    /// has no icon for (each class's Dodge, a Spiritmaster's spirits' attacks, basic
+    /// attacks: 14 of the 771 player skills in our captures) gets its class's icon.
     fn family_icon(&self, skill: u32) -> Option<String> {
-        if !(1000..PLAYER_SKILL_MIN).contains(&skill) {
-            return None;
+        if (1000..PLAYER_SKILL_MIN).contains(&skill) {
+            let file = format!("{}.png", skill / 1000);
+            return self.dir.join(&file).is_file().then_some(file);
         }
-        let file = format!("{}.png", skill / 1000);
-        self.dir.join(&file).is_file().then_some(file)
+        let code = meter_core::classes::class_code_of_skill(skill)?;
+        ["webp", "png"].iter().map(|ext| format!("class_{code}.{ext}")).find(|f| self.dir.join(f).is_file())
     }
 
     /// Which skill's icon to show for `skill`, given the entry it resolved to.
@@ -715,6 +733,19 @@ mod tests {
         assert_eq!(d.skills.skills[&2_210_105].icon.as_deref(), Some("Scroll.png"));
         // A skill that has an icon keeps it.
         assert_eq!(d.skills.skills[&18_010_000].icon.as_deref(), Some("1801.png"));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn class_skills_without_an_icon_get_their_classs() {
+        let dir = temp_dir("class-icons");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18000100": { "name": "Dodge" } } }"#).unwrap();
+        fs::write(dir.join("class_18.webp"), b"RIFF").unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        assert_eq!(d.skill_meta(18_000_100).1, Some(18_000_100));
+        assert!(d.skill_icon(18_000_100).is_some_and(|u| u.starts_with("data:image/webp;base64,")));
+        // No icon for a class we have none for.
+        assert!(d.skill_icon(17_000_100).is_none());
         fs::remove_dir_all(dir).ok();
     }
 

@@ -45,6 +45,8 @@ const expanded = new Set(); // player IDs whose skill list is open
 let pinned = true;
 let editing = false; // pause redraws while a name is being typed
 let lastView = null;
+// When it arrived (performance.now()), so countdowns run on between refreshes.
+let lastViewAt = 0;
 
 // What the panel shows: the live meter, the list of past fights, or one past fight.
 let mode = "live";
@@ -465,13 +467,14 @@ function placeNotice() {
   const panel = $("panel").getBoundingClientRect();
   const box = $("box").getBoundingClientRect();
   if (minimal()) {
-    // Under the last row, left of the lock button.
+    // Under the last row, centred, clear of the lock button on either side.
     Object.assign(line.style, {
-      left: `${box.left - panel.left}px`,
-      right: "2.2em",
+      left: "50%",
+      right: "",
+      transform: "translateX(-50%)",
       top: `${box.bottom - panel.top + 2}px`,
       height: "",
-      maxWidth: "",
+      maxWidth: "calc(100% - 4.4em)",
     });
     return;
   }
@@ -480,6 +483,7 @@ function placeNotice() {
   Object.assign(line.style, {
     left: `${left}px`,
     right: "",
+    transform: "",
     top: `${legend.top - panel.top}px`,
     height: `${legend.height}px`,
     maxWidth: `${box.right - panel.left - 8 - left}px`,
@@ -567,6 +571,7 @@ function drawBossBar(enc) {
   const bar = $("boss-bar");
   const show = mode === "live" && enc.active && enc.target_boss && enc.target_max_hp && lastView && lastView.boss_hp;
   bar.hidden = !show;
+  drawBossCast(show && lastView.boss_casts ? enc : null);
   if (!show) return;
   const pct = Math.max(0, Math.min(1, (enc.target_hp ?? enc.target_max_hp) / enc.target_max_hp));
   $("boss-hp-fill").style.width = `${pct * 100}%`;
@@ -588,6 +593,61 @@ function drawBossBar(enc) {
     best.className = me && me.dps > b.dps ? "beating" : "";
     best.title = `Your best DPS against it, and its fastest kill (${b.kills} ${b.kills === 1 ? "kill" : "kills"})`;
   }
+}
+
+// The boss cast line: casting (the bar fills), cast and about to land (the bar empties,
+// in the warning colour), else what it cast next last time (a countdown). It runs on
+// between refreshes, from when the snapshot came.
+let castLine = null;
+
+function drawBossCast(enc) {
+  const line = $("boss-cast");
+  line.hidden = !enc;
+  castLine = null;
+  if (!enc) return;
+  const c = enc.boss_cast;
+  const next = lastView.boss_next;
+  // Most boss skills have no name in the game data: then the cast time says what it is
+  // (name them in the analysis window's [boss] tab).
+  const name = (x) => x.skill_name || (x.cast_ms ? `${(x.cast_ms / 1000).toFixed(1)} s cast` : "a cast");
+  if (c && c.cast_left_ms > 0) {
+    castLine = { kind: "casting", name: name(c), total: c.cast_ms, left: c.cast_left_ms };
+  } else if (c && c.lands_left_ms > 0) {
+    castLine = { kind: "landing", name: name(c), total: c.lands_ms, left: c.lands_left_ms };
+  } else if (next) {
+    castLine = { kind: "next", name: name(next), total: 0, left: next.in_s * 1000 };
+  }
+  if (!castLine) {
+    line.className = "";
+    $("bc-name").textContent = "";
+    $("bc-time").textContent = "";
+    $("bc-fill").style.width = "0";
+    return;
+  }
+  line.className = castLine.kind;
+  $("bc-name").textContent = castLine.kind === "next" ? `next: ${castLine.name}` : castLine.kind === "landing" ? `⚠ ${castLine.name}` : castLine.name;
+  line.title =
+    castLine.kind === "next"
+      ? "What it cast next the last time you fought it, from where this fight is"
+      : castLine.kind === "landing"
+        ? "Cast: when it lands"
+        : "Casting";
+  tickCastLine();
+}
+
+function tickCastLine() {
+  const c = castLine;
+  if (!c || $("boss-cast").hidden) return;
+  const left = Math.max(0, c.left - (performance.now() - lastViewAt));
+  if (c.kind === "next") {
+    $("bc-time").textContent = `in ${clock(left / 1000)}`;
+  } else {
+    const done = c.total > 0 ? 1 - left / c.total : 1;
+    $("bc-fill").style.width = `${Math.max(0, Math.min(1, c.kind === "landing" ? 1 - done : done)) * 100}%`;
+    $("bc-time").textContent = c.kind === "landing" ? `lands ${(left / 1000).toFixed(1)}s` : `${(left / 1000).toFixed(1)}s`;
+  }
+  $("boss-cast").classList.toggle("soon", c.kind !== "casting" && left <= (c.kind === "next" ? 5000 : 1000));
+  if (left > 0) requestAnimationFrame(tickCastLine);
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";
@@ -680,6 +740,7 @@ function heightFor(rows) {
   part("totals").hidden = false;
   // Room for the boss's HP line when it's on, so a boss fight's rows still fit.
   part("boss-bar").hidden = !bossBarRoom();
+  part("boss-cast").hidden = !bossCastRoom();
   part("target").textContent = "x";
   part("total").textContent = "x";
   for (const id of ["empty", "status"]) part(id).hidden = true;
@@ -717,10 +778,11 @@ function widthFor(text) {
 // on first start, after a layout change or a reset, never to a width you chose).
 let fitFor = null;
 let resetWidth = null; // set by "reset appearance": the width goes back to the default too
-const bossBarRoom = () => !!(lastView && lastView.boss_hp && !minimal());
+const bossBarRoom = () => !!(lastView && lastView.boss_hp);
+const bossCastRoom = () => bossBarRoom() && !!lastView.boss_casts;
 
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}`;
+  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}|${bossCastRoom()}`;
   if (key === fitFor) return;
   const exact = fitFor !== null;
   fitFor = key;
@@ -806,6 +868,7 @@ function redraw() {
     $("clock").textContent = party.length ? `[${party.length}]` : "";
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
+    $("boss-cast").hidden = true;
     drawParty(party);
     $("empty").hidden = party.length > 0;
     $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
@@ -817,6 +880,7 @@ function redraw() {
     $("clock").textContent = "";
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
+    $("boss-cast").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;
@@ -851,6 +915,7 @@ async function refresh() {
   if (editing) return;
   try {
     const view = await invoke("snapshot", { expanded: [...expanded] });
+    lastViewAt = performance.now();
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
     lastKey = key;

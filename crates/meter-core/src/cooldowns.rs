@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::cast::{parse_cast, OPCODE_CAST};
+use crate::cast::{parse_cast, parse_stop_cooldown, OPCODE_CAST, OPCODE_CAST_STOP, OPCODE_CHARGE_STOP};
 use crate::protocol::read_varint;
 
 /// Cooldowns changing: a varint count, then for each a u32 skill and a varint remaining
@@ -96,6 +96,14 @@ impl Cooldowns {
                     base(c.skill),
                     Cooldown { skill: c.skill, ends_us: ts_us + u64::from(ms) * 1000, duration_ms: ms, charges },
                 );
+            }
+            // A cast you stopped, or a charge you let go, can start the skill's cooldown.
+            OPCODE_CAST_STOP | OPCODE_CHARGE_STOP => {
+                let Some((caster, skill, ms)) = parse_stop_cooldown(payload) else { return };
+                if me != Some(caster) || ms == 0 {
+                    return;
+                }
+                self.by_base.insert(base(skill), Cooldown { skill, ends_us: ts_us + u64::from(ms) * 1000, duration_ms: ms, charges: None });
             }
             OPCODE_SKILL_LIST => {
                 let skills = parse_skill_list(payload);
@@ -246,6 +254,21 @@ mod tests {
         c.feed(3 * S, OPCODE_COOLDOWN, &hex("01 50 15 17 01 00"), Some(11792));
         assert_eq!(c.active(3 * S).len(), 1);
         assert!(c.active(20 * S).is_empty());
+    }
+
+    #[test]
+    fn a_charge_let_go_starts_its_cooldown() {
+        let mut c = Cooldowns::default();
+        // You (11792) let go of a charged skill: 12 s.
+        let mut p = vec![0x90, 0x5c, 0, 0];
+        p.extend(14_300_000u32.to_le_bytes());
+        p.extend([0xe0, 0x5d]);
+        c.feed(S, OPCODE_CHARGE_STOP, &p, Some(11792));
+        assert_eq!(c.active(S)[0].remaining_ms, 12_000);
+        // Someone else's doesn't count.
+        let mut c = Cooldowns::default();
+        c.feed(S, OPCODE_CHARGE_STOP, &p, Some(3199));
+        assert!(c.active(S).is_empty());
     }
 
     #[test]

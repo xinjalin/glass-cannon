@@ -4,15 +4,19 @@
 //! are consistently present but not understood yet.
 //!
 //! ```text
-//! varint target, u16 flags, varint attacker, u32 skill, u8 cast_id, u8 result,
-//! [flags & 0x02: u8 special, u8, u8 position], u32 unknown_a, u32 hit, varint unknown_b,
-//! [flags & 0x04: varint damage],
-//! [flags & 0x10 without 0x02: 1 byte],
-//! [flags & 0x20: varint n, n × varint parts],
-//! [flags & 0x100: u8, varint],
-//! u16 hit_echo,
-//! [flags & 0x400: u16]
+//! varint target, u16 flags, varint attacker, u32 skill, u8 cast_id, [flags & 0x01: u32],
+//! u8 result, [flags & 0x02: u8 special, varint, u8 position], u32 unknown_a, u32 hit,
+//! varint unknown_b, [flags & 0x04: varint damage], [flags & 0x08: u32 MP damage],
+//! [flags & 0x10 without 0x02: 1 byte], [flags & 0x20: varint n, n × varint parts],
+//! [flags & 0x40: varint n, n × u32 barriers hit], [flags & 0x80: u8],
+//! [flags & 0x100: varint n, n × u32 effects], u16 hit_echo,
+//! [flags & 0x200: varint HP drained], [flags & 0x400: varint HP recovered],
+//! [flags & 0x800: u32], [flags & 0x1000: u8], [flags & 0x2000: u32]
 //! ```
+//!
+//! The fields from 0x08 on follow Questlog's SkillEffect; with them, all but 308 of 197,103
+//! hits in our 2026-10-23/24 captures read to the last byte. HP drained and recovered heal
+//! the attacker (Questlog counts both as healing): 6,635 hits recovered 3.7M HP.
 //!
 //! The damage value's position depends only on bits 0x02 and 0x04, so damage is read
 //! correctly even when later fields include bits we haven't decoded.
@@ -24,7 +28,7 @@
 use crate::protocol::read_varint;
 
 /// Flag bits whose fields we know how to skip.
-const KNOWN_FLAGS: u16 = 0x0002 | 0x0004 | 0x0010 | 0x0020 | 0x0100 | 0x0400;
+const KNOWN_FLAGS: u16 = 0x3fff;
 
 /// `result` of a critical hit (a normal hit is 2).
 const RESULT_CRIT: u8 = 3;
@@ -52,8 +56,8 @@ pub struct DamageEvent {
     /// The attacker's cast this hit belongs to: every hit of one cast shares it (and the
     /// cast's `0x3802` message carries it too). Counts up and wraps at 255.
     pub cast_id: u8,
-    /// How the hit landed: 2 normal, 3 critical. Other values (0, 1, 6) are rare and not
-    /// identified yet.
+    /// How the hit landed (Questlog's hit types): 2 normal, 3 critical; 1 evaded, 6 resisted,
+    /// 4, 5, 7 and 8 immune, 9 reflected (see [`DamageEvent::is_avoided`]); 0 no effect.
     pub result: u8,
     /// Outcome bits from the optional 3-byte block: 0x04 perfect, 0x08 double strike.
     /// Other bits (0x80 is common on hits taken) aren't identified yet. 0 without the block.
@@ -76,6 +80,8 @@ pub struct DamageEvent {
     pub is_dot: bool,
     /// For ticks: the instance ID of the effect producing them (as in the buff messages).
     pub instance: Option<u64>,
+    /// HP the hit gave back to its attacker (drained and recovered), 0 if none.
+    pub healed: u64,
 }
 
 impl DamageEvent {
@@ -85,6 +91,12 @@ impl DamageEvent {
 
     pub fn is_crit(&self) -> bool {
         self.result == RESULT_CRIT
+    }
+
+    /// The target evaded, resisted or was immune: a miss, for accuracy (as Questlog counts
+    /// them). Reflected damage still lands on someone, so it isn't one.
+    pub fn is_avoided(&self) -> bool {
+        self.damage.is_none() && matches!(self.result, 1 | 4..=8)
     }
 
     pub fn is_perfect(&self) -> bool {
@@ -132,10 +144,14 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
     let attacker = read_varint(p, &mut i)?;
     let skill = u32_at(p, &mut i)?;
     let cast_id = *take(p, &mut i, 1)?.first()?;
+    if flags & 0x01 != 0 {
+        take(p, &mut i, 4)?;
+    }
     let result = *take(p, &mut i, 1)?.first()?;
     let (special, position_byte) = if flags & 0x02 != 0 {
-        let block = take(p, &mut i, 3)?;
-        (block[0], block[2])
+        let special = *take(p, &mut i, 1)?.first()?;
+        read_varint(p, &mut i)?; // HP restored by blocking (0 but when it happens)
+        (special, *take(p, &mut i, 1)?.first()?)
     } else {
         (0, 0)
     };
@@ -165,10 +181,11 @@ pub fn parse(p: &[u8]) -> Option<DamageEvent> {
         fully_parsed: false,
         is_dot: false,
         instance: None,
+        healed: 0,
     };
     // Everything up to the damage value is solid. The rest is best effort: if it
     // doesn't line up, keep the event and mark it as not fully parsed.
-    ev.fully_parsed = parse_trailer(p, i, flags, &mut ev.parts) && flags & !KNOWN_FLAGS == 0;
+    ev.fully_parsed = parse_trailer(p, i, flags, &mut ev.parts, &mut ev.healed) && flags & !KNOWN_FLAGS == 0;
     Some(ev)
 }
 
@@ -217,11 +234,22 @@ pub fn parse_dot(p: &[u8]) -> Option<DamageEvent> {
         fully_parsed: i == p.len(),
         is_dot: true,
         instance: Some(instance),
+        healed: 0,
     })
 }
 
-fn parse_trailer(p: &[u8], mut i: usize, flags: u16, parts: &mut Vec<u64>) -> bool {
-    let mut inner = || -> Option<()> {
+fn parse_trailer(p: &[u8], mut i: usize, flags: u16, parts: &mut Vec<u64>, healed: &mut u64) -> bool {
+    let mut inner = || -> Option<u64> {
+        let u32_list = |i: &mut usize| -> Option<()> {
+            let n = read_varint(p, i)?;
+            if n > 64 {
+                return None;
+            }
+            take(p, i, 4 * n as usize).map(|_| ())
+        };
+        if flags & 0x08 != 0 {
+            take(p, &mut i, 4)?;
+        }
         if flags & 0x10 != 0 && flags & 0x02 == 0 {
             take(p, &mut i, 1)?;
         }
@@ -234,21 +262,39 @@ fn parse_trailer(p: &[u8], mut i: usize, flags: u16, parts: &mut Vec<u64>) -> bo
                 parts.push(read_varint(p, &mut i)?);
             }
         }
-        if flags & 0x100 != 0 {
+        if flags & 0x40 != 0 {
+            u32_list(&mut i)?;
+        }
+        if flags & 0x80 != 0 {
             take(p, &mut i, 1)?;
-            read_varint(p, &mut i)?;
+        }
+        if flags & 0x100 != 0 {
+            u32_list(&mut i)?;
         }
         u16_at(p, &mut i)?;
-        if flags & 0x400 != 0 {
-            u16_at(p, &mut i)?;
+        let mut back = 0;
+        for bit in [0x200, 0x400] {
+            if flags & bit != 0 {
+                back += read_varint(p, &mut i)?;
+            }
         }
-        (i == p.len()).then_some(())
+        for (bit, n) in [(0x800, 4), (0x1000, 1), (0x2000, 4)] {
+            if flags & bit != 0 {
+                take(p, &mut i, n)?;
+            }
+        }
+        (i == p.len()).then_some(back)
     };
-    let ok = inner().is_some();
-    if !ok {
-        parts.clear();
+    match inner() {
+        Some(back) => {
+            *healed = back;
+            true
+        }
+        None => {
+            parts.clear();
+            false
+        }
     }
-    ok
 }
 
 fn take<'a>(p: &'a [u8], i: &mut usize, n: usize) -> Option<&'a [u8]> {
@@ -268,6 +314,19 @@ fn u32_at(p: &[u8], i: &mut usize) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_hit_that_heals_its_attacker() {
+        // A Gladiator's (8967) hit from behind: 1,352 damage, 497 HP back (2026-10-24).
+        let p = hex_bytes("a7 ea 03 16 04 87 46 9c 9c a8 00 0e 02 80 00 01 fb 2c dd 41 01 00 00 00 d6 5d c8 0a 01 00 f1 03");
+        let e = parse(&p).unwrap();
+        assert_eq!((e.attacker, e.skill, e.damage, e.healed, e.position()), (8967, 11_050_140, Some(1352), 497, Position::Back));
+        assert!(e.fully_parsed);
+    }
+
+    fn hex_bytes(s: &str) -> Vec<u8> {
+        s.split_whitespace().map(|b| u8::from_str_radix(b, 16).unwrap()).collect()
+    }
 
     fn hex(s: &str) -> Vec<u8> {
         s.split_whitespace()

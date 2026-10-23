@@ -27,12 +27,13 @@ fn uptime_ms() -> Option<i64> {
     (ok && freq > 0).then(|| (i128::from(count) * 1000 / i128::from(freq)) as i64)
 }
 
-/// The median of the game's recent pings, in milliseconds. Only for live capture: a
-/// recording's replies were stamped on another session's clock.
+/// The game's latest ping, in milliseconds, as Questlog shows it (0 to 10 s; a later reply
+/// replaces it). Only for live capture: a recording's replies were stamped on another
+/// session's clock.
 pub fn game_ping_ms(meter: &Meter) -> Option<u32> {
     let wall_us = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_micros() as u64;
     let client_now = uptime_ms()? + CLIENT_CLOCK_BASE_MS;
-    let mut pings: Vec<i64> = meter
+    meter
         .pings()
         .filter(|(arrived, _)| wall_us.saturating_sub(*arrived) < FRESH_US)
         .map(|(arrived, sent)| {
@@ -40,11 +41,7 @@ pub fn game_ping_ms(meter: &Meter) -> Option<u32> {
             let ago_ms = (wall_us.saturating_sub(*arrived) / 1000) as i64;
             client_now - ago_ms - sent
         })
-        .filter(|ms| (0..5000).contains(ms))
-        .collect();
-    if pings.is_empty() {
-        return None;
-    }
-    pings.sort_unstable();
-    Some(pings[pings.len() / 2] as u32)
+        .filter(|ms| (0..=10_000).contains(ms))
+        .last()
+        .map(|ms| ms as u32)
 }

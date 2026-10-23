@@ -116,6 +116,14 @@ pub const OPCODE_REVIVED: u16 = 0x8d26;
 /// Island, each the moment it died (the last boss ends the dungeon with `0x6101` instead).
 pub const OPCODE_MIDBOSS_KILLED: u16 = 0x572e;
 
+/// A mob took aggro for the first time: varint entity (Questlog's NpcFirstAggro). A boss's
+/// pull, when it comes before its combat state.
+pub const OPCODE_FIRST_AGGRO: u16 = 0x8d52;
+
+pub fn parse_first_aggro(p: &[u8]) -> Option<u64> {
+    read_varint(p, &mut 0)
+}
+
 pub fn parse_revived(p: &[u8]) -> Option<u64> {
     read_varint(p, &mut 0)
 }

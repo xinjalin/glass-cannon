@@ -138,24 +138,8 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": false
-      },
-      {
-        "label": "boss-casts",
-        "title": "Glass Cannon boss casts",
-        "width": 320,
-        "height": 380,
-        "minWidth": 220,
-        "minHeight": 160,
-        "url": "boss-casts.html",
-        "decorations": false,
-        "transparent": true,
-        "visible": false,
-        "shadow": true,
-        "resizable": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "center": false
       }
+
     ],
     "security": {
       "csp": "default-src 'self' ipc: http://ipc.localhost; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
