@@ -48,7 +48,7 @@ pub const OPCODE_PARTY_DISBANDED: u16 = 0x921f;
 pub const OPCODE_PARTY_LEFT_NOTICE: u16 = 0x931f;
 /// The party finder group removed you (u8 reason).
 pub const OPCODE_GROUP_KICKED: u16 = 0x972a;
-/// The expedition (a large group) broke up, or you left it.
+/// The Force (a 20-player raid group) broke up, or you left it.
 pub const OPCODE_FORCE_DISBANDED: u16 = 0x961a;
 pub const OPCODE_FORCE_LEFT: u16 = 0x962e;
 /// One party or group member's level, gear score, legion and combat power (not sent for
