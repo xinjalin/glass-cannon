@@ -99,8 +99,8 @@ body {
   border-radius: 50%;
   background: var(--faint);
 }
-.dot.capturing { background: var(--accent); }
-.dot.fighting { background: var(--accent); box-shadow: 0 0 0.5em var(--accent); }
+.dot.capturing { background: var(--accent-fill); }
+.dot.fighting { background: var(--accent-fill); box-shadow: 0 0 0.5em var(--accent); }
 .dot.waiting,
 .dot.starting { background: var(--warn); }
 .dot.error { background: var(--bad); }
@@ -151,7 +151,7 @@ button.on { color: var(--accent); }
 button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 /* Whose damage counts: the same filled button whichever it shows, as wide as its longest
    label ("party") so it doesn't change size. */
-#scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent); color: var(--ink); text-shadow: none; }
+#scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
 #scope:hover { filter: brightness(1.1); }
 /* Auto: a small mark in the corner (the scope follows your party). */
 #scope { position: relative; }
@@ -216,8 +216,8 @@ legend {
    longest ("taken") so it doesn't change size. Two classes, so `button.on` doesn't turn
    its text the colour of its background. */
 .view-switch,
-.view-switch.on { width: calc(5ch + 0.7em); min-width: 0; height: 1.35em; padding: 0; background: var(--accent); color: var(--ink); text-shadow: none; }
-.view-switch:hover { background: var(--accent); color: var(--ink); filter: brightness(1.1); }
+.view-switch.on { width: calc(5ch + 0.7em); min-width: 0; height: 1.35em; padding: 0; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
+.view-switch:hover { background: var(--accent-fill); color: var(--ink); filter: brightness(1.1); }
 #float .view-switch { height: 1.6em; font-size: 0.9em; }
 .back {
   min-width: 1.1em;
@@ -260,13 +260,13 @@ legend {
 .end-tag.wipe { color: var(--bad); }
 .name[data-deaths]::after { content: " ☠" attr(data-deaths); color: var(--bad); }
 [data-highlight="self"] .row.self .name[data-deaths]::after,
-[data-highlight="all"] .row .name[data-deaths]::after { color: var(--ink); }
+[data-highlight="all"] .row .name[data-deaths]::after { color: var(--row-ink); }
 
 .boss {
   flex: none;
   padding: 0 0.35em;
   border-radius: 0.25em;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
   text-shadow: none;
   font-size: 0.8em;
@@ -285,9 +285,11 @@ legend {
   overflow-y: auto;
 }
 
-/* Each row's colour: the bar colour (the theme's accent unless chosen), or its class colour. */
-.row { --row: var(--bar, var(--accent)); cursor: pointer; }
-[data-bars="class"] .row { --row: var(--class, var(--accent)); }
+/* Each row's colour: the bar colour (the theme's accent unless chosen), or its class colour;
+   and the text drawn on it when the row is filled. */
+.row { --row: var(--bar, var(--accent-fill)); --row-ink: var(--bar-ink, var(--ink)); cursor: pointer; }
+[data-bars="class"] .row { --row: var(--class, var(--accent-fill)); --row-ink: var(--ink); }
+[data-bars="class"] .row[class*=" c1"] { --row-ink: #1b0f11; }
 /* Row height and spacing are whole pixels (set by app.js) so every gap is the same. */
 .row + .row { margin-top: var(--row-gap, 2px); }
 
@@ -342,7 +344,7 @@ legend {
 [data-highlight="self"] .row.self:hover .line,
 [data-highlight="all"] .row .line {
   background: var(--row);
-  color: var(--ink);
+  color: var(--row-ink);
   text-shadow: none;
 }
 [data-highlight="all"] .row:hover .line { filter: brightness(1.08); }
@@ -351,19 +353,19 @@ legend {
 [data-highlight="self"] .row.self .rank,
 [data-highlight="all"] .row .dps,
 [data-highlight="all"] .row .share,
-[data-highlight="all"] .row .rank { color: var(--ink); }
+[data-highlight="all"] .row .rank { color: var(--row-ink); }
 .row.self .name { font-weight: 700; }
 .row.self .rank { font-size: 0; }
 .row.self .rank::before { content: "»"; font-size: var(--fs); }
 [data-highlight="off"] .row.self .rank::before { color: var(--row); }
 [data-highlight="self"] .row.self .seg,
-[data-highlight="all"] .row .seg { background: rgba(27, 15, 17, 0.2); }
+[data-highlight="all"] .row .seg { background: color-mix(in srgb, var(--row-ink) 20%, transparent); }
 [data-highlight="self"] .row.self .seg.on,
-[data-highlight="all"] .row .seg.on { background: var(--ink); }
+[data-highlight="all"] .row .seg.on { background: var(--row-ink); }
 [data-highlight="self"] .row.self .class-icon,
 [data-highlight="all"] .row .class-icon { filter: none; }
 [data-highlight="self"] .row.self .class-icon.blank,
-[data-highlight="all"] .row .class-icon.blank { background: var(--ink); }
+[data-highlight="all"] .row .class-icon.blank { background: var(--row-ink); }
 
 /* ---------------------------------------------------------------- skill breakdown */
 

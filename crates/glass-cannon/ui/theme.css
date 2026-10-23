@@ -45,7 +45,11 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   --line: color-mix(in srgb, var(--accent) 50%, transparent);
   --line-faint: color-mix(in srgb, var(--accent) 20%, transparent);
+  /* Text on fills of the accent: dark, or light when a picked colour is dark. */
   --ink: #1b0f11;
+  /* Fills (selected buttons, bars, filled rows) use a picked colour as it is; text in the
+     accent colour uses --accent, lightened when needed so it reads on the tint. */
+  --accent-fill: var(--accent);
   --ok: #a8e6bd;
   --warn: #f6d38f;
   --bad: #ff9393;
@@ -53,12 +57,12 @@
 }
 
 /* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */
-[data-bars="rose"] { --bar: #f2a8a4; }
-[data-bars="lavender"] { --bar: #c8b4f7; }
-[data-bars="mint"] { --bar: #94dcb9; }
-[data-bars="sky"] { --bar: #95caf3; }
-[data-bars="amber"] { --bar: #f1c073; }
-[data-bars="mono"] { --bar: #dcdcdc; }
+[data-bars="rose"] { --bar: #f2a8a4; --bar-ink: #1b0f11; }
+[data-bars="lavender"] { --bar: #c8b4f7; --bar-ink: #1b0f11; }
+[data-bars="mint"] { --bar: #94dcb9; --bar-ink: #1b0f11; }
+[data-bars="sky"] { --bar: #95caf3; --bar-ink: #1b0f11; }
+[data-bars="amber"] { --bar: #f1c073; --bar-ink: #1b0f11; }
+[data-bars="mono"] { --bar: #dcdcdc; --bar-ink: #1b0f11; }
 
 /* Class colours (pastel, so dark text on them stays readable). */
 .c11 { --class: #f2b27c; } /* Gladiator */

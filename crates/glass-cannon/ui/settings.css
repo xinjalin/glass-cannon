@@ -150,7 +150,7 @@ legend {
 .choice button[aria-checked="true"],
 .chip[aria-checked="true"] {
   color: var(--ink);
-  background: var(--accent);
+  background: var(--accent-fill);
   text-shadow: none;
   border-radius: 0.25em;
 }
@@ -275,7 +275,7 @@ legend {
 }
 .menu-item.active { background: var(--line-faint); }
 .menu-item[aria-selected="true"] {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
   text-shadow: none;
 }
@@ -313,7 +313,7 @@ kbd {
   display: inline-block;
   padding: 0 0.35em;
   border-radius: 0.25em;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
   text-shadow: none;
   font: inherit;

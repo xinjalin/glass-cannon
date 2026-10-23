@@ -82,6 +82,8 @@ function say(text, kind = "") {
 }
 
 function drawAppearance(a) {
+  // While a colour is being picked, what's saved may be a moment behind the picker.
+  if (picking && picking.changed) a = { ...a, [picking.field]: pickedValue() };
   applyAppearance(a);
   for (const b of document.querySelectorAll("[data-theme-choice]")) {
     b.setAttribute("role", "radio");
@@ -161,15 +163,25 @@ async function refresh() {
   }
 }
 
+// Appearance changes are sent one after another, so a later one is never overtaken by an
+// earlier one still on its way (the app may run two at once).
+let appearanceQueue = Promise.resolve();
+function queueAppearance(command, change) {
+  appearanceQueue = appearanceQueue.then(async () => {
+    try {
+      const a = await invoke(command, { change });
+      if (state) state.appearance = a;
+      drawAppearance(a);
+    } catch (e) {
+      say(String(e), "error");
+    }
+  });
+  return appearanceQueue;
+}
+
 // Changes apply at once here; the overlay picks them up on its next refresh.
-async function setAppearance(change) {
-  try {
-    const a = await invoke("set_appearance", { change });
-    if (state) state.appearance = a;
-    drawAppearance(a);
-  } catch (e) {
-    say(String(e), "error");
-  }
+function setAppearance(change) {
+  return queueAppearance("set_appearance", change);
 }
 
 for (const b of document.querySelectorAll("[data-theme-choice]")) {
@@ -200,24 +212,73 @@ function drawCustom(button, value) {
   const input = button.querySelector("input");
   if (picked) {
     button.style.setProperty("--swatch", value);
-    // Not while the picker is open: setting it would close the picker.
-    if (document.activeElement !== input) input.value = value;
+    // Not while its picker is open: setting it would move or close the picker.
+    if (!picking || picking.input !== input) input.value = value;
   } else button.style.removeProperty("--swatch");
   button.title = picked ? `${value} · click to pick another colour` : "Pick any colour";
 }
+// The custom colour picker that's open, if one is: { input, field, key, start, before,
+// changed }. Its colour is saved and shown in every window as it changes (a few times a
+// second at most); this window's frame is restyled once it closes, since restyling it
+// closes the picker. The picker doesn't always say when it closes (clicking another window
+// may not), so a click or key here, or this window losing focus, also counts. Closing it
+// without picking anything changes nothing; cancelling it (back to the colour it opened
+// with) puts back what was set before, a preset included.
+let picking = null;
+let pickTimer = null;
+let pickChange = null;
+const PICK_SAVE_MS = 120;
+
+// The open picker's colour as a setting: back at the colour it opened with (cancelled),
+// what was set before, a preset included.
+function pickedValue() {
+  const { input, start, before } = picking;
+  return input.value === start && before ? before : input.value;
+}
+
+function savePick() {
+  clearTimeout(pickTimer);
+  pickTimer = null;
+  const change = pickChange;
+  pickChange = null;
+  if (change) queueAppearance("pick_colour", change);
+}
+
+async function donePicking() {
+  if (!picking) return;
+  const { key, changed } = picking;
+  const value = pickedValue();
+  picking = null;
+  clearTimeout(pickTimer);
+  pickTimer = null;
+  pickChange = null;
+  if (!changed) return;
+  // The picker's last colour, with every window (this one too) restyled.
+  await setAppearance({ [key]: value });
+}
+
 for (const [kind, key] of [["theme", "theme"], ["bar", "barColor"]]) {
   const button = document.querySelector(`[data-${kind}-custom]`);
   const input = button.querySelector("input");
-  button.addEventListener("click", () => input.click());
-  // While dragging in the picker only this page previews the colour: saving it restyles
-  // every window, this one too, which would close the picker. It's saved on letting go.
   const field = kind === "theme" ? "theme" : "bar_color";
-  input.addEventListener("input", () => {
-    if (state) applyAppearance({ ...state.appearance, [field]: input.value });
-    button.style.setProperty("--swatch", input.value);
+  const open = () => ({ input, field, key, start: input.value, before: state && state.appearance[field], changed: false });
+  button.addEventListener("click", () => {
+    picking = open();
+    input.click();
   });
-  input.addEventListener("change", () => setAppearance({ [key]: input.value }));
+  input.addEventListener("input", () => {
+    if (!picking) picking = open();
+    picking.changed = true;
+    if (state) drawAppearance(state.appearance);
+    button.style.setProperty("--swatch", input.value);
+    pickChange = { [key]: pickedValue() };
+    if (!pickTimer) pickTimer = setTimeout(savePick, PICK_SAVE_MS);
+  });
+  input.addEventListener("change", donePicking);
 }
+window.addEventListener("blur", donePicking);
+document.addEventListener("pointerdown", donePicking, true);
+document.addEventListener("keydown", donePicking, true);
 for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }

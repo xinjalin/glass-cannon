@@ -12,7 +12,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{lock, notify_overlay, restyle_windows, show_overlay, AppState, OVERLAY, SETTINGS};
+use crate::{lock, notify_overlay, restyle_windows, restyle_windows_but, show_overlay, AppState, OVERLAY, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -140,6 +140,18 @@ pub fn set_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>, change: 
     s.appearance.update(change);
     s.save(&app.config_dir);
     restyle_windows(&handle, &s.appearance);
+    s.appearance.clone()
+}
+
+/// A colour being picked in the settings window: saved and shown in every window as it
+/// changes. The settings window's own frame isn't restyled, since that closes its colour
+/// picker; [`set_appearance`] does it once the picker is closed.
+#[tauri::command]
+pub fn pick_colour(handle: AppHandle, app: State<'_, Arc<AppState>>, change: AppearanceChange) -> Appearance {
+    let mut s = lock(&app.settings);
+    s.appearance.update(change);
+    s.save(&app.config_dir);
+    restyle_windows_but(&handle, &s.appearance, Some(SETTINGS));
     s.appearance.clone()
 }
 

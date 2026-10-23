@@ -677,6 +677,7 @@ fn main() {
             settings::settings_status,
             settings::set_record,
             settings::set_appearance,
+            settings::pick_colour,
             settings::fit_settings,
             analysis::open_analysis,
             analysis::follow_fight,
@@ -743,7 +744,15 @@ fn main() {
 /// Applies the background effect, corners and border to every window, and tells each
 /// page so the theme and font change everywhere at once.
 fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
+    restyle_windows_but(handle, appearance, None);
+}
+
+/// Restyles every window but `skip` (its page still gets the new appearance).
+fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     for label in [OVERLAY, SETTINGS, ANALYSIS].into_iter().chain(panels::PANELS) {
+        if Some(label) == skip {
+            continue;
+        }
         if let Some(w) = handle.get_webview_window(label) {
             style::apply(&w, appearance, label == OVERLAY);
         }
