@@ -8,9 +8,9 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 
 | | opcodes | messages |
 | --- | ---: | ---: |
-| Decoded and used by the meter | 42 | 373,273 |
+| Decoded and used by the meter | 46 | 373,337 |
 | Understood, not used yet | 4 | 73 |
-| Named elsewhere only | 64 | 241,344 |
+| Named elsewhere only | 60 | 241,280 |
 | Unknown | 175 | 75,719 |
 | Named elsewhere, never seen | 33 | 0 |
 
@@ -39,9 +39,11 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x8d04` | 319 | a death: who, by which skill, killer | CharDie_NT | Aion2Flow: nickname; A2Tools: summon ownership; RATmeter: entity death |
 | `0x3834` | 114 | your target | SetMainTarget_RS |  |
 | `0x9702` | 102 | party finder group roster (ready, inside, leader) | PartyFinderGroup_NT | A2Tools: party roster; RATmeter: party info; a2_protocol-research: party state |
+| `0x922d` | 42 | a dungeon's objective progress: its stage (stage splits) | MapEventUpdateProgress_NT |  |
 | `0x380c` | 27 | a cast stopped before it went off | SkillCastingStop_NT |  |
 | `0x9101` | 16 | world map contents: field boss timers | WorldMapContentsInfo_RS | A2Tools: field boss map |
 | `0x9200` | 13 | your party's roster | PartyInfo_NT | Aion2Flow: party member list |
+| `0x610c` | 13 | one content ticket changed | ContentsTicketUpdate_NT | A2Tools: Odyle energy update |
 | `0x3633` | 9 | you appear: your entity, name, character data (login, zone change) | MyCharAppear_NT |  |
 | `0x4002` | 9 | you're on this map (each server connection starts with it) |  | Aion2Flow: state |
 | `0x9716` | 9 | a group member readied up / stopped | PartyFinderReady_NT |  |
@@ -50,9 +52,11 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x971d` | 6 | you left the finder group | PartyFinderLeave_NT |  |
 | `0x8d26` | 6 | a player came back to life | UseRebirth_NT |  |
 | `0x5100` | 5 | your skills, at login and entering a dungeon | MySkillList_NT |  |
+| `0x610b` | 5 | every content ticket; Odyle energy is 60000001 | ContentsTickets_NT | A2Tools: Odyle energy list |
 | `0x9221` | 4 | a member left the party |  |  |
 | `0x971e` | 4 | a member left the finder group |  |  |
 | `0x572e` | 4 | a dungeon's middle boss was killed: its mob type | PartyDungeonRewardMiddleBossKill_NT |  |
+| `0x922e` | 4 | joining a dungeon's objectives (map event) | MapEventJoin_NT | Aion2Flow: map |
 | `0x6101` | 2 | dungeon completed | DungeonCompleteResult_NT |  |
 | `0x9213` | 2 | you left the party | PartyLeave_RS |  |
 | `0x9715` | 2 | you readied up / stopped | PartyFinderSelfReady_NT |  |
@@ -98,12 +102,10 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x3813` | 91 | 3 | 18 |  | SkillLevelUpdate_NT |  |
 | `0x9220` | 79 | 2 | 1.9 | yes | PartySetTargetByBoss_NT |  |
 | `0x380f` | 60 | 3 | 13 |  | SkillAdd_NT |  |
-| `0x922d` | 42 | 2 | 27.8 |  | MapEventUpdateProgress_NT |  |
 | `0x8d57` | 28 | 4 | 121 | some | RetrieveMyLatestSeasonRanking_RS |  |
 | `0x3814` | 22 | 3 | 28 | yes | Abnormal_Move_Start_NT |  |
 | `0x3848` | 21 | 2 | 32 | yes | SkillRangeNoticeFilterLocation_NT |  |
 | `0x8d52` | 16 | 2 | 3 | yes | NpcFirstAggro_NT |  |
-| `0x610c` | 13 | 6 | 8.5 |  | ContentsTicketUpdate_NT | A2Tools: Odyle energy update |
 | `0x4001` | 11 | 5 | 18.3 |  |  | Aion2Flow: state |
 | `0x3621` | 9 | 5 | 46 |  | PrepareEnterMap_NT | Aion2Flow: state; A2Tools: map load |
 | `0x3623` | 9 | 5 | 24 |  |  | Aion2Flow: map arrival; A2Tools: zone change; a2_protocol-research: zone |
@@ -116,13 +118,12 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x5683` | 5 | 3 | 39997.8 |  | AchievementList_NT |  |
 | `0x3900` | 5 | 3 | 361 |  | SpecializedSkillLoad_NT |  |
 | `0x400a` | 5 | 3 | 9 |  | ArenaMatchingInfo_NT |  |
-| `0x610b` | 5 | 3 | 490.8 |  | ContentsTickets_NT | A2Tools: Odyle energy list |
+| `0xe30b` | 5 | 3 | 25 |  | MonolithList_NT |  |
 | `0x5611` | 5 | 3 | 17795.6 |  | ItemDepotList_RS |  |
 | `0x3620` | 5 | 3 | 2032.6 |  |  | RATmeter: session ID link |
 | `0xe226` | 5 | 3 | 901.2 |  | DaevanionBoardInfo_NT |  |
 | `0x8aaf` | 5 | 3 | 61 |  | GuildDecoList_NT |  |
 | `0x8d44` | 5 | 3 | 9 |  | ClientEnvSetting_NT |  |
-| `0xe30b` | 5 | 3 | 25 |  | MonolithList_NT |  |
 | `0xe256` | 5 | 3 | 1685 |  |  | A2Tools: Supply Requests boards |
 | `0x8d5b` | 5 | 3 | 1811.8 |  | SkinList_NT |  |
 | `0x5672` | 5 | 3 | 31 |  | WingList_NT |  |
@@ -130,7 +131,6 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x3611` | 4 | 2 | 276 |  |  | a2_protocol-research: server RSA handshake |
 | `0x3615` | 4 | 2 | 78 |  | Login_RS | a2_protocol-research: login or server transfer |
 | `0x3616` | 4 | 2 | 27.8 |  |  | a2_protocol-research: game server info |
-| `0x922e` | 4 | 2 | 68 |  | MapEventJoin_NT | Aion2Flow: map |
 | `0x922f` | 4 | 2 | 4 |  | MapEventLeave_NT | Aion2Flow: map |
 | `0x900d` | 3 | 2 | 9 |  | RideSoulPointIncrease_NT |  |
 | `0x5676` | 3 | 1 | 7 |  | WingChange_NT |  |
@@ -347,12 +347,12 @@ Some may be older opcodes: A2Tools notes the game shifted opcodes in 2026-06.
 | `0x9222` | PartyReconnectMember_NT |  |  |
 | `0x9409` |  | Aion2Flow: nickname |  |
 | `0x940b` |  | Aion2Flow: nickname |  |
-| `0x9602` | ForceInfo_NT | Aion2Flow: Force roster snapshot |  |
-| `0x960a` | ForceAddMember_NT | Aion2Flow: Force roster profile |  |
+| `0x9602` | ForceInfo_NT | Aion2Flow: Force roster snapshot | the Force's roster: its names count as your party (untested) |
+| `0x960a` | ForceAddMember_NT | Aion2Flow: Force roster profile | a Force member added: names (untested) |
 | `0x961a` | ForceDisband_NT |  | the Force (20-player raid group) broke up |
-| `0x961b` | ForceReconnectMember_NT | Aion2Flow: Force profile |  |
-| `0x961d` |  | Aion2Flow: Force member |  |
-| `0x961e` |  | Aion2Flow: Force member list |  |
+| `0x961b` | ForceReconnectMember_NT | Aion2Flow: Force profile | a Force member back: names (untested) |
+| `0x961d` |  | Aion2Flow: Force member | a Force member: names (untested) |
+| `0x961e` |  | Aion2Flow: Force member list | the Force's member list: names (untested) |
 | `0x9622` | ForceRemoveMember_NT |  |  |
 | `0x962b` | ForceUpdateMemberHPMP_NT | Aion2Flow: Force status |  |
 | `0x962c` | ForceUpdateMemberStatus_NT |  |  |
@@ -361,8 +361,8 @@ Some may be older opcodes: A2Tools notes the game shifted opcodes in 2026-06.
 | `0xe243` | FinishNpcInteraction_RS |  |  |
 | `0xe302` | AbyssArtifactStatus_NT |  |  |
 | `0xe303` | AbyssArtifactUpdate_NT |  |  |
-| `0xe305` | AbyssArtifactEventInfo_NT | A2Tools: abyss artifact entry |  |
-| `0xe307` | AbyssArtifactEventInfo_RS | A2Tools: abyss artifacts map |  |
+| `0xe305` | AbyssArtifactEventInfo_NT | A2Tools: abyss artifact entry | entering the Abyss: who holds its artifacts (untested) |
+| `0xe307` | AbyssArtifactEventInfo_RS | A2Tools: abyss artifacts map | the Abyss map: who holds the artifacts (untested) |
 | `0xe308` | AbyssArtifactEventUpdate_NT |  |  |
 | `0xe326` | BattleScoreUpdate_NT |  |  |
 | `0xe335` | CutsceneComplete_RS |  |  |

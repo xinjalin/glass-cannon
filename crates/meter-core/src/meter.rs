@@ -245,6 +245,8 @@ struct Encounter {
     deaths: Vec<(u64, Death)>,
     /// Players who came back to life during it: (when, who).
     revived: Vec<(u64, u64)>,
+    /// Its bosses' casts, in order.
+    boss_casts: Vec<BossCast>,
     /// Your party's players (you too) who did something in it, as the party was then: so
     /// it still shows them after the party breaks up.
     party: HashSet<u64>,
@@ -265,6 +267,7 @@ impl Encounter {
             instance: None,
             deaths: Vec::new(),
             revived: Vec::new(),
+            boss_casts: Vec::new(),
             party: HashSet::new(),
             end: None,
         }
@@ -387,6 +390,48 @@ pub struct EncounterView {
     pub target_hp: Option<u64>,
     #[serde(default)]
     pub target_max_hp: Option<u64>,
+    /// Its bosses' casts, in order.
+    #[serde(default)]
+    pub boss_casts: Vec<BossCastView>,
+}
+
+/// The bosses' casts in the fight shown, for the cast timeline.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct BossCasts {
+    pub active: bool,
+    pub start_us: u64,
+    /// Seconds into the fight now (its length, once over).
+    pub now_s: f64,
+    pub target_type: Option<u32>,
+    pub casts: Vec<BossCastView>,
+}
+
+/// A boss's cast during a fight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BossCast {
+    at_us: u64,
+    caster: u64,
+    skill: u32,
+    /// Its cast time (0: none, it went off at once).
+    cast_ms: u32,
+    went_off: bool,
+    /// Stopped before it went off.
+    stopped: bool,
+}
+
+/// A boss's cast, for the cast timeline.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BossCastView {
+    /// Seconds into the fight it began.
+    pub at_s: f64,
+    pub boss: String,
+    pub boss_type: Option<u32>,
+    pub skill: u32,
+    /// Filled in by the app from its skill table.
+    #[serde(default)]
+    pub skill_name: Option<String>,
+    pub cast_ms: u32,
+    pub stopped: bool,
 }
 
 /// What you're targeting (or fighting), for the target frame.
@@ -412,6 +457,16 @@ pub struct TargetView {
     pub selected: bool,
     /// What it's casting, if the cast has a cast time and hasn't gone off yet.
     pub cast: Option<CastBar>,
+}
+
+/// Tickets and Abyss artifacts the game sent (see [`crate::contents`]).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Contents {
+    /// `tickets` is every ticket (a login's list), not just those that changed.
+    pub full_list: bool,
+    pub tickets: Vec<crate::contents::Ticket>,
+    pub sieges: Vec<crate::contents::Siege>,
+    pub artifacts: Vec<crate::contents::Artifact>,
 }
 
 /// A cast under way.
@@ -717,6 +772,8 @@ pub struct Meter {
     stagger: HashMap<u64, Stagger>,
     /// Field bosses read from a world map since the last [`Meter::take_field_bosses`].
     field_bosses: Vec<FieldBoss>,
+    /// Tickets and Abyss artifacts read since the last [`Meter::take_contents`].
+    contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
     casting: HashMap<u64, (u32, u64, u32)>,
     /// The newest message's time.
@@ -758,6 +815,7 @@ impl Meter {
             aggro: HashMap::new(),
             stagger: HashMap::new(),
             field_bosses: Vec::new(),
+            contents: Contents::default(),
             casting: HashMap::new(),
             latest_us: 0,
         }
@@ -802,6 +860,23 @@ impl Meter {
         self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.party.len())
     }
 
+    /// The bosses' casts in the fight shown (the one going, or the last): whether it's
+    /// still going, how far in it is, and the main target's mob type.
+    pub fn boss_casts(&self) -> Option<BossCasts> {
+        // The fight going, or the last one while the new one has nothing to show yet.
+        let (e, active, view) = [(self.current.as_ref(), true), (self.last.as_ref(), false)]
+            .into_iter()
+            .find_map(|(e, active)| e.and_then(|e| self.view(e, active).map(|v| (e, active, v))))?;
+        let start = e.start_us();
+        Some(BossCasts {
+            active,
+            start_us: start,
+            now_s: if active { self.latest_us.saturating_sub(start) as f64 / 1e6 } else { view.duration_s },
+            target_type: view.target_type,
+            casts: view.boss_casts,
+        })
+    }
+
     /// Your skills (base ids), once the game has sent their list.
     pub fn your_skills(&self) -> &[u32] {
         self.cooldowns.known()
@@ -826,6 +901,12 @@ impl Meter {
     /// Field bosses from world maps opened since the last call.
     pub fn take_field_bosses(&mut self) -> Vec<FieldBoss> {
         std::mem::take(&mut self.field_bosses)
+    }
+
+    /// Tickets (a full list replaces what was known) and Abyss artifacts read since the
+    /// last call.
+    pub fn take_contents(&mut self) -> Contents {
+        std::mem::take(&mut self.contents)
     }
 
     /// Stays on a map (dungeon runs) that began or changed since the last call, oldest
@@ -858,6 +939,14 @@ impl Meter {
                 // The cast went off, so its cast time is over.
                 if self.casting.get(&c.caster).is_some_and(|(skill, _, _)| *skill == c.skill) {
                     self.casting.remove(&c.caster);
+                }
+                if c.skill < PLAYER_SKILL_MIN && self.is_boss(c.caster) {
+                    if let Some(enc) = self.current.as_mut() {
+                        match enc.boss_casts.iter_mut().rev().find(|b| b.caster == c.caster && b.skill == c.skill && b.cast_ms > 0 && !b.went_off && !b.stopped) {
+                            Some(started) => started.went_off = true,
+                            None => enc.boss_casts.push(BossCast { at_us: ts_us, caster: c.caster, skill: c.skill, cast_ms: 0, went_off: true, stopped: false }),
+                        }
+                    }
                 }
                 if c.skill >= PLAYER_SKILL_MIN {
                     self.cast_cooldowns.cast(ts_us, c.caster, c.skill, c.cooldown_ms);
@@ -948,15 +1037,50 @@ impl Meter {
                         self.field_bosses.extend(bosses);
                     }
                 }
+                crate::contents::OPCODE_TICKETS => {
+                    if let Some(list) = crate::contents::parse_tickets(payload) {
+                        self.contents.full_list = true;
+                        self.contents.tickets = list;
+                    }
+                }
+                crate::contents::OPCODE_TICKET_UPDATE => {
+                    if let Some(t) = crate::contents::parse_ticket_update(payload) {
+                        self.contents.tickets.retain(|x| x.id != t.id);
+                        self.contents.tickets.push(t);
+                    }
+                }
+                crate::contents::OPCODE_ABYSS_MAP | crate::contents::OPCODE_ABYSS_ENTERED => {
+                    if let Some((sieges, artifacts)) = crate::contents::parse_abyss(opcode, payload) {
+                        self.contents.sieges.extend(sieges);
+                        self.contents.artifacts.extend(artifacts);
+                    }
+                }
                 OPCODE_CAST_START => {
                     if let Some(c) = parse_cast_start(payload).filter(|c| c.cast_ms > 0) {
                         self.casting.insert(c.caster, (c.skill, ts_us, c.cast_ms));
+                        if c.skill < PLAYER_SKILL_MIN && self.is_boss(c.caster) {
+                            if let Some(enc) = self.current.as_mut() {
+                                enc.boss_casts.push(BossCast {
+                                    at_us: ts_us,
+                                    caster: c.caster,
+                                    skill: c.skill,
+                                    cast_ms: c.cast_ms,
+                                    went_off: false,
+                                    stopped: false,
+                                });
+                            }
+                        }
                     }
                 }
                 OPCODE_CAST_STOP => {
                     if let Some((caster, skill)) = parse_cast_stop(payload) {
                         if self.casting.get(&caster).is_some_and(|(s, _, _)| *s == skill) {
                             self.casting.remove(&caster);
+                        }
+                        if let Some(enc) = self.current.as_mut() {
+                            if let Some(b) = enc.boss_casts.iter_mut().rev().find(|b| b.caster == caster && b.skill == skill && !b.went_off && !b.stopped) {
+                                b.stopped = true;
+                            }
                         }
                     }
                 }
@@ -1601,6 +1725,19 @@ impl Meter {
             berserk_us: main_target.and_then(|t| self.berserk.get(&t)).map(|ms| ms * 1000),
             target_hp: main_target.filter(|_| active).and_then(|t| self.hp.last(t)),
             target_max_hp: main_target.filter(|_| active).and_then(|t| self.hp.max(t)),
+            boss_casts: e
+                .boss_casts
+                .iter()
+                .map(|c| BossCastView {
+                    at_s: c.at_us.saturating_sub(first) as f64 / 1e6,
+                    boss: self.registry.label(c.caster),
+                    boss_type: self.registry.mob_type(c.caster),
+                    skill: c.skill,
+                    skill_name: None,
+                    cast_ms: c.cast_ms,
+                    stopped: c.stopped,
+                })
+                .collect(),
         })
     }
 
@@ -2473,6 +2610,58 @@ mod tests {
         let e = m.snapshot().encounter.unwrap();
         assert_eq!((e.players.len(), e.total_damage), (2, 8000), "Pingu still shows");
         assert_eq!(m.shown_party_size(), 2);
+    }
+
+    #[test]
+    fn force_members_count_as_your_party() {
+        let mut m = meter_with_boss();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(777, "Stranger"));
+        // A Force roster (layout unconfirmed): names in it, among other bytes.
+        let mut force = vec![0, 0, 0, 0, 1, 2];
+        force.push(5);
+        force.extend(b"Pingu");
+        force.extend([0, 0, 0x22, 0, 9]);
+        force.extend(b"LegionOne");
+        m.feed(0, crate::entities::OPCODE_FORCE_INFO, &force);
+        assert!(m.registry().in_force());
+        assert!(m.registry().in_party(15772) && !m.registry().in_party(777));
+        m.set_scope(Scope::Party);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, 15772, 12_010_340, 3000));
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, 777, 11_010_340, 9000));
+        assert_eq!(m.snapshot().encounter.unwrap().total_damage, 8000, "the Force's damage, not a stranger's");
+        // Leaving it.
+        m.feed(2 * S, crate::entities::OPCODE_FORCE_LEFT, &[0; 9]);
+        assert!(!m.registry().in_force() && !m.registry().in_party(15772));
+    }
+
+    #[test]
+    fn a_fight_keeps_its_bosss_casts() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // A cast with a cast time that goes off, one that's stopped, one that's instant.
+        m.feed(2 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_604_380, ME, 3000));
+        let went_off = |skill: u32| {
+            let mut p = encode_varint(BOSS);
+            p.push(0);
+            p.extend(skill.to_le_bytes());
+            p.extend([0x40, 0]);
+            p.extend(encode_varint(ME));
+            p
+        };
+        m.feed(5 * S, OPCODE_CAST, &went_off(1_604_380));
+        m.feed(6 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_604_410, ME, 5000));
+        let mut stop = encode_varint(BOSS);
+        stop.extend([8, 0x18]);
+        stop.extend(1_604_410u32.to_le_bytes());
+        stop.push(0);
+        m.feed(7 * S, crate::cast::OPCODE_CAST_STOP, &stop);
+        m.feed(9 * S, OPCODE_CAST, &went_off(1_604_100));
+        let casts = m.snapshot().encounter.unwrap().boss_casts;
+        let got: Vec<_> = casts.iter().map(|c| (c.at_s, c.skill, c.cast_ms, c.stopped)).collect();
+        assert_eq!(got, [(1.0, 1_604_380, 3000, false), (5.0, 1_604_410, 5000, true), (8.0, 1_604_100, 0, false)]);
+        assert_eq!(casts[0].boss_type, Some(2_400_002));
     }
 
     #[test]

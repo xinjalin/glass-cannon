@@ -83,11 +83,16 @@ The **clock icon** opens the history window with the last 200 fights (the newest
 their full analysis), dungeon runs, bosses and PvP sessions; click a fight to show it on
 the meter.
 Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
-damage and, when the game says it was completed, the clear time (✓). Right-click a run for
+damage and, when the game says it was completed, the clear time (✓) and each stage's
+time; your fastest clear and stages of a dungeon and mode get a ★. Right-click a run for
 one analysis of all its fights, or a fight for that fight. A run is one entry into the
 dungeon (older fights: no break over 10 minutes and no boss fought twice). **[clear]** at
 the bottom deletes every fight, dungeon run and PvP session (it asks first); a dungeon
 you're in at the time keeps grouping its next fights as a run.
+
+**Personal bests**: your highest DPS and fastest kill against each boss show on the meter's
+boss line during the fight (green while you're beating it), and as ★ tags on the fights in
+the history that set them. They count every kill you were in, and [clear] resets them.
 
 ### Windows
 
@@ -100,9 +105,14 @@ settings and analysis windows stay tinted enough to read).
   (yours from the start, the others' once used).
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, stagger.
+- **boss casts**: what the boss cast this fight, newest first (✕ when stopped), and while
+  you fight it again, what it cast next the last time, with a countdown. Its routine skills
+  (cast 8 or more times a fight) are hidden until **[frequent]**.
 - **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
   in game to read them) in your time; ring the 🔔 for an alert on the meter before one
-  starts.
+  starts. Also who holds the Abyss artifacts (when you open the Abyss map or enter it; not
+  tested in game yet), your Odyle energy, and your content tickets: the game doesn't name
+  them, so double-click one to give it a name.
 
 ### Names
 

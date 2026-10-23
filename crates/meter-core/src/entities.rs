@@ -4,7 +4,7 @@
 //! after a zone change), so a label can start as a bare ID and gain a name later.
 //! Layouts are in `docs/protocol.md`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +50,16 @@ pub const OPCODE_PARTY_LEFT_NOTICE: u16 = 0x931f;
 pub const OPCODE_GROUP_KICKED: u16 = 0x972a;
 /// The Force (a 20-player raid group) broke up, or you left it.
 pub const OPCODE_FORCE_DISBANDED: u16 = 0x961a;
+/// The Force's members (a 20-player raid group: several parties): its full roster, a
+/// member added, one member, the member list, a member back online. Named in Questlog's
+/// list and read by Aion2Flow; not in our captures yet, so the meter only takes the names
+/// in them (a length byte and UTF-8, like every roster) and counts a player as a member
+/// when their own name is one of them.
+pub const OPCODE_FORCE_INFO: u16 = 0x9602;
+pub const OPCODE_FORCE_ADD_MEMBER: u16 = 0x960a;
+pub const OPCODE_FORCE_RECONNECT: u16 = 0x961b;
+pub const OPCODE_FORCE_MEMBER: u16 = 0x961d;
+pub const OPCODE_FORCE_MEMBER_LIST: u16 = 0x961e;
 pub const OPCODE_FORCE_LEFT: u16 = 0x962e;
 /// One party or group member's level, gear score, legion and combat power (not sent for
 /// you). Resent often.
@@ -117,6 +127,9 @@ pub struct Registry {
     owners: HashMap<u64, u64>,
     /// Your party or group, you included, in roster order. Empty when you're on your own.
     party: Vec<PartyMember>,
+    /// Names in your Force's messages (members', and maybe other text): a player whose
+    /// name is one of them is in your Force.
+    force: HashSet<String>,
 }
 
 /// Someone in your party or group, as the rosters and member updates describe them.
@@ -167,7 +180,13 @@ impl Registry {
     /// You, or a player whose name is on your party's roster. Rosters carry names, not
     /// entity IDs, so a member counts once their name is known.
     pub fn in_party(&self, id: u64) -> bool {
-        self.is_self(id) || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m.name == n))
+        self.is_self(id)
+            || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m.name == n) || self.force.contains(n))
+    }
+
+    /// You're in a Force (its messages named someone).
+    pub fn in_force(&self) -> bool {
+        !self.force.is_empty()
     }
 
     /// The entity of the player (or you) with this name, if we've seen them.
@@ -378,11 +397,22 @@ impl Registry {
             | OPCODE_GROUP_KICKED
             | OPCODE_FORCE_DISBANDED
             | OPCODE_FORCE_LEFT => {
+                if matches!(opcode, OPCODE_FORCE_DISBANDED | OPCODE_FORCE_LEFT) {
+                    self.force.clear();
+                }
                 if self.party.is_empty() {
                     return None;
                 }
                 self.party.clear();
                 Some(Change::PartyChanged { members: 0 })
+            }
+            OPCODE_FORCE_INFO => {
+                self.force = names_in(payload);
+                None
+            }
+            OPCODE_FORCE_ADD_MEMBER | OPCODE_FORCE_RECONNECT | OPCODE_FORCE_MEMBER | OPCODE_FORCE_MEMBER_LIST => {
+                self.force.extend(names_in(payload));
+                None
             }
             // A boss's copy of a party member: a mob, though it carries their name.
             OPCODE_MOB_SPAWN if parse_player_copy(payload).is_some() => {
@@ -675,6 +705,23 @@ pub fn parse_summon_owner(p: &[u8]) -> Option<(u64, u64)> {
     }
     let owner = u64::from(u32::from_le_bytes(tag[3..7].try_into().ok()?));
     (owner != 0 && owner != id).then_some((id, owner))
+}
+
+/// Every name-shaped string in a message: a length byte (2-24), then that many bytes of
+/// UTF-8 that are all letters or digits (any script).
+fn names_in(p: &[u8]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for i in 0..p.len() {
+        let len = usize::from(p[i]);
+        if !(2..=24).contains(&len) {
+            continue;
+        }
+        let Some(Ok(s)) = p.get(i + 1..i + 1 + len).map(std::str::from_utf8) else { continue };
+        if s.chars().all(char::is_alphanumeric) {
+            out.insert(s.to_string());
+        }
+    }
+    out
 }
 
 #[cfg(test)]

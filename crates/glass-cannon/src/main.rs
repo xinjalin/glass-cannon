@@ -151,6 +151,10 @@ pub struct AppState {
     pvp: Mutex<store::PvpLog>,
     /// Field bosses from the world map.
     field_bosses: Mutex<store::FieldBosses>,
+    /// Your best against each boss.
+    bests: Mutex<store::Bests>,
+    /// Content tickets and Abyss artifacts, as last sent.
+    contents: Mutex<store::KnownContents>,
     /// Side windows placed beside the meter once already.
     panels_placed: Mutex<std::collections::HashSet<String>>,
     /// Where every window was last (saved as they move, at most once a second).
@@ -187,6 +191,8 @@ struct View {
     alert_lead_min: u32,
     hide_after_s: u32,
     boss_hp: bool,
+    /// Your best against the boss being fought.
+    best: Option<store::Best>,
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
@@ -196,7 +202,7 @@ struct View {
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -207,9 +213,11 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             meter.set_scope(scope);
         }
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses())
+        let contents = meter.take_contents();
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents)
     };
     lock(&app.field_bosses).update(field_bosses);
+    lock(&app.contents).update(contents);
     if !pvp.is_empty() {
         let mut log = lock(&app.pvp);
         for s in pvp {
@@ -246,9 +254,17 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         if let Some(analysis) = &f.analysis {
             app.details.save(ended_ms, analysis);
         }
+        lock(&app.bests).record(&view, ended_ms);
         history.push(Fight { ended_ms, self_name, view });
     }
     data.annotate(&mut snap);
+    // Your best against the boss you're fighting (a boss once named above).
+    let best = snap
+        .encounter
+        .as_ref()
+        .filter(|e| e.target_boss)
+        .and_then(|e| e.target_type)
+        .and_then(|t| lock(&app.bests).get(t));
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
     View {
@@ -269,6 +285,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         alert_lead_min: settings.alert_lead_min,
         hide_after_s: settings.hide_after_s,
         boss_hp: settings.boss_hp,
+        best,
     }
 }
 
@@ -369,14 +386,23 @@ fn set_scope(app: State<'_, Arc<AppState>>, scope: Option<Scope>) {
 }
 
 /// The party size the auto scope follows: your party now, or the party that was in the
-/// fight shown, whichever is larger.
+/// fight shown, whichever is larger (in a Force, at least a party's).
 fn party_size(meter: &Meter) -> usize {
-    meter.registry().party().len().max(meter.shown_party_size())
+    let force = if meter.registry().in_force() { 2 } else { 0 };
+    meter.registry().party().len().max(meter.shown_party_size()).max(force)
 }
 
 #[tauri::command]
 fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
-    let fights = lock(&app.history).summaries(&app.details);
+    let mut fights = lock(&app.history).summaries(&app.details);
+    let bests = lock(&app.bests);
+    for f in &mut fights {
+        if let Some(b) = f.target_type.and_then(|t| bests.get(t)) {
+            f.best_dps = b.dps_ms == f.ended_ms;
+            f.fastest = b.kill_ms == f.ended_ms;
+        }
+    }
+    drop(bests);
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
 
@@ -388,6 +414,7 @@ fn clear_history(handle: AppHandle, app: State<'_, Arc<AppState>>) {
     let here = app.engine.meter().instance().map(|i| i.entered_us);
     lock(&app.history).clear();
     app.details.clear();
+    lock(&app.bests).clear();
     lock(&app.instances).clear_except(here);
     lock(&app.pvp).clear();
     // An analysis of a saved fight (or run) goes back to the live fight: its history index
@@ -688,6 +715,8 @@ fn main() {
         players_saved: AtomicUsize::new(0),
         pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
         field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
+        contents: Mutex::new(store::KnownContents::load(&config_dir_for_pvp)),
+        bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
         panels_placed: Mutex::new(std::collections::HashSet::new()),
         placements: Mutex::new(placements),
     });
@@ -739,6 +768,9 @@ fn main() {
             panels::set_timer_region,
             panels::target,
             panels::field_bosses,
+            panels::contents,
+            panels::boss_casts,
+            panels::rename_ticket,
             panels::rename_field_boss,
             panels::set_alert,
             panels::set_alert_lead,

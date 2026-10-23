@@ -7,6 +7,7 @@ pub mod buffs;
 pub mod cast;
 pub mod classes;
 pub mod conns;
+pub mod contents;
 pub mod cooldowns;
 pub mod damage;
 pub mod dungeon;

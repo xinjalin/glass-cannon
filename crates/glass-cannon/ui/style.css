@@ -262,6 +262,8 @@ legend {
 #boss-hp-fill { display: block; height: 100%; background: var(--bad); }
 #enrage { flex: none; color: var(--warn); }
 #enrage.soon { color: var(--bad); font-weight: 700; }
+#best { flex: none; color: var(--faint); }
+#best.beating { color: var(--ok); }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 #total { flex: none; font-variant-numeric: tabular-nums; }
 

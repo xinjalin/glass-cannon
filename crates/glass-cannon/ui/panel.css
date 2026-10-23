@@ -120,6 +120,9 @@ button {
 .timer.soon .timer-when { color: var(--warn); }
 .timer.on { background: color-mix(in srgb, var(--ok) 14%, transparent); }
 .timer.on .timer-when { color: var(--ok); }
+.timer.held .timer-when { color: var(--text); }
+button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
+.timer.odyle .timer-when { color: var(--ok); }
 
 /* ---------------------------------------------------------------- history (as the meter's list) */
 
@@ -160,6 +163,11 @@ button {
 }
 .run-item.pvp .run-tag { border-color: var(--bad); color: var(--bad); }
 .run-clear { flex: none; color: var(--ok); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.run-clear.best::after, .split.best::after { content: " ★"; color: var(--warn); }
+.run-splits { display: flex; flex-wrap: wrap; gap: 0 0.8em; color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.split::before { content: "stage "; color: var(--faint); }
+.split.best { color: var(--ok); }
+.best-tag { color: var(--warn); }
 .fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
 .fight-item.opponent { cursor: default; }
 .boss {
@@ -178,6 +186,7 @@ button {
 
 .timer { grid-template-columns: auto minmax(0, 1fr) auto; }
 .bell { padding: 0; font-size: 0.9em; opacity: 0.45; filter: grayscale(1); }
+.bell-space { display: inline-block; width: 1.3em; }
 .bell.on { opacity: 1; filter: none; }
 .bell:hover { opacity: 1; }
 .lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
@@ -229,3 +238,21 @@ button {
 .cd.ready .cd-time { color: var(--ok); }
 .cd.ready .cd-name { color: var(--text); }
 .party-mark { color: var(--accent-2); font-size: 0.8em; }
+
+/* ---------------------------------------------------------------- boss casts */
+
+.bc-head { display: flex; align-items: baseline; gap: 0.6em; margin-bottom: 0.3em; min-width: 0; }
+.bc-boss { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 700; }
+.bc-head button { flex: none; color: var(--muted); font-size: 0.85em; }
+.bc-head button.on { color: var(--accent); }
+.bc-row { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; align-items: center; gap: 0.5em; padding: 0.15em 0.3em; border-radius: 0.25em; }
+.bc-row + .bc-row { margin-top: 0.1em; }
+.bc-at { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bc-text { display: flex; flex-direction: column; min-width: 0; }
+.bc-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bc-meta { color: var(--muted); font-size: 0.85em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bc-right { color: var(--accent-2); font-variant-numeric: tabular-nums; text-align: right; }
+.bc-row.stopped .bc-name { color: var(--muted); text-decoration: line-through; }
+.bc-row.stopped .bc-right { color: var(--ok); }
+.bc-row.soon { background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.bc-row.soon .bc-right { color: var(--warn); font-weight: 700; }

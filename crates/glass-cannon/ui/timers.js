@@ -131,6 +131,75 @@ function drawBosses(now) {
   }
 }
 
+// Odyle energy, the other content tickets (double-click one to name it: the game's data
+// doesn't), and who holds the Abyss artifacts, as the game last sent them. Only named
+// tickets show until you ask for all of them (to name some).
+let contents = null;
+let allTickets = false;
+
+function plainRow(name, meta, when, cls, title) {
+  const li = el("li", "timer " + cls);
+  const text = el("div", "timer-text");
+  text.append(el("span", "timer-name", name), el("span", "timer-meta", meta));
+  const w = el("span", "timer-when", when);
+  if (title) w.title = title;
+  li.append(el("span", "bell-space"), text, w);
+  return li;
+}
+
+function drawContents() {
+  const c = contents;
+  const abyss = $("abyss");
+  abyss.replaceChildren();
+  $("abyss-empty").hidden = !!(c && c.abyss.length);
+  for (const a of (c && c.abyss) || []) {
+    const until = a.until_ms ? ` · resets ${dayAndTime(a.until_ms)}` : "";
+    abyss.append(
+      plainRow(a.name, `layer ${a.layer}${until} · as of ${dayAndTime(c.abyss_ms)}`, a.owner || "nobody", a.owner ? "held" : "", "Who held it when the game last said"),
+    );
+  }
+  const list = $("tickets");
+  list.replaceChildren();
+  const any = c && (c.odyle || c.tickets.length);
+  $("tickets-empty").hidden = !!any;
+  if (!any) return;
+  $("tickets-when").textContent = `as of ${dayAndTime(c.tickets_ms)}`;
+  if (c.odyle) {
+    const [basic, charged] = c.odyle;
+    list.append(plainRow("Odyle energy", `charged ${fmt(charged)}`, fmt(basic), "odyle", "Basic energy (charged energy below)"));
+  }
+  const unnamed = c.tickets.filter((t) => !t.name).length;
+  const more = $("all-tickets");
+  more.hidden = unnamed === 0;
+  more.textContent = allTickets ? "[hide unnamed tickets]" : `[show all ${c.tickets.length} tickets to name them]`;
+  for (const t of c.tickets.filter((t) => allTickets || t.name)) {
+    const left = [t.count, t.charged].filter((v) => v != null).map(fmt).join(" + ");
+    const li = plainRow(t.name || `ticket #${t.id}`, t.name ? `#${t.id}` : "double-click to name it", left, "", "Entries left (+ charged)");
+    const name = li.querySelector(".timer-name");
+    name.title = "Double-click to name it";
+    name.addEventListener("dblclick", () => {
+      const given = window.prompt(`Name for ticket #${t.id} (what it's for in game):`, t.name || "");
+      if (given == null) return;
+      invoke("rename_ticket", { id: t.id, name: given }).then(loadContents).catch(() => {});
+    });
+    list.append(li);
+  }
+}
+
+$("all-tickets").addEventListener("click", () => {
+  allTickets = !allTickets;
+  drawContents();
+});
+
+async function loadContents() {
+  try {
+    contents = await invoke("contents");
+  } catch {
+    contents = null;
+  }
+  drawContents();
+}
+
 async function loadBosses() {
   try {
     bosses = await invoke("field_bosses");
@@ -150,10 +219,14 @@ invoke("timer_settings")
   .finally(() => {
     drawRegions();
     loadBosses();
+    loadContents();
   });
 setInterval(() => {
   if (!document.hidden) draw();
 }, 1000);
 setInterval(() => {
-  if (!document.hidden) loadBosses();
+  if (!document.hidden) {
+    loadBosses();
+    loadContents();
+  }
 }, 15_000);
