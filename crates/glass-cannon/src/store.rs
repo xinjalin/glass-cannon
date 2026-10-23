@@ -507,6 +507,11 @@ impl PvpLog {
     pub fn list(&self) -> Vec<meter_core::pvp::PvpSession> {
         self.sessions.iter().rev().cloned().collect()
     }
+
+    pub fn clear(&mut self) {
+        self.sessions.clear();
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 /// Dungeon runs as the game reported them: when you entered, when the countdown ended and
@@ -586,6 +591,16 @@ impl FightDetails {
 
     pub fn has(&self, ended_ms: u64) -> bool {
         self.path(ended_ms).is_file()
+    }
+
+    /// Deletes every saved analysis.
+    pub fn clear(&self) {
+        let Ok(entries) = fs::read_dir(&self.dir) else { return };
+        for e in entries.flatten() {
+            if e.file_name().to_str().is_some_and(|n| n.ends_with(".json")) {
+                let _ = fs::remove_file(e.path());
+            }
+        }
     }
 
     /// Keeps the newest [`DETAILS_LIMIT`] files.
@@ -712,6 +727,11 @@ impl History {
     pub fn fight(&self, index: usize) -> Option<&Fight> {
         self.fights.get(index)
     }
+
+    pub fn clear(&mut self) {
+        self.fights.clear();
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 #[cfg(test)]
@@ -819,6 +839,25 @@ mod tests {
         assert_eq!(list[0].index, 2);
         assert_eq!(list[0].my_dps, Some(10.0));
         assert_eq!(again.fight(0).unwrap().view.total_dps, 0.0);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn clearing_the_history_forgets_the_fights_and_their_analyses() {
+        let dir = temp_dir("clear");
+        let mut h = History::load(&dir);
+        h.push(Fight { ended_ms: 7, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        let details = FightDetails::new(&dir);
+        fs::create_dir_all(dir.join("fights")).unwrap();
+        fs::write(dir.join("fights/7.json"), "{}").unwrap();
+        fs::write(dir.join("fights/notes.txt"), "not ours").unwrap();
+        assert!(details.has(7));
+        h.clear();
+        details.clear();
+        assert_eq!(h.len(), 0);
+        assert_eq!(History::load(&dir).len(), 0, "gone from disk too");
+        assert!(!details.has(7));
+        assert!(dir.join("fights/notes.txt").exists(), "only analyses are deleted");
         fs::remove_dir_all(dir).ok();
     }
 

@@ -994,5 +994,9 @@ tauri.event.listen("reset-size", () => {
 
 // A fight picked in the history window.
 tauri.event.listen("show-fight", (e) => openFight(e.payload));
+// The history was cleared: a saved fight shown here is gone with it.
+tauri.event.listen("history-cleared", () => {
+  if (mode === "fight") goBack();
+});
 
 poll();

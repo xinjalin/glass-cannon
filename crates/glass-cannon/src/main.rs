@@ -371,6 +371,29 @@ fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
 
+/// Forgets every finished fight and PvP session: the history, the fights' saved analyses
+/// and the PvP log. The dungeon entries runs are grouped by stay; on their own they show
+/// nothing, and the one you may be in keeps its name for the fights still to come.
+#[tauri::command]
+fn clear_history(handle: AppHandle, app: State<'_, Arc<AppState>>) {
+    lock(&app.history).clear();
+    app.details.clear();
+    lock(&app.pvp).clear();
+    // An analysis of a saved fight (or run) goes back to the live fight: its history index
+    // would otherwise point at whatever fight takes that place next.
+    let selection = {
+        let mut s = lock(&app.analysis_selection);
+        let saved = s.fight.is_some() || s.run.is_some();
+        s.fight = None;
+        s.run = None;
+        saved.then_some(*s)
+    };
+    if let (Some(selection), Some(w)) = (selection, handle.get_webview_window(ANALYSIS)) {
+        let _ = w.emit("analysis-select", selection);
+    }
+    let _ = handle.emit("history-cleared", ());
+}
+
 #[tauri::command]
 fn history_fight(app: State<'_, Arc<AppState>>, index: usize) -> Option<EncounterView> {
     lock(&app.history).fight(index).map(|f| f.view.clone())
@@ -673,6 +696,7 @@ fn main() {
             rename_skill,
             rename_npc,
             history_list,
+            clear_history,
             history_fight,
             settings::settings_status,
             settings::set_record,

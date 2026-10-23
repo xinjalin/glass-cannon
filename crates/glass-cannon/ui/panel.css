@@ -63,6 +63,11 @@ button {
 
 .empty { color: var(--muted); text-align: center; padding: 2em 0.5em; }
 .note { color: var(--faint); font-size: 0.85em; }
+.history-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6em; }
+.history-foot button { flex: none; color: var(--accent); font-size: 0.85em; }
+.clear-ask { flex: none; color: var(--muted); font-size: 0.85em; white-space: nowrap; }
+.clear-ask button { font-size: 1em; }
+.history-foot button.danger { color: var(--bad); }
 .list { margin: 0; padding: 0; list-style: none; }
 
 .icon, .icon.blank {
