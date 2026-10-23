@@ -310,6 +310,9 @@ legend {
 .leader-mark { flex: none; color: var(--warn); }
 .dps { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); }
 .share { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+/* The party view's combat power and gear score: wider, each with its label. */
+.party-row .line { grid-template-columns: 1.3em minmax(0, 1fr) var(--meter-w, 4.5em) 4.6em 4.4em; }
+.stat-tag { margin-right: 0.35em; font-size: 0.78em; opacity: 0.65; }
 
 .class-icon {
   flex: none;

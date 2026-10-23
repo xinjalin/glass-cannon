@@ -376,14 +376,20 @@ function drawParty(party) {
       mark.title = m.ready ? "Ready" : "Not ready yet";
       who.append(mark);
     }
-    const cp = el("span", "dps", m.combat_power ? fmt(m.combat_power) : "–");
-    cp.title = "Combat power";
-    const gs = el("span", "share", m.gear_score ? m.gear_score.toLocaleString("en-US") : "–");
-    gs.title = "Gear score";
+    const cp = statCell("dps", "cp", m.combat_power ? fmt(m.combat_power) : "–", "Combat power");
+    const gs = statCell("share", "gs", m.gear_score ? m.gear_score.toLocaleString("en-US") : "–", "Gear score");
     line.append(el("span", "rank", String(i + 1)), who, meter, cp, gs);
     row.append(line);
     list.append(row);
   });
+}
+
+// A number with a small label in front ("cp 88.3K"), so it reads without the tooltip.
+function statCell(className, label, value, title) {
+  const cell = el("span", className);
+  cell.append(el("span", "stat-tag", label), value);
+  cell.title = title;
+  return cell;
 }
 
 // Who's ready of those who need to be ("2/4"), or "" when nobody has a ready mark.
@@ -421,7 +427,7 @@ function noticePartyChanges(party) {
   const joined = party.filter((m) => !before.includes(m.name) && !m.is_self && m.name !== me);
   const left = before.filter((n) => !names.includes(n));
   for (const m of joined) {
-    const stats = [m.combat_power ? `CP ${fmt(m.combat_power)}` : "", m.gear_score ? `GS ${m.gear_score.toLocaleString("en-US")}` : ""].filter(Boolean).join(" · ");
+    const stats = [m.combat_power ? `cp ${fmt(m.combat_power)}` : "", m.gear_score ? `gs ${m.gear_score.toLocaleString("en-US")}` : ""].filter(Boolean).join(" · ");
     notice(`+ ${m.name} joined${stats ? ` · ${stats}` : ""}`);
   }
   for (const n of left) notice(`− ${n} left`);
