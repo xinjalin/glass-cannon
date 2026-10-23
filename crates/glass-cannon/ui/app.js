@@ -578,6 +578,16 @@ function drawBossBar(enc) {
   enrage.textContent = left > 0 ? `enrage ${clock(left / 1000)}` : "enraged";
   enrage.className = left != null && left < 30_000 ? "soon" : "";
   enrage.title = "When the boss goes berserk";
+  // Your best against this boss: green while you're doing better.
+  const b = lastView.best;
+  const best = $("best");
+  best.hidden = !b;
+  if (b) {
+    const me = enc.players.find((p) => p.is_self);
+    best.textContent = `best ${fmt(b.dps)} · ${clock(b.kill_s)}`;
+    best.className = me && me.dps > b.dps ? "beating" : "";
+    best.title = `Your best DPS against it, and its fastest kill (${b.kills} ${b.kills === 1 ? "kill" : "kills"})`;
+  }
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";

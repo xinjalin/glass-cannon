@@ -365,6 +365,38 @@ cast bar, revivals in the deaths tab (and to stop counting a revived player as d
 second sign that a middle boss died, and your long cooldowns in the party cooldowns window
 before you've used them.
 
+### Dungeon stages, content tickets, the Abyss artifacts and the Force
+
+| opcode   | layout | what |
+| -------- | ------ | ---- |
+| `0x922e` | u32 event ID, u8 length, its name, u8 state, varint stage, varint step, … | joining a map event (a dungeon's objectives) |
+| `0x922d` | u32 event ID, u8 state (2 running, 3 done), varint stage, varint step, u8 count, that many objective flags, … | its progress (confirmed 2026-10-23) |
+| `0x922f` | u32 event ID | leaving it |
+| `0x610b` | varint count, then tickets | every content ticket (confirmed: 73, every byte read) |
+| `0x610c` | u8 flags, a ticket, u8 reason, flag 1: i32 | one ticket changed (confirmed) |
+| `0xe307` | u16 0, u8 wars, wars, u8 artifacts, artifacts | the Abyss map: who holds each artifact (A2Tools' notes; not in our captures) |
+| `0xe305` | a war, u8 artifacts, artifacts | entering the Abyss: that layer's (same) |
+| `0x9602`, `0x960a`, `0x961b`, `0x961d`, `0x961e` | | the Force's roster and members (Questlog's names, read by Aion2Flow; not in our captures) |
+
+A ticket is u8 flags, u32 ID, then by flag 1 an i64 time, 2 an i64 time, 4 a varint count,
+8 a varint charged count. Odyle energy is ticket 60000001 (count basic, charged charged): it
+fell by 80 as each dungeon was completed. The other tickets' contents aren't named in any
+data we have.
+
+In both Vakron Sky Island runs the main map event (`BakronIsland_Normal_MapEvent`) went to
+stage 2 just after Tiere died and stage 3 about 20 s after Thamon; the meter keeps when each
+stage began, and the history shows each stage's time.
+
+A war is u8, u32 AbyssArtifactEvent (1001 the first layer, 2001 the second), u8, u8, u64
+since (ms), and maybe u64 until; an artifact is u32 ID (1001-1003, 2001-2003), u32, u8 owner
+(1 Elyos, 2 Asmodians, 0 nobody), 8 bytes. A message is only read when every byte fits.
+
+The meter reads the Force's messages only for names (length byte, UTF-8, letters and
+digits): a player whose own name is one of them counts as your party.
+
+Bosses' casts (`0x3802`, and `0x3809` / `0x380c` for those with a cast time) are kept per
+fight for the boss casts window.
+
 ### Classes (confirmed)
 
 The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Templar,

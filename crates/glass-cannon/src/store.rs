@@ -474,6 +474,76 @@ impl FieldBosses {
     }
 }
 
+/// Content tickets and Abyss artifacts as the game last sent them, and the names you gave
+/// tickets (`contents.json`). Kept so the world timers show them after a restart, until the
+/// game sends them again (at login, entering the Abyss, opening its map).
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct KnownContents {
+    #[serde(skip)]
+    path: PathBuf,
+    #[serde(default)]
+    pub tickets: BTreeMap<u32, meter_core::contents::Ticket>,
+    #[serde(default)]
+    pub ticket_names: BTreeMap<u32, String>,
+    /// When the tickets were last sent (ms since 1970).
+    #[serde(default)]
+    pub tickets_ms: u64,
+    #[serde(default)]
+    pub sieges: BTreeMap<u32, meter_core::contents::Siege>,
+    #[serde(default)]
+    pub artifacts: BTreeMap<u32, meter_core::contents::Artifact>,
+    #[serde(default)]
+    pub abyss_ms: u64,
+}
+
+impl KnownContents {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("contents.json");
+        let mut c: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        c.path = path;
+        c
+    }
+
+    fn save(&self) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(s) = serde_json::to_string_pretty(self) {
+            let _ = fs::write(&self.path, s);
+        }
+    }
+
+    pub fn update(&mut self, c: meter_core::meter::Contents) {
+        if c == meter_core::meter::Contents::default() {
+            return;
+        }
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+        if c.full_list {
+            self.tickets.clear();
+        }
+        if !c.tickets.is_empty() {
+            self.tickets.extend(c.tickets.into_iter().map(|t| (t.id, t)));
+            self.tickets_ms = now;
+        }
+        if !c.sieges.is_empty() || !c.artifacts.is_empty() {
+            self.sieges.extend(c.sieges.into_iter().map(|s| (s.event, s)));
+            self.artifacts.extend(c.artifacts.into_iter().map(|a| (a.id, a)));
+            self.abyss_ms = now;
+        }
+        self.save();
+    }
+
+    pub fn rename_ticket(&mut self, id: u32, name: &str) {
+        let name = name.trim();
+        if name.is_empty() {
+            self.ticket_names.remove(&id);
+        } else {
+            self.ticket_names.insert(id, name.chars().take(40).collect());
+        }
+        self.save();
+    }
+}
+
 /// PvP sessions, oldest first (`pvp.jsonl`).
 pub struct PvpLog {
     path: PathBuf,
@@ -643,6 +713,66 @@ pub struct Fight {
     pub view: EncounterView,
 }
 
+/// Your best against one boss.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct Best {
+    /// Your highest DPS in a kill, and when that fight ended (ms since 1970).
+    pub dps: f64,
+    pub dps_ms: u64,
+    /// The fastest kill (the fight's length), and when it ended.
+    pub kill_s: f64,
+    pub kill_ms: u64,
+    pub kills: u32,
+}
+
+/// Your bests against each boss, by mob type (`bests.json`), from every kill you were in.
+/// Kept apart from the history, which only keeps the last fights.
+pub struct Bests {
+    path: PathBuf,
+    by_boss: BTreeMap<u32, Best>,
+}
+
+impl Bests {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("bests.json");
+        let by_boss = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        Self { path, by_boss }
+    }
+
+    fn save(&self) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if let Ok(s) = serde_json::to_string_pretty(&self.by_boss) {
+            let _ = fs::write(&self.path, s);
+        }
+    }
+
+    pub fn get(&self, boss: u32) -> Option<Best> {
+        self.by_boss.get(&boss).copied()
+    }
+
+    /// Counts a finished fight if it was a boss kill you were in.
+    pub fn record(&mut self, view: &EncounterView, ended_ms: u64) {
+        let (Some(boss), true, Some(FightEnd::Kill)) = (view.target_type, view.target_boss, view.end) else { return };
+        let Some(me) = view.players.iter().find(|p| p.is_self).filter(|p| p.dps > 0.0) else { return };
+        let b = self.by_boss.entry(boss).or_insert(Best { dps: 0.0, dps_ms: 0, kill_s: f64::INFINITY, kill_ms: 0, kills: 0 });
+        b.kills += 1;
+        if me.dps > b.dps {
+            (b.dps, b.dps_ms) = (me.dps, ended_ms);
+        }
+        if view.duration_s < b.kill_s {
+            (b.kill_s, b.kill_ms) = (view.duration_s, ended_ms);
+        }
+        self.save();
+    }
+
+    pub fn clear(&mut self) {
+        self.by_boss.clear();
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
 /// One line of the history list.
 #[derive(Debug, Clone, Serialize)]
 pub struct FightSummary {
@@ -673,6 +803,9 @@ pub struct FightSummary {
     pub end: Option<FightEnd>,
     /// Deaths of the players shown.
     pub deaths: usize,
+    /// Your best DPS against its boss, or its fastest kill (filled in for the list).
+    pub best_dps: bool,
+    pub fastest: bool
 }
 
 pub struct History {
@@ -737,6 +870,8 @@ impl History {
                 run: None,
                 end: f.view.end,
                 deaths: f.view.deaths.len(),
+                best_dps: false,
+                fastest: false,
             })
             .collect()
     }
@@ -856,6 +991,27 @@ mod tests {
         assert_eq!(list[0].index, 2);
         assert_eq!(list[0].my_dps, Some(10.0));
         assert_eq!(again.fight(0).unwrap().view.total_dps, 0.0);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn bests_per_boss() {
+        let dir = temp_dir("bests");
+        let mut b = Bests::load(&dir);
+        let kill = |dps: f64, secs: f64, end| {
+            let mut view = snap(None, Some(18)).encounter.unwrap();
+            (view.target_type, view.target_boss, view.end, view.duration_s) = (Some(2_300_812), true, end, secs);
+            view.players[0].is_self = true;
+            view.players[0].dps = dps;
+            view
+        };
+        b.record(&kill(20_000.0, 120.0, Some(FightEnd::Kill)), 1);
+        b.record(&kill(25_000.0, 130.0, Some(FightEnd::Kill)), 2);
+        b.record(&kill(90_000.0, 30.0, Some(FightEnd::Wipe)), 3); // a wipe isn't a best
+        let best = Bests::load(&dir).get(2_300_812).unwrap();
+        assert_eq!((best.dps, best.dps_ms, best.kill_s, best.kill_ms, best.kills), (25_000.0, 2, 120.0, 1, 2));
+        b.clear();
+        assert!(Bests::load(&dir).get(2_300_812).is_none());
         fs::remove_dir_all(dir).ok();
     }
 

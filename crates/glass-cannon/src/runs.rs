@@ -154,6 +154,13 @@ pub struct Run {
     pub fight_s: f64,
     /// The game said it was completed: from the countdown ending to "complete".
     pub clear_s: Option<f64>,
+    /// How long each of its stages took (the game's map events), for the stages that
+    /// ended: the last ends at "complete".
+    pub stages: Vec<f64>,
+    /// Which of those were the fastest of any run of the same dungeon and mode.
+    pub best_stages: Vec<bool>,
+    /// Its clear time was the fastest of any run of the same dungeon and mode.
+    pub best_clear: bool,
     pub fights: usize,
     pub bosses: usize,
     pub total_damage: u64,
@@ -207,10 +214,45 @@ pub fn history_list(mut fights: Vec<FightSummary>, data: &GameData, instances: &
             if let (Some(start), Some(done)) = (i.started_us, i.completed_us) {
                 run.clear_s = Some(done.saturating_sub(start) as f64 / 1e6);
             }
+            run.stages = stage_times(i);
         }
         runs.push(run);
     }
+    mark_bests(&mut runs);
     HistoryList { fights, runs }
+}
+
+/// Each stage's length: from its start to the next one's, the last to "complete".
+fn stage_times(i: &meter_core::dungeon::Instance) -> Vec<f64> {
+    let starts: Vec<u64> = i.stages.iter().copied().take_while(|t| *t != 0).collect();
+    let ends = starts.iter().skip(1).copied().map(Some).chain([i.completed_us]);
+    starts
+        .iter()
+        .zip(ends)
+        .map_while(|(s, e)| e.map(|e| e.saturating_sub(*s) as f64 / 1e6))
+        .collect()
+}
+
+/// Marks each run's stages and clear time that were the fastest of their dungeon and mode.
+fn mark_bests(runs: &mut [Run]) {
+    let mut best: HashMap<Place, (Vec<f64>, f64)> = HashMap::new();
+    for r in runs.iter() {
+        let b = best.entry(r.place.clone()).or_insert_with(|| (Vec::new(), f64::INFINITY));
+        for (k, s) in r.stages.iter().enumerate() {
+            if b.0.len() <= k {
+                b.0.push(f64::INFINITY);
+            }
+            b.0[k] = b.0[k].min(*s);
+        }
+        if let Some(c) = r.clear_s {
+            b.1 = b.1.min(c);
+        }
+    }
+    for r in runs.iter_mut() {
+        let b = &best[&r.place];
+        r.best_stages = r.stages.iter().enumerate().map(|(k, s)| *s <= b.0[k]).collect();
+        r.best_clear = r.clear_s.is_some_and(|c| c <= b.1);
+    }
 }
 
 fn summarise<'a>(fights: impl Iterator<Item = &'a FightSummary> + Clone) -> Run {
@@ -237,6 +279,9 @@ fn summarise<'a>(fights: impl Iterator<Item = &'a FightSummary> + Clone) -> Run 
         ended_ms: 0,
         fight_s: 0.0,
         clear_s: None,
+        stages: Vec::new(),
+        best_stages: Vec::new(),
+        best_clear: false,
         fights: 0,
         bosses: 0,
         total_damage: 0,
@@ -333,6 +378,8 @@ mod tests {
             run: None,
             end: None,
             deaths: 0,
+            best_dps: false,
+            fastest: false,
         }
     }
 
@@ -381,6 +428,23 @@ mod tests {
         // even straight after.
         let legs = [at(boss(0, d, 1), 7), at(boss(40, d, 2), 7), at(boss(42, d, 1), 7), at(boss(43, d, 1), 8), at(leg(45, Some(d)), 8)];
         assert_eq!(group(&legs), vec![(0..3, d), (3..5, d)]);
+    }
+
+    #[test]
+    fn stage_splits() {
+        // Vakron Sky Island (2026-10-22): stages began 29 s, 163 s and 511 s in; complete at 723 s.
+        let s = 1_000_000;
+        let mut i = meter_core::dungeon::Instance {
+            map: 600_072,
+            entered_us: 0,
+            started_us: Some(29 * s),
+            completed_us: Some(723 * s),
+            stages: [29 * s, 163 * s, 511 * s, 0, 0, 0],
+        };
+        assert_eq!(stage_times(&i), [134.0, 348.0, 212.0]);
+        // Not completed: the last stage hasn't ended.
+        i.completed_us = None;
+        assert_eq!(stage_times(&i), [134.0, 348.0]);
     }
 
     #[test]

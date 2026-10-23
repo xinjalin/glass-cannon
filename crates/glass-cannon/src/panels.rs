@@ -16,7 +16,7 @@ use crate::settings::place_beside;
 use crate::store::TIMER_REGIONS;
 use crate::{lock, AppState, OVERLAY};
 
-pub const PANELS: [&str; 5] = ["history", "cooldowns", "timers", "target", "party-cooldowns"];
+pub const PANELS: [&str; 6] = ["history", "cooldowns", "timers", "target", "party-cooldowns", "boss-casts"];
 /// The smallest each may be squeezed to (logical pixels) to fit beside the meter.
 const MIN_SIZE: (f64, f64) = (260.0, 200.0);
 
@@ -331,4 +331,129 @@ pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
     // You first, then the others by name.
     out.sort_by(|a, b| b.is_self.cmp(&a.is_self).then(a.name.cmp(&b.name)));
     out
+}
+
+/// Odyle energy, the other content tickets and who holds the Abyss artifacts, for the world
+/// timers window.
+#[derive(Serialize)]
+pub struct ContentsView {
+    /// Basic and charged Odyle energy.
+    pub odyle: Option<(u32, u32)>,
+    pub tickets: Vec<TicketRow>,
+    /// When the tickets were last sent (ms since 1970; 0 never).
+    pub tickets_ms: u64,
+    pub abyss: Vec<ArtifactRow>,
+    pub abyss_ms: u64,
+}
+
+#[derive(Serialize)]
+pub struct TicketRow {
+    pub id: u32,
+    /// The name you gave it (the game's data doesn't name them).
+    pub name: Option<String>,
+    pub count: Option<u32>,
+    pub charged: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct ArtifactRow {
+    pub id: u32,
+    pub name: &'static str,
+    /// 1 or 2.
+    pub layer: u32,
+    /// "Elyos", "Asmodians" or None (nobody).
+    pub owner: Option<&'static str>,
+    /// When the layer's holding resets (ms since 1970).
+    pub until_ms: Option<u64>,
+}
+
+/// The artifacts by id (A2Tools' notes, from the game's AbyssArtifact table).
+fn artifact_name(id: u32) -> &'static str {
+    match id % 1000 {
+        1 => "Reshanta's Root",
+        2 => "Sulfur Tree Island",
+        3 => "Archipelago of Siel's Wings",
+        _ => "artifact",
+    }
+}
+
+#[tauri::command]
+pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
+    use meter_core::contents::{ASMODIANS, ELYOS, ODYLE_ENERGY};
+    let c = lock(&app.contents);
+    let odyle = c.tickets.get(&ODYLE_ENERGY).map(|t| (t.count.unwrap_or(0), t.charged.unwrap_or(0)));
+    let tickets = c
+        .tickets
+        .values()
+        .filter(|t| t.id != ODYLE_ENERGY && (t.count.is_some() || t.charged.is_some()))
+        .map(|t| TicketRow { id: t.id, name: c.ticket_names.get(&t.id).cloned(), count: t.count, charged: t.charged })
+        .collect();
+    let abyss = c
+        .artifacts
+        .values()
+        .map(|a| {
+            let layer = a.id / 1000;
+            ArtifactRow {
+                id: a.id,
+                name: artifact_name(a.id),
+                layer,
+                owner: match a.owner {
+                    ELYOS => Some("Elyos"),
+                    ASMODIANS => Some("Asmodians"),
+                    _ => None,
+                },
+                until_ms: c.sieges.get(&(layer * 1000 + 1)).and_then(|s| s.until_ms),
+            }
+        })
+        .collect();
+    ContentsView { odyle, tickets, tickets_ms: c.tickets_ms, abyss, abyss_ms: c.abyss_ms }
+}
+
+#[tauri::command]
+pub fn rename_ticket(app: State<'_, Arc<AppState>>, id: u32, name: String) {
+    lock(&app.contents).rename_ticket(id, &name);
+}
+
+/// The boss cast timeline: this fight's boss casts, and the last fight on the same boss's
+/// (for what's coming next).
+#[derive(Serialize)]
+pub struct BossCastsView {
+    pub boss: Option<String>,
+    pub active: bool,
+    pub now_s: f64,
+    pub casts: Vec<meter_core::meter::BossCastView>,
+    /// The last other fight on this boss that had casts, and when it ended (ms since 1970).
+    pub last: Vec<meter_core::meter::BossCastView>,
+    pub last_ms: Option<u64>,
+}
+
+#[tauri::command]
+pub fn boss_casts(app: State<'_, Arc<AppState>>) -> Option<BossCastsView> {
+    let mut c = app.engine.meter().boss_casts()?;
+    let kind = c.casts.iter().find_map(|x| x.boss_type).or(c.target_type);
+    let (last, last_ms) = kind
+        .and_then(|kind| {
+            let h = lock(&app.history);
+            let summaries = h.summaries(&app.details);
+            summaries.iter().find_map(|s| {
+                let f = h.fight(s.index)?;
+                let same = f.view.boss_casts.iter().any(|x| x.boss_type == Some(kind));
+                (same && f.view.start_us != c.start_us).then(|| (f.view.boss_casts.clone(), Some(f.ended_ms)))
+            })
+        })
+        .unwrap_or_default();
+    let data = lock(&app.data);
+    let name = |list: &mut Vec<meter_core::meter::BossCastView>| {
+        for x in list.iter_mut() {
+            x.skill_name = data.skill_meta(x.skill).0;
+            if let Some((boss, _)) = x.boss_type.and_then(|t| data.npc(t)) {
+                x.boss = boss;
+            }
+        }
+    };
+    name(&mut c.casts);
+    let mut last = last;
+    name(&mut last);
+    let boss = kind.and_then(|t| data.npc(t)).map(|(n, _)| n);
+    Some(BossCastsView { boss, active: c.active, now_s: c.now_s, casts: c.casts, last, last_ms })
 }

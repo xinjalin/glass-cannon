@@ -32,6 +32,16 @@ function fightItem(f, i, inRun) {
   const meta = el("span", "fight-meta", `${where}${dayAndTime(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
   const end = endTag(f.end, f.deaths);
   if (end) meta.append(end);
+  // Your best against this boss: highest DPS, fastest kill.
+  for (const [on, text, title] of [
+    [f.best_dps, "best dps", "Your best DPS against this boss"],
+    [f.fastest, "fastest", "Your fastest kill of this boss"],
+  ]) {
+    if (!on) continue;
+    const tag = el("span", "best-tag", ` · ★ ${text}`);
+    tag.title = title;
+    meta.append(tag);
+  }
   const text = el("span", "fight-text");
   text.append(what, meta);
   const dps = el("span", "fight-dps", f.my_dps != null ? fmt(f.my_dps) : fmt(f.total_dps));
@@ -57,10 +67,25 @@ function runItem(run) {
   const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
   if (tag) when.append(el("span", "run-tag", tag));
   when.append(el("span", "fight-meta", dayAndTime(run.started_ms)));
-  if (run.clear_s != null) when.append(el("span", "run-clear", `✓ ${clock(run.clear_s)}`));
+  if (run.clear_s != null) {
+    const clear = el("span", "run-clear" + (run.best_clear ? " best" : ""), `✓ ${clock(run.clear_s)}`);
+    if (run.best_clear) clear.title = "Your fastest clear of this dungeon and mode";
+    when.append(clear);
+  }
   const bosses = run.bosses ? ` · ${run.bosses} ${run.bosses === 1 ? "boss" : "bosses"}` : "";
   const meta = el("span", "fight-meta", `${clock(run.fight_s)} · ${run.fights} fights${bosses} · ${run.players}p`);
   text.append(el("span", "run-name", run.place.name), when, meta);
+  // Stage splits: each stage's time, your fastest of this dungeon and mode marked.
+  if (run.stages.length) {
+    const splits = el("span", "run-splits");
+    run.stages.forEach((s, k) => {
+      const best = run.best_stages[k];
+      const split = el("span", "split" + (best ? " best" : ""), `${k + 1} ${clock(s)}`);
+      split.title = `Stage ${k + 1}: ${clock(s)}` + (best ? " · your fastest" : "");
+      splits.append(split);
+    });
+    text.append(splits);
+  }
   item.append(el("span", "run-chevron", open ? "▾" : "▸"), text, el("span", "fight-dps", fmt(run.total_damage)));
   item.title = "Click to show or hide its fights · right-click for the run's analysis";
   item.addEventListener("click", () => {
