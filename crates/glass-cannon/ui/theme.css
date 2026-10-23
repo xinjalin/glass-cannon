@@ -57,6 +57,13 @@
 }
 
 /* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */
+/* "clear": no tint at all, so the text gets a heavier outline to stay readable. Every
+   window follows the background chosen in the settings (frosted, tinted or clear). */
+[data-backdrop="clear"] {
+  --tint: transparent;
+  --shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
 [data-bars="rose"] { --bar: #f2a8a4; --bar-ink: #1b0f11; }
 [data-bars="lavender"] { --bar: #c8b4f7; --bar-ink: #1b0f11; }
 [data-bars="mint"] { --bar: #94dcb9; --bar-ink: #1b0f11; }

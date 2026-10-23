@@ -35,7 +35,8 @@ body {
   flex-direction: column;
   height: 100%;
   padding: 0 0.9em 0.7em;
-  /* Charts need a steady background, so this window is always well tinted. */
+  /* Charts need a steady background, so this window stays well tinted whatever the
+     background chosen ("clear" only turns off the frosting). */
   background: rgba(var(--tint-rgb), max(var(--alpha), 0.9));
 }
 

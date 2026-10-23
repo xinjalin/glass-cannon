@@ -34,7 +34,7 @@ button {
   flex-direction: column;
   height: 100%;
   padding: 0 0.7em 0.6em;
-  background: rgba(var(--tint-rgb), max(var(--alpha), 0.6));
+  background: var(--tint);
   border: 1px solid var(--line-faint);
 }
 

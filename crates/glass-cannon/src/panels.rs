@@ -46,7 +46,9 @@ pub fn toggle_panel(handle: AppHandle, app: State<'_, Arc<AppState>>, name: Stri
 }
 
 fn show(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
-    if first {
+    // The first time this session: where you left it last time, else beside the meter.
+    let saved = first.then(|| lock(&handle.state::<Arc<AppState>>().placements).get(w.label())).flatten();
+    if first && !saved.is_some_and(|p| crate::placement::restore(w, p, true)) {
         if let Ok(size) = w.outer_size() {
             place_beside(
                 handle,

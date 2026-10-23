@@ -245,6 +245,9 @@ struct Encounter {
     deaths: Vec<(u64, Death)>,
     /// Players who came back to life during it: (when, who).
     revived: Vec<(u64, u64)>,
+    /// Your party's players (you too) who did something in it, as the party was then: so
+    /// it still shows them after the party breaks up.
+    party: HashSet<u64>,
     end: Option<FightEnd>,
 }
 
@@ -262,6 +265,7 @@ impl Encounter {
             instance: None,
             deaths: Vec::new(),
             revived: Vec::new(),
+            party: HashSet::new(),
             end: None,
         }
     }
@@ -792,6 +796,12 @@ impl Meter {
         self.cooldowns.active(now_us)
     }
 
+    /// How many of your party (you included) took part in the fight shown (the one going,
+    /// or the last): a fight from before the party broke up still counts as a party's.
+    pub fn shown_party_size(&self) -> usize {
+        self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.party.len())
+    }
+
     /// Your skills (base ids), once the game has sent their list.
     pub fn your_skills(&self) -> &[u32] {
         self.cooldowns.known()
@@ -1100,6 +1110,7 @@ impl Meter {
             }
             self.current = Some(enc);
         }
+        let party_member = player && self.registry.in_party(by);
         let enc = self.current.as_mut().expect("encounter exists");
         enc.last_activity_us = enc.last_activity_us.max(ts_us);
         // Only your own hits make a target yours. Before we know who we are, everything
@@ -1109,6 +1120,9 @@ impl Meter {
         }
         if player {
             enc.record(&hit);
+            if party_member {
+                enc.party.insert(by);
+            }
         } else if on_player {
             enc.taken.push(hit);
         }
@@ -1499,7 +1513,7 @@ impl Meter {
         let shown = |id: u64| match self.scope {
             _ if me.is_none() => true,
             Scope::Mine => me == Some(id),
-            Scope::Party => self.registry.in_party(id),
+            Scope::Party => self.registry.in_party(id) || e.party.contains(&id),
             Scope::Everyone => true,
         };
         let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
@@ -2441,6 +2455,24 @@ mod tests {
         stop.push(0);
         m.feed(6 * S, crate::cast::OPCODE_CAST_STOP, &stop);
         assert_eq!(m.snapshot().target.unwrap().cast, None);
+    }
+
+    #[test]
+    fn a_fight_keeps_its_party_after_the_party_breaks_up() {
+        let mut m = meter_with_boss();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PARTY_ROSTER, &roster(&["Pingu", "NeneneTowawa"]));
+        m.set_scope(Scope::Party);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, 15772, 12_010_340, 3000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+        // The dungeon's done and the party breaks up: you left it.
+        m.feed(10 * S, crate::entities::OPCODE_PARTY_LEFT, &[0, 0]);
+        assert!(m.registry().party().is_empty());
+        let e = m.snapshot().encounter.unwrap();
+        assert_eq!((e.players.len(), e.total_damage), (2, 8000), "Pingu still shows");
+        assert_eq!(m.shown_party_size(), 2);
     }
 
     #[test]

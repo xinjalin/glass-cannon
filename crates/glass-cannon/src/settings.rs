@@ -269,6 +269,11 @@ pub(crate) fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monit
 /// entirely within the overlay's monitor, leaving out the taskbar. On a screen too small
 /// for that it shrinks (its content scrolls) before it would cover the meter.
 fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
+    // Where you left it (its size follows its content), else beside the meter.
+    let saved = lock(&handle.state::<Arc<AppState>>().placements).get(SETTINGS);
+    if saved.is_some_and(|p| crate::placement::restore(s, p, false)) {
+        return;
+    }
     let Some(size) = s.outer_size().ok() else { return };
     let size = (size.width as i32, size.height as i32);
     place_beside(handle, s, size, MIN_SETTINGS, &[Side::Left, Side::Right, Side::Below, Side::Above]);

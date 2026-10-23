@@ -31,8 +31,7 @@ body {
   flex-direction: column;
   height: 100%;
   padding: 0 0.8em 0.6em;
-  /* Always tinted enough to read, whatever the overlay's background is set to. */
-  background: rgba(var(--tint-rgb), max(var(--alpha), 0.6));
+  background: var(--tint);
 }
 
 #bar {

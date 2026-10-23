@@ -70,8 +70,9 @@
       <p id="empty">waiting for a fight…</p>
     </fieldset>
 
-    <!-- People joining and leaving your party, for a few seconds each. -->
-    <ol id="notices"></ol>
+    <!-- People joining and leaving your party, and alerts: one line on the box's top
+         border (under the rows in minimal mode), so the rows never move. -->
+    <div id="notice" hidden></div>
 
     <!-- Only shown when something needs attention (errors, missing data, dropped packets). -->
     <div id="status" hidden></div>

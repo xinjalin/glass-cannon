@@ -434,12 +434,63 @@ function noticePartyChanges(party) {
   return joined.length > 0 || left.length > 0 || (before.length === 0 && names.length > 0) || (readyChanged && !!ready);
 }
 
+// Notices show on one line, the newest first; several at once take turns, a few seconds
+// each, until each one's time is up. The line sits on the box's top border, right of the
+// legend (in minimal mode, under the last row), so it never moves or covers a row.
+const NOTICE_TURN_MS = 3000;
+let notices = [];
+let noticeTurn = 0;
+
 function notice(text, ms = NOTICE_MS, kind = "") {
-  const item = el("li", `notice ${kind}`.trim(), text);
-  $("notices").append(item);
-  while ($("notices").children.length > 3) $("notices").firstChild.remove();
-  setTimeout(() => item.remove(), ms);
+  notices.push({ text, kind, until: Date.now() + ms });
+  noticeTurn = notices.length - 1;
+  drawNotice();
 }
+
+function drawNotice() {
+  const now = Date.now();
+  notices = notices.filter((n) => n.until > now);
+  const line = $("notice");
+  line.hidden = notices.length === 0;
+  if (line.hidden) return;
+  const n = notices[noticeTurn % notices.length];
+  line.replaceChildren(el("span", "", n.text));
+  line.className = n.kind;
+  line.title = notices.map((x) => x.text).join("\n");
+  placeNotice();
+}
+
+function placeNotice() {
+  const line = $("notice");
+  const panel = $("panel").getBoundingClientRect();
+  const box = $("box").getBoundingClientRect();
+  if (minimal()) {
+    // Under the last row, left of the lock button.
+    Object.assign(line.style, {
+      left: `${box.left - panel.left}px`,
+      right: "2.2em",
+      top: `${box.bottom - panel.top + 2}px`,
+      height: "",
+      maxWidth: "",
+    });
+    return;
+  }
+  const legend = $("legend").getBoundingClientRect();
+  const left = legend.right - panel.left + 6;
+  Object.assign(line.style, {
+    left: `${left}px`,
+    right: "",
+    top: `${legend.top - panel.top}px`,
+    height: `${legend.height}px`,
+    maxWidth: `${box.right - panel.left - 8 - left}px`,
+  });
+}
+
+setInterval(() => {
+  if (!notices.length) return;
+  noticeTurn++;
+  drawNotice();
+}, NOTICE_TURN_MS);
 
 // ---------------------------------------------------------------- alerts
 

@@ -29,18 +29,13 @@ body {
 }
 
 #panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.4em;
   height: 100%;
   padding: 0 0.65em 0.55em;
   background: var(--tint);
-}
-
-/* "clear": no tint at all, so the text gets a heavier outline to stay readable. */
-[data-backdrop="clear"] {
-  --tint: transparent;
-  --shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 /* ---------------------------------------------------------------- time & ping strip */
@@ -167,16 +162,21 @@ button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 }
 
 /* People joining and leaving the party. */
-#notices { margin: 0; padding: 0; list-style: none; }
-#notices:empty { display: none; }
-.notice {
-  padding: 0.15em 0.45em;
+#notice {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 0.4em;
+  border-radius: 0.25em;
+  background: var(--tint-strong);
   color: var(--accent-2);
-  font-size: 0.9em;
+  font-size: 0.85em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
+#notice > span { overflow: hidden; text-overflow: ellipsis; }
 
 svg {
   width: 1.05em;
@@ -493,7 +493,7 @@ body:hover #lock { opacity: 0.8; }
 ::-webkit-scrollbar { width: 0.4em; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
 
-.notice.alert { color: var(--warn); }
+#notice.alert { color: var(--warn); }
 
 /* Faded outside combat (settings → fade outside combat): back under the mouse. */
 #panel { transition: opacity 0.4s ease; }

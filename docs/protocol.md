@@ -410,7 +410,8 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 | `0x921f` | the party broke up: u8 reason (Vakron's end: 8)       |
 | `0x972a` | the party finder group removed you: u8 reason (the expedition capture) |
 | `0x9219` | you were kicked from the party: u8 by vote (Questlog's list; not captured yet) |
-| `0x931f`, `0x961a`, `0x962e` | you left the party; the Force (a 20-player raid group) broke up; you left it (Questlog's list; not captured yet). No `0x96xx` Force message is in any capture yet: we haven't been in a Force, and expeditions are the party finder's `0x97xx` groups |
+| `0x931f` | you left the party: u64 party, u8 reason (3 leaving after an expedition's run, with `0x971d`; confirmed 2026-10-23) |
+| `0x961a`, `0x962e` | the Force (a 20-player raid group) broke up; you left it (Questlog's list; not captured yet). No `0x96xx` Force message is in any capture yet: we haven't been in a Force, and expeditions are the party finder's `0x97xx` groups |
 
 Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen), `u8
 length`, UTF-8 name, then level, class, legion name and other fields. In group rosters
