@@ -18,7 +18,9 @@ function readable(hex) {
   const d = max - min;
   const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
   let h = 0;
-  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  // Kept in 0-6: between red and magenta (more blue than green) `%` alone goes negative,
+  // which made a channel negative and the colour invalid (as style.rs's `rem_euclid` does).
+  if (d) h = max === r ? ((((g - b) / d) % 6) + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   // Back from hue, saturation and the raised lightness.
   const L = MIN_LIGHTNESS;
   const c = (1 - Math.abs(2 * L - 1)) * s;

@@ -198,6 +198,9 @@ mod tests {
         assert_eq!(readable(0x102040), 0x648bd8);
         assert_eq!(readable(0x202020), 0x9e9e9e);
         assert_eq!(readable(0xf2a8a4), 0xf2a8a4);
+        // Between red and magenta (more blue than green), where theme.js once went wrong.
+        assert_eq!(readable(0xeb0feb), 0xf349f3);
+        assert_eq!(readable(0xeb0f58), 0xf34981);
         assert_eq!(border_rgb("#f2a8a4"), 0xc98b88);
         assert_eq!(border_rgb("rose"), 0xc98a86);
     }
