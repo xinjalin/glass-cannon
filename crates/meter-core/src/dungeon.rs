@@ -15,6 +15,15 @@ pub const OPCODE_DUNGEON_STEP: u16 = 0x6100;
 /// A dungeon was completed: u8, u32 map ID, u8 1, u8.
 pub const OPCODE_DUNGEON_COMPLETE: u16 = 0x6101;
 
+/// A dungeon's objective (map event) progress: u32 event ID, u8 state (2 running, 3 done),
+/// varint stage, varint step, then the step's objectives. In both Vakron Sky Island runs
+/// the stage goes 1 -> 2 just after the first boss, 2 -> 3 after the second.
+pub const OPCODE_MAP_EVENT_PROGRESS: u16 = 0x922d;
+/// Joining a map event: u32 event ID, u8 length, its name, then as in a progress message.
+pub const OPCODE_MAP_EVENT_JOIN: u16 = 0x922e;
+/// Stages kept per stay.
+pub const MAX_STAGES: usize = 6;
+
 const STEP_STARTED: u8 = 2;
 const STEP_COMPLETE: u8 = 3;
 
@@ -29,6 +38,9 @@ pub struct Instance {
     pub started_us: Option<u64>,
     /// When it was completed, if it was.
     pub completed_us: Option<u64>,
+    /// When each stage of the dungeon began (0: not reached), from its map events.
+    #[serde(default)]
+    pub stages: [u64; MAX_STAGES],
 }
 
 /// Follows the map you're on. Feed it every message; it says when what it knows changed.
@@ -47,7 +59,7 @@ impl Maps {
         match opcode {
             OPCODE_MAP_ENTERED => {
                 let map = u32_at(p, 0)?;
-                self.current = Some(Instance { map, entered_us: ts_us, started_us: None, completed_us: None });
+                self.current = Some(Instance { map, entered_us: ts_us, started_us: None, completed_us: None, stages: [0; MAX_STAGES] });
             }
             OPCODE_DUNGEON_STEP => {
                 let (map, step) = (u32_at(p, 0)?, *p.get(4)?);
@@ -62,6 +74,22 @@ impl Maps {
                 let map = u32_at(p, 1)?;
                 let i = self.current.as_mut().filter(|i| i.map == map && i.completed_us.is_none())?;
                 i.completed_us = Some(ts_us);
+            }
+            OPCODE_MAP_EVENT_PROGRESS | OPCODE_MAP_EVENT_JOIN => {
+                let mut i = 4;
+                if opcode == OPCODE_MAP_EVENT_JOIN {
+                    i += 1 + usize::from(*p.get(4)?);
+                }
+                i += 1; // state
+                let stage = usize::try_from(crate::protocol::read_varint(p, &mut i)?).ok()?;
+                let inst = self.current.as_mut()?;
+                let reached = inst.stages.iter().take_while(|t| **t != 0).count();
+                if stage == 0 || stage <= reached || reached >= MAX_STAGES {
+                    return None;
+                }
+                for t in &mut inst.stages[reached..stage.min(MAX_STAGES)] {
+                    *t = ts_us;
+                }
             }
             _ => return None,
         }
@@ -94,7 +122,25 @@ mod tests {
         assert!(m.feed(716_000, OPCODE_DUNGEON_COMPLETE, &hex("00 08 28 09 00 01 00")).is_none());
         let world = m.feed(780_000, OPCODE_MAP_ENTERED, &hex("56 04 00 00 00 01")).unwrap();
         assert_eq!((world.map, world.started_us), (1110, None));
+        assert_eq!(world.stages, [0; MAX_STAGES]);
         // A step for another map isn't this one's.
         assert!(m.feed(781_000, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 02")).is_none());
+    }
+
+    #[test]
+    fn a_dungeons_stages() {
+        // Vakron Sky Island (2026-10-22): joined at the start, stage 2 after Tiere, 3 after Thamon.
+        let mut m = Maps::default();
+        m.feed(1, OPCODE_MAP_ENTERED, &hex("08 28 09 00 00 01"));
+        let join = "e1 dd 00 00 1c 42 61 6b 72 6f 6e 49 73 6c 61 6e 64 5f 4e 6f 72 6d 61 6c 5f 4d 61 70 45 76 65 6e 74 02 01 01 02 00 00";
+        assert_eq!(m.feed(29, OPCODE_MAP_EVENT_JOIN, &hex(join)).unwrap().stages[0], 29);
+        // Steps within a stage change nothing.
+        assert!(m.feed(149, OPCODE_MAP_EVENT_PROGRESS, &hex("e1 dd 00 00 02 01 01 02 00 01 08")).is_none());
+        m.feed(163, OPCODE_MAP_EVENT_PROGRESS, &hex("e1 dd 00 00 02 02 01 02 00 00 08"));
+        assert!(m.feed(210, OPCODE_MAP_EVENT_PROGRESS, &hex("e1 dd 00 00 02 02 02 02 00 00 08")).is_none());
+        let i = m.feed(511, OPCODE_MAP_EVENT_PROGRESS, &hex("e1 dd 00 00 02 03 01 05 00 00 00 00 00 08")).unwrap();
+        assert_eq!(i.stages, [29, 163, 511, 0, 0, 0]);
+        // The boss room's event, still at stage 1, doesn't go back.
+        assert!(m.feed(723, OPCODE_MAP_EVENT_PROGRESS, &hex("e0 dd 00 00 03 01 01 01 01 08")).is_none());
     }
 }

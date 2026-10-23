@@ -877,7 +877,7 @@ mod tests {
         assert!(dir.join("fights/notes.txt").exists(), "only analyses are deleted");
 
         // Dungeon runs: the past ones go, the one you're in stays.
-        let run = |entered_us| meter_core::dungeon::Instance { map: 600_072, entered_us, started_us: Some(entered_us + 1), completed_us: None };
+        let run = |entered_us| meter_core::dungeon::Instance { map: 600_072, entered_us, started_us: Some(entered_us + 1), completed_us: None, stages: [0; meter_core::dungeon::MAX_STAGES] };
         let mut instances = Instances::load(&dir);
         instances.record(run(100));
         instances.record(run(200));
@@ -966,7 +966,7 @@ mod tests {
         use meter_core::dungeon::Instance;
         let dir = temp_dir("instances");
         let mut i = Instances::load(&dir);
-        let entered = Instance { map: 600_072, entered_us: 1, started_us: None, completed_us: None };
+        let entered = Instance { map: 600_072, entered_us: 1, started_us: None, completed_us: None, stages: [0; meter_core::dungeon::MAX_STAGES] };
         i.record(entered);
         assert!(i.get(1).is_none(), "no countdown: not a dungeon");
         i.record(Instance { started_us: Some(2), ..entered });
