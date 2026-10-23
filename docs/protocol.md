@@ -48,24 +48,34 @@ u16     flags             bitmask, see below (confirmed)
 varint  attacker          entity ID (confirmed)
 u32     skill             e.g. 18010340 (confirmed; same skill → same ID)
 u8      cast_id           the attacker's cast; shared by all its hits (confirmed)
-u8      result            2 normal, 3 critical (confirmed); 0, 1, 6 rare, unknown
+[0x01]  u32               (Questlog: parts ID; never set in 531,199 hits)
+u8      result            hit type: 2 normal, 3 critical (confirmed); 1 evaded, 6 resisted,
+                          4/5/7/8 immune, 9 reflected, 0 no effect (Questlog's names)
 [0x02]  u8 special        0x04 perfect, 0x08 double strike (confirmed); others unknown
-        u8                always 0 so far
+        varint            HP restored by blocking (0 but when it happens)
         u8 position       0 side, 1 back, 2 front (confirmed)
-u32     unknown_a
+u32     unknown_a         (Questlog: effect ID)
 u32     hit               1, 2, 3… within a multi-hit cast; some skills start at 2
-varint  unknown_b         constant per attacker for a while (guess: level/stat related)
+varint  unknown_b         constant per attacker for a while (Questlog: attack speed)
 [0x04]  varint damage     (confirmed against 10 noted in-game numbers)
+[0x08]  u32               MP damage
 [0x10, without 0x02] 1 byte
 [0x20]  varint n, n × varint parts   a multi-hit's pieces when n ≥ 2 (confirmed)
-[0x100] u8, varint        unknown; appears on events without damage
+[0x40]  varint n, n × u32 shields (barriers) it hit
+[0x80]  u8
+[0x100] varint n, n × u32 effects
 u16     hit echo          same as `hit` (likely)
-[0x400] u16               unknown
+[0x200] varint            HP the attacker drained
+[0x400] varint            HP the attacker recovered (confirmed: heals its attacker)
+[0x800] u32, [0x1000] u8, [0x2000] u32
 ```
 
-Flag bits `0x40` and `0x1000` add fields we can't skip yet (rare: 8 of about 12,000
-events). The damage value doesn't depend on them, because its position depends only on
-bits `0x02` and `0x04`.
+The fields from `0x08` on follow Questlog's SkillEffect: with them all but 308 of 197,103
+hits in the 2026-10-23/24 captures read to the last byte (before: 1,205 partly read). HP
+drained and recovered are healing for the attacker, as Questlog counts them: 6,635 hits
+recovered 3.7M HP (Gladiator skills mostly). A hit with no damage and an evade, resist or
+immune result is a miss (accuracy in the analysis window). The damage value doesn't
+depend on the later fields: its position depends only on bits `0x01`, `0x02` and `0x04`.
 
 - **No damage field** (bit `0x04` clear): buffs, ticks and effects, often with
   `target == attacker`.
@@ -156,7 +166,13 @@ Benediction, Blood Absorption, Protection Armor…); the meter counts a self-hea
 when the player's next `0x8d00` (within 50 ms) shows a rise, and counts the rise.
 `1010000` "Restore HP" is natural regeneration and isn't counted; mobs and summoned
 spirits use `1699xxxx` creature skills on themselves. `packet-lab damage --self-target`
-lists these events. Heals cast on *other* players haven't been seen yet.
+lists these events.
+
+**Heals cast on other players** come the same way, with the ally as `target`: in a
+600055 run (2026-10-24), 1,016 of 1,850 player skills on other players were followed by
+that player's HP rising by the amount (less when nearly full; 893 within 50 ms), e.g. a
+Cleric's `17800001`. The meter counts them like self-heals, and never counts a player's
+skill on another player as damage (player fights are the PvP tracker's).
 
 **Damage taken**: mob hits on players are ordinary `0x3804` damage events with a player
 as `target` (flags `0x0006`); test D has 71 of them across 6 players.
@@ -348,8 +364,11 @@ Named in Questlog's message list, checked on our captures:
 
 | opcode   | layout | what |
 | -------- | ------ | ---- |
-| `0x3809` | varint caster, u8 flags, u32 skill, u8, target block (as `0x3802`), varint cast time (ms), … | a cast with a cast time starting, by players and mobs (bosses too) |
-| `0x380c` | varint caster, u8, u8, u32 skill, varint | that cast stopped before it went off |
+| `0x3809` | varint caster, u8 flags, u32 skill, u8 level, target block (as `0x3802`), varint cast time (ms), u8, [flags 1: varint], [flags 2: varint attack speed], … | a cast with a cast time starting, by players and mobs (bosses too) |
+| `0x380c` | varint caster, u16 result, u32 skill, varint cooldown (ms) | that cast stopped before it went off (its cooldown starts) |
+| `0x381c`, `0x3821` | as `0x3809` (no cast time) / as `0x380c` | a charged skill started / let go (its cooldown starts) |
+| `0x3848` | varint caster, u32 skill, u8 cast ID, u32, u16, f32 × 3 position, f32 facing, u16 time until it lands (ms) | where a cast will land, one per area, with the cast's `0x3802` |
+| `0x8d52` | varint entity | a mob took aggro for the first time (a boss's pull) |
 | `0x8d26` | varint entity | a player came back to life |
 | `0x572e` | u32 mob type | a dungeon's middle boss was killed |
 | `0x5100` | u8 count, entries of a tag, u32 id and more by kind | your skills, at login and on entering a dungeon (just before `0x3633`) |
@@ -359,6 +378,10 @@ within 20 % (or 300 ms) of their cast time; the times are round (1,000, 1,500, 2
 10,000 ms). All 23 `0x380c` stop the caster's open cast of that skill. In Vakron Sky Island
 the 4 revivals each follow that player's death by 4–8 s, and `0x572e` came the moment Tiere
 (2300810) and Thamon (2300811) died; the last boss ends the dungeon with `0x6101` instead.
+Nazmun's (2340615) casts show the pattern the meter's boss cast line follows: a cast time
+(`0x3809`, 1,030 ms), the cast going off on time (`0x3802`), and with it its areas
+(`0x3848`, six at once landing 1.9-2.7 s later). Boss timelines run from the boss's pull
+(its `0x8d21` in combat, or `0x8d52`), so they line up from one fight to the next.
 The skill list's entries vary in length, and not all are skills; its 30 base skill ids
 (`xxyy0000`) are all of the character's class. The meter uses them for the target frame's
 cast bar, revivals in the deaths tab (and to stop counting a revived player as dead), a
@@ -439,10 +462,10 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 | `0x9200` | your party's full roster, resent on most joins/leaves |
 | `0x920d` | one member joining your party: a party roster entry (Questlog's PartyAddMember; confirmed 2026-10-24, two joined this way with no new roster) |
 | `0x9222` | a party member back online: the same (Questlog's PartyReconnectMember) |
-| `0x9213` | you left the party (`00 00`)                          |
+| `0x9213` | you left the party: u16 result (only 0 means you left; Questlog's PartyLeave) |
 | `0x9702` | a cross-server group's full roster (expeditions)      |
 | `0x970b` | one member joining that group                         |
-| `0x971d` | you left the group (`00 00`)                          |
+| `0x971d` | you left the group: u16 result (the same)             |
 | `0x971e` | a member left the group: u32 character ID, `00 00`, u16 server |
 | `0x9221` | a member left the party (same layout)                 |
 | `0x9716` | a group member readied up or stopped: character ID, `00 00`, server, u8 ready |
@@ -611,8 +634,9 @@ starts with step 1 (or after it was completed).
 | opcode   | layout                                              | what                                     |
 | -------- | --------------------------------------------------- | ---------------------------------------- |
 | `0x4002` | u32 map ID, u8                                      | you're on this map (600072 = Vakron Sky Island, Conquest; 1110 = the world map we left from) |
-| `0x6100` | u32 map ID, u8 step, u64 ms, u64 ms                 | a dungeon's progress: step 1 on entering, **2 when the countdown ends**, **3 at "Expedition Complete"** |
-| `0x6101` | u8 0, u32 map ID, u8 1, u8 0                         | the dungeon was completed (with step 3)  |
+| `0x6100` | u32 map ID, u8 state, u64 ms, u64 ms               | a dungeon's state (Questlog's DungeonState): 1 on entering, **2 when the countdown ends**, 3 at "Expedition Complete", 4 over; its time limit's start and end |
+| `0x6101` | u8 flags, u32 map ID, u8 1 when cleared, rewards…   | its result: only a clear (1) counts as completed, as in Questlog |
+| `0x6109` | u32                                                 | deaths so far against the dungeon's limit (Questlog; not used) |
 
 The map ID is also in `0x3633` (your character), `0x9702` (the group roster's header)
 and `0x921c`. The meter keeps each stay on a map, and a dungeon's start and completion

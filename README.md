@@ -68,12 +68,15 @@ It starts capturing straight away and waits for the game if it isn't running.
 close it. Tabs:
 
 - **overview**: DPS, crits, positionals and DPS over time with the target's HP.
-- **skills**: every skill with the player's chosen specialties; hover for the tooltip.
+- **skills**: every skill with the player's chosen specialties and accuracy (hits the
+  target evaded, resisted or was immune to are misses); hover for the tooltip.
 - **rotation**: the opener and a zoomable cast timeline that follows a live fight.
 - **buffs**: buff and debuff uptime with icons, and which buffs were up for each skill.
-- **healing** and **taken**: who healed whom and what hit whom.
+- **healing** and **taken**: who healed whom (heals on allies, and HP a player's hits
+  drain back, included) and what hit whom.
 - **deaths**: who died to what, the last hits with HP after each, the healing before, and
   how long until they were revived.
+- **boss**: the boss's casts from its pull, with cast times and when their areas landed.
 
 **[copy text]** and **[copy image]** put a summary on the clipboard for Discord.
 
@@ -92,7 +95,15 @@ you're in at the time keeps grouping its next fights as a run.
 
 **Personal bests**: your highest DPS and fastest kill against each boss show on the meter's
 boss line during the fight (green while you're beating it), and as ★ tags on the fights in
-the history that set them. They count every kill you were in, and [clear] resets them.
+the history that set them. They're kept per character, count every kill you were in, and
+[clear] resets them.
+
+**Boss casts**: under the boss's HP (settings → boss casts), what it's casting with a bar
+and the time left, then, for skills that mark the ground, how long until they land; between
+casts, what it cast next the last time you fought it, with a countdown. Times run from the
+boss's pull, so they line up from one fight to the next; its routine skills are left out.
+The analysis window's **[boss]** tab lists every cast of a fight; most boss skills have no
+name in the game data, so double-click one there to name it.
 
 ### Windows
 
@@ -105,9 +116,6 @@ settings and analysis windows stay tinted enough to read).
   (yours from the start, the others' once used).
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, stagger.
-- **boss casts**: what the boss cast this fight, newest first (✕ when stopped), and while
-  you fight it again, what it cast next the last time, with a countdown. Its routine skills
-  (cast 8 or more times a fight) are hidden until **[frequent]**.
 - **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
   in game to read them) in your time; ring the 🔔 for an alert on the meter before one
   starts. Also who holds the Abyss artifacts (when you open the Abyss map or enter it; not

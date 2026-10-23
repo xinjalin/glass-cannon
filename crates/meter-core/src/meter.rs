@@ -1253,15 +1253,7 @@ impl Meter {
             // and mobs and summoned spirits use the 1699xxxx creature skills on themselves.
             let creature = CREATURE_SKILLS.contains(&ev.skill);
             if ev.skill >= PLAYER_SKILL_MIN && !creature && self.is_player(ev.attacker, ev.skill) {
-                while self
-                    .pending_heals
-                    .front()
-                    .is_some_and(|h| ts_us.saturating_sub(h.ts_us) > SELF_HEAL_WAIT_US)
-                {
-                    self.pending_heals.pop_front();
-                }
-                self.pending_heals
-                    .push_back(Hit::flow(ts_us, ev.attacker, ev.target, ev.skill, dmg));
+                self.queue_heal(Hit::flow(ts_us, ev.attacker, ev.target, ev.skill, dmg));
             }
             return;
         }
@@ -1273,9 +1265,22 @@ impl Meter {
         if by == on {
             return;
         }
+        // A player's skill on another player may be a heal (a Cleric's on an ally): it is if
+        // their HP then rises. In our captures 1,016 of 1,850 such hits were followed by a
+        // rise of their amount (less when they were nearly full).
+        let on_a_player = self.registry.is_self(ev.target) || self.registry.player_name(ev.target).is_some();
+        if on_a_player && ev.skill >= PLAYER_SKILL_MIN && self.is_player(attacker, ev.skill) {
+            self.queue_heal(Hit::flow(ts_us, by, ev.target, ev.skill, dmg));
+        }
         self.record_pvp(ts_us, by, on, ev.skill, dmg);
         // Between members of your party (a Chanter's effect on an ally, say): not damage.
         if !self.registry.party().is_empty() && self.registry.in_party(by) && self.registry.in_party(on) {
+            return;
+        }
+        // Nor a player's skill on any other player (a heal, a buff), as in Questlog: player
+        // fights are the PvP tracker's.
+        let on_player_side = on_a_player || self.registry.is_self(on) || self.registry.player_name(on).is_some();
+        if on_player_side && self.is_player(attacker, ev.skill) {
             return;
         }
         let me = self.registry.self_id();
@@ -1367,7 +1372,15 @@ impl Meter {
         }
     }
 
-    /// HP rose by `rise`: if `entity` just healed themselves, that's what the heal did.
+    /// A player's skill on a player, waiting for their HP to rise ([`Meter::settle_self_heal`]).
+    fn queue_heal(&mut self, heal: Hit) {
+        while self.pending_heals.front().is_some_and(|h| heal.ts_us.saturating_sub(h.ts_us) > SELF_HEAL_WAIT_US) {
+            self.pending_heals.pop_front();
+        }
+        self.pending_heals.push_back(heal);
+    }
+
+    /// HP rose by `rise`: if `entity` was just healed by a player, that's what the heal did.
     fn settle_self_heal(&mut self, ts_us: u64, entity: u64, rise: u64) {
         let Some(i) = self
             .pending_heals
@@ -2622,6 +2635,29 @@ mod tests {
         assert_eq!(e.healing.len(), 3);
         let pingu = e.healing.iter().find(|p| p.name == "Pingu").unwrap();
         assert_eq!((pingu.damage, pingu.skills[0].skill), (200, 18_730_002));
+    }
+
+    #[test]
+    fn a_players_heal_on_an_ally_counts_when_their_hp_rises() {
+        const MOB: u64 = 31865;
+        let mut m = meter_as_me();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.set_scope(Scope::Everyone);
+        m.feed(S, OPCODE_DAMAGE, &hit(MOB, ME, 18_010_340, 1000));
+        m.feed(S, OPCODE_DAMAGE, &hit(MOB, 15772, 17_010_340, 1000));
+        // Pingu (a Cleric) heals you for 956: your HP rises by 956. Then 900 more when
+        // you're nearly full: it rises by 34.
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(ME, 5000));
+        m.feed(2 * S + 10, OPCODE_DAMAGE, &hit(ME, 15772, 17_800_001, 956));
+        m.feed(2 * S + 10, hp::OPCODE_HP, &hp_update(ME, 5956));
+        m.feed(3 * S, OPCODE_DAMAGE, &hit(ME, 15772, 17_800_001, 900));
+        m.feed(3 * S, hp::OPCODE_HP, &hp_update(ME, 5990));
+        // A buff on you that doesn't raise HP isn't a heal.
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(ME, 15772, 17_720_001, 500));
+        let e = m.snapshot().encounter.unwrap();
+        let pingu = e.healing.iter().find(|p| p.name == "Pingu").unwrap();
+        assert_eq!((pingu.damage, pingu.skills.len()), (990, 1));
+        assert_eq!(e.total_damage, 2000, "heals aren't damage");
     }
 
     /// Mob 17151 (type 2400002) coming into view with 76,643 of 119,700 HP (from test D),
