@@ -39,7 +39,7 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x8d04` | 319 | a death: who, by which skill, killer | CharDie_NT | Aion2Flow: nickname; A2Tools: summon ownership; RATmeter: entity death |
 | `0x3834` | 114 | your target | SetMainTarget_RS |  |
 | `0x9702` | 102 | party finder group roster (ready, inside, leader) | PartyFinderGroup_NT | A2Tools: party roster; RATmeter: party info; a2_protocol-research: party state |
-| `0x922d` | 42 | a dungeon's objective progress: its stage (stage splits) | MapEventUpdateProgress_NT |  |
+| `0x922d` | 42 | a dungeon's objective progress: its stage and step | MapEventUpdateProgress_NT |  |
 | `0x380c` | 27 | a cast stopped before it went off | SkillCastingStop_NT |  |
 | `0x9101` | 16 | world map contents: field boss timers | WorldMapContentsInfo_RS | A2Tools: field boss map |
 | `0x9200` | 13 | your party's roster | PartyInfo_NT | Aion2Flow: party member list |
@@ -55,7 +55,7 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x610b` | 5 | every content ticket; Odyle energy is 60000001 | ContentsTickets_NT | A2Tools: Odyle energy list |
 | `0x9221` | 4 | a member left the party |  |  |
 | `0x971e` | 4 | a member left the finder group |  |  |
-| `0x572e` | 4 | a dungeon's middle boss was killed: its mob type | PartyDungeonRewardMiddleBossKill_NT |  |
+| `0x572e` | 4 | a dungeon's middle boss was killed: its mob type (stage splits) | PartyDungeonRewardMiddleBossKill_NT |  |
 | `0x922e` | 4 | joining a dungeon's objectives (map event) | MapEventJoin_NT | Aion2Flow: map |
 | `0x6101` | 2 | dungeon completed | DungeonCompleteResult_NT |  |
 | `0x9213` | 2 | you left the party | PartyLeave_RS |  |
@@ -347,13 +347,13 @@ Some may be older opcodes: A2Tools notes the game shifted opcodes in 2026-06.
 | `0x9222` | PartyReconnectMember_NT |  |  |
 | `0x9409` |  | Aion2Flow: nickname |  |
 | `0x940b` |  | Aion2Flow: nickname |  |
-| `0x9602` | ForceInfo_NT | Aion2Flow: Force roster snapshot | the Force's roster: its names count as your party (untested) |
-| `0x960a` | ForceAddMember_NT | Aion2Flow: Force roster profile | a Force member added: names (untested) |
+| `0x9602` | ForceInfo_NT | Aion2Flow: Force roster snapshot | the Force's roster: its members count as your party (confirmed: 20 members) |
+| `0x960a` | ForceAddMember_NT | Aion2Flow: Force roster profile | a Force member added |
 | `0x961a` | ForceDisband_NT |  | the Force (20-player raid group) broke up |
-| `0x961b` | ForceReconnectMember_NT | Aion2Flow: Force profile | a Force member back: names (untested) |
-| `0x961d` |  | Aion2Flow: Force member | a Force member: names (untested) |
-| `0x961e` |  | Aion2Flow: Force member list | the Force's member list: names (untested) |
-| `0x9622` | ForceRemoveMember_NT |  |  |
+| `0x961b` | ForceReconnectMember_NT | Aion2Flow: Force profile | a Force member back |
+| `0x961d` |  | Aion2Flow: Force member | a Force member |
+| `0x961e` |  | Aion2Flow: Force member list | the Force's member list |
+| `0x9622` | ForceRemoveMember_NT |  | a member left the Force: u64 member, u64 party, u8 reason (confirmed) |
 | `0x962b` | ForceUpdateMemberHPMP_NT | Aion2Flow: Force status |  |
 | `0x962c` | ForceUpdateMemberStatus_NT |  |  |
 | `0x962e` | ForceLeave_NT |  | you left the Force (20-player raid group) |
@@ -362,7 +362,7 @@ Some may be older opcodes: A2Tools notes the game shifted opcodes in 2026-06.
 | `0xe302` | AbyssArtifactStatus_NT |  |  |
 | `0xe303` | AbyssArtifactUpdate_NT |  |  |
 | `0xe305` | AbyssArtifactEventInfo_NT | A2Tools: abyss artifact entry | entering the Abyss: who holds its artifacts (untested) |
-| `0xe307` | AbyssArtifactEventInfo_RS | A2Tools: abyss artifacts map | the Abyss map: who holds the artifacts (untested) |
+| `0xe307` | AbyssArtifactEventInfo_RS | A2Tools: abyss artifacts map | the Abyss map: who holds the artifacts (confirmed 2026-10-23) |
 | `0xe308` | AbyssArtifactEventUpdate_NT |  |  |
 | `0xe326` | BattleScoreUpdate_NT |  |  |
 | `0xe335` | CutsceneComplete_RS |  |  |

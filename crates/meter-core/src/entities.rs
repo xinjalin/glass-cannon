@@ -4,7 +4,7 @@
 //! after a zone change), so a label can start as a bare ID and gain a name later.
 //! Layouts are in `docs/protocol.md`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -51,15 +51,17 @@ pub const OPCODE_GROUP_KICKED: u16 = 0x972a;
 /// The Force (a 20-player raid group) broke up, or you left it.
 pub const OPCODE_FORCE_DISBANDED: u16 = 0x961a;
 /// The Force's members (a 20-player raid group: several parties): its full roster, a
-/// member added, one member, the member list, a member back online. Named in Questlog's
-/// list and read by Aion2Flow; not in our captures yet, so the meter only takes the names
-/// in them (a length byte and UTF-8, like every roster) and counts a player as a member
-/// when their own name is one of them.
+/// member added, one member, the member list, a member back online. Each member is in
+/// them as a party roster's are: u32 character ID, `00 00`, u16 server, u8 length, name
+/// (a 20-member roster in the capture of 2026-10-23).
 pub const OPCODE_FORCE_INFO: u16 = 0x9602;
 pub const OPCODE_FORCE_ADD_MEMBER: u16 = 0x960a;
 pub const OPCODE_FORCE_RECONNECT: u16 = 0x961b;
 pub const OPCODE_FORCE_MEMBER: u16 = 0x961d;
 pub const OPCODE_FORCE_MEMBER_LIST: u16 = 0x961e;
+/// A member left the Force: u64 member (u32 character ID, `00 00`, u16 server), u64 party,
+/// u8 reason.
+pub const OPCODE_FORCE_REMOVE_MEMBER: u16 = 0x9622;
 pub const OPCODE_FORCE_LEFT: u16 = 0x962e;
 /// One party or group member's level, gear score, legion and combat power (not sent for
 /// you). Resent often.
@@ -127,9 +129,8 @@ pub struct Registry {
     owners: HashMap<u64, u64>,
     /// Your party or group, you included, in roster order. Empty when you're on your own.
     party: Vec<PartyMember>,
-    /// Names in your Force's messages (members', and maybe other text): a player whose
-    /// name is one of them is in your Force.
-    force: HashSet<String>,
+    /// Your Force's members (character ID -> name); empty when you're not in one.
+    force: HashMap<u32, String>,
 }
 
 /// Someone in your party or group, as the rosters and member updates describe them.
@@ -181,12 +182,17 @@ impl Registry {
     /// entity IDs, so a member counts once their name is known.
     pub fn in_party(&self, id: u64) -> bool {
         self.is_self(id)
-            || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m.name == n) || self.force.contains(n))
+            || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m.name == n) || self.force.values().any(|f| f == n))
     }
 
-    /// You're in a Force (its messages named someone).
+    /// You're in a Force.
     pub fn in_force(&self) -> bool {
         !self.force.is_empty()
+    }
+
+    /// How many are in your Force (0: none).
+    pub fn force_size(&self) -> usize {
+        self.force.len()
     }
 
     /// The entity of the player (or you) with this name, if we've seen them.
@@ -407,11 +413,16 @@ impl Registry {
                 Some(Change::PartyChanged { members: 0 })
             }
             OPCODE_FORCE_INFO => {
-                self.force = names_in(payload);
+                self.force = force_members(payload).collect();
                 None
             }
             OPCODE_FORCE_ADD_MEMBER | OPCODE_FORCE_RECONNECT | OPCODE_FORCE_MEMBER | OPCODE_FORCE_MEMBER_LIST => {
-                self.force.extend(names_in(payload));
+                self.force.extend(force_members(payload));
+                None
+            }
+            OPCODE_FORCE_REMOVE_MEMBER => {
+                let (character, _) = parse_member_id(payload)?;
+                self.force.remove(&character);
                 None
             }
             // A boss's copy of a party member: a mob, though it carries their name.
@@ -707,21 +718,21 @@ pub fn parse_summon_owner(p: &[u8]) -> Option<(u64, u64)> {
     (owner != 0 && owner != id).then_some((id, owner))
 }
 
-/// Every name-shaped string in a message: a length byte (2-24), then that many bytes of
-/// UTF-8 that are all letters or digits (any script).
-fn names_in(p: &[u8]) -> HashSet<String> {
-    let mut out = HashSet::new();
-    for i in 0..p.len() {
-        let len = usize::from(p[i]);
-        if !(2..=24).contains(&len) {
-            continue;
+/// The members in a Force message: every place it reads as a roster entry (u32 character
+/// ID, `00 00`, u16 server 1000-2999, u8 length 2-24, a name of letters and digits).
+fn force_members(p: &[u8]) -> impl Iterator<Item = (u32, String)> + '_ {
+    (0..p.len().saturating_sub(9)).filter_map(move |i| {
+        if p[i + 4..i + 6] != [0, 0] {
+            return None;
         }
-        let Some(Ok(s)) = p.get(i + 1..i + 1 + len).map(std::str::from_utf8) else { continue };
-        if s.chars().all(char::is_alphanumeric) {
-            out.insert(s.to_string());
+        let server = u16::from_le_bytes([p[i + 6], p[i + 7]]);
+        let len = usize::from(p[i + 8]);
+        if !(1000..3000).contains(&server) || !(2..=24).contains(&len) {
+            return None;
         }
-    }
-    out
+        let name = std::str::from_utf8(p.get(i + 9..i + 9 + len)?).ok()?;
+        name.chars().all(char::is_alphanumeric).then(|| (u32::from_le_bytes(p[i..i + 4].try_into().expect("4 bytes")), name.to_string()))
+    })
 }
 
 #[cfg(test)]
@@ -1086,4 +1097,16 @@ pub(crate) mod tests {
         r.observe(OPCODE_MOB_SPAWN, &hex(MOB_SPAWN));
         assert_eq!(r.observe_hit(9, 35692, 16_107_000), None);
     }
+
+    #[test]
+    fn a_forces_roster() {
+        // A Force's full roster (2026-10-23): 20 members, as party roster entries.
+        let p = hex(include_str!("../testdata/force-roster.hex"));
+        let members: HashMap<u32, String> = force_members(&p).collect();
+        assert_eq!(members.len(), 20);
+        let mut r = Registry::default();
+        r.observe(OPCODE_FORCE_INFO, &p);
+        assert_eq!(r.force_size(), 20);
+    }
+
 }

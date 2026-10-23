@@ -630,7 +630,8 @@ fn boss_types() -> Vec<u32> {
         .as_object()
         .map(|npcs| {
             npcs.iter()
-                .filter(|(_, n)| n["boss"].as_bool() == Some(true))
+                // Training dummies are marked bosses but aren't fought as one (as in the app).
+                .filter(|(_, n)| n["boss"].as_bool() == Some(true) && n["dummy"].as_bool() != Some(true))
                 .filter_map(|(id, _)| id.parse().ok())
                 .collect()
         })

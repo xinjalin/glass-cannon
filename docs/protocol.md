@@ -370,13 +370,14 @@ before you've used them.
 | opcode   | layout | what |
 | -------- | ------ | ---- |
 | `0x922e` | u32 event ID, u8 length, its name, u8 state, varint stage, varint step, … | joining a map event (a dungeon's objectives) |
-| `0x922d` | u32 event ID, u8 state (2 running, 3 done), varint stage, varint step, u8 count, that many objective flags, … | its progress (confirmed 2026-10-23) |
+| `0x922d` | u32 event ID, u8 state (2 running, 3 done), varint stage, varint step, u8 count, that many objective flags, … | its progress (confirmed 2026-10-23; Vakron's stage goes up after each middle boss, Fire Temple's stays 1 and its step goes up, so stages are split at `0x572e`) |
 | `0x922f` | u32 event ID | leaving it |
 | `0x610b` | varint count, then tickets | every content ticket (confirmed: 73, every byte read) |
 | `0x610c` | u8 flags, a ticket, u8 reason, flag 1: i32 | one ticket changed (confirmed) |
-| `0xe307` | u16 0, u8 wars, wars, u8 artifacts, artifacts | the Abyss map: who holds each artifact (A2Tools' notes; not in our captures) |
+| `0xe307` | u16 0, u8 wars, wars, u8 artifacts, artifacts | the Abyss map: who holds each artifact (confirmed 2026-10-23: 144 bytes, 2 wars, 6 artifacts) |
 | `0xe305` | a war, u8 artifacts, artifacts | entering the Abyss: that layer's (same) |
-| `0x9602`, `0x960a`, `0x961b`, `0x961d`, `0x961e` | | the Force's roster and members (Questlog's names, read by Aion2Flow; not in our captures) |
+| `0x9602`, `0x960a`, `0x961b`, `0x961d`, `0x961e` | members as in a party roster: u32 character ID, `00 00`, u16 server, u8 length, name | the Force's roster and members (confirmed 2026-10-23: a 20-member roster) |
+| `0x9622` | u64 member (u32 character ID, `00 00`, u16 server), u64 party, u8 reason | a member left the Force (confirmed) |
 
 A ticket is u8 flags, u32 ID, then by flag 1 an i64 time, 2 an i64 time, 4 a varint count,
 8 a varint charged count. Odyle energy is ticket 60000001 (count basic, charged charged): it
@@ -384,15 +385,21 @@ fell by 80 as each dungeon was completed. The other tickets' contents aren't nam
 data we have.
 
 In both Vakron Sky Island runs the main map event (`BakronIsland_Normal_MapEvent`) went to
-stage 2 just after Tiere died and stage 3 about 20 s after Thamon; the meter keeps when each
-stage began, and the history shows each stage's time.
+stage 2 just after Tiere died and stage 3 about 20 s after Thamon. Fire Temple's
+(`Fire_Temple_Normal_MapEvent`, six runs on 2026-10-23) stays at stage 1, its step going
+1 -> 2 as Red Spark Ignus dies and 2 -> 3 about 30 s after Black Smoke Murute. So the meter
+starts each stage at the dungeon's start (`0x6100` step 2) and each middle boss's death
+(`0x572e`), and the history shows each stage's time.
 
-A war is u8, u32 AbyssArtifactEvent (1001 the first layer, 2001 the second), u8, u8, u64
-since (ms), and maybe u64 until; an artifact is u32 ID (1001-1003, 2001-2003), u32, u8 owner
+A war is u8 (1: an "until" follows), u32 AbyssArtifactEvent (1001 the first layer, 2001 the
+second), u8, u8, u64 since (ms), then the u64 until; an artifact is u32 ID (1001-1003, 2001-2003), u32, u8 owner
 (1 Elyos, 2 Asmodians, 0 nobody), 8 bytes. A message is only read when every byte fits.
 
-The meter reads the Force's messages only for names (length byte, UTF-8, letters and
-digits): a player whose own name is one of them counts as your party.
+The meter reads the Force's members where they read as roster entries (server 1000-2999, a
+name of 2-24 letters and digits), drops one at `0x9622` and all of them at `0x961a` or
+`0x962e`: a player whose name is a member's counts as your party. In the 2026-10-23 capture
+the Force's 20 members churned (many `0x9622`), and in its open-world fights most of the
+dozen players nearby weren't in it.
 
 Bosses' casts (`0x3802`, and `0x3809` / `0x380c` for those with a cast time) are kept per
 fight for the boss casts window.
@@ -594,7 +601,10 @@ and may be the basic attack. Needs a name table from our own observations.
 
 Worked out from a Vakron Sky Island run with screenshots every 3 seconds. Entering the
 dungeon moved the game to **another server connection** (the world's stopped the same
-second), and leaving moved it back; each connection starts with `0x4002`.
+second), and leaving moved it back; each connection starts with `0x4002`. Fire Temple
+(2026-10-23) also sends `0x4002` and `0x6100` step 2 again twice mid-run, as you're moved on
+to the next part: the same stay, with the same entity IDs. A new run of the same dungeon
+starts with step 1 (or after it was completed).
 
 | opcode   | layout                                              | what                                     |
 | -------- | --------------------------------------------------- | ---------------------------------------- |
