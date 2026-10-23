@@ -4,17 +4,17 @@ A frosted-glass DPS meter for **Aion 2** on Windows. It reads the game's network
 passively through Npcap, so it never touches the game or its memory. No admin rights, no
 auto-updates, and it never goes online.
 
-![The meter in a boss fight: the boss's HP, deaths and five players](docs/screenshots/overlay.png)
+![The meter in a boss fight: the boss's HP, your best against it, deaths and five players](docs/screenshots/overlay.png)
 
 | Skill breakdown | Minimal mode, class-coloured bars |
 | --- | --- |
 | ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
 
-![A boss fight with the target frame, cooldowns, party cooldowns and world timers](docs/screenshots/windows.png)
+![A boss fight with the target frame's cast bar, boss casts, party cooldowns and world timers](docs/screenshots/windows.png)
 
 | Fight history | Settings |
 | --- | --- |
-| ![A dungeon run in the fight history window](docs/screenshots/history.png) | ![Settings beside the meter](docs/screenshots/settings.png) |
+| ![Dungeon runs with stage splits and personal bests in the fight history window](docs/screenshots/history.png) | ![Settings beside the meter](docs/screenshots/settings.png) |
 
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
 
