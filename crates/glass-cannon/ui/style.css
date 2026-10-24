@@ -1,6 +1,7 @@
-/* Glass Cannon overlay: frosted glass (Windows blurs what's behind the window), themed
-   accent, monospace, btop-style framed sections. Colours live in theme.css.
-   Sizes are in em so everything scales with the font-size setting. */
+/* Glass Cannon's meter, a widget in the overlay: the target and the bars on a rounded
+   panel, its background as chosen (frosted, tinted or clear), themed accent, monospace.
+   Colours live in theme.css. Sizes are in em so everything scales with the font-size
+   setting. */
 
 * {
   box-sizing: border-box;
@@ -28,13 +29,15 @@ body {
   user-select: none;
 }
 
+/* The bottom padding leaves room for the notice line under the last row. */
 #panel {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.4em;
+  gap: 0.3em;
   height: 100%;
-  padding: 0 0.65em 0.55em;
+  padding: 0.4em 0.45em 1.25em;
+  border-radius: var(--widget-radius);
   background: var(--tint);
 }
 
@@ -47,94 +50,18 @@ body {
   align-items: center;
   gap: 1em;
   height: 1.7em;
-  margin: 0 -0.2em -0.4em;
+  margin: -0.2em 0 0;
   padding: 0 0.2em;
-  border-bottom: 1px dashed var(--line-faint);
   color: var(--muted);
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  cursor: grab;
 }
 .info-bar #info { display: flex; }
-.info-bar #ping { display: none; }
 #info-ping { color: var(--accent-2); }
 #info-ping.good { color: var(--ok); }
 #info-ping.high { color: var(--warn); }
 #info-ping.bad { color: var(--bad); }
-
-/* ---------------------------------------------------------------- title bar */
-
-#bar {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  height: 2.3em;
-  flex: none;
-  cursor: grab;
-  container-type: inline-size;
-}
-/* Narrow window or large text: drop the label so the fight state stays readable (with it,
-   "waiting for the game" needs about 44em). */
-@container (max-width: 44em) {
-  .brand { display: none; }
-}
-
-.brand {
-  color: var(--muted);
-  letter-spacing: 0.12em;
-  font-size: 0.9em;
-  white-space: nowrap;
-}
-
-/* The status light: its own colour per state, with a glow so it reads at a glance; it
-   pulses while waiting for the game and in combat. */
-.dot {
-  --dot: var(--faint);
-  flex: none;
-  width: 0.62em;
-  height: 0.62em;
-  border-radius: 50%;
-  background: var(--dot);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 0.35em var(--dot);
-}
-.dot.capturing { --dot: var(--ok); }
-.dot.fighting { --dot: var(--bad); animation: dot-pulse 1.2s ease-in-out infinite; }
-.dot.waiting,
-.dot.starting { --dot: var(--warn); animation: dot-pulse 2.4s ease-in-out infinite; }
-.dot.error { --dot: var(--bad); }
-.dot.replay { --dot: var(--accent-2); }
-@keyframes dot-pulse {
-  50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 0.75em 0.12em var(--dot); filter: brightness(1.25); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dot { animation: none !important; }
-}
-
-#fight {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--accent-2);
-}
-
-#ping {
-  flex: none;
-  font-size: 0.9em;
-  font-variant-numeric: tabular-nums;
-  color: var(--accent-2);
-}
-#ping.good { color: var(--ok); }
-#ping.high { color: var(--warn); }
-#ping.bad { color: var(--bad); }
-
-nav {
-  display: flex;
-  flex: none;
-  gap: 0.1em;
-}
 
 button {
   display: grid;
@@ -153,7 +80,6 @@ button {
 button:hover { background: var(--line-faint); color: var(--text); }
 button:focus-visible { outline: 1px solid var(--accent); }
 button.on { color: var(--accent); }
-button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 /* Whose damage counts: the same filled button whichever it shows, as wide as its longest
    label ("party") so it doesn't change size. */
 .scope-switch,
@@ -171,9 +97,13 @@ button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
   background: var(--ink);
 }
 
-/* People joining and leaving the party. */
+/* People joining and leaving the party, alerts: under the last row, centred (app.js sets
+   its top). */
 #notice {
   position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 1em);
   display: flex;
   align-items: center;
   padding: 0 0.4em;
@@ -199,29 +129,15 @@ svg {
   filter: drop-shadow(var(--shadow));
 }
 
-/* ---------------------------------------------------------------- framed section */
+/* ---------------------------------------------------------------- the target and rows */
 
 .box {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 0;
-  padding: 0.2em 0.5em 0.5em;
-  border: 1px solid var(--line);
-  border-radius: 0.5em;
 }
 
-legend {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding: 0 0.5em;
-  color: var(--accent);
-  font-size: 0.9em;
-}
-#clock { color: var(--muted); font-variant-numeric: tabular-nums; }
-/* damage / healing / taken: what the rows show. */
 /* What the rows show: the same filled button for dmg, heal and taken, as wide as the
    longest ("taken") so it doesn't change size. Two classes, so `button.on` doesn't turn
    its text the colour of its background. */
@@ -243,10 +159,9 @@ legend {
   display: flex;
   justify-content: space-between;
   gap: 0.6em;
-  padding: 0.15em 0.3em 0.4em;
-  margin-bottom: 0.3em;
+  padding: 0 0.35em 0.1em;
+  margin-bottom: 0.1em;
   color: var(--muted);
-  border-bottom: 1px dashed var(--line-faint);
 }
 #target { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
 #boss-bar {
@@ -291,7 +206,6 @@ legend {
 #boss-cast.next .cast-track { visibility: hidden; }
 #best.beating { color: var(--ok); }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
-#total { flex: none; font-variant-numeric: tabular-nums; }
 
 .end-tag { flex: none; color: var(--muted); white-space: nowrap; }
 .end-tag.kill { color: var(--ok); }
@@ -471,83 +385,24 @@ legend {
 }
 #status.error { color: var(--bad); }
 
-/* ---------------------------------------------------------------- minimal mode */
+/* ---------------------------------------------------------------- switches and buttons */
 
-/* Only the target and the bars: no title bar, frame or totals. */
-.minimal #bar,
-.minimal legend,
-.minimal #total { display: none; }
-/* The bottom padding leaves room for the lock button under the last row. */
-.minimal #panel { gap: 0.3em; padding: 0.4em 0.45em 1.25em; }
-.minimal #info { margin: -0.2em 0 0; border-bottom: 0; }
-.minimal .box { padding: 0; border: 0; }
-.minimal #totals { padding: 0 0.35em 0.1em; margin-bottom: 0.1em; border-bottom: 0; }
-
-#float { display: none; }
 /* On the target's line (placed by placeFloat), right-aligned: the two pills always, the
    other buttons to their left under the mouse. */
-.minimal #float {
+#float {
   position: absolute;
   right: 0.45em;
   display: flex;
   align-items: center;
   gap: 0.3em;
 }
-#f-actions { display: none; gap: 0.1em; padding: 0 0.1em; border-radius: 0.35em; background: var(--tint-strong); }
-#f-actions button { height: 1.35em; min-width: 1.5em; }
-.minimal body:hover #f-actions { display: flex; }
+#actions { display: none; gap: 0.1em; padding: 0 0.1em; border-radius: 0.35em; background: var(--tint-strong); }
+#actions button { height: 1.35em; min-width: 1.5em; }
+body:hover #actions { display: flex; }
 
-/* ---------------------------------------------------------------- lock (click-through) */
-
-/* Bottom-right corner. Always laid out (never display: none), so its position can be
-   reported to the app, which keeps it clickable while the rest lets clicks through. */
-#lock {
-  position: fixed;
-  right: 0.2em;
-  bottom: 0.15em;
-  z-index: 10;
-  min-width: 0;
-  width: 1.45em;
-  height: 1.3em;
-  padding: 0;
-  font-size: 0.85em;
-  background: var(--tint-strong);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-#lock svg { width: 1em; height: 1em; }
-#lock .shut { display: none; }
-body:hover #lock { opacity: 0.8; }
-#lock:hover { opacity: 1; }
-.locked #lock { opacity: 0.55; color: var(--accent); }
-.locked #lock:hover { opacity: 1; }
-.locked #lock .open { display: none; }
-.locked #lock .shut { display: block; }
-/* Nothing else reacts while locked (the window doesn't get the mouse anyway, except
-   over the lock, but hover styles could stick from just before). */
-.locked #f-actions { display: none !important; }
-
-::-webkit-scrollbar { width: 0.4em; }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
+::-webkit-scrollbar { width: 0; }
 
 #notice.alert { color: var(--warn); }
 #notice.cube.gold { color: var(--warn); }
 #notice.cube.red { color: var(--bad); }
 #notice.soul { color: var(--ok); }
-
-/* Faded outside combat (settings → fade outside combat): back under the mouse. */
-#panel { transition: opacity 0.4s ease; }
-.faded #panel { opacity: 0; transition: opacity 1.2s ease; }
-.faded body:hover #panel { opacity: 1; transition: opacity 0.2s ease; }
-
-/* ---------------------------------------------------------------- as a widget in the overlay */
-
-/* The HUD moves, sizes and hides it: no window buttons, no lock. Its page has no window
-   behind it to blur, so the panel's tint is its background. */
-.widget #pin,
-.widget #min,
-.widget #close,
-.widget #f-close,
-.widget #lock { display: none; }
-.widget body { background: transparent; }
-.widget #panel { border-radius: var(--widget-radius); }

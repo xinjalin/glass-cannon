@@ -1,5 +1,5 @@
 //! Native window styling on Windows: the background effect, rounded corners, and a border
-//! in the theme's colour (or none at all in minimal mode).
+//! in the theme's colour; and the overlay's frosted plates.
 //!
 //! "Frosted" is Windows 11's acrylic backdrop. Windows switches acrylic off whenever a window
 //! loses focus, which an overlay always does, so the windows are subclassed to always draw
@@ -155,23 +155,17 @@ fn darker(rgb: u32) -> u32 {
     to(rgb >> 16 & 0xff) << 16 | to(rgb >> 8 & 0xff) << 8 | to(rgb & 0xff)
 }
 
-/// Styles a window for the given appearance: every window takes the chosen background
-/// (frosted, tinted or clear); minimal mode (no frame or shadow) is the overlay's alone.
-pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance, is_overlay: bool) {
-    let minimal = is_overlay && a.minimal;
+/// Styles a window for the given appearance: its background (frosted, tinted or clear),
+/// rounded corners, a shadow, and a border in the theme's colour.
+pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
     let frosted = a.backdrop == "frosted";
-    // The drop shadow outlines the window, which minimal mode is meant to hide.
-    let _ = window.set_shadow(!minimal);
+    let _ = window.set_shadow(true);
 
     let Ok(hwnd) = window.hwnd() else { return };
     let hwnd = hwnd.0 as isize;
-    let border = if minimal {
-        NO_BORDER
-    } else {
-        let rgb = border_rgb(&a.theme);
-        // COLORREF is 0x00BBGGRR.
-        (rgb & 0xff) << 16 | (rgb & 0xff00) | (rgb >> 16 & 0xff)
-    };
+    let rgb = border_rgb(&a.theme);
+    // COLORREF is 0x00BBGGRR.
+    let border = (rgb & 0xff) << 16 | (rgb & 0xff00) | (rgb >> 16 & 0xff);
     // Subclassing has to happen on the thread that owns the window.
     let _ = window.run_on_main_thread(move || {
         // SAFETY: plain DWM and subclass calls on our own window with 4-byte values.

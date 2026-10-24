@@ -9,17 +9,18 @@
 </head>
 <body>
   <!-- The overlay: one transparent window over the game's picture. Each widget sits where
-       you put it (settings → arrange overlay); the mouse goes through to the game except
-       over the meter and the world timers. The side windows' widgets (target, cooldowns,
-       party cooldowns, world timers) come and go as you open them in the settings. -->
+       you put it (launcher → arrange); the mouse goes through to the game except over the
+       meter and the world timers. Widgets show as chosen in the settings: these three are
+       always here (hidden or not); the side widgets (target, cooldowns, party cooldowns,
+       world timers) are made as they're chosen. -->
   <div id="widgets">
-    <section class="widget" data-widget="meter" data-label="meter">
-      <iframe src="index.html?widget" title="Meter"></iframe>
+    <section class="widget fades" data-widget="meter" data-label="meter" hidden>
+      <iframe src="index.html" title="Meter"></iframe>
     </section>
 
     <!-- A boss's dangerous cast, big in the middle: its name and the time left, then how
          long until it lands; a few seconds before one is due, a heads-up. -->
-    <section class="widget passive" data-widget="boss-warnings" data-label="boss warnings">
+    <section class="widget passive" data-widget="boss-warnings" data-label="boss warnings" hidden>
       <div id="warning" hidden>
         <div id="warning-name"></div>
         <div id="warning-time"></div>
@@ -27,7 +28,7 @@
     </section>
 
     <!-- The boss's next casts as bars counting down (from the last fight against it). -->
-    <section class="widget passive" data-widget="boss-timers" data-label="boss timers">
+    <section class="widget passive fades" data-widget="boss-timers" data-label="boss timers" hidden>
       <ol id="timers"></ol>
     </section>
   </div>

@@ -79,11 +79,6 @@ impl Tracker {
     }
 }
 
-/// The game's window rectangle, once, for placing windows on its monitor.
-pub fn game_rect(process: &str) -> Option<Rect> {
-    Tracker::new(process).find().filter(|g| !g.minimized).map(|g| g.window)
-}
-
 mod win32 {
     use std::collections::HashSet;
 

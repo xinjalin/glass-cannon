@@ -1,4 +1,5 @@
-// Glass Cannon settings pop-out: appearance, status checks, meter options, tools.
+// Glass Cannon settings: appearance, the overlay's widgets, status checks, meter options,
+// tools.
 
 const tauri = window.__TAURI__;
 const invoke = tauri.core.invoke;
@@ -112,7 +113,6 @@ function drawAppearance(a) {
   $("opacity-value").textContent = clear ? "none" : `${a.opacity}%`;
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
-  setToggle("minimal", a.minimal);
   setToggle("info-bar", a.info_bar);
   fitWindow();
 }
@@ -145,14 +145,16 @@ async function refresh() {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.refreshChoice) === state.refresh_ms));
     }
-    setToggle("locked", state.locked);
     setToggle("record", state.record);
     setToggle("boss-hp", state.boss_hp);
     setToggle("boss-casts", state.boss_casts);
     setToggle("pet-souls", state.pet_souls);
-    setToggle("overlay", state.overlay);
     setToggle("alert-sound", state.alert_sound);
-    $("arrange-overlay").hidden = !state.overlay;
+    for (const b of document.querySelectorAll("[data-widget]")) {
+      const on = state.widgets.includes(b.dataset.widget);
+      b.setAttribute("aria-pressed", String(on));
+      b.querySelector(".state").textContent = on ? "[on]" : "[off]";
+    }
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
@@ -287,7 +289,6 @@ document.addEventListener("keydown", donePicking, true);
 for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }
-$("minimal").addEventListener("click", () => setAppearance({ minimal: !state.appearance.minimal }));
 $("info-bar").addEventListener("click", () => setAppearance({ infoBar: !state.appearance.info_bar }));
 
 for (const b of document.querySelectorAll("[data-scope-choice]")) {
@@ -315,10 +316,12 @@ $("boss-casts").addEventListener("click", async () => {
   refresh();
 });
 
-$("overlay").addEventListener("click", async () => {
-  await invoke("set_overlay", { on: !(state && state.overlay) });
-  refresh();
-});
+for (const b of document.querySelectorAll("[data-widget]")) {
+  b.addEventListener("click", async () => {
+    await invoke("toggle_widget", { name: b.dataset.widget }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
 
 $("arrange-overlay").addEventListener("click", () => invoke("hud_edit", { on: true }).catch((e) => say(String(e), "error")));
 
@@ -338,11 +341,6 @@ for (const b of document.querySelectorAll("[data-fade-choice]")) {
     refresh();
   });
 }
-
-$("locked").addEventListener("click", async () => {
-  await invoke("set_locked", { locked: !(state && state.locked) });
-  refresh();
-});
 
 $("record").addEventListener("click", async () => {
   await invoke("set_record", { record: !(state && state.record) });
@@ -492,11 +490,6 @@ $("reset").addEventListener("click", async () => {
     say(String(e), "error");
   }
 });
-
-$("history").addEventListener("click", () => invoke("open_history").catch((e) => say(String(e), "error")));
-for (const name of ["cooldowns", "party-cooldowns", "timers", "target"]) {
-  $(`open-${name}`).addEventListener("click", () => invoke("toggle_panel", { name }).catch((e) => say(String(e), "error")));
-}
 
 $("shortcut").addEventListener("click", async () => {
   try {

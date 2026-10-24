@@ -6,9 +6,9 @@ auto-updates, and it never goes online.
 
 ![The meter in a boss fight: the boss's HP, your best against it, deaths and five players](docs/screenshots/overlay.png)
 
-| Skill breakdown | Minimal mode, class-coloured bars |
+| Skill breakdown | The compact meter, class-coloured bars |
 | --- | --- |
-| ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
+| ![A player's skills](docs/screenshots/skills.png) | ![The compact meter](docs/screenshots/minimal.png) |
 
 ![A boss fight with the target frame's cast bar, party cooldowns and world timers](docs/screenshots/windows.png)
 
@@ -41,9 +41,43 @@ auto-updates, and it never goes online.
 To update, extract a new release over the old one; your settings and history are kept.
 Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
-## Using the meter
+## Using it
 
-It starts capturing straight away and waits for the game if it isn't running.
+Glass Cannon opens to a small **launcher**: whether it's capturing (and the game's ping),
+the fight going on or the last one (click it for the analysis), and the **overlay** with
+its start/stop button. The dock down its left opens the analysis, fight history and
+settings; closing the launcher closes the app. It starts capturing straight away and waits
+for the game if it isn't running.
+
+The **overlay** is one transparent layer over the game's picture holding the meter and
+the other widgets, in your theme. It follows the game window, hides when you switch away,
+never takes the focus from the game, and lets the mouse through except over the meter and
+the world timers. **[ arrange ]** (on the launcher, or in the settings) moves and resizes
+the widgets; the settings choose which show:
+
+- **meter**: the players, below.
+- **boss warnings**: a dangerous cast big in the middle of the screen, its time left, then
+  when it lands, with a chime; a heads-up 5 s before one is due. A cast is dangerous when
+  it marks the ground or takes 2 s or more; in the analysis window's [boss] tab, click a
+  skill's alert to make it always or never warn.
+- **boss timers**: the boss's next casts from your last fight against it, as bars counting
+  down.
+- **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
+  attacking, stagger.
+- **cooldowns**: your skills that aren't ready, with time left and charges.
+- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
+  (yours from the start, the others' once used).
+- **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
+  in game to read them) in your time; star (☆) the ones you want and **[★ only]** shows just
+  those, and ring the 🔔 for an alert on the meter before one starts. Also who holds the
+  Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
+  Odyle energy, and your content tickets: the game doesn't name them, so double-click one
+  to give it a name.
+
+**Fade outside combat** (settings) fades the fight widgets a while after the last fight;
+they come back with the next one (the meter under the mouse too).
+
+### The meter
 
 - **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
   party: your party's fight while you're in a party or expedition, yours on your own.
@@ -57,15 +91,15 @@ It starts capturing straight away and waits for the game if it isn't running.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
   party leaves combat, on a map change, or after 15 s of quiet. **▷|** ends it now; **↺**
   resets. A live boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
-- **Lock** (bottom right): clicks pass through to the game. Click it again to unlock.
-- **≡** opens the settings: theme (or any colour), font, background, minimal mode, update
-  rate (*live* or every 0.2–2 s), fading outside combat, recording, status checks, and
-  the windows below.
+- Over the meter, its buttons appear beside the two switches: back (from a saved fight),
+  analysis, end the fight, history, and **≡** for the settings: theme (or any colour),
+  font, background, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading
+  outside combat, recording and status checks.
 
 ### Analysis
 
-**Right-click a player** (or the chart icon) for the full fight; right-click again to
-close it. Tabs:
+**Right-click a player** (or the chart icon, on the meter or the launcher) for the full
+fight; right-click again to close it. Tabs:
 
 - **overview**: DPS, crits, positionals and DPS over time with the target's HP.
 - **skills**: every skill with the player's chosen specialties and accuracy (hits the
@@ -82,7 +116,7 @@ close it. Tabs:
 
 ### History and dungeon runs
 
-The **clock icon** opens the history window with the last 200 fights (the newest 50 keep
+The **clock icon** (on the meter or the launcher) opens the history window with the last 200 fights (the newest 50 keep
 their full analysis), dungeon runs, bosses and PvP sessions; click a fight to show it on
 the meter.
 Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
@@ -97,18 +131,6 @@ you're in at the time keeps grouping its next fights as a run.
 boss line during the fight (green while you're beating it), and as ★ tags on the fights in
 the history that set them. They're kept per character, count every kill you were in, and
 [clear] resets them.
-
-**Overlay (beta)** (settings → overlay): the meter and the side windows you open (target
-frame, cooldowns, party cooldowns, world timers) move into one transparent overlay over the
-game's picture, in your theme, with **boss warnings** (a dangerous cast big in the middle of the
-screen, its time left, then when it lands, with a chime; a heads-up 5 s before one is due)
-and **boss timers** (the boss's next casts from your last fight against it, as bars
-counting down). The overlay follows the game window, hides when you switch away, never takes
-the focus from the game and lets the mouse through except over the meter and the world
-timers. History, analysis and settings stay windows. **arrange
-overlay** moves and resizes the widgets. A cast is dangerous when it marks the ground or
-takes 2 s or more; in the analysis window's [boss] tab, click a skill's alert to make it
-always or never warn. While the game isn't running the meter's own window shows instead.
 
 **Pet souls** (settings → pet souls): a kill that gives a pet's soul shows on the meter with
 how many it has toward the pet's next level (5 to summon it, then 25 and 75), e.g. "Red
@@ -130,20 +152,10 @@ name in the game data, so double-click one there to name it.
 
 ### Windows
 
-Open from the settings; they open again next time. Every window, the meter and settings too,
-opens where you last left it, and takes the background chosen in the settings (the
-settings and analysis windows stay tinted enough to read).
-
-- **cooldowns**: your skills that aren't ready, with time left and charges.
-- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
-  (yours from the start, the others' once used).
-- **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
-  attacking, stagger.
-- **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
-  in game to read them) in your time; ring the 🔔 for an alert on the meter before one
-  starts. Also who holds the Abyss artifacts (when you open the Abyss map or enter it; not
-  tested in game yet), your Odyle energy, and your content tickets: the game doesn't name
-  them, so double-click one to give it a name.
+The launcher, settings, history and analysis are windows. Each opens where you last left it
+(the first time beside the launcher, or in game on the game's screen), and takes the
+background chosen in the settings (the settings and analysis windows stay tinted enough to
+read).
 
 ### Names
 

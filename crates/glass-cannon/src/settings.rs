@@ -3,6 +3,7 @@
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use meter_core::meter::Scope;
@@ -12,17 +13,21 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{lock, notify_overlay, restyle_windows, restyle_windows_but, show_overlay, AppState, OVERLAY, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, HISTORY, LAUNCHER, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-/// Gap between the overlay and the settings window, in logical pixels.
+/// Gap between the launcher and a window beside it, in logical pixels.
 const GAP: f64 = 10.0;
 /// Space kept free around a window that has to shrink to fit a small screen.
 const SCREEN_MARGIN: f64 = 16.0;
-/// The smallest the settings window gets to fit beside the meter (logical pixels); its
+/// The smallest the settings window gets to fit beside the launcher (logical pixels); its
 /// content scrolls.
 const MIN_SETTINGS: (f64, f64) = (420.0, 320.0);
+/// The same for the history window.
+const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
+/// Where a window goes beside the launcher, in order of preference.
+pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
 #[derive(Serialize)]
 pub struct Check {
@@ -49,11 +54,11 @@ pub struct SettingsStatus {
     party_size: usize,
     appearance: Appearance,
     refresh_ms: u32,
-    locked: bool,
     boss_hp: bool,
     boss_casts: bool,
     pet_souls: bool,
-    overlay: bool,
+    /// The overlay's widgets that show.
+    widgets: Vec<String>,
     alert_sound: bool,
     hide_after_s: u32,
 }
@@ -131,11 +136,10 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         party_size,
         appearance: s.appearance,
         refresh_ms: s.refresh_ms,
-        locked: s.locked,
         boss_hp: s.boss_hp,
         boss_casts: s.boss_casts,
         pet_souls: s.pet_souls,
-        overlay: s.overlay,
+        widgets: s.widgets,
         alert_sound: s.alert_sound,
         hide_after_s: s.hide_after_s,
     }
@@ -163,15 +167,14 @@ pub fn pick_colour(handle: AppHandle, app: State<'_, Arc<AppState>>, change: App
     s.appearance.clone()
 }
 
-/// Puts every appearance setting back to its default, and the overlay back to its
-/// default size.
+/// Puts every appearance setting back to its default (the overlay's layout has its own
+/// reset, while arranging it).
 #[tauri::command]
 pub fn reset_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Appearance {
     let mut s = lock(&app.settings);
     s.appearance = Appearance::default();
     s.save(&app.config_dir);
     restyle_windows(&handle, &s.appearance);
-    notify_overlay(&handle, "reset-size");
     s.appearance.clone()
 }
 
@@ -223,17 +226,28 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
     Ok("added to Desktop and Start menu".into())
 }
 
-/// Opens the history window.
+/// Shows the fight history (the first time where you left it, else beside the launcher),
+/// or hides it if it's showing.
 #[tauri::command]
 pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
-    show_overlay(&handle).map_err(|e| e.to_string())?;
-    if handle.get_webview_window("history").is_some_and(|w| w.is_visible().unwrap_or(false)) {
-        return Ok(());
+    let w = handle.get_webview_window(HISTORY).ok_or("no history window")?;
+    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
+        return w.hide().map_err(|e| e.to_string());
     }
-    crate::panels::toggle_panel(handle, app, "history".into())
+    if !app.history_placed.swap(true, Ordering::SeqCst) {
+        let saved = lock(&app.placements).get(HISTORY);
+        if !saved.is_some_and(|p| crate::placement::restore(&w, p, true)) {
+            if let Ok(size) = w.outer_size() {
+                place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_HISTORY, &SIDES);
+            }
+        }
+    }
+    w.show().map_err(|e| e.to_string())?;
+    let _ = w.unminimize();
+    w.set_focus().map_err(|e| e.to_string())
 }
 
-/// Shows the settings next to the overlay, or hides them if they're already open.
+/// Shows the settings beside the launcher, or hides them if they're already open.
 #[tauri::command]
 pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
     let s = handle.get_webview_window(SETTINGS).ok_or("no settings window")?;
@@ -250,7 +264,7 @@ pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn fit_settings(handle: AppHandle, width: f64, height: f64) -> Result<(), String> {
     let s = handle.get_webview_window(SETTINGS).ok_or("no settings window")?;
-    let (width, height) = match overlay_monitor(&handle) {
+    let (width, height) = match anchor_monitor(&handle) {
         Some(m) => {
             let area = m.work_area().size.to_logical::<f64>(m.scale_factor());
             (
@@ -267,15 +281,22 @@ pub fn fit_settings(handle: AppHandle, width: f64, height: f64) -> Result<(), St
     Ok(())
 }
 
-/// The monitor the overlay is on (or the primary one).
-pub(crate) fn overlay_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monitor> {
-    let o = handle.get_webview_window(OVERLAY)?;
+/// Whether the overlay is over the game now (then windows open on the game's screen).
+fn in_game<R: Runtime>(handle: &AppHandle<R>) -> bool {
+    handle.state::<Arc<AppState>>().hud_shown.load(Ordering::SeqCst)
+}
+
+/// The screen windows open on: the game's while the overlay is over it, else the
+/// launcher's (or the primary one).
+pub(crate) fn anchor_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monitor> {
+    let o = handle.get_webview_window(if in_game(handle) { hud::HUD } else { LAUNCHER })?;
     o.current_monitor().ok().flatten().or_else(|| o.primary_monitor().ok().flatten())
 }
 
-/// Beside the overlay (its left if there's room, else its right, below or above),
-/// entirely within the overlay's monitor, leaving out the taskbar. On a screen too small
-/// for that it shrinks (its content scrolls) before it would cover the meter.
+/// Where you left it, else beside the launcher (its left if there's room, else its right,
+/// below or above; in game, in the middle of the game's screen), entirely within that
+/// screen, leaving out the taskbar. On a screen too small for that it shrinks (its content
+/// scrolls) before it would cover the launcher.
 fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
     // Where you left it (its size follows its content), else beside the meter.
     let saved = lock(&handle.state::<Arc<AppState>>().placements).get(SETTINGS);
@@ -284,12 +305,12 @@ fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
     }
     let Some(size) = s.outer_size().ok() else { return };
     let size = (size.width as i32, size.height as i32);
-    place_beside(handle, s, size, MIN_SETTINGS, &[Side::Left, Side::Right, Side::Below, Side::Above]);
+    place_beside(handle, s, size, MIN_SETTINGS, &SIDES);
 }
 
 /// Puts `w` (wanting `size` physical pixels, shrinkable to `min` logical ones) beside the
-/// overlay on its monitor, in the order of `sides`. Returns false when the overlay or its
-/// monitor can't be found.
+/// launcher on its monitor, in the order of `sides`; in game, in the middle of the game's
+/// screen. Returns false when neither can be found.
 pub(crate) fn place_beside<R: Runtime>(
     handle: &AppHandle<R>,
     w: &WebviewWindow<R>,
@@ -297,16 +318,20 @@ pub(crate) fn place_beside<R: Runtime>(
     min: (f64, f64),
     sides: &[Side],
 ) -> bool {
-    let (Some(o), Some(mon)) = (handle.get_webview_window(OVERLAY), overlay_monitor(handle)) else {
-        return false;
+    let Some(mon) = anchor_monitor(handle) else { return false };
+    let area = work_area(&mon);
+    let r = if in_game(handle) {
+        let middle = Rect::new(area.x + (area.w - size.0) / 2, area.y + (area.h - size.1) / 2, size.0, size.1);
+        layout::keep_inside(middle, area)
+    } else {
+        let Some(launcher) = handle.get_webview_window(LAUNCHER).and_then(|l| outer_rect(&l)) else {
+            return false;
+        };
+        let scale = mon.scale_factor();
+        let gap = (GAP * scale) as i32;
+        let min = ((min.0 * scale) as i32, (min.1 * scale) as i32);
+        layout::beside(area, launcher, size, min, gap, sides)
     };
-    let (Some(meter), Some(area)) = (outer_rect(&o), Some(work_area(&mon))) else {
-        return false;
-    };
-    let scale = mon.scale_factor();
-    let gap = (GAP * scale) as i32;
-    let min = ((min.0 * scale) as i32, (min.1 * scale) as i32);
-    let r = layout::beside(area, meter, size, min, gap, sides);
     let (Ok(outer), Ok(inner)) = (w.outer_size(), w.inner_size()) else { return false };
     if (r.w, r.h) != (outer.width as i32, outer.height as i32) {
         // Sizes here are the window's outside; set_size takes the inside, so take off the

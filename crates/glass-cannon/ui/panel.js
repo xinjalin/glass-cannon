@@ -1,16 +1,13 @@
-// Shared by the side windows (history, cooldowns, timers): the app's appearance, the close
-// button and Esc, and small helpers. Loaded after theme.js.
+// Shared by the history window and the overlay's side widgets (cooldowns, world timers,
+// target frame, party cooldowns): the app's appearance and small helpers; for the history,
+// its close button and Esc. Loaded after theme.js.
 
-// In the overlay a side window is a widget: a frame in the HUD's page, which lends it the
-// app. It then has no title bar or close button (the settings show and hide it).
-const WIDGET = new URLSearchParams(location.search).has("widget");
+// A widget's page (class "widget") is a frame in the HUD's page, which lends it the app
+// (frames don't get it themselves). The settings show and hide it.
+const WIDGET = document.documentElement.classList.contains("widget");
 const tauri = WIDGET ? window.parent.__TAURI__ : window.__TAURI__;
 const invoke = tauri.core.invoke;
 const $ = (id) => document.getElementById(id);
-if (WIDGET) {
-  document.documentElement.classList.add("widget");
-  for (const e of document.querySelectorAll("[data-tauri-drag-region]")) e.removeAttribute("data-tauri-drag-region");
-}
 // A page that fits its content (the target frame) tells the overlay how tall it is.
 if (WIDGET && document.body.hasAttribute("data-fit")) {
   document.documentElement.classList.add("fit");
@@ -84,11 +81,11 @@ function iconFor(key, label, onLoad) {
 invoke("appearance").then(applyAppearance).catch(() => {});
 tauri.event.listen("appearance", (e) => applyAppearance(e.payload));
 
-const panelName = document.body.dataset.panel;
-function closePanel() {
-  invoke("toggle_panel", { name: panelName }).catch(() => {});
+// The history window: its close button and Esc only hide it.
+if (!WIDGET) {
+  const hide = () => tauri.window.getCurrentWindow().hide();
+  $("close").addEventListener("click", hide);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hide();
+  });
 }
-$("close").addEventListener("click", closePanel);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !WIDGET) closePanel();
-});

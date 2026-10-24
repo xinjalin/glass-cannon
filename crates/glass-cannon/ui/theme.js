@@ -1,5 +1,5 @@
-// Applies the saved appearance (theme, font, tint, row colouring) to a window.
-// Loaded by the overlay, the analysis window and the settings page.
+// Applies the saved appearance (theme, font, tint, row colouring) to a page.
+// Loaded by every page: the launcher, the overlay and its widgets, and the windows.
 
 let appliedAppearance = "";
 
@@ -80,7 +80,6 @@ function applyAppearance(a) {
     root.style.removeProperty("--bar");
     root.style.removeProperty("--bar-ink");
   }
-  root.classList.toggle("minimal", a.minimal || root.classList.contains("widget"));
   root.classList.toggle("info-bar", a.info_bar);
   root.style.setProperty("--fs", `${a.font_size}px`);
   // A chosen font goes first, with the built-in monospace behind it. The app only

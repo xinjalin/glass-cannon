@@ -1,7 +1,8 @@
 //! The overlay (HUD): one transparent window over the game's picture that holds the
 //! widgets (the meter, boss alerts…). It follows the game window, shows only while the game
 //! (or one of our windows) is in front, never takes the focus from the game, and lets the
-//! mouse through except over a widget. Settings, history and analysis stay windows.
+//! mouse through except over a widget. The launcher turns it on and off; settings, history
+//! and analysis are windows. Replaying a recording, it covers the launcher's screen instead.
 //!
 //! Like Questlog's overlay: the page reports where its widgets are, and a watcher checks
 //! the pointer against them and makes the window take the mouse only there.
@@ -17,8 +18,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Runtime, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-use crate::game_window::{Rect, Tracker};
-use crate::{lock, AppState, OVERLAY};
+use crate::game_window::{Front, GameWindow, Rect, Tracker};
+use crate::{lock, AppState, LAUNCHER};
 
 pub const HUD: &str = "hud";
 const LAYOUT_FILE: &str = "hud.json";
@@ -61,20 +62,16 @@ pub fn hud_edit<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>,
     let _ = handle.emit("hud-edit", on);
 }
 
-/// The overlay on or off (settings → overlay): the meter moves into it, or back out.
+/// The overlay on or off (the launcher's button); saved for next time.
 #[tauri::command]
-pub fn set_overlay(handle: AppHandle, app: State<'_, Arc<AppState>>, on: bool) {
+pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
-    s.overlay = on;
+    s.overlay_on = on;
     s.save(&app.config_dir);
     drop(s);
-    if let Some(main) = handle.get_webview_window(OVERLAY) {
-        let _ = if on { main.hide() } else { main.show() };
-    }
     if !on {
-        app.hud_editing.store(false, Ordering::SeqCst);
+        hud_edit(handle, app, false);
     }
-    crate::panels::overlay_switched(&handle, &app, on);
 }
 
 /// The widgets' places and sizes, as the HUD saved them (`hud.json`; empty at first).
@@ -114,29 +111,16 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut tracker = Tracker::new(&app.args.process);
             let (mut shown, mut placed, mut ignoring): (bool, Option<Rect>, Option<bool>) = (false, None, None);
             let mut show_wanted = false;
-            // With the overlay on, the meter's window comes back while there's no game
-            // window (so the app is never out of reach), and goes when the game appears.
-            let mut meter_shown: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
-                let on = lock(&app.settings).overlay;
+                let on = lock(&app.settings).overlay_on;
                 let editing = app.hud_editing.load(Ordering::SeqCst);
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
-                    let game = if on { tracker.find() } else { None };
-                    show_wanted = game.is_some_and(|g| g.shows_overlay()) || (on && editing && shown);
-                    let meter_wanted = !on || game.is_none();
-                    if on && meter_shown != Some(meter_wanted) {
-                        if let Some(main) = handle.get_webview_window(OVERLAY) {
-                            if (if meter_wanted { main.show() } else { main.hide() }).is_ok() {
-                                meter_shown = Some(meter_wanted);
-                            }
-                        }
-                    }
-                    if !on {
-                        meter_shown = None;
-                    }
+                    let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
+                    app.game_found.store(game.is_some(), Ordering::SeqCst);
+                    show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
                             let _ = w.set_position(PhysicalPosition::new(g.client.left, g.client.top));
@@ -150,6 +134,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                     let ok = if show_wanted { w.show() } else { w.hide() };
                     if ok.is_ok() {
                         shown = show_wanted;
+                        app.hud_shown.store(shown, Ordering::SeqCst);
                         if shown {
                             let _ = w.set_always_on_top(true);
                         }
@@ -168,6 +153,14 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             }
         })
         .expect("starting the HUD thread");
+}
+
+/// Replaying: the launcher's screen stands in for the game's picture.
+fn replay_screen<R: Runtime>(handle: &AppHandle<R>) -> Option<GameWindow> {
+    let m = handle.get_webview_window(LAUNCHER)?.current_monitor().ok().flatten()?;
+    let (p, s) = (m.position(), m.size());
+    let r = Rect { left: p.x, top: p.y, right: p.x + s.width as i32, bottom: p.y + s.height as i32 };
+    Some(GameWindow { window: r, client: r, minimized: false, front: Front::Game })
 }
 
 /// "Frosted" in the overlay: the HUD is one window over the whole game, which Windows

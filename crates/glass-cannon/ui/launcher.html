@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="launcher.css">
+</head>
+<body>
+  <!-- The window the app opens to: capture, the last fight, and the overlay's switch; the
+       analysis, history and settings open from the dock. Drag it by any bare spot. -->
+  <main id="card" data-tauri-drag-region>
+    <nav id="dock" data-tauri-drag-region aria-label="Glass Cannon">
+      <span class="mark" title="Glass Cannon" data-tauri-drag-region>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l5.4 3.1v6.2L8 14.2l-5.4-3.1V4.9zM8 1.8v12.4M2.6 4.9L13.4 11.1M13.4 4.9L2.6 11.1"/></svg>
+      </span>
+      <button id="analysis" type="button" title="Analysis of the fight going on, or the last one">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M7.5 11V4.5M10.5 11V6.5"/></svg>
+      </button>
+      <button id="history" type="button" title="Fight history">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.5V8l2.3 1.5M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.5 2.5v2.3h2.3"/></svg>
+      </button>
+      <button id="settings" type="button" title="Settings">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6M10 3v3M6 10v3"/></svg>
+      </button>
+      <span class="grow" data-tauri-drag-region></span>
+      <button id="min" type="button" title="Minimise">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h8"/></svg>
+      </button>
+      <button id="close" type="button" class="close" title="Close Glass Cannon">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+      </button>
+    </nav>
+
+    <section id="tiles" data-tauri-drag-region>
+      <header data-tauri-drag-region>
+        <span class="brand" data-tauri-drag-region>glass cannon</span>
+        <span id="version" class="faint" data-tauri-drag-region></span>
+      </header>
+
+      <div id="capture" class="tile" data-tauri-drag-region>
+        <span class="label" data-tauri-drag-region><span id="dot" class="dot"></span>capture</span>
+        <span id="phase" class="big" data-tauri-drag-region>…</span>
+        <span id="ping" class="small" data-tauri-drag-region></span>
+      </div>
+
+      <button id="fight" type="button" class="tile" title="Open its analysis">
+        <span id="fight-label" class="label">last fight</span>
+        <span id="fight-target" class="name"></span>
+        <span class="small"><span id="fight-dps" class="num"></span> <span id="fight-time" class="faint"></span></span>
+      </button>
+
+      <div id="overlay" class="tile wide">
+        <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5l5.5 3L8 8.5l-5.5-3zM2.5 8.2L8 11.2l5.5-3M2.5 10.9L8 13.9l5.5-3"/></svg>
+        <span class="what">
+          <span class="title">overlay</span>
+          <span id="overlay-sub" class="small"></span>
+          <button id="arrange" type="button" class="link" title="Move and resize the overlay's widgets">[ arrange ]</button>
+        </span>
+        <button id="toggle" type="button" class="round" aria-pressed="false">
+          <svg class="play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.8l6.5 4.2-6.5 4.2z"/></svg>
+          <svg class="stop" viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="4.5" width="7" height="7" rx="1"/></svg>
+        </button>
+      </div>
+    </section>
+  </main>
+  <script src="theme.js"></script>
+  <script src="launcher.js"></script>
+</body>
+</html>

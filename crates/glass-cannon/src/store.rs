@@ -57,15 +57,15 @@ pub struct Settings {
     /// ([`REALTIME`]: as soon as new data arrives).
     #[serde(default)]
     pub refresh_ms: u32,
-    /// Click-through: the meter ignores the mouse except for its lock button.
-    #[serde(default)]
-    pub locked: bool,
     /// What the meter's rows show.
     #[serde(default)]
     pub meter_view: MeterView,
-    /// The windows left open (history, cooldowns, timers), opened again at start.
-    #[serde(default)]
-    pub panels: Vec<String>,
+    /// The overlay's widgets that show (see [`crate::widgets::WIDGETS`]).
+    #[serde(default = "default_widgets")]
+    pub widgets: Vec<String>,
+    /// Older settings files: the side windows left open, which are widgets now.
+    #[serde(default, skip_serializing)]
+    panels: Option<Vec<String>>,
     /// Whose event schedule the timers follow: one of [`TIMER_REGIONS`].
     #[serde(default = "default_timer_region")]
     pub timer_region: String,
@@ -80,8 +80,8 @@ pub struct Settings {
     pub timer_favourites: Vec<String>,
     #[serde(default)]
     pub timer_favourites_only: bool,
-    /// The meter fades away this many seconds after combat ends (0: it doesn't), and comes
-    /// back in the next fight or under the mouse.
+    /// The overlay's fight widgets fade away this many seconds after combat ends (0: they
+    /// don't), and come back in the next fight (the meter under the mouse too).
     #[serde(default)]
     pub hide_after_s: u32,
     /// The boss's HP and enrage timer under the target's name.
@@ -93,10 +93,10 @@ pub struct Settings {
     /// A notice for each pet soul from a kill, with the pet's progress.
     #[serde(default = "default_true")]
     pub pet_souls: bool,
-    /// The meter and the other widgets in one overlay over the game (beta), instead of
-    /// their own windows.
-    #[serde(default)]
-    pub overlay: bool,
+    /// The overlay is on (the launcher starts and stops it): it shows over the game
+    /// whenever the game is in front.
+    #[serde(default = "default_true")]
+    pub overlay_on: bool,
     /// Boss skills you marked: true always warns, false never (the rest go by how
     /// dangerous they look).
     #[serde(default)]
@@ -111,6 +111,9 @@ fn default_alert_lead() -> u32 {
 }
 fn default_true() -> bool {
     true
+}
+fn default_widgets() -> Vec<String> {
+    ["meter", "boss-warnings", "boss-timers"].map(String::from).to_vec()
 }
 
 /// Regions with their own event times (the global client's by time zone, Korea, Taiwan).
@@ -194,9 +197,6 @@ pub struct Appearance {
     /// "frosted": blurred glass; "tinted": see-through tint, no blur; "clear": nothing at all.
     #[serde(default = "default_backdrop")]
     pub backdrop: String,
-    /// Only the target name and the meter bars: no title bar, frame or border.
-    #[serde(default)]
-    pub minimal: bool,
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
@@ -237,7 +237,6 @@ impl Default for Appearance {
             font: String::new(),
             opacity: default_opacity(),
             backdrop: default_backdrop(),
-            minimal: false,
             info_bar: false,
         }
     }
@@ -256,7 +255,6 @@ pub struct AppearanceChange {
     /// Any number: clamped to 0-100.
     pub opacity: Option<i64>,
     pub backdrop: Option<String>,
-    pub minimal: Option<bool>,
     pub info_bar: Option<bool>,
 }
 
@@ -283,9 +281,6 @@ impl Appearance {
         }
         if let Some(b) = c.backdrop.filter(|b| BACKDROPS.contains(&b.as_str())) {
             self.backdrop = b;
-        }
-        if let Some(v) = c.minimal {
-            self.minimal = v;
         }
         if let Some(v) = c.info_bar {
             self.info_bar = v;
@@ -333,6 +328,13 @@ impl Settings {
         if !REFRESH_RATES.contains(&s.refresh_ms) {
             s.refresh_ms = DEFAULT_REFRESH_MS;
         }
+        // Side windows left open are widgets now (the history stays a window).
+        for name in s.panels.take().unwrap_or_default() {
+            if crate::widgets::WIDGETS.contains(&name.as_str()) && !s.widgets.contains(&name) {
+                s.widgets.push(name);
+            }
+        }
+        s.widgets.retain(|w| crate::widgets::WIDGETS.contains(&w.as_str()));
         s
     }
 
@@ -1033,12 +1035,28 @@ mod tests {
     }
 
     #[test]
+    fn open_side_windows_become_widgets() {
+        let dir = temp_dir("widgets");
+        assert_eq!(Settings::load(&dir).widgets, ["meter", "boss-warnings", "boss-timers"]);
+        fs::write(dir.join("settings.json"), r#"{ "panels": ["history", "timers", "target"] }"#).unwrap();
+        let s = Settings::load(&dir);
+        assert_eq!(s.widgets, ["meter", "boss-warnings", "boss-timers", "timers", "target"]);
+        assert!(s.overlay_on, "the overlay is on unless turned off");
+        s.save(&dir);
+        let saved = fs::read_to_string(dir.join("settings.json")).unwrap();
+        assert!(!saved.contains("panels") && saved.contains("widgets"));
+        fs::write(dir.join("settings.json"), r#"{ "widgets": ["target", "nonsense"], "overlay_on": false }"#).unwrap();
+        let s = Settings::load(&dir);
+        assert_eq!((s.widgets, s.overlay_on), (vec!["target".to_string()], false));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn missing_or_odd_refresh_rates_become_the_default() {
         let dir = temp_dir("refresh");
         assert_eq!(Settings::load(&dir).refresh_ms, DEFAULT_REFRESH_MS);
         fs::write(dir.join("settings.json"), r#"{ "refresh_ms": 7, "locked": true }"#).unwrap();
-        let s = Settings::load(&dir);
-        assert_eq!((s.refresh_ms, s.locked), (DEFAULT_REFRESH_MS, true));
+        assert_eq!(Settings::load(&dir).refresh_ms, DEFAULT_REFRESH_MS);
         fs::write(dir.join("settings.json"), r#"{ "refresh_ms": 2000 }"#).unwrap();
         assert_eq!(Settings::load(&dir).refresh_ms, 2000);
         fs::write(dir.join("settings.json"), format!(r#"{{ "refresh_ms": {REALTIME} }}"#)).unwrap();
@@ -1188,7 +1206,6 @@ mod tests {
             font: Some("Consolas".into()),
             opacity: Some(0),
             backdrop: Some("clear".into()),
-            minimal: Some(true),
             info_bar: Some(true),
         });
         s.save(&dir);

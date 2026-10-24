@@ -1,5 +1,6 @@
-/* The side windows (history, cooldowns, timers): the settings window's glass, title bar
-   and type. Colours come from theme.css. */
+/* The history window and the overlay's side widgets (cooldowns, world timers, target
+   frame, party cooldowns): the settings window's glass, title bar and type. Colours come
+   from theme.css. */
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -266,7 +267,6 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 
 /* No title bar, border, hints or scrollbars: the overlay places it, the settings show and
    hide it. */
-.widget #bar,
 .widget .hint { display: none; }
 .widget #panel { padding: 0.45em 0.6em; border: 0; border-radius: var(--widget-radius); }
 .widget .scroll::-webkit-scrollbar { width: 0; }

@@ -1,15 +1,17 @@
-//! Glass Cannon: an always-on-top DPS overlay for Aion 2 with a settings pop-out.
+//! Glass Cannon: a DPS meter for Aion 2, in an overlay over the game.
 //!
-//! The overlay opens and starts capturing straight away. A background engine thread
-//! captures the game's traffic (or replays a recording) and feeds the meter; the overlay
-//! polls `snapshot` to draw it. Finished fights go to a local history. The settings
-//! window (appearance, status checks, meter options, tools) opens from the overlay's menu
-//! button. No admin rights and no network access: the game data ships in the release.
+//! The app opens to a small launcher and starts capturing straight away. A background
+//! engine thread captures the game's traffic (or replays a recording) and feeds the meter;
+//! the overlay (one window over the game's picture, holding the meter and the other
+//! widgets) polls `snapshot` to draw it. Finished fights go to a local history. The
+//! launcher starts and stops the overlay and opens the analysis, history and settings
+//! windows. No admin rights and no network access: the game data ships in the release.
 //!
 //! Options:
 //!   --replay <session folder>   play back a recorded capture
 //!   --speed <n>                 replay speed multiplier (default 1)
 //!   --process <name>            game executable name to look for (default AION2)
+//!   --hidden                    start without showing the launcher (for scripted checks)
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -21,7 +23,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 use meter_core::live::{self, LiveEvent, LiveOptions};
 use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIMEOUT_US};
@@ -29,27 +31,28 @@ use meter_core::recorder::Side;
 use meter_core::session;
 
 mod analysis;
-mod clickthrough;
 mod fonts;
 mod game_window;
-mod hud;
-mod panels;
-mod ping;
 mod gamedata;
+mod hud;
+mod launcher;
 mod layout;
+mod ping;
 mod placement;
 mod runs;
 mod settings;
 mod store;
 mod style;
+mod widgets;
 
 use gamedata::GameData;
 use store::{Appearance, Fight, FightDetails, History, Instances, KnownPlayers, Profile, Settings};
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
-const OVERLAY: &str = "main";
+const LAUNCHER: &str = "launcher";
 const SETTINGS: &str = "settings";
 const ANALYSIS: &str = "analysis";
+const HISTORY: &str = "history";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -137,19 +140,15 @@ pub struct AppState {
     config_dir: PathBuf,
     exe_dir: PathBuf,
     args: Args,
-    overlay_placed: AtomicBool,
     /// Whether the running capture is saving packets (settings changes apply next start).
     recording_now: AtomicBool,
-    /// The overlay wasn't restored from last time, so its first fit sets the height exactly.
-    overlay_new: AtomicBool,
-    /// Click-through is on (the meter only answers on its lock button).
-    locked: AtomicBool,
-    /// Where the overlay's lock button is.
-    lock_button: Mutex<Option<clickthrough::ButtonRect>>,
     /// The overlay's widgets' boxes, and whether they're being arranged.
     hud_rects: Mutex<Vec<hud::HitRect>>,
     hud_panels: Mutex<Vec<hud::HitRect>>,
     hud_editing: AtomicBool,
+    /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
+    game_found: AtomicBool,
+    hud_shown: AtomicBool,
     /// Player names saved by an earlier run, until we know whether they're from this login.
     known_players: Mutex<Option<KnownPlayers>>,
     /// How many named players were last saved to `players.json`.
@@ -163,8 +162,8 @@ pub struct AppState {
     pets: Mutex<store::PetBook>,
     /// Content tickets and Abyss artifacts, as last sent.
     contents: Mutex<store::KnownContents>,
-    /// Side windows placed beside the meter once already.
-    panels_placed: Mutex<std::collections::HashSet<String>>,
+    /// The history window has been placed once.
+    history_placed: AtomicBool,
     /// Where every window was last (saved as they move, at most once a second).
     placements: Mutex<placement::Placements>,
 }
@@ -189,7 +188,6 @@ struct View {
     appearance: Appearance,
     /// How often the overlay should ask again, in milliseconds.
     refresh_ms: u32,
-    locked: bool,
     meter_view: store::MeterView,
     /// The game's own ping (live capture only).
     ping_ms: Option<u32>,
@@ -307,7 +305,7 @@ fn boss_casts_to_show(
 /// Skill lists come only for the players in `expanded` (the rows open in the overlay):
 /// the rest would only be thrown away, several times a second.
 #[tauri::command]
-fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>, widget: Option<bool>) -> View {
+fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
     let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, mut souls) = {
@@ -328,9 +326,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>, widget: O
         if let Some(name) = name {
             lock(&app.pets).sync(&name, meter.pets());
         }
-        // Pet souls go to the meter that shows: the overlay's widget, or the meter window.
-        let showing = widget.unwrap_or(false) == lock(&app.settings).overlay;
-        let souls = if showing { meter.take_soul_gains() } else { Vec::new() };
+        let souls = meter.take_soul_gains();
         (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, souls)
     };
     lock(&app.field_bosses).update(field_bosses);
@@ -414,7 +410,6 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>, widget: O
         auto_scope,
         appearance: settings.appearance,
         refresh_ms: settings.refresh_ms,
-        locked: settings.locked,
         meter_view: settings.meter_view,
         ping_ms,
         timer_region: settings.timer_region,
@@ -588,6 +583,7 @@ struct Args {
     replay: Option<PathBuf>,
     speed: f64,
     process: String,
+    hidden: bool,
 }
 
 fn parse_args() -> Args {
@@ -595,6 +591,7 @@ fn parse_args() -> Args {
         replay: None,
         speed: 1.0,
         process: "AION2".into(),
+        hidden: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -608,6 +605,7 @@ fn parse_args() -> Args {
                     .max(0.01)
             }
             "--process" => args.process = it.next().unwrap_or(args.process),
+            "--hidden" => args.hidden = true,
             _ => {}
         }
     }
@@ -709,85 +707,6 @@ fn run_replay(engine: &Engine, path: &Path, speed: f64) {
     engine.set_status(Phase::Replay, format!("replay of {name} finished"));
 }
 
-/// Shows the overlay, placing it the first time.
-fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
-    let Some(window) = handle.get_webview_window(OVERLAY) else {
-        return Ok(());
-    };
-    let app = handle.state::<Arc<AppState>>();
-    if !app.overlay_placed.swap(true, Ordering::SeqCst) {
-        let saved = lock(&app.placements).get(OVERLAY);
-        if let Some(placed_at) = placement::place(&window, saved) {
-            app.overlay_new.store(true, Ordering::SeqCst);
-            // Not restored from last time: move to the game's monitor once it starts.
-            let w: WebviewWindow = window.clone();
-            thread::spawn(move || {
-                while !placement::follow_game(&w, placed_at) {
-                    thread::sleep(Duration::from_secs(2));
-                }
-            });
-        }
-    }
-    // In overlay mode the meter is a widget in the HUD.
-    if lock(&app.settings).overlay {
-        return Ok(());
-    }
-    window.show()?;
-    window.set_focus()?;
-    Ok(())
-}
-
-/// Sets the overlay's height for five rows (the page measures it for the current font
-/// size and layout). `exact` after a layout change; otherwise only ever grows it, so a
-/// taller window you made yourself stays. `width` (after a reset) sets that too.
-/// `min_width` is what the title bar needs for its longest text: the window grows to it on
-/// first start, after a layout change or a reset, but a width you chose is left alone.
-/// Keeps the window on its monitor.
-#[tauri::command]
-fn fit_overlay(
-    handle: AppHandle,
-    app: State<'_, Arc<AppState>>,
-    height: f64,
-    exact: bool,
-    width: Option<f64>,
-    min_width: Option<f64>,
-) -> Result<(), String> {
-    let w = handle.get_webview_window(OVERLAY).ok_or("no overlay")?;
-    let first_run = app.overlay_new.swap(false, Ordering::SeqCst);
-    let scale = w.scale_factor().map_err(|e| e.to_string())?;
-    let now = w.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
-    let mut wanted = if exact || first_run { height } else { now.height.max(height) };
-    let monitor = w.current_monitor().ok().flatten();
-    if let Some(m) = &monitor {
-        wanted = wanted.min(m.work_area().size.height as f64 / m.scale_factor() - 20.0);
-    }
-    let mut new_width = width.unwrap_or(now.width);
-    if let Some(min) = min_width.filter(|_| exact || first_run || width.is_some()) {
-        new_width = new_width.max(min);
-    }
-    if let Some(m) = &monitor {
-        new_width = new_width.min(m.work_area().size.width as f64 / m.scale_factor() - 20.0);
-    }
-    if (wanted - now.height).abs() < 1.0 && (new_width - now.width).abs() < 1.0 {
-        return Ok(());
-    }
-    w.set_size(LogicalSize::new(new_width, wanted)).map_err(|e| e.to_string())?;
-    // A taller or wider window mustn't run off the bottom or the right of the screen.
-    if let (Some(m), Ok(pos)) = (monitor, w.outer_position()) {
-        let area = m.work_area();
-        let bottom = area.position.y + area.size.height as i32;
-        let right = area.position.x + area.size.width as i32;
-        let tall = (wanted * scale).ceil() as i32;
-        let wide = (new_width * scale).ceil() as i32;
-        let y = if pos.y + tall > bottom { (bottom - tall).max(area.position.y) } else { pos.y };
-        let x = if pos.x + wide > right { (right - wide).max(area.position.x) } else { pos.x };
-        if (x, y) != (pos.x, pos.y) {
-            let _ = w.set_position(PhysicalPosition::new(x, y));
-        }
-    }
-    Ok(())
-}
-
 fn exe_dir() -> PathBuf {
     std::env::current_exe()
         .ok()
@@ -825,9 +744,7 @@ fn main() {
 
     let replay = args.replay.is_some();
     let known_players = KnownPlayers::load(&config_dir);
-    // Known from the start: the page can ask to be fitted before the overlay is placed.
     let placements = placement::Placements::load(&config_dir);
-    let overlay_new = placements.get(OVERLAY).is_none();
     let config_dir_for_pvp = config_dir.clone();
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
@@ -856,14 +773,12 @@ fn main() {
         config_dir,
         exe_dir,
         args,
-        overlay_placed: AtomicBool::new(false),
         recording_now: AtomicBool::new(false),
-        overlay_new: AtomicBool::new(overlay_new),
-        locked: AtomicBool::new(false),
-        lock_button: Mutex::new(None),
         hud_rects: Mutex::new(Vec::new()),
         hud_panels: Mutex::new(Vec::new()),
         hud_editing: AtomicBool::new(false),
+        game_found: AtomicBool::new(false),
+        hud_shown: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),
         players_saved: AtomicUsize::new(0),
         pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
@@ -871,10 +786,9 @@ fn main() {
         contents: Mutex::new(store::KnownContents::load(&config_dir_for_pvp)),
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
-        panels_placed: Mutex::new(std::collections::HashSet::new()),
+        history_placed: AtomicBool::new(false),
         placements: Mutex::new(placements),
     });
-    state.locked.store(lock(&state.settings).locked, Ordering::SeqCst);
 
     tauri::Builder::default()
         .manage(Arc::clone(&state))
@@ -884,8 +798,6 @@ fn main() {
             end_fight,
             set_meter_view,
             set_refresh,
-            clickthrough::set_locked,
-            clickthrough::lock_button_rect,
             set_scope,
             skill_icon,
             class_icon,
@@ -908,38 +820,37 @@ fn main() {
             analysis::analysis_data,
             settings::reset_appearance,
             settings::list_fonts,
-            fit_overlay,
             settings::create_shortcuts,
             settings::open_history,
             settings::toggle_settings,
             settings::hide_settings,
-            panels::toggle_panel,
-            panels::panels_open,
-            panels::show_fight,
-            panels::cooldowns,
-            panels::pvp_list,
-            panels::timer_region,
-            panels::set_timer_region,
-            panels::target,
-            panels::field_bosses,
-            panels::contents,
-            panels::rename_ticket,
-            panels::rename_field_boss,
-            panels::set_alert,
-            panels::set_alert_lead,
-            panels::set_hide_after,
-            panels::set_boss_hp,
-            panels::set_boss_casts,
-            panels::set_pet_souls,
-            panels::set_boss_skill_alert,
-            panels::boss_skill_alerts,
-            panels::set_alert_sound,
-            panels::timer_settings,
-            panels::set_timer_favourite,
-            panels::set_timer_favourites_only,
-            panels::party_cooldowns,
+            widgets::toggle_widget,
+            widgets::widgets_shown,
+            widgets::show_fight,
+            widgets::cooldowns,
+            widgets::pvp_list,
+            widgets::timer_region,
+            widgets::set_timer_region,
+            widgets::target,
+            widgets::field_bosses,
+            widgets::contents,
+            widgets::rename_ticket,
+            widgets::rename_field_boss,
+            widgets::set_alert,
+            widgets::set_alert_lead,
+            widgets::set_hide_after,
+            widgets::set_boss_hp,
+            widgets::set_boss_casts,
+            widgets::set_pet_souls,
+            widgets::set_boss_skill_alert,
+            widgets::boss_skill_alerts,
+            widgets::set_alert_sound,
+            widgets::timer_settings,
+            widgets::set_timer_favourite,
+            widgets::set_timer_favourites_only,
+            widgets::party_cooldowns,
+            launcher::launcher_state,
             hud::hud_rects,
-            panels::hud_panels,
             hud::hud_edit,
             hud::set_overlay,
             hud::hud_layout,
@@ -947,17 +858,17 @@ fn main() {
         ])
         .setup(move |app| {
             restyle_windows(app.handle(), &lock(&state.settings).appearance.clone());
-            // The meter is the app: start capturing and show it straight away.
+            // Capturing starts straight away, with the launcher.
             start_engine(&state);
-            show_overlay(app.handle())?;
-            clickthrough::watch(app.handle().clone(), Arc::clone(&state));
+            if !state.args.hidden {
+                launcher::show(app.handle())?;
+            }
             // The overlay never takes the focus from the game (but while being arranged).
             if let Some(h) = app.get_webview_window(hud::HUD) {
                 let _ = h.set_focusable(false);
             }
             hud::watch(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
-            panels::reopen(app.handle(), &state);
             save_placements(Arc::clone(&state));
             Ok(())
         })
@@ -971,16 +882,17 @@ fn main() {
                     }
                 }
                 WindowEvent::CloseRequested { api, .. } => match window.label() {
-                    OVERLAY => {
+                    // Closing the launcher closes the app.
+                    LAUNCHER => {
                         let mut placements = lock(&app.placements);
                         if let Some(p) = placement::current(window) {
-                            placements.set(OVERLAY, p);
+                            placements.set(LAUNCHER, p);
                         }
                         placements.save_if_changed();
                         drop(placements);
                         window.app_handle().exit(0);
                     }
-                    // Closing the settings only tucks them away.
+                    // Closing any other window only tucks it away.
                     _ => {
                         api.prevent_close();
                         let _ = window.hide();
@@ -1012,12 +924,12 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
-    for label in [OVERLAY, SETTINGS, ANALYSIS].into_iter().chain(panels::PANELS) {
+    for label in [LAUNCHER, SETTINGS, ANALYSIS, HISTORY] {
         if Some(label) == skip {
             continue;
         }
         if let Some(w) = handle.get_webview_window(label) {
-            style::apply(&w, appearance, label == OVERLAY);
+            style::apply(&w, appearance);
         }
     }
     let _ = handle.emit("appearance", appearance);
@@ -1029,7 +941,7 @@ fn appearance(app: State<'_, Arc<AppState>>) -> Appearance {
     lock(&app.settings).appearance.clone()
 }
 
-/// With the update rate on "as it happens", tells the overlay whenever new game messages
+/// With the update rate on "as it happens", tells the meter whenever new game messages
 /// arrive (at most every [`store::REALTIME`] ms), instead of it asking on a timer.
 fn notify_changes(handle: AppHandle, app: Arc<AppState>) {
     thread::Builder::new()
@@ -1039,16 +951,11 @@ fn notify_changes(handle: AppHandle, app: Arc<AppState>) {
                 continue;
             }
             if lock(&app.settings).refresh_ms == store::REALTIME {
-                notify_overlay(&handle, "meter-changed");
+                let _ = handle.emit_to(hud::HUD, "meter-changed", ());
                 thread::sleep(Duration::from_millis(store::REALTIME.into()));
             }
         })
         .expect("starting the notify thread");
-}
-
-/// Something for the overlay to react to.
-fn notify_overlay(handle: &AppHandle, event: &str) {
-    let _ = handle.emit_to(OVERLAY, event, ());
 }
 
 /// The app has no console, so record what it found at startup in `meter.log`.

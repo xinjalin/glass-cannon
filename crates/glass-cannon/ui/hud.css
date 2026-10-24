@@ -1,7 +1,8 @@
 /* The overlay over the game: transparent everywhere but the widgets. Everything comes from
    the theme (theme.css, set by theme.js from the settings): accent, font, size, the
-   background's tint and opacity (frosted is a stronger tint here: nothing can blur the
-   game behind a widget), the bars' colour, and clear's heavier outline. */
+   background's tint and opacity (frosted: a lighter tint over the app's frosted plates,
+   or a stronger one where there are none), the bars' colour, and clear's heavier
+   outline. */
 
 [hidden] { display: none !important; }
 
@@ -31,17 +32,27 @@ body {
 /* These never take the mouse (but while being arranged): it goes to the game. */
 .passive { pointer-events: none; }
 
+/* Faded outside combat (settings → fade outside combat): the fight widgets go, and come
+   back in the next fight; the meter under the mouse too. Never while arranging. */
+.widget.fades { transition: opacity 0.4s ease; }
+.faded .widget.fades { opacity: 0; transition: opacity 1.2s ease; }
+.faded .widget.fades:hover,
+.editing .widget.fades { opacity: 1; transition: opacity 0.2s ease; }
+
 /* ---------------------------------------------------------------- boss warnings */
 
 [data-widget="boss-warnings"] { display: grid; place-items: center; text-align: center; }
 #warning {
+  box-sizing: border-box;
+  max-width: 100%;
   padding: 0.3em 1.1em 0.4em;
   border: 1px solid var(--line);
   border-radius: 0.6em;
   background: var(--tint);
   text-shadow: 0 0 0.3em #000, 0 0 0.12em #000;
 }
-#warning-name { font-size: 2.6em; font-weight: 700; line-height: 1.15; color: var(--warn); }
+/* One line, shrunk to fit the widget (hud.js) rather than wrapping. */
+#warning-name { font-size: 2.6em; font-weight: 700; line-height: 1.15; color: var(--warn); white-space: nowrap; }
 #warning-time { font-size: 1.7em; font-variant-numeric: tabular-nums; color: var(--text); }
 /* The cast is on: red, and the box pulses until it lands. */
 #warning.now { border-color: var(--bad); animation: pulse 0.5s ease-in-out infinite alternate; }
@@ -49,6 +60,7 @@ body {
 #warning.lands #warning-name::after { content: " · move"; }
 #warning.soon { border-color: var(--warn); }
 #warning.soon #warning-name { font-size: 1.6em; }
+#warning-time { white-space: nowrap; }
 #warning.soon #warning-time { font-size: 1.2em; }
 @keyframes pulse {
   from { box-shadow: 0 0 0 0.1em var(--bad), 0 0 0.4em 0.1em color-mix(in srgb, var(--bad) 25%, transparent); }

@@ -1,6 +1,7 @@
-// The overlay over the game: places the widgets, arranges them (settings → arrange
-// overlay), and draws the boss warnings and timers from what the meter widget sends up.
-// Text from the game is set with textContent, never innerHTML.
+// The overlay over the game: shows the widgets chosen in the settings, places them,
+// arranges them (launcher → arrange), fades the fight widgets outside combat, and draws the
+// boss warnings and timers from what the meter widget sends up. Text from the game is set
+// with textContent, never innerHTML.
 
 const tauri = window.__TAURI__;
 const invoke = tauri.core.invoke;
@@ -18,13 +19,14 @@ const DEFAULTS = {
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
 };
 
-// The side windows' widgets: their page (in widget mode), label, and whether they take the
-// mouse (the world timers have buttons; the others only show).
-const PANEL_WIDGETS = {
-  target: { page: "target.html", label: "target", passive: true },
-  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true },
-  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true },
-  timers: { page: "timers.html", label: "world timers", passive: false },
+// The side widgets: their page, label, whether they take the mouse (the world timers have
+// buttons; the others only show), and whether they fade outside combat (all but the world
+// timers, which you read between fights).
+const SIDE_WIDGETS = {
+  target: { page: "target.html", label: "target", passive: true, fades: true },
+  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
+  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true },
+  timers: { page: "timers.html", label: "world timers", passive: false, fades: false },
 };
 // Widths up to 1 are fractions of the overlay's width (the warnings span its middle).
 const px = (w) => (w <= 1 ? w * innerWidth : w);
@@ -39,9 +41,9 @@ function place() {
   for (const el of document.querySelectorAll(".widget")) {
     const id = el.dataset.widget;
     const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
-    // A widget that fits its content: the meter exactly; the side windows' up to the
+    // A widget that fits its content: the meter exactly; the side widgets up to the
     // height you gave them (they scroll beyond it).
-    if (fitted[id]) p.h = el.dataset.panel !== undefined ? Math.min(fitted[id], p.h) : fitted[id];
+    if (fitted[id]) p.h = el.dataset.side !== undefined ? Math.min(fitted[id], p.h) : fitted[id];
     const w = px(p.w);
     const x = Math.min(Math.max(0, p.x * innerWidth), innerWidth - Math.min(w, innerWidth));
     const y = Math.min(Math.max(0, p.y * innerHeight), innerHeight - 40);
@@ -50,8 +52,8 @@ function place() {
   reportRects();
 }
 
-// The app lets the mouse through everywhere but the meter, so it needs its box (in
-// device pixels from the overlay's top left).
+// The app lets the mouse through everywhere but the widgets that take it, so it needs
+// their boxes (in device pixels from the overlay's top left).
 let rectsKey = "";
 function reportRects() {
   const dpr = window.devicePixelRatio || 1;
@@ -59,9 +61,12 @@ function reportRects() {
     const r = el.getBoundingClientRect();
     return { x: r.left * dpr, y: r.top * dpr, width: r.width * dpr, height: r.height * dpr };
   };
-  const rects = [...document.querySelectorAll(".widget:not(.passive)")].map(box);
-  // The widgets with a panel get a frosted plate behind it (when frosted is chosen).
-  const panels = [...document.querySelectorAll(".widget")].filter((el) => el.querySelector("iframe")).map(box);
+  const shown = [...document.querySelectorAll(".widget:not([hidden])")];
+  const rects = shown.filter((el) => !el.classList.contains("passive")).map(box);
+  // The widgets with a panel get a frosted plate behind it (when frosted is chosen), but
+  // not while they're faded.
+  const faded = document.documentElement.classList.contains("faded") && !editing;
+  const panels = shown.filter((el) => el.querySelector("iframe") && !(faded && el.classList.contains("fades"))).map(box);
   const key = JSON.stringify([rects, panels].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
@@ -126,23 +131,25 @@ function setUp(el) {
 
 for (const el of document.querySelectorAll(".widget")) setUp(el);
 
-// The side windows' widgets shown: made as they're opened in the settings, taken away as
-// they're closed.
-function showPanels(names) {
-  const want = new Set((names || []).filter((n) => PANEL_WIDGETS[n]));
-  for (const el of document.querySelectorAll(".widget[data-panel]")) {
+// The widgets chosen in the settings: the meter and the boss widgets show or hide (the
+// meter keeps running hidden: the boss widgets go by what it sends up); the side widgets
+// are made as they're chosen, and taken away.
+function showWidgets(names) {
+  const want = new Set(names || []);
+  for (const el of document.querySelectorAll(".widget:not([data-side])")) el.hidden = !want.has(el.dataset.widget);
+  for (const el of document.querySelectorAll(".widget[data-side]")) {
     if (!want.has(el.dataset.widget)) el.remove();
   }
   for (const name of want) {
-    if (document.querySelector(`.widget[data-widget="${name}"]`)) continue;
-    const w = PANEL_WIDGETS[name];
+    const w = SIDE_WIDGETS[name];
+    if (!w || document.querySelector(`.widget[data-widget="${name}"]`)) continue;
     const el = document.createElement("section");
-    el.className = `widget${w.passive ? " passive" : ""}`;
+    el.className = `widget${w.passive ? " passive" : ""}${w.fades ? " fades" : ""}`;
     el.dataset.widget = name;
-    el.dataset.panel = "";
+    el.dataset.side = "";
     el.dataset.label = w.label;
     const frame = document.createElement("iframe");
-    frame.src = `${w.page}?widget`;
+    frame.src = w.page;
     frame.title = w.label;
     el.append(frame);
     $("widgets").append(el);
@@ -151,7 +158,7 @@ function showPanels(names) {
   place();
 }
 
-tauri.event.listen("hud-panels", (e) => showPanels(e.payload));
+tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
 
 $("edit-done").addEventListener("click", () => invoke("hud_edit", { on: false }));
 $("edit-reset").addEventListener("click", () => {
@@ -163,8 +170,9 @@ tauri.event.listen("hud-edit", (e) => setEditing(!!e.payload));
 
 // ---------------------------------------------------------------- from the meter widget
 
-// The meter's page sends its height (it fits its rows) and, each refresh, the boss's cast
-// and what's ahead.
+// The meter's page sends its height (it fits its rows), whether the fight widgets are
+// faded (settings → fade outside combat), and, each refresh, the boss's cast and what's
+// ahead.
 let boss = null;
 let bossAt = 0;
 window.addEventListener("message", (e) => {
@@ -172,6 +180,9 @@ window.addEventListener("message", (e) => {
   if (m.type === "gc-fit" && m.widget) {
     fitted[m.widget] = Math.ceil(m.height);
     place();
+  } else if (m.type === "gc-fade") {
+    document.documentElement.classList.toggle("faded", !!m.faded);
+    reportRects();
   } else if (m.type === "gc-boss") {
     boss = m.boss;
     bossAt = performance.now();
@@ -207,6 +218,19 @@ function chime() {
   }
 }
 
+// Shrinks a line's font until it fits `width` (the box's padding included), down to a
+// third of its size; it never wraps.
+function fitLine(el, width) {
+  el.style.fontSize = "";
+  const box = el.parentElement;
+  const pad = box.offsetWidth - box.clientWidth + parseFloat(getComputedStyle(box).paddingLeft) * 2;
+  const room = width - pad;
+  const full = parseFloat(getComputedStyle(el).fontSize);
+  if (el.scrollWidth > room && room > 0) {
+    el.style.fontSize = `${Math.max(full / 3, (full * room) / el.scrollWidth)}px`;
+  }
+}
+
 let warnedFor = "";
 function drawWarnings(elapsed) {
   const box = $("warning");
@@ -226,7 +250,12 @@ function drawWarnings(elapsed) {
   box.hidden = !show;
   if (!show) return;
   box.className = show.cls;
-  $("warning-name").textContent = show.title;
+  const nameEl = $("warning-name");
+  if (nameEl.textContent !== show.title || nameEl.dataset.cls !== show.cls) {
+    nameEl.textContent = show.title;
+    nameEl.dataset.cls = show.cls;
+    fitLine(nameEl, box.parentElement.clientWidth);
+  }
   $("warning-time").textContent = show.time;
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
@@ -266,6 +295,6 @@ function frame() {
   if (a) applyAppearance(a);
   tauri.event.listen("appearance", (e) => applyAppearance(e.payload));
   await loadLayout();
-  showPanels(await invoke("hud_panels").catch(() => []));
+  showWidgets(await invoke("widgets_shown").catch(() => []));
   requestAnimationFrame(frame);
 })();

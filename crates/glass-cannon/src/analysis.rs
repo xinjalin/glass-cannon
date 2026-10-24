@@ -1,6 +1,6 @@
 //! The analysis window: one fight in full (every player and skill, the rotation, buffs
-//! and debuffs) for the live fight or a saved one. Opened by right-clicking a player in the
-//! overlay, or from its menu.
+//! and debuffs) for the live fight or a saved one. Opened from the launcher, or by
+//! right-clicking a player on the meter.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
@@ -10,8 +10,7 @@ use meter_core::meter::Analysis;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::layout::Side;
-use crate::settings::{outer_rect, overlay_monitor, place_beside, work_area};
+use crate::settings::{anchor_monitor, outer_rect, place_beside, work_area, SIDES};
 use crate::store::Appearance;
 use crate::{lock, AppState, ANALYSIS};
 
@@ -114,54 +113,32 @@ pub fn open_analysis(
     Ok(())
 }
 
-/// Whether the window covers any of the meter.
-fn covers_meter(handle: &AppHandle, w: &tauri::WebviewWindow) -> bool {
-    let (Some(o), Some(now)) = (handle.get_webview_window(crate::OVERLAY), outer_rect(w)) else {
-        return false;
-    };
-    outer_rect(&o).is_some_and(|m| now.overlap(&m) > 0)
-}
-
-/// Beside the meter on its monitor: the first time at the default size, and again later
-/// whenever it would cover the meter or isn't fully on a screen (a monitor was unplugged,
-/// the meter moved). Otherwise it stays where you put it, at the size you gave it.
+/// The first time: where you left it last time, else beside the launcher (in game, in the
+/// middle of the game's screen) at the default size. Later it stays where you put it, at
+/// the size you gave it, unless it isn't fully on a screen any more (a monitor was
+/// unplugged): then it's placed again, keeping a size bigger than the default.
 fn place(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
-    // The first time this session: where you left it last time, unless that covers the
-    // meter now (then beside it, as below).
     if first {
         let saved = lock(&handle.state::<Arc<AppState>>().placements).get(ANALYSIS);
-        if saved.is_some_and(|p| crate::placement::restore(w, p, true)) && !covers_meter(handle, w) {
+        if saved.is_some_and(|p| crate::placement::restore(w, p, true)) {
             return;
         }
     }
-    let (Some(o), Some(mon), Some(now)) = (handle.get_webview_window(crate::OVERLAY), overlay_monitor(handle), outer_rect(w))
-    else {
+    let (Some(mon), Some(now)) = (anchor_monitor(handle), outer_rect(w)) else {
         return;
     };
-    let Some(meter) = outer_rect(&o) else { return };
     let on_screen = w
         .available_monitors()
         .unwrap_or_default()
         .iter()
         .any(|m| now.inside(&work_area(m)));
-    if !first && on_screen && now.overlap(&meter) == 0 {
+    if !first && on_screen {
         return;
     }
-    // The default size, or bigger if you made it bigger (a window shrunk to fit one screen
-    // gets its size back on a roomier one).
     let scale = mon.scale_factor();
     let default = ((WIDTH * scale) as i32, (HEIGHT * scale) as i32);
     let size = if first { default } else { (now.w.max(default.0), now.h.max(default.1)) };
-    // The side of the meter with more room first.
-    let area = work_area(&mon);
-    let room_left = meter.x - area.x;
-    let room_right = area.x + area.w - (meter.x + meter.w);
-    let sides = if room_left >= room_right {
-        [Side::Left, Side::Right, Side::Below, Side::Above]
-    } else {
-        [Side::Right, Side::Left, Side::Below, Side::Above]
-    };
-    place_beside(handle, w, size, MIN, &sides);
+    place_beside(handle, w, size, MIN, &SIDES);
 }
 
 /// The meter is showing another fight (a saved one, or the live one again): an open
