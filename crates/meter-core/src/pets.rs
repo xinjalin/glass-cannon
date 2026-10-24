@@ -10,11 +10,19 @@
 //! ```
 //!
 //! A pet takes [`SOULS_PER_LEVEL`] souls to summon (level 1), then to reach levels 2 and 3
-//! (Questlog's table; "Souls to summon: 5" in the scraped pet data).
+//! (Questlog's table; "Souls to summon: 5" in the scraped pet data). Its souls in the list
+//! are those toward its next level: on 2026-10-24 Ursus was level 1 with 24, and its next
+//! soul was spent at once (25, level 2). Pets from reward boxes or the shop come in the
+//! list and with `0x9009` as well.
+//!
+//! The list comes at login, on entering or leaving a dungeon and with some other moves,
+//! but not with every zone change (on 2026-10-24: three zone changes and 19 souls with
+//! none, then one with a respawn 20 minutes later), so a meter started in between can know
+//! no pet: the app keeps each character's [`PetState`] and hands it back ([`Pets::seed`]).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::protocol::read_varint;
 
@@ -31,6 +39,9 @@ pub const SOULS_PER_LEVEL: [u32; 3] = [5, 25, 75];
 pub struct SoulGain {
     pub pet: u32,
     pub gained: u32,
+    /// Known only once the game's pet list has come (or a saved one was handed back): until
+    /// then the gain alone is known.
+    pub known: bool,
     pub souls: u32,
     /// Its level (0: not summoned yet), and the souls its next level takes (None at the top).
     pub level: u32,
@@ -39,11 +50,22 @@ pub struct SoulGain {
     pub name: Option<String>,
 }
 
+/// Every pet's level and souls toward its next one, for keeping between runs.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PetState {
+    pub levels: BTreeMap<u32, u32>,
+    pub souls: BTreeMap<u32, u32>,
+}
+
 #[derive(Debug, Default)]
 pub struct Pets {
     level: HashMap<u32, u32>,
     souls: HashMap<u32, u32>,
     gains: Vec<SoulGain>,
+    /// The game's list (or a saved state) has come.
+    known: bool,
+    /// Counts changes, so the app saves only when there's something new.
+    revision: u64,
 }
 
 impl Pets {
@@ -53,6 +75,8 @@ impl Pets {
                 if let Some((levels, souls)) = parse_pet_list(p) {
                     self.level = levels;
                     self.souls = souls;
+                    self.known = true;
+                    self.revision += 1;
                 }
             }
             OPCODE_PET_SUMMONED => {
@@ -63,10 +87,12 @@ impl Pets {
                 if let (Some(pet), Some(level)) = (u32_at(p, i), u32_at(p, i + 4)) {
                     let l = self.level.entry(pet).or_default();
                     *l = (*l).max(level);
+                    self.revision += 1;
                 }
             }
             OPCODE_SOULS_GAINED | OPCODE_SOULS_SPENT => {
                 for (pet, n) in parse_souls(p).unwrap_or_default() {
+                    self.revision += 1;
                     let souls = self.souls.entry(pet).or_default();
                     if opcode == OPCODE_SOULS_SPENT {
                         *souls = souls.saturating_sub(n);
@@ -83,6 +109,7 @@ impl Pets {
                     self.gains.push(SoulGain {
                         pet,
                         gained: n,
+                        known: self.known,
                         souls: *souls,
                         level,
                         next_level_souls: SOULS_PER_LEVEL.get(level as usize).copied(),
@@ -92,6 +119,38 @@ impl Pets {
             }
             _ => {}
         }
+    }
+
+    /// Every pet's level and souls, once known.
+    pub fn state(&self) -> Option<PetState> {
+        self.known.then(|| PetState {
+            levels: self.level.iter().map(|(k, v)| (*k, *v)).collect(),
+            souls: self.souls.iter().map(|(k, v)| (*k, *v)).collect(),
+        })
+    }
+
+    pub fn known(&self) -> bool {
+        self.known
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// A saved state for a meter that started after the game's list: souls gained since
+    /// start go on top of it.
+    pub fn seed(&mut self, state: &PetState) {
+        if self.known {
+            return;
+        }
+        let gained = std::mem::take(&mut self.souls);
+        self.level = state.levels.iter().map(|(k, v)| (*k, *v)).collect();
+        self.souls = state.souls.iter().map(|(k, v)| (*k, *v)).collect();
+        for (pet, n) in gained {
+            *self.souls.entry(pet).or_default() += n;
+        }
+        self.known = true;
+        self.revision += 1;
     }
 
     /// Souls gained since the last call, oldest first.
@@ -142,6 +201,26 @@ fn u32_at(p: &[u8], i: usize) -> Option<u32> {
 mod tests {
     use super::*;
     use crate::entities::tests::hex;
+
+    #[test]
+    fn a_meter_started_after_the_list_learns_it_from_a_saved_state() {
+        let mut pets = Pets::default();
+        // No list yet: the gain alone.
+        pets.feed(OPCODE_SOULS_GAINED, &hex("01 a4 04 00 00 01 00 00 00"));
+        assert!(!pets.take_gains()[0].known);
+        assert!(pets.state().is_none());
+        // Vivel (1188) saved at level 1 with 8: the soul since start goes on top.
+        let saved = PetState { levels: [(1188, 1)].into(), souls: [(1188, 8)].into() };
+        pets.seed(&saved);
+        pets.feed(OPCODE_SOULS_GAINED, &hex("01 a4 04 00 00 01 00 00 00"));
+        let g = pets.take_gains();
+        assert_eq!((g[0].known, g[0].souls, g[0].level, g[0].next_level_souls), (true, 10, 1, Some(25)));
+        // A list later replaces it; a second seed changes nothing.
+        let rev = pets.revision();
+        pets.seed(&PetState::default());
+        assert_eq!(pets.revision(), rev);
+        assert_eq!(pets.state().unwrap().souls[&1188], 10);
+    }
 
     #[test]
     fn souls_toward_the_next_level() {

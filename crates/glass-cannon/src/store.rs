@@ -85,6 +85,9 @@ pub struct Settings {
     /// Under that, what the boss is casting, else what it cast next last time.
     #[serde(default = "default_true")]
     pub boss_casts: bool,
+    /// A notice for each pet soul from a kill, with the pet's progress.
+    #[serde(default = "default_true")]
+    pub pet_souls: bool,
 }
 
 fn default_alert_lead() -> u32 {
@@ -797,6 +800,49 @@ impl Bests {
     }
 }
 
+/// Each character's pets: level and souls toward the next one (`pets.json`), so a meter
+/// started after the game sent its pet list (at login, entering or leaving a dungeon, and
+/// some other moves) still knows them.
+pub struct PetBook {
+    path: PathBuf,
+    by_character: BTreeMap<String, meter_core::pets::PetState>,
+    /// The meter's pet revision last saved.
+    saved: u64,
+}
+
+impl PetBook {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("pets.json");
+        let by_character = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        Self { path, by_character, saved: 0 }
+    }
+
+    /// Hands a saved state to a meter that doesn't know your pets yet, and saves its state
+    /// when it has changed.
+    pub fn sync(&mut self, character: &str, pets: &mut meter_core::pets::Pets) {
+        if !pets.known() {
+            if let Some(state) = self.by_character.get(character) {
+                pets.seed(state);
+                self.saved = pets.revision();
+            }
+            return;
+        }
+        if pets.revision() == self.saved {
+            return;
+        }
+        if let Some(state) = pets.state() {
+            self.by_character.insert(character.to_string(), state);
+            self.saved = pets.revision();
+            if let Some(dir) = self.path.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            if let Ok(s) = serde_json::to_string(&self.by_character) {
+                let _ = fs::write(&self.path, s);
+            }
+        }
+    }
+}
+
 /// One line of the history list.
 #[derive(Debug, Clone, Serialize)]
 pub struct FightSummary {
@@ -1019,6 +1065,38 @@ mod tests {
         assert_eq!(list[0].index, 2);
         assert_eq!(list[0].my_dps, Some(10.0));
         assert_eq!(again.fight(0).unwrap().view.total_dps, 0.0);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn pets_kept_per_character() {
+        use meter_core::pets::{Pets, OPCODE_PET_LIST, OPCODE_SOULS_GAINED};
+        let dir = temp_dir("pets");
+        let mut book = PetBook::load(&dir);
+        // The game's list: Vivel (1188) at level 1 with 8 souls.
+        let mut list = vec![0x24, 0x04, 0, 0, 1];
+        for v in [1188u32, 1188, 1] {
+            list.extend(v.to_le_bytes());
+        }
+        list.push(1);
+        for v in [1188u32, 8] {
+            list.extend(v.to_le_bytes());
+        }
+        let mut pets = Pets::default();
+        pets.feed(OPCODE_PET_LIST, &list);
+        book.sync("NeneneTowawa", &mut pets);
+        // Next run, started after the list: the saved state, then a soul on top.
+        let mut book = PetBook::load(&dir);
+        let mut later = Pets::default();
+        book.sync("NeneneTowawa", &mut later);
+        let soul = [1, 0xa4, 0x04, 0, 0, 1, 0, 0, 0];
+        later.feed(OPCODE_SOULS_GAINED, &soul);
+        let g = later.take_gains();
+        assert_eq!((g[0].known, g[0].souls, g[0].next_level_souls), (true, 9, Some(25)));
+        // Another character knows nothing of them.
+        let mut other = Pets::default();
+        book.sync("Alt", &mut other);
+        assert!(!other.known());
         fs::remove_dir_all(dir).ok();
     }
 

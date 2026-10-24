@@ -241,6 +241,13 @@ pub fn set_boss_casts(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+#[tauri::command]
+pub fn set_pet_souls(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.pet_souls = on;
+    s.save(&app.config_dir);
+}
+
 #[derive(Serialize)]
 pub struct TimerSettings {
     pub region: String,

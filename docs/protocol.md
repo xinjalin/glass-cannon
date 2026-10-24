@@ -448,7 +448,7 @@ direction, taking north as -y.
 
 | opcode   | layout | what |
 | -------- | ------ | ---- |
-| `0x9000` | u32, varint n, n × (u32 key, u32 pet, u32 level), varint n, n × (u32 pet, u32 souls), … | your pets and their souls (each connection) |
+| `0x9000` | u32, varint n, n × (u32 key, u32 pet, u32 level), varint n, n × (u32 pet, u32 souls), … | your pets and their souls toward the next level: at login, entering or leaving a dungeon and with some other moves (one came with a respawn), not on every zone change |
 | `0x9009` | varint entity, u32 pet, u32 level, … | a pet summoned |
 | `0x900d` | varint n, n × (u32 pet, u32 souls) | souls gained: 1 a kill (23 in our captures) |
 | `0x900e` | the same | souls spent: 5 to summon a pet (with its `0x9009`) |

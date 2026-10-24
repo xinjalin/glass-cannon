@@ -914,6 +914,11 @@ impl Meter {
         self.pets.take_gains()
     }
 
+    /// Your pets' levels and souls, for keeping between runs.
+    pub fn pets(&mut self) -> &mut crate::pets::Pets {
+        &mut self.pets
+    }
+
     /// Hidden cubes in view, and how far and which way while your position is known.
     pub fn cubes(&self, now_us: u64) -> Vec<crate::cubes::CubeView> {
         self.cubes.view(now_us)

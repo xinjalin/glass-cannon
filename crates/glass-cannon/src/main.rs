@@ -154,6 +154,7 @@ pub struct AppState {
     field_bosses: Mutex<store::FieldBosses>,
     /// Your best against each boss.
     bests: Mutex<store::Bests>,
+    pets: Mutex<store::PetBook>,
     /// Content tickets and Abyss artifacts, as last sent.
     contents: Mutex<store::KnownContents>,
     /// Side windows placed beside the meter once already.
@@ -265,6 +266,11 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let contents = meter.take_contents();
         let cubes = meter.cubes(now);
+        // Your pets as last saved, until the game sends its list (and saved as they change).
+        let name = meter.registry().self_name().map(str::to_string).or_else(|| lock(&app.profile).name.clone());
+        if let Some(name) = name {
+            lock(&app.pets).sync(&name, meter.pets());
+        }
         (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, meter.take_soul_gains())
     };
     lock(&app.field_bosses).update(field_bosses);
@@ -316,6 +322,9 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         .filter(|e| e.target_boss)
         .and_then(|e| e.target_type)
         .and_then(|t| lock(&app.bests).get(profile.name.as_deref(), t));
+    if !lock(&app.settings).pet_souls {
+        souls.clear();
+    }
     for g in &mut souls {
         g.name = data.pet_name(g.pet);
     }
@@ -782,6 +791,7 @@ fn main() {
         field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
         contents: Mutex::new(store::KnownContents::load(&config_dir_for_pvp)),
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
+        pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
         panels_placed: Mutex::new(std::collections::HashSet::new()),
         placements: Mutex::new(placements),
     });
@@ -841,6 +851,7 @@ fn main() {
             panels::set_hide_after,
             panels::set_boss_hp,
             panels::set_boss_casts,
+            panels::set_pet_souls,
             panels::timer_settings,
             panels::party_cooldowns,
         ])
