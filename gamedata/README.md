@@ -13,6 +13,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `skill-details.json` (cooldowns, costs, descriptions, specialties) | [aion2.app](https://aion2.app/db/skills), compiled from NCSOFT's data | none: used without a licence |
 | `theostones.json` (Theostone grades, effects, cooldowns) | a scraped item database collected from public fan databases (the bundle names no sites) | none: used without a licence |
 | `dungeons.json` (each dungeon mob's dungeon and mode) | the same bundle's monsters and dungeons | none: used without a licence |
+| `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
 | `field-bosses.json` (world-map field boss IDs to map and mob type) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) (`field_boss_timer.rs`) | GPL-3.0 |
 | `field-bosses.json` (field bosses' level and location) | the same bundle's monsters | none: used without a licence |
 | `Icon_Item_Usable_*.png` and `item-icons.json` (icons for scroll, potion and food buffs) | NCSOFT's game asset server (`assets.playnccdn.com`), matched to skills by the bundle's item names | NCSOFT's artwork, used without a licence |
@@ -22,7 +23,7 @@ The NOIA2 and RATmeter data stays under their GPL-3.0 licence (the release inclu
 in each file's `source` field. `skill-details.json` was scraped from aion2.app, whose
 terms don't allow that without permission; it's here at the maintainer's own risk and
 will be removed on request from aion2.app or NCSOFT. `theostones.json` and `dungeons.json`
-hold only the Theostone entries and the dungeon mobs of a larger scraped bundle whose
+hold only the Theostone entries and the dungeon mobs (and `pets.json` the pets' names) of a larger scraped bundle whose
 sources aren't named; they're here on the same terms and will be removed on request.
 
 ## Updating
@@ -38,3 +39,4 @@ sources aren't named; they're here on the same terms and will be removed on requ
   icons of consumables whose buffs are named in `skills.json` but have no icon (64 px).
 - Dungeons: `packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>` from the
   same kind of scrape (monsters with their dungeon and mode, and the dungeon list).
+- Pets: `packet-lab pets <pets.json> --scraped <date>` from the same kind of scrape.

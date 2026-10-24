@@ -347,3 +347,20 @@ table.grid {
 ::-webkit-scrollbar { width: 0.5em; height: 0.5em; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.25em; }
+
+/* ---------------------------------------------------------------- boss casts */
+
+#boss-frequent { margin-left: 0.6em; font-size: 0.9em; padding: 0 0.4em; }
+#boss-frequent.on { background: var(--accent-fill); color: var(--ink); }
+#boss-table tr.faded td { color: var(--faint); }
+#boss-table td.rename { cursor: text; }
+#boss-table .rename-input {
+  width: 100%;
+  min-width: 10em;
+  font: inherit;
+  color: var(--text);
+  background: var(--tint-strong);
+  border: 1px solid var(--accent);
+  border-radius: 0.25em;
+  padding: 0 0.3em;
+}

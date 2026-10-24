@@ -16,7 +16,7 @@ use crate::settings::place_beside;
 use crate::store::TIMER_REGIONS;
 use crate::{lock, AppState, OVERLAY};
 
-pub const PANELS: [&str; 6] = ["history", "cooldowns", "timers", "target", "party-cooldowns", "boss-casts"];
+pub const PANELS: [&str; 5] = ["history", "cooldowns", "timers", "target", "party-cooldowns"];
 /// The smallest each may be squeezed to (logical pixels) to fit beside the meter.
 const MIN_SIZE: (f64, f64) = (260.0, 200.0);
 
@@ -234,6 +234,13 @@ pub fn set_boss_hp(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+#[tauri::command]
+pub fn set_boss_casts(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.boss_casts = on;
+    s.save(&app.config_dir);
+}
+
 #[derive(Serialize)]
 pub struct TimerSettings {
     pub region: String,
@@ -412,48 +419,4 @@ pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
 #[tauri::command]
 pub fn rename_ticket(app: State<'_, Arc<AppState>>, id: u32, name: String) {
     lock(&app.contents).rename_ticket(id, &name);
-}
-
-/// The boss cast timeline: this fight's boss casts, and the last fight on the same boss's
-/// (for what's coming next).
-#[derive(Serialize)]
-pub struct BossCastsView {
-    pub boss: Option<String>,
-    pub active: bool,
-    pub now_s: f64,
-    pub casts: Vec<meter_core::meter::BossCastView>,
-    /// The last other fight on this boss that had casts, and when it ended (ms since 1970).
-    pub last: Vec<meter_core::meter::BossCastView>,
-    pub last_ms: Option<u64>,
-}
-
-#[tauri::command]
-pub fn boss_casts(app: State<'_, Arc<AppState>>) -> Option<BossCastsView> {
-    let mut c = app.engine.meter().boss_casts()?;
-    let kind = c.casts.iter().find_map(|x| x.boss_type).or(c.target_type);
-    let (last, last_ms) = kind
-        .and_then(|kind| {
-            let h = lock(&app.history);
-            let summaries = h.summaries(&app.details);
-            summaries.iter().find_map(|s| {
-                let f = h.fight(s.index)?;
-                let same = f.view.boss_casts.iter().any(|x| x.boss_type == Some(kind));
-                (same && f.view.start_us != c.start_us).then(|| (f.view.boss_casts.clone(), Some(f.ended_ms)))
-            })
-        })
-        .unwrap_or_default();
-    let data = lock(&app.data);
-    let name = |list: &mut Vec<meter_core::meter::BossCastView>| {
-        for x in list.iter_mut() {
-            x.skill_name = data.skill_meta(x.skill).0;
-            if let Some((boss, _)) = x.boss_type.and_then(|t| data.npc(t)) {
-                x.boss = boss;
-            }
-        }
-    };
-    name(&mut c.casts);
-    let mut last = last;
-    name(&mut last);
-    let boss = kind.and_then(|t| data.npc(t)).map(|(n, _)| n);
-    Some(BossCastsView { boss, active: c.active, now_s: c.now_s, casts: c.casts, last, last_ms })
 }

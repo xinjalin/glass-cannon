@@ -408,6 +408,11 @@ impl Registry {
             | OPCODE_GROUP_KICKED
             | OPCODE_FORCE_DISBANDED
             | OPCODE_FORCE_LEFT => {
+                // Your own leave requests answer with a u16 result: only 0 means you left
+                // (as Questlog reads them).
+                if matches!(opcode, OPCODE_PARTY_LEFT | OPCODE_GROUP_LEFT) && payload.get(..2)? != [0, 0] {
+                    return None;
+                }
                 if matches!(opcode, OPCODE_FORCE_DISBANDED | OPCODE_FORCE_LEFT) {
                     self.force.clear();
                 }
@@ -1039,6 +1044,8 @@ pub(crate) mod tests {
         assert!(r.in_party(10212));
         // Back online: already a member.
         assert_eq!(r.observe(OPCODE_PARTY_RECONNECT, &roster(&[(4, 2504, "Latecomer")])), None);
+        // A leave that failed changes nothing.
+        assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("05 00")), None);
         assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("00 00")), Some(Change::PartyChanged { members: 0 }));
         assert!(!r.in_party(10210));
         assert!(r.in_party(3659));

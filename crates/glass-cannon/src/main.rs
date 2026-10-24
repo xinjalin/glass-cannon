@@ -13,6 +13,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -191,8 +192,57 @@ struct View {
     alert_lead_min: u32,
     hide_after_s: u32,
     boss_hp: bool,
+    boss_casts: bool,
     /// Your best against the boss being fought.
     best: Option<store::Best>,
+    /// What the boss cast next the last time you fought it, from where this fight is.
+    boss_next: Option<NextCast>,
+    /// Hidden cubes in view.
+    cubes: Vec<meter_core::cubes::CubeView>,
+    /// Pet souls gained since the last snapshot, with each pet's progress.
+    souls: Vec<meter_core::pets::SoulGain>,
+}
+
+/// A boss's next cast, as it came the last time you fought it.
+#[derive(Serialize)]
+struct NextCast {
+    skill: u32,
+    skill_name: Option<String>,
+    cast_ms: u32,
+    /// Seconds from now.
+    in_s: f64,
+}
+
+/// Bosses cast these this often or more in a fight as routine; they're not worth a warning.
+const ROUTINE_CASTS: usize = 8;
+
+/// The boss casts the meter shows: not routine (cast [`ROUTINE_CASTS`] times or more in
+/// the last fight against it, or in this one so far). Drops a routine live cast, and gives
+/// what it cast next the last time (with a cast time or landing areas: a mechanic), from
+/// where this fight is.
+fn boss_casts_to_show(history: &store::History, data: &GameData, enc: &mut meter_core::meter::EncounterView) -> Option<NextCast> {
+    let kind = enc.boss_casts.iter().find_map(|c| c.boss_type).or(enc.target_type);
+    let last = kind.and_then(|kind| {
+        history.newest_first().find(|f| f.view.start_us != enc.start_us && f.view.boss_casts.iter().any(|c| c.boss_type == Some(kind)))
+    });
+    let casts = last.map_or(&[][..], |f| &f.view.boss_casts[..]);
+    let tally = |list: &[meter_core::meter::BossCastView]| {
+        let mut n: HashMap<u32, usize> = HashMap::new();
+        for c in list {
+            *n.entry(c.skill).or_default() += 1;
+        }
+        n
+    };
+    let (before, now_counts) = (tally(casts), tally(&enc.boss_casts));
+    let routine = |skill: u32| [&before, &now_counts].iter().any(|n| n.get(&skill).copied().unwrap_or(0) >= ROUTINE_CASTS);
+    if enc.boss_cast.as_ref().is_some_and(|c| routine(c.skill)) {
+        enc.boss_cast = None;
+    }
+    let now = enc.boss_now_s?;
+    casts
+        .iter()
+        .find(|c| c.at_s > now && !routine(c.skill) && (c.cast_ms > 0 || c.lands_ms > 0))
+        .map(|c| NextCast { skill: c.skill, skill_name: data.boss_skill_name(c.skill), cast_ms: c.cast_ms, in_s: c.at_s - now })
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
@@ -202,7 +252,7 @@ struct View {
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, mut souls) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -214,7 +264,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         }
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let contents = meter.take_contents();
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents)
+        let cubes = meter.cubes(now);
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, meter.take_soul_gains())
     };
     lock(&app.field_bosses).update(field_bosses);
     lock(&app.contents).update(contents);
@@ -254,7 +305,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         if let Some(analysis) = &f.analysis {
             app.details.save(ended_ms, analysis);
         }
-        lock(&app.bests).record(&view, ended_ms);
+        lock(&app.bests).record(&view, ended_ms, self_name.as_deref());
         history.push(Fight { ended_ms, self_name, view });
     }
     data.annotate(&mut snap);
@@ -264,7 +315,14 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         .as_ref()
         .filter(|e| e.target_boss)
         .and_then(|e| e.target_type)
-        .and_then(|t| lock(&app.bests).get(t));
+        .and_then(|t| lock(&app.bests).get(profile.name.as_deref(), t));
+    for g in &mut souls {
+        g.name = data.pet_name(g.pet);
+    }
+    let mut boss_next = None;
+    if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
+        boss_next = boss_casts_to_show(&history, &data, enc);
+    }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
     View {
@@ -285,7 +343,11 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         alert_lead_min: settings.alert_lead_min,
         hide_after_s: settings.hide_after_s,
         boss_hp: settings.boss_hp,
+        boss_casts: settings.boss_casts,
         best,
+        boss_next,
+        cubes,
+        souls,
     }
 }
 
@@ -394,15 +456,18 @@ fn party_size(meter: &Meter) -> usize {
 
 #[tauri::command]
 fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
-    let mut fights = lock(&app.history).summaries(&app.details);
+    let history = lock(&app.history);
+    let mut fights = history.summaries(&app.details);
     let bests = lock(&app.bests);
     for f in &mut fights {
-        if let Some(b) = f.target_type.and_then(|t| bests.get(t)) {
+        let character = history.fight(f.index).and_then(|x| x.self_name.as_deref());
+        if let Some(b) = f.target_type.and_then(|t| bests.get(character, t)) {
             f.best_dps = b.dps_ms == f.ended_ms;
             f.fastest = b.kill_ms == f.ended_ms;
         }
     }
     drop(bests);
+    drop(history);
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
 
@@ -769,13 +834,13 @@ fn main() {
             panels::target,
             panels::field_bosses,
             panels::contents,
-            panels::boss_casts,
             panels::rename_ticket,
             panels::rename_field_boss,
             panels::set_alert,
             panels::set_alert_lead,
             panels::set_hide_after,
             panels::set_boss_hp,
+            panels::set_boss_casts,
             panels::timer_settings,
             panels::party_cooldowns,
         ])

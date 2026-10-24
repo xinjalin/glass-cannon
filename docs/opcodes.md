@@ -104,8 +104,8 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x380f` | 60 | 3 | 13 |  | SkillAdd_NT |  |
 | `0x8d57` | 28 | 4 | 121 | some | RetrieveMyLatestSeasonRanking_RS |  |
 | `0x3814` | 22 | 3 | 28 | yes | Abnormal_Move_Start_NT |  |
-| `0x3848` | 21 | 2 | 32 | yes | SkillRangeNoticeFilterLocation_NT |  |
-| `0x8d52` | 16 | 2 | 3 | yes | NpcFirstAggro_NT |  |
+| `0x3848` | 21 | 2 | 32 | yes | SkillRangeNoticeFilterLocation_NT | decoded 2026-10-24: where a boss's cast lands and when (the meter's boss cast line) |
+| `0x8d52` | 16 | 2 | 3 | yes | NpcFirstAggro_NT | decoded 2026-10-24: a boss's pull (boss timelines start there) |
 | `0x4001` | 11 | 5 | 18.3 |  |  | Aion2Flow: state |
 | `0x3621` | 9 | 5 | 46 |  | PrepareEnterMap_NT | Aion2Flow: state; A2Tools: map load |
 | `0x3623` | 9 | 5 | 24 |  |  | Aion2Flow: map arrival; A2Tools: zone change; a2_protocol-research: zone |
@@ -134,8 +134,8 @@ Every message type (opcode) in our captures: 285 opcodes, 690,409 messages, from
 | `0x922f` | 4 | 2 | 4 |  | MapEventLeave_NT | Aion2Flow: map |
 | `0x900d` | 3 | 2 | 9 |  | RideSoulPointIncrease_NT |  |
 | `0x5676` | 3 | 1 | 7 |  | WingChange_NT |  |
-| `0x6109` | 2 | 2 | 4 |  | DungeonDeathLimit_NT |  |
-| `0x3821` | 2 | 2 | 9 | yes | SkillChargingStop_NT |  |
+| `0x6109` | 2 | 2 | 4 |  | DungeonDeathLimit_NT | deaths against the dungeon's limit (Questlog's layout; not used) |
+| `0x3821` | 2 | 2 | 9 | yes | SkillChargingStop_NT | decoded 2026-10-24: a charge let go; its cooldown starts |
 | `0x8d2f` | 2 | 2 | 646 |  |  | a2_protocol-research: notice |
 | `0x8d15` | 1 | 1 | 51 |  | EventFuncAction_NT |  |
 

@@ -226,6 +226,18 @@ function derive() {
     c.back = c.back || !!(h.flags & HIT.BACK);
     c.front = c.front || !!(h.flags & HIT.FRONT);
   }
+  // Misses (hits the target evaded, resisted or was immune to) come with the whole fight's
+  // rows, so accuracy is only known with every target shown.
+  if (target == null) {
+    for (const [id, p] of players) {
+      const row = data.view.players.find((r) => r.id === id);
+      p.missed = (row && row.outcomes && row.outcomes.missed) || 0;
+      for (const [skill, s] of p.skills) {
+        const r = row && row.skills.find((x) => x.skill === skill);
+        s.missed = (r && r.outcomes && r.outcomes.missed) || 0;
+      }
+    }
+  }
   // Players in the full fight's order, so each keeps its colour whatever the filter.
   const order = data.view.players.map((p) => p.id).filter((id) => players.has(id));
   return { hits, players, order, durationMs, casts, endMs: data.view.duration_s * 1000, hp: targetHp() };
@@ -359,6 +371,9 @@ function drawTabs() {
   }
   const deaths = (data && data.view.deaths) || [];
   $("deaths-tab").textContent = deaths.length ? `[deaths ${deaths.length}]` : "[deaths]";
+  const casts = (data && data.view.boss_casts) || [];
+  $("boss-tab").hidden = casts.length === 0;
+  if (tab === "boss" && casts.length === 0) tab = "overview";
   for (const s of document.querySelectorAll(".tab")) s.hidden = !data || s.id !== `tab-${tab}`;
 }
 
@@ -664,8 +679,12 @@ const SKILL_COLUMNS = [
   ["perfect", "perfect", (s) => s.perfect / s.hits],
   ["back", "back", (s) => s.back / s.hits],
   ["front", "front", (s) => s.front / s.hits],
+  ["acc", "acc", (s) => (s.missed == null ? Infinity : s.hits / (s.hits + s.missed))],
   ["cast gap", "gap", (s) => castGap(s) ?? Infinity],
 ];
+
+// Hits that landed of those that could: "–" with a target picked (misses aren't per target).
+const accuracy = (s) => (s.missed == null ? "–" : pct(s.hits, s.hits + s.missed));
 
 function castGap(s) {
   const t = s.castTimes;
@@ -695,6 +714,7 @@ function drawSkills() {
   add("front", pct(p.front, p.hits));
   add("perfect", pct(p.perfect, p.hits));
   add("double", pct(p.double, p.hits));
+  add("accuracy", accuracy(p));
 
   const head = el("tr");
   head.append(th("skill", "name", true), th("spec"));
@@ -734,6 +754,7 @@ function drawSkills() {
       el("td", "", pct(s.perfect, s.hits)),
       el("td", "", pct(s.back, s.hits)),
       el("td", "", pct(s.front, s.hits)),
+      el("td", "", accuracy(s)),
       el("td", "", gap(castGap(s))),
     );
     table.append(tr);
@@ -1534,6 +1555,97 @@ function render() {
     drawFlow(tab);
   } else if (tab === "deaths") {
     drawDeaths();
+  } else if (tab === "boss") {
+    drawBossCasts();
+  }
+}
+
+// ---------------------------------------------------------------- boss casts
+
+// A skill cast this often in a fight is the boss's routine, not a mechanic.
+const ROUTINE_CASTS = 8;
+const FREQUENT_KEY = "analysis-boss-frequent";
+let showFrequent = false;
+try {
+  showFrequent = localStorage.getItem(FREQUENT_KEY) === "1";
+} catch {
+  // No storage: routine casts start hidden.
+}
+
+$("boss-frequent").addEventListener("click", () => {
+  showFrequent = !showFrequent;
+  try {
+    localStorage.setItem(FREQUENT_KEY, showFrequent ? "1" : "0");
+  } catch {
+    // Not kept, that's all.
+  }
+  drawBossCasts();
+});
+
+// Most boss skills have no name in the game data: you name them here (names.json), and
+// the meter's cast line uses the name from then on.
+function nameBossSkill(cell, c) {
+  const input = el("input", "rename-input");
+  input.value = c.skill_name || "";
+  input.placeholder = `skill ${c.skill}`;
+  input.maxLength = 60;
+  cell.replaceChildren(input);
+  input.focus();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    if (save && input.value.trim() !== (c.skill_name || "")) {
+      await invoke("rename_skill", { skill: c.skill, name: input.value }).catch((err) => sayCopied(String(err)));
+      load(true);
+    } else {
+      drawBossCasts();
+    }
+  };
+  input.addEventListener("keydown", (k) => {
+    k.stopPropagation();
+    if (k.key === "Enter") finish(true);
+    if (k.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+function drawBossCasts() {
+  const casts = data.view.boss_casts || [];
+  const count = new Map();
+  for (const c of casts) count.set(c.skill, (count.get(c.skill) || 0) + 1);
+  const routine = (c) => c.skill_name === "Attack" || count.get(c.skill) >= ROUTINE_CASTS;
+  const hidden = casts.filter(routine).length;
+  const btn = $("boss-frequent");
+  btn.classList.toggle("on", showFrequent);
+  btn.textContent = showFrequent ? "[frequent]" : `[frequent ${hidden}]`;
+  const shown = casts.filter((c) => showFrequent || !routine(c));
+  const bosses = new Set(casts.map((c) => c.boss));
+  const table = $("boss-table");
+  table.replaceChildren();
+  if (!shown.length) {
+    table.append(el("caption", "note", "only routine casts: show them with [frequent]"));
+    return;
+  }
+  const head = el("tr");
+  head.append(th("time", null, true));
+  if (bosses.size > 1) head.append(th("boss", null, true));
+  head.append(th("skill", null, true), th("cast"), th("lands"), th("", null, true));
+  table.append(head);
+  for (const c of shown) {
+    const tr = el("tr", c.stopped ? "faded" : "");
+    tr.append(el("td", "left", clock(c.at_s * 1000)));
+    if (bosses.size > 1) tr.append(el("td", "left", c.boss));
+    const skill = el("td", "left rename", c.skill_name || `#${c.skill}`);
+    skill.title = `skill ${c.skill} · double-click to name it`;
+    skill.addEventListener("dblclick", () => nameBossSkill(skill, c));
+    tr.append(
+      skill,
+      el("td", "", c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s` : "instant"),
+      el("td", "", c.lands_ms ? `${(c.lands_ms / 1000).toFixed(1)} s${c.areas > 1 ? ` · ${c.areas} areas` : ""}` : "–"),
+      el("td", "left", c.stopped ? "✕ stopped" : ""),
+    );
+    table.append(tr);
   }
 }
 

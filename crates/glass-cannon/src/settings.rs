@@ -51,6 +51,7 @@ pub struct SettingsStatus {
     refresh_ms: u32,
     locked: bool,
     boss_hp: bool,
+    boss_casts: bool,
     hide_after_s: u32,
 }
 
@@ -129,6 +130,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         refresh_ms: s.refresh_ms,
         locked: s.locked,
         boss_hp: s.boss_hp,
+        boss_casts: s.boss_casts,
         hide_after_s: s.hide_after_s,
     }
 }

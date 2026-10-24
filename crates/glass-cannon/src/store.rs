@@ -82,6 +82,9 @@ pub struct Settings {
     /// The boss's HP and enrage timer under the target's name.
     #[serde(default = "default_true")]
     pub boss_hp: bool,
+    /// Under that, what the boss is casting, else what it cast next last time.
+    #[serde(default = "default_true")]
+    pub boss_casts: bool,
 }
 
 fn default_alert_lead() -> u32 {
@@ -725,38 +728,59 @@ pub struct Best {
     pub kills: u32,
 }
 
-/// Your bests against each boss, by mob type (`bests.json`), from every kill you were in.
-/// Kept apart from the history, which only keeps the last fights.
+/// Your bests against each boss, per character as Questlog keeps them (`bests.json`), from
+/// every kill you were in. Kept apart from the history, which only keeps the last fights.
 pub struct Bests {
     path: PathBuf,
-    by_boss: BTreeMap<u32, Best>,
+    /// Character name -> mob type -> best. Bests saved before they were per character
+    /// are under "" and count for any character without its own.
+    by_character: BTreeMap<String, BTreeMap<u32, Best>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct BestsFile {
+    characters: BTreeMap<String, BTreeMap<u32, Best>>,
 }
 
 impl Bests {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("bests.json");
-        let by_boss = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-        Self { path, by_boss }
+        let text = fs::read_to_string(&path).unwrap_or_default();
+        let by_character = match serde_json::from_str::<BestsFile>(&text) {
+            Ok(f) => f.characters,
+            // The first version: one map by mob type.
+            Err(_) => serde_json::from_str::<BTreeMap<u32, Best>>(&text)
+                .map(|old| BTreeMap::from([(String::new(), old)]))
+                .unwrap_or_default(),
+        };
+        Self { path, by_character }
     }
 
     fn save(&self) {
         if let Some(dir) = self.path.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        if let Ok(s) = serde_json::to_string_pretty(&self.by_boss) {
+        let file = BestsFile { characters: self.by_character.clone() };
+        if let Ok(s) = serde_json::to_string_pretty(&file) {
             let _ = fs::write(&self.path, s);
         }
     }
 
-    pub fn get(&self, boss: u32) -> Option<Best> {
-        self.by_boss.get(&boss).copied()
+    /// Your best against `boss` as `character` (or from before bests were per character).
+    pub fn get(&self, character: Option<&str>, boss: u32) -> Option<Best> {
+        [character.unwrap_or(""), ""].iter().find_map(|c| self.by_character.get(*c)?.get(&boss).copied())
     }
 
     /// Counts a finished fight if it was a boss kill you were in.
-    pub fn record(&mut self, view: &EncounterView, ended_ms: u64) {
+    pub fn record(&mut self, view: &EncounterView, ended_ms: u64, character: Option<&str>) {
         let (Some(boss), true, Some(FightEnd::Kill)) = (view.target_type, view.target_boss, view.end) else { return };
         let Some(me) = view.players.iter().find(|p| p.is_self).filter(|p| p.dps > 0.0) else { return };
-        let b = self.by_boss.entry(boss).or_insert(Best { dps: 0.0, dps_ms: 0, kill_s: f64::INFINITY, kill_ms: 0, kills: 0 });
+        let b = self
+            .by_character
+            .entry(character.unwrap_or("").to_string())
+            .or_default()
+            .entry(boss)
+            .or_insert(Best { dps: 0.0, dps_ms: 0, kill_s: f64::INFINITY, kill_ms: 0, kills: 0 });
         b.kills += 1;
         if me.dps > b.dps {
             (b.dps, b.dps_ms) = (me.dps, ended_ms);
@@ -768,7 +792,7 @@ impl Bests {
     }
 
     pub fn clear(&mut self) {
-        self.by_boss.clear();
+        self.by_character.clear();
         let _ = fs::remove_file(&self.path);
     }
 }
@@ -878,6 +902,10 @@ impl History {
 
     pub fn fight(&self, index: usize) -> Option<&Fight> {
         self.fights.get(index)
+    }
+
+    pub fn newest_first(&self) -> impl Iterator<Item = &Fight> {
+        self.fights.iter().rev()
     }
 
     pub fn clear(&mut self) {
@@ -1005,13 +1033,22 @@ mod tests {
             view.players[0].dps = dps;
             view
         };
-        b.record(&kill(20_000.0, 120.0, Some(FightEnd::Kill)), 1);
-        b.record(&kill(25_000.0, 130.0, Some(FightEnd::Kill)), 2);
-        b.record(&kill(90_000.0, 30.0, Some(FightEnd::Wipe)), 3); // a wipe isn't a best
-        let best = Bests::load(&dir).get(2_300_812).unwrap();
+        let me = Some("NeneneTowawa");
+        b.record(&kill(20_000.0, 120.0, Some(FightEnd::Kill)), 1, me);
+        b.record(&kill(25_000.0, 130.0, Some(FightEnd::Kill)), 2, me);
+        b.record(&kill(90_000.0, 30.0, Some(FightEnd::Wipe)), 3, me); // a wipe isn't a best
+        let best = Bests::load(&dir).get(me, 2_300_812).unwrap();
         assert_eq!((best.dps, best.dps_ms, best.kill_s, best.kill_ms, best.kills), (25_000.0, 2, 120.0, 1, 2));
+        // Another character has its own.
+        assert!(Bests::load(&dir).get(Some("Alt"), 2_300_812).is_none());
+        b.record(&kill(10_000.0, 200.0, Some(FightEnd::Kill)), 4, Some("Alt"));
+        assert_eq!(Bests::load(&dir).get(Some("Alt"), 2_300_812).unwrap().dps, 10_000.0);
+        assert_eq!(Bests::load(&dir).get(me, 2_300_812).unwrap().dps, 25_000.0);
         b.clear();
-        assert!(Bests::load(&dir).get(2_300_812).is_none());
+        assert!(Bests::load(&dir).get(me, 2_300_812).is_none());
+        // A file from before bests were per character counts for anyone.
+        fs::write(dir.join("bests.json"), r#"{"2300812":{"dps":5.0,"dps_ms":1,"kill_s":9.0,"kill_ms":1,"kills":1}}"#).unwrap();
+        assert_eq!(Bests::load(&dir).get(me, 2_300_812).unwrap().dps, 5.0);
         fs::remove_dir_all(dir).ok();
     }
 

@@ -41,6 +41,7 @@
       <button type="button" role="tab" data-tab="healing">[healing]</button>
       <button type="button" role="tab" data-tab="taken">[taken]</button>
       <button type="button" role="tab" data-tab="deaths" id="deaths-tab">[deaths]</button>
+      <button type="button" role="tab" data-tab="boss" id="boss-tab" hidden>[boss]</button>
     </nav>
 
     <div id="scroll">
@@ -180,6 +181,16 @@
           </fieldset>
         </div>
         <p class="note flow-note">From the last time they were at full HP (or the fight's start) to the death: hits taken, healing received, and the killing blow.</p>
+      </section>
+
+      <section id="tab-boss" class="tab" hidden>
+        <fieldset class="box">
+          <legend>boss casts <span class="note">· from the pull</span>
+            <button id="boss-frequent" type="button" class="chip" title="Its plain attacks and routine skills (cast 8 or more times)">[frequent]</button>
+          </legend>
+          <table id="boss-table" class="grid"></table>
+        </fieldset>
+        <p class="note flow-note">Times run from the boss's pull (its going into combat), so they line up from one fight to the next. "Lands" is how long after the cast the areas the game marked on the ground hit.</p>
       </section>
     </div>
     <div id="skill-tip" class="skill-tip" hidden></div>

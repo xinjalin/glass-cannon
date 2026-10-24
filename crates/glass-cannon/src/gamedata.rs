@@ -31,6 +31,7 @@ const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
+const PETS_FILE: &str = "pets.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// Player skills have 8-digit IDs; mobs' are shorter.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
@@ -87,6 +88,18 @@ struct TheostoneFile {
 struct ItemIconFile {
     #[serde(default)]
     icons: BTreeMap<u32, String>,
+}
+
+/// Pets' names, by the ID their souls come with (optional).
+#[derive(Debug, Default, Deserialize)]
+struct PetFile {
+    #[serde(default)]
+    pets: BTreeMap<u32, PetEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PetEntry {
+    name: String,
 }
 
 /// Which dungeon (and mode) each dungeon mob type is in.
@@ -181,6 +194,8 @@ pub struct GameData {
     dungeons: DungeonFile,
     /// Field bosses on the world map (optional).
     field_bosses: FieldBossFile,
+    /// Pets' names (optional).
+    pets: PetFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -201,6 +216,7 @@ impl GameData {
             theostones: TheostoneFile::default(),
             dungeons: DungeonFile::default(),
             field_bosses: FieldBossFile::default(),
+            pets: PetFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -228,6 +244,7 @@ impl GameData {
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
+                    self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     // Consumables' icons fill in skills that have none.
                     let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
                     for (id, file) in items.icons {
@@ -437,6 +454,15 @@ impl GameData {
         // Death recaps: skills and mobs by name.
         let skill_name = |id: u32| self.resolve_skill(id).map(|(_, e)| e.name.clone()).filter(|n| !n.is_empty());
         let mob_name = |t: Option<u32>| t.and_then(|t| self.npc(t)).map(|(name, _)| name);
+        for c in &mut enc.boss_casts {
+            c.skill_name = self.boss_skill_name(c.skill);
+            if let Some(name) = mob_name(c.boss_type) {
+                c.boss = name;
+            }
+        }
+        if let Some(c) = enc.boss_cast.as_mut() {
+            c.skill_name = self.boss_skill_name(c.skill);
+        }
         for d in &mut enc.deaths {
             d.skill_name = skill_name(d.skill);
             if let Some(name) = mob_name(d.killer_type) {
@@ -449,6 +475,17 @@ impl GameData {
                 }
             }
         }
+    }
+
+    /// A pet's name, by the ID its souls come with.
+    pub fn pet_name(&self, pet: u32) -> Option<String> {
+        self.pets.pets.get(&pet).map(|p| p.name.clone())
+    }
+
+    /// A boss skill's name: the data names most mob skills only "Attack", which says
+    /// nothing, so that counts as no name (yours from names.json still does).
+    pub fn boss_skill_name(&self, skill: u32) -> Option<String> {
+        self.skill_meta(skill).0.filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
     }
 
     /// Names a skill (an empty name goes back to the data's name). Saved to names.json.
@@ -526,15 +563,18 @@ impl GameData {
         }
     }
 
-    /// A mob's skill without an icon of its own: its family's. Mob skills' icons are named
-    /// after their ID's first four digits (1,782 of the 1,789 with icons in skills.json:
-    /// Surging Thorn 1604390 has 1604.png), so 1604420 gets 1604.png too.
+    /// A skill without an icon of its own: its family's. Mob skills' icons are named after
+    /// their ID's first four digits (1,782 of the 1,789 with icons in skills.json: Surging
+    /// Thorn 1604390 has 1604.png), so 1604420 gets 1604.png too. A class's skill the data
+    /// has no icon for (each class's Dodge, a Spiritmaster's spirits' attacks, basic
+    /// attacks: 14 of the 771 player skills in our captures) gets its class's icon.
     fn family_icon(&self, skill: u32) -> Option<String> {
-        if !(1000..PLAYER_SKILL_MIN).contains(&skill) {
-            return None;
+        if (1000..PLAYER_SKILL_MIN).contains(&skill) {
+            let file = format!("{}.png", skill / 1000);
+            return self.dir.join(&file).is_file().then_some(file);
         }
-        let file = format!("{}.png", skill / 1000);
-        self.dir.join(&file).is_file().then_some(file)
+        let code = meter_core::classes::class_code_of_skill(skill)?;
+        ["webp", "png"].iter().map(|ext| format!("class_{code}.{ext}")).find(|f| self.dir.join(f).is_file())
     }
 
     /// Which skill's icon to show for `skill`, given the entry it resolved to.
@@ -715,6 +755,19 @@ mod tests {
         assert_eq!(d.skills.skills[&2_210_105].icon.as_deref(), Some("Scroll.png"));
         // A skill that has an icon keeps it.
         assert_eq!(d.skills.skills[&18_010_000].icon.as_deref(), Some("1801.png"));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn class_skills_without_an_icon_get_their_classs() {
+        let dir = temp_dir("class-icons");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18000100": { "name": "Dodge" } } }"#).unwrap();
+        fs::write(dir.join("class_18.webp"), b"RIFF").unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        assert_eq!(d.skill_meta(18_000_100).1, Some(18_000_100));
+        assert!(d.skill_icon(18_000_100).is_some_and(|u| u.starts_with("data:image/webp;base64,")));
+        // No icon for a class we have none for.
+        assert!(d.skill_icon(17_000_100).is_none());
         fs::remove_dir_all(dir).ok();
     }
 

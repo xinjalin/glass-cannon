@@ -66,16 +66,23 @@ pub fn parse_cast(p: &[u8]) -> Option<Cast> {
 /// A cast with a cast time starting: like 0x3802 up to the target, then the cast time.
 ///
 /// ```text
-/// varint caster, u8 flags, u32 skill, u8, target block (as 0x3802), varint cast time (ms), …
+/// varint caster, u8 flags, u32 skill, u8 level, target block (as 0x3802),
+/// varint cast time (ms), u8, [flags 1: varint], [flags 2: varint attack speed], …
 /// ```
+///
+/// Questlog's SkillCastingStart has the flag-1 field after the cast time (our captures have
+/// flags 0, 2 and 6 only).
 ///
 /// Mobs and bosses send it as well as players. In our captures all 184 that were followed
 /// by the caster's 0x3802 of the same skill got it within 20 % (or 300 ms) of the cast time.
 pub const OPCODE_CAST_START: u16 = 0x3809;
 
-/// A cast stopped before it finished: varint caster, u8, u8, u32 skill, varint. All 23 in
-/// our captures stop the caster's open 0x3809 of that skill.
+/// A cast stopped before it finished: varint caster, u16 result, u32 skill, varint cooldown
+/// (ms; Questlog's SkillCastingStop). All 23 in our first captures stop the caster's open
+/// 0x3809 of that skill.
 pub const OPCODE_CAST_STOP: u16 = 0x380c;
+/// A charged skill let go (Questlog's SkillChargingStop): laid out as [`OPCODE_CAST_STOP`].
+pub const OPCODE_CHARGE_STOP: u16 = 0x3821;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CastStart {
@@ -88,10 +95,9 @@ pub struct CastStart {
 pub fn parse_cast_start(p: &[u8]) -> Option<CastStart> {
     let mut i = 0;
     let caster = read_varint(p, &mut i)?;
-    let flags = *p.get(i)?;
-    i += 1;
+    i += 1; // flags: for fields after the cast time
     let skill = u32::from_le_bytes(p.get(i..i + 4)?.try_into().ok()?);
-    i += 5 + usize::from(flags & 1 != 0);
+    i += 5;
     let target_flags = *p.get(i)?;
     i += 1;
     let target = read_varint(p, &mut i)?;
@@ -100,12 +106,54 @@ pub fn parse_cast_start(p: &[u8]) -> Option<CastStart> {
     Some(CastStart { caster, skill, target, cast_ms })
 }
 
+/// Where a skill will land, shown on the ground (Questlog's SkillRangeNoticeFilterLocation):
+///
+/// ```text
+/// varint caster, u32 skill, u8 cast ID (as the 0x3802 it follows), u32, u16,
+/// f32 × 3 position, f32 facing, u16 time until it lands (ms)
+/// ```
+///
+/// One per area: Nazmun's 1605616 came with six at once (1.9-2.7 s), all with its cast.
+pub const OPCODE_TELEGRAPH: u16 = 0x3848;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Telegraph {
+    pub caster: u64,
+    pub skill: u32,
+    pub cast_id: u8,
+    pub lands_ms: u32,
+}
+
+pub fn parse_telegraph(p: &[u8]) -> Option<Telegraph> {
+    let mut i = 0;
+    let caster = read_varint(p, &mut i)?;
+    if p.len() != i + 29 {
+        return None;
+    }
+    Some(Telegraph {
+        caster,
+        skill: u32::from_le_bytes(p[i..i + 4].try_into().ok()?),
+        cast_id: p[i + 4],
+        lands_ms: u32::from(u16::from_le_bytes([p[i + 27], p[i + 28]])),
+    })
+}
+
 /// The caster and skill of a 0x380c.
 pub fn parse_cast_stop(p: &[u8]) -> Option<(u64, u32)> {
     let mut i = 0;
     let caster = read_varint(p, &mut i)?;
     let skill = u32::from_le_bytes(p.get(i + 2..i + 6)?.try_into().ok()?);
     Some((caster, skill))
+}
+
+/// A stopped cast's or charge's caster, skill and the cooldown it starts (ms, 0: none).
+pub fn parse_stop_cooldown(p: &[u8]) -> Option<(u64, u32, u32)> {
+    let (caster, skill) = parse_cast_stop(p)?;
+    let mut i = 0;
+    read_varint(p, &mut i)?;
+    i += 6;
+    let ms = u32::try_from(read_varint(p, &mut i)?).ok()?;
+    Some((caster, skill, ms))
 }
 
 #[cfg(test)]
@@ -127,6 +175,15 @@ mod tests {
         .unwrap();
         assert_eq!((s.skill, s.target, s.cast_ms), (1_604_400, 4875, 1333));
         assert_eq!(parse_cast_stop(&hex("d1 f2 01 08 18 3a 7b 18 00 98 75")), Some((31057, 1_604_410)));
+        assert_eq!(parse_stop_cooldown(&hex("d1 f2 01 08 18 3a 7b 18 00 98 75")), Some((31057, 1_604_410, 15_000)));
+    }
+
+    #[test]
+    fn where_a_skill_lands() {
+        // A Fire Temple trap's (mob 2300301, 2026-10-23): 2,850 ms until it lands.
+        let t = parse_telegraph(&hex("9e a0 04 6e b6 12 00 02 01 00 00 00 01 00 d3 aa f5 45 1b ae 76 c5 00 60 79 45 00 00 00 00 22 0b")).unwrap();
+        assert_eq!(t, Telegraph { caster: 69_662, skill: 1_226_350, cast_id: 2, lands_ms: 2850 });
+        assert!(parse_telegraph(&hex("9e a0 04 6e b6 12 00 02")).is_none());
     }
 
     fn hex(s: &str) -> Vec<u8> {

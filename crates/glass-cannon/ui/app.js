@@ -45,6 +45,8 @@ const expanded = new Set(); // player IDs whose skill list is open
 let pinned = true;
 let editing = false; // pause redraws while a name is being typed
 let lastView = null;
+// When it arrived (performance.now()), so countdowns run on between refreshes.
+let lastViewAt = 0;
 
 // What the panel shows: the live meter, the list of past fights, or one past fight.
 let mode = "live";
@@ -447,6 +449,62 @@ function notice(text, ms = NOTICE_MS, kind = "") {
   drawNotice();
 }
 
+// A notice kept up to date while what it's about lasts (renewed for `ms` each time): it
+// takes the line when it first shows.
+function keyedNotice(key, text, ms, kind = "") {
+  const n = notices.find((x) => x.key === key);
+  if (n) {
+    Object.assign(n, { text, kind, until: Date.now() + ms });
+  } else {
+    notices.push({ key, text, kind, until: Date.now() + ms });
+    noticeTurn = notices.length - 1;
+  }
+  drawNotice();
+}
+
+// ---------------------------------------------------------------- pet souls
+
+// A pet's soul from a kill: how many it has toward its next level (summoning is level 1).
+const SOUL_NOTICE_MS = 8000;
+
+function noticeSouls(souls) {
+  for (const g of souls || []) {
+    const name = g.name || `pet ${g.pet}`;
+    let progress;
+    if (g.next_level_souls == null) {
+      progress = "top level";
+    } else {
+      const goal = g.level === 0 ? "to summon" : `to level ${g.level + 1}`;
+      progress = `${g.souls}/${g.next_level_souls} ${goal}${g.souls >= g.next_level_souls ? " · ready" : ""}`;
+    }
+    keyedNotice(`soul:${g.pet}`, `◆ ${name} soul +${g.gained} · ${progress}`, SOUL_NOTICE_MS, "soul");
+  }
+}
+
+// ---------------------------------------------------------------- hidden cubes
+
+// Each hidden cube in view: its colour, and how far and which way while the game has told
+// us where you are (for a minute after you arrive somewhere; it never sends your moves).
+const CUBE_SEEN_MS = 3000;
+const ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+function noticeCubes(cubes) {
+  for (const c of cubes || []) {
+    let text;
+    if (c.opened) {
+      text = `◆ ${c.look} hidden cube opened`;
+    } else if (c.distance_m == null) {
+      text = `◆ ${c.look} hidden cube nearby`;
+    } else {
+      const dir = Math.round(c.bearing / 45) % 8;
+      const rise = Math.abs(c.rise_m) >= 3 ? ` · ${Math.abs(c.rise_m)} m ${c.rise_m > 0 ? "up" : "down"}` : "";
+      text = `◆ ${c.look} hidden cube · ${c.distance_m} m ${ARROWS[dir]} ${COMPASS[dir]}${rise}`;
+    }
+    keyedNotice(`cube:${c.entity}`, text, CUBE_SEEN_MS, `cube ${c.look}`);
+  }
+}
+
 function drawNotice() {
   const now = Date.now();
   notices = notices.filter((n) => n.until > now);
@@ -465,13 +523,14 @@ function placeNotice() {
   const panel = $("panel").getBoundingClientRect();
   const box = $("box").getBoundingClientRect();
   if (minimal()) {
-    // Under the last row, left of the lock button.
+    // Under the last row, centred, clear of the lock button on either side.
     Object.assign(line.style, {
-      left: `${box.left - panel.left}px`,
-      right: "2.2em",
+      left: "50%",
+      right: "",
+      transform: "translateX(-50%)",
       top: `${box.bottom - panel.top + 2}px`,
       height: "",
-      maxWidth: "",
+      maxWidth: "calc(100% - 4.4em)",
     });
     return;
   }
@@ -480,6 +539,7 @@ function placeNotice() {
   Object.assign(line.style, {
     left: `${left}px`,
     right: "",
+    transform: "",
     top: `${legend.top - panel.top}px`,
     height: `${legend.height}px`,
     maxWidth: `${box.right - panel.left - 8 - left}px`,
@@ -567,6 +627,7 @@ function drawBossBar(enc) {
   const bar = $("boss-bar");
   const show = mode === "live" && enc.active && enc.target_boss && enc.target_max_hp && lastView && lastView.boss_hp;
   bar.hidden = !show;
+  drawBossCast(show && lastView.boss_casts ? enc : null);
   if (!show) return;
   const pct = Math.max(0, Math.min(1, (enc.target_hp ?? enc.target_max_hp) / enc.target_max_hp));
   $("boss-hp-fill").style.width = `${pct * 100}%`;
@@ -588,6 +649,61 @@ function drawBossBar(enc) {
     best.className = me && me.dps > b.dps ? "beating" : "";
     best.title = `Your best DPS against it, and its fastest kill (${b.kills} ${b.kills === 1 ? "kill" : "kills"})`;
   }
+}
+
+// The boss cast line: casting (the bar fills), cast and about to land (the bar empties,
+// in the warning colour), else what it cast next last time (a countdown). It runs on
+// between refreshes, from when the snapshot came.
+let castLine = null;
+
+function drawBossCast(enc) {
+  const line = $("boss-cast");
+  line.hidden = !enc;
+  castLine = null;
+  if (!enc) return;
+  const c = enc.boss_cast;
+  const next = lastView.boss_next;
+  // Most boss skills have no name in the game data: then the cast time says what it is
+  // (name them in the analysis window's [boss] tab).
+  const name = (x) => x.skill_name || (x.cast_ms ? `${(x.cast_ms / 1000).toFixed(1)} s cast` : "a cast");
+  if (c && c.cast_left_ms > 0) {
+    castLine = { kind: "casting", name: name(c), total: c.cast_ms, left: c.cast_left_ms };
+  } else if (c && c.lands_left_ms > 0) {
+    castLine = { kind: "landing", name: name(c), total: c.lands_ms, left: c.lands_left_ms };
+  } else if (next) {
+    castLine = { kind: "next", name: name(next), total: 0, left: next.in_s * 1000 };
+  }
+  if (!castLine) {
+    line.className = "";
+    $("bc-name").textContent = "";
+    $("bc-time").textContent = "";
+    $("bc-fill").style.width = "0";
+    return;
+  }
+  line.className = castLine.kind;
+  $("bc-name").textContent = castLine.kind === "next" ? `next: ${castLine.name}` : castLine.kind === "landing" ? `⚠ ${castLine.name}` : castLine.name;
+  line.title =
+    castLine.kind === "next"
+      ? "What it cast next the last time you fought it, from where this fight is"
+      : castLine.kind === "landing"
+        ? "Cast: when it lands"
+        : "Casting";
+  tickCastLine();
+}
+
+function tickCastLine() {
+  const c = castLine;
+  if (!c || $("boss-cast").hidden) return;
+  const left = Math.max(0, c.left - (performance.now() - lastViewAt));
+  if (c.kind === "next") {
+    $("bc-time").textContent = `in ${clock(left / 1000)}`;
+  } else {
+    const done = c.total > 0 ? 1 - left / c.total : 1;
+    $("bc-fill").style.width = `${Math.max(0, Math.min(1, c.kind === "landing" ? 1 - done : done)) * 100}%`;
+    $("bc-time").textContent = c.kind === "landing" ? `lands ${(left / 1000).toFixed(1)}s` : `${(left / 1000).toFixed(1)}s`;
+  }
+  $("boss-cast").classList.toggle("soon", c.kind !== "casting" && left <= (c.kind === "next" ? 5000 : 1000));
+  if (left > 0) requestAnimationFrame(tickCastLine);
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";
@@ -638,16 +754,39 @@ function drawScope(meter, auto) {
   const scope = meter.scope;
   const choice = auto ? "auto" : scope;
   const next = SCOPES[(SCOPES.indexOf(choice) + 1) % SCOPES.length];
-  const b = $("scope");
-  b.textContent = SCOPE_LABELS[scope] || scope;
-  b.classList.toggle("on", scope !== "mine");
-  b.classList.toggle("auto", auto);
   let title = SCOPE_TITLES[scope] || "";
   if (scope === "party") {
     title += meter.party_size > 1 ? ` (${meter.party_size} people)` : " (not in a party: just you)";
   }
   if (auto) title = `Auto: follows your party (your party's fight in a party or expedition, yours on your own)\nNow: ${title}`;
-  b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
+  for (const b of [$("scope"), $("f-scope")]) {
+    b.textContent = SCOPE_LABELS[scope] || scope;
+    b.classList.toggle("on", scope !== "mine");
+    b.classList.toggle("auto", auto);
+    b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
+  }
+}
+
+// Minimal mode: the pills sit on the target's line (or the top line when there's no
+// fight), and the target's name stops short of them.
+function placeFloat() {
+  const float = $("float");
+  const totals = $("totals");
+  const box = $("box");
+  if (!minimal()) {
+    totals.style.paddingRight = "";
+    box.style.paddingTop = "";
+    return;
+  }
+  // No target line (the party view, no fight yet): the pills get a line of their own
+  // above the rows, so they never sit on one.
+  box.style.paddingTop = totals.hidden ? `${$("f-view").offsetHeight + 4}px` : "";
+  const panel = $("panel").getBoundingClientRect();
+  const line = !totals.hidden ? totals : box;
+  const r = line.getBoundingClientRect();
+  const pills = $("f-scope").offsetWidth + $("f-view").offsetWidth + 8;
+  float.style.top = `${r.top - panel.top + (!totals.hidden ? (r.height - $("f-view").offsetHeight) / 2 - 1 : 0)}px`;
+  totals.style.paddingRight = `${pills}px`;
 }
 
 // How tall the window must be to show `rows` players with the current font and layout:
@@ -680,6 +819,7 @@ function heightFor(rows) {
   part("totals").hidden = false;
   // Room for the boss's HP line when it's on, so a boss fight's rows still fit.
   part("boss-bar").hidden = !bossBarRoom();
+  part("boss-cast").hidden = !bossCastRoom();
   part("target").textContent = "x";
   part("total").textContent = "x";
   for (const id of ["empty", "status"]) part(id).hidden = true;
@@ -717,10 +857,11 @@ function widthFor(text) {
 // on first start, after a layout change or a reset, never to a width you chose).
 let fitFor = null;
 let resetWidth = null; // set by "reset appearance": the width goes back to the default too
-const bossBarRoom = () => !!(lastView && lastView.boss_hp && !minimal());
+const bossBarRoom = () => !!(lastView && lastView.boss_hp);
+const bossCastRoom = () => bossBarRoom() && !!lastView.boss_casts;
 
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}`;
+  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}|${bossCastRoom()}`;
   if (key === fitFor) return;
   const exact = fitFor !== null;
   fitFor = key;
@@ -790,6 +931,7 @@ function followFight() {
 }
 
 function redraw() {
+  requestAnimationFrame(placeFloat);
   followFight();
   drawViewSwitch();
   const live = mode === "live";
@@ -806,6 +948,7 @@ function redraw() {
     $("clock").textContent = party.length ? `[${party.length}]` : "";
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
+    $("boss-cast").hidden = true;
     drawParty(party);
     $("empty").hidden = party.length > 0;
     $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
@@ -817,6 +960,7 @@ function redraw() {
     $("clock").textContent = "";
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
+    $("boss-cast").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;
@@ -851,6 +995,9 @@ async function refresh() {
   if (editing) return;
   try {
     const view = await invoke("snapshot", { expanded: [...expanded] });
+    lastViewAt = performance.now();
+    noticeCubes(view.cubes);
+    noticeSouls(view.souls);
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
     lastKey = key;
@@ -968,12 +1115,14 @@ $("reset").addEventListener("click", async () => {
   refresh();
 });
 
-$("scope").addEventListener("click", async () => {
+async function cycleScope() {
   const now = !lastView || lastView.auto_scope ? "auto" : lastView.meter.scope;
   const next = SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length];
   await invoke("set_scope", { scope: next === "auto" ? null : next });
   refresh();
-});
+}
+$("scope").addEventListener("click", cycleScope);
+$("f-scope").addEventListener("click", cycleScope);
 
 $("settings").addEventListener("click", () => invoke("toggle_settings"));
 $("f-settings").addEventListener("click", () => invoke("toggle_settings"));
@@ -1061,3 +1210,5 @@ tauri.event.listen("history-cleared", () => {
 });
 
 poll();
+
+window.addEventListener("resize", () => requestAnimationFrame(placeFloat));

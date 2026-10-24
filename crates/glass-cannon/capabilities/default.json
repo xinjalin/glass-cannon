@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The overlay, settings, analysis and side windows (history, cooldowns, timers, target, party cooldowns, boss casts): our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
+  "description": "The overlay, settings, analysis and side windows (history, cooldowns, timers, target, party cooldowns): our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
   "windows": [
     "main",
     "settings",
@@ -10,8 +10,7 @@
     "cooldowns",
     "timers",
     "target",
-    "party-cooldowns",
-    "boss-casts"
+    "party-cooldowns"
   ],
   "permissions": [
     "core:default",
