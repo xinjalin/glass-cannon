@@ -427,6 +427,23 @@ dozen players nearby weren't in it.
 Bosses' casts (`0x3802`, and `0x3809` / `0x380c` for those with a cast time) are kept per
 fight for the boss casts window.
 
+### Hidden cubes and where you are (confirmed 2026-10-24)
+
+| opcode   | layout | what |
+| -------- | ------ | ---- |
+| `0x3634` | varint entity, u8 flags, u8 desc flags, [desc 1: varint length, string], u32 object type, [2: u8], [4: u8], [8: u8, u32], [16: u8], f32 × 3 position, … | a world object came into view (Questlog's EnvObjSpawn) |
+| `0x3635` | varint entity, u8 state, u8 reason, varint | it left view; reason 3 (the game's "Dead") when it was used up |
+
+Hidden cubes are objects of 19 types (Questlog's list, gold and red); a red one (1301199)
+is in the Force session, 28 m from you and 66 m up. Coordinates are centimetres.
+
+The game never sends your own movement: every `0x371a`-`0x371c` in our captures is
+another player's, and party updates (`0x921c`) leave you out. Your position is in your
+`0x3633`, 164 bytes after your name, after a u16 of flags starting `0x92` (37 of 40 in our
+captures; the other three have none there), so it's known only after you log in, teleport
+or change zone. As Questlog does, the meter trusts it for 60 s for a cube's distance and
+direction, taking north as -y.
+
 ### Classes (confirmed)
 
 The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Templar,

@@ -830,6 +830,7 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
         println!("{}", serde_json::to_string_pretty(&meter.snapshot())?);
         return Ok(());
     }
+    let mut cubes = Vec::new();
     for msg in &m.messages {
         meter.tick(msg.ts_us);
         if meter.encounters_completed() > seen {
@@ -839,6 +840,22 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
         meter.feed(msg.ts_us, msg.opcode, &msg.payload);
         for i in meter.take_instances() {
             println!("{}", render_stay(&i));
+        }
+        if matches!(msg.opcode, meter_core::cubes::OPCODE_OBJECT_SPAWN | meter_core::cubes::OPCODE_OBJECT_DESPAWN) {
+            let now = meter.cubes(msg.ts_us);
+            if now != cubes {
+                for c in &now {
+                    let place = match (c.distance_m, c.bearing, c.rise_m) {
+                        (Some(d), Some(b), Some(r)) => format!("{d} m at {b}°, {r:+} m"),
+                        _ => "where you are not known".into(),
+                    };
+                    println!("◇ cube {:?}{} · {place}", c.look, if c.opened { " (opened)" } else { "" });
+                }
+                if now.is_empty() {
+                    println!("◇ no cubes in view");
+                }
+                cubes = now;
+            }
         }
     }
     let snap = meter.snapshot();

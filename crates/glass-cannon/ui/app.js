@@ -449,6 +449,43 @@ function notice(text, ms = NOTICE_MS, kind = "") {
   drawNotice();
 }
 
+// A notice kept up to date while what it's about lasts (renewed for `ms` each time): it
+// takes the line when it first shows.
+function keyedNotice(key, text, ms, kind = "") {
+  const n = notices.find((x) => x.key === key);
+  if (n) {
+    Object.assign(n, { text, kind, until: Date.now() + ms });
+  } else {
+    notices.push({ key, text, kind, until: Date.now() + ms });
+    noticeTurn = notices.length - 1;
+  }
+  drawNotice();
+}
+
+// ---------------------------------------------------------------- hidden cubes
+
+// Each hidden cube in view: its colour, and how far and which way while the game has told
+// us where you are (for a minute after you arrive somewhere; it never sends your moves).
+const CUBE_SEEN_MS = 3000;
+const ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+function noticeCubes(cubes) {
+  for (const c of cubes || []) {
+    let text;
+    if (c.opened) {
+      text = `◆ ${c.look} hidden cube opened`;
+    } else if (c.distance_m == null) {
+      text = `◆ ${c.look} hidden cube nearby`;
+    } else {
+      const dir = Math.round(c.bearing / 45) % 8;
+      const rise = Math.abs(c.rise_m) >= 3 ? ` · ${Math.abs(c.rise_m)} m ${c.rise_m > 0 ? "up" : "down"}` : "";
+      text = `◆ ${c.look} hidden cube · ${c.distance_m} m ${ARROWS[dir]} ${COMPASS[dir]}${rise}`;
+    }
+    keyedNotice(`cube:${c.entity}`, text, CUBE_SEEN_MS, `cube ${c.look}`);
+  }
+}
+
 function drawNotice() {
   const now = Date.now();
   notices = notices.filter((n) => n.until > now);
@@ -935,6 +972,7 @@ async function refresh() {
   try {
     const view = await invoke("snapshot", { expanded: [...expanded] });
     lastViewAt = performance.now();
+    noticeCubes(view.cubes);
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
     lastKey = key;

@@ -197,6 +197,8 @@ struct View {
     best: Option<store::Best>,
     /// What the boss cast next the last time you fought it, from where this fight is.
     boss_next: Option<NextCast>,
+    /// Hidden cubes in view.
+    cubes: Vec<meter_core::cubes::CubeView>,
 }
 
 /// A boss's next cast, as it came the last time you fought it.
@@ -248,7 +250,7 @@ fn boss_casts_to_show(history: &store::History, data: &GameData, enc: &mut meter
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -260,7 +262,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         }
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let contents = meter.take_contents();
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents)
+        let cubes = meter.cubes(now);
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes)
     };
     lock(&app.field_bosses).update(field_bosses);
     lock(&app.contents).update(contents);
@@ -338,6 +341,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         boss_casts: settings.boss_casts,
         best,
         boss_next,
+        cubes,
     }
 }
 

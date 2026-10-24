@@ -98,6 +98,11 @@ boss line during the fight (green while you're beating it), and as ★ tags on t
 the history that set them. They're kept per character, count every kill you were in, and
 [clear] resets them.
 
+**Hidden cubes**: when one comes into view the meter says so (gold or red) and keeps the
+line while it's in view, with how far and which way (and how far up or down) for a minute
+after you arrive somewhere: the game only tells the meter where you are when you log in,
+teleport or change zone. Opened cubes show briefly as opened.
+
 **Boss casts**: under the boss's HP (settings → boss casts), what it's casting with a bar
 and the time left, then, for skills that mark the ground, how long until they land; between
 casts, what it cast next the last time you fought it, with a countdown. Times run from the

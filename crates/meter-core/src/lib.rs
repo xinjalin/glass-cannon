@@ -9,6 +9,7 @@ pub mod classes;
 pub mod conns;
 pub mod contents;
 pub mod cooldowns;
+pub mod cubes;
 pub mod damage;
 pub mod dungeon;
 pub mod entities;

@@ -812,6 +812,8 @@ pub struct Meter {
     contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
     casting: HashMap<u64, (u32, u64, u32)>,
+    /// Hidden cubes in view.
+    cubes: crate::cubes::Cubes,
     /// Bosses' casts, oldest first (kept [`BOSS_LOG_US`]): a fight takes its bosses' from
     /// their pull, so the casts before your first hit are in it too.
     boss_log: VecDeque<BossCast>,
@@ -858,6 +860,7 @@ impl Meter {
             field_bosses: Vec::new(),
             contents: Contents::default(),
             casting: HashMap::new(),
+            cubes: crate::cubes::Cubes::default(),
             boss_log: VecDeque::new(),
             pulls: HashMap::new(),
             latest_us: 0,
@@ -901,6 +904,11 @@ impl Meter {
     /// or the last): a fight from before the party broke up still counts as a party's.
     pub fn shown_party_size(&self) -> usize {
         self.current.as_ref().or(self.last.as_ref()).map_or(0, |e| e.party.len())
+    }
+
+    /// Hidden cubes in view, and how far and which way while your position is known.
+    pub fn cubes(&self, now_us: u64) -> Vec<crate::cubes::CubeView> {
+        self.cubes.view(now_us)
     }
 
     /// Your skills (base ids), once the game has sent their list.
@@ -960,6 +968,7 @@ impl Meter {
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
         self.latest_us = self.latest_us.max(ts_us);
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
+        self.cubes.feed(ts_us, opcode, payload);
         if opcode == OPCODE_CAST {
             if let Some(c) = parse_cast(payload) {
                 // The cast went off, so its cast time is over.
@@ -1204,6 +1213,7 @@ impl Meter {
                 self.casting.clear();
                 self.boss_log.clear();
                 self.pulls.clear();
+                self.cubes.clear();
                 self.pvp.end();
             }
             return;
