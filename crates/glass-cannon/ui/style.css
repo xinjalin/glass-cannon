@@ -156,11 +156,11 @@ button.on { color: var(--accent); }
 button.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 /* Whose damage counts: the same filled button whichever it shows, as wide as its longest
    label ("party") so it doesn't change size. */
-#scope { width: calc(5ch + 0.8em); padding: 0; font-size: 0.9em; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
-#scope:hover { filter: brightness(1.1); }
+.scope-switch,
+.scope-switch.on { position: relative; width: calc(5ch + 0.8em); min-width: 0; padding: 0; font-size: 0.9em; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
+.scope-switch:hover { background: var(--accent-fill); color: var(--ink); filter: brightness(1.1); }
 /* Auto: a small mark in the corner (the scope follows your party). */
-#scope { position: relative; }
-#scope.auto::after {
+.scope-switch.auto::after {
   content: "";
   position: absolute;
   top: 0.15em;
@@ -228,7 +228,8 @@ legend {
 .view-switch,
 .view-switch.on { width: calc(5ch + 0.7em); min-width: 0; height: 1.35em; padding: 0; background: var(--accent-fill); color: var(--ink); text-shadow: none; }
 .view-switch:hover { background: var(--accent-fill); color: var(--ink); filter: brightness(1.1); }
-#float .view-switch { height: 1.6em; font-size: 0.9em; }
+#float .scope-switch,
+#float .view-switch { height: 1.35em; font-size: 0.9em; }
 .back {
   min-width: 1.1em;
   height: 1.3em;
@@ -263,24 +264,29 @@ legend {
 #enrage { flex: none; color: var(--warn); }
 #enrage.soon { color: var(--bad); font-weight: 700; }
 #best { flex: none; color: var(--faint); }
+/* A fixed grid and height: what it says changes several times a second, and nothing may
+   move because of it (the name column, the bar and the time keep their places). */
 #boss-cast {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 42%) minmax(0, 1fr) 9ch;
   align-items: center;
   gap: 0.5em;
+  height: 1.4em;
   padding: 0 0.3em 0.35em;
   margin-top: -0.15em;
   font-size: 0.85em;
+  line-height: 1.4em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
-#bc-name { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-#boss-cast .cast-track { flex: 1 0 3em; height: 0.45em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
+#bc-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#boss-cast .cast-track { height: 0.45em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
 #bc-fill { display: block; height: 100%; width: 0; background: var(--accent); }
-#bc-time { flex: none; color: var(--muted); }
+#bc-time { color: var(--muted); text-align: right; white-space: nowrap; overflow: hidden; }
 #boss-cast.landing #bc-name,
 #boss-cast.landing #bc-time { color: var(--warn); }
 #boss-cast.landing #bc-fill { background: var(--warn); }
-#boss-cast.soon #bc-time { color: var(--bad); font-weight: 700; }
+#boss-cast.soon #bc-time { color: var(--bad); }
 #boss-cast.next #bc-name { color: var(--muted); }
 #boss-cast.next .cast-track { visibility: hidden; }
 #best.beating { color: var(--ok); }
@@ -478,19 +484,18 @@ legend {
 .minimal #totals { padding: 0 0.35em 0.1em; margin-bottom: 0.1em; border-bottom: 0; }
 
 #float { display: none; }
+/* On the target's line (placed by placeFloat), right-aligned: the two pills always, the
+   other buttons to their left under the mouse. */
 .minimal #float {
-  position: fixed;
-  top: 0.3em;
-  right: 0.3em;
+  position: absolute;
+  right: 0.45em;
   display: flex;
-  gap: 0.1em;
-  padding: 0.1em;
-  border-radius: 0.35em;
-  background: var(--tint-strong);
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  align-items: center;
+  gap: 0.3em;
 }
-.minimal body:hover #float { opacity: 1; }
+#f-actions { display: none; gap: 0.1em; padding: 0 0.1em; border-radius: 0.35em; background: var(--tint-strong); }
+#f-actions button { height: 1.35em; min-width: 1.5em; }
+.minimal body:hover #f-actions { display: flex; }
 
 /* ---------------------------------------------------------------- lock (click-through) */
 
@@ -520,7 +525,7 @@ body:hover #lock { opacity: 0.8; }
 .locked #lock .shut { display: block; }
 /* Nothing else reacts while locked (the window doesn't get the mouse anyway, except
    over the lock, but hover styles could stick from just before). */
-.locked #float { opacity: 0 !important; }
+.locked #f-actions { display: none !important; }
 
 ::-webkit-scrollbar { width: 0.4em; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }

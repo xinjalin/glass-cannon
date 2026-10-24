@@ -21,7 +21,7 @@
       <span id="fight" data-tauri-drag-region></span>
       <span id="ping" title="Ping: the game's own round trip to its server" hidden></span>
       <nav>
-        <button id="scope" type="button" title="Whose damage counts: auto, mine, party or all">mine</button>
+        <button id="scope" type="button" class="scope-switch" title="Whose damage counts: auto, mine, party or all">mine</button>
         <button id="analysis" type="button" title="Analyse this fight (or right-click a player)">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M7.5 11V4.5M10.5 11V6.5"/></svg>
         </button>
@@ -85,22 +85,27 @@
     <!-- Only shown when something needs attention (errors, missing data, dropped packets). -->
     <div id="status" hidden></div>
 
-    <!-- Minimal mode has no title bar: these appear while the pointer is over the meter. -->
+    <!-- Minimal mode has no title bar: whose damage counts and what the rows show stay on
+         the target's line, as in the full meter; the other buttons appear beside them
+         while the pointer is over the meter. -->
     <div id="float">
-      <button id="f-back" type="button" class="back" title="Back" hidden>‹</button>
+      <span id="f-actions">
+        <button id="f-back" type="button" class="back" title="Back" hidden>‹</button>
+        <button id="f-end-fight" type="button" title="End this fight now (your next hit starts a new one)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l5.5 4L4 12zM11.5 4v8"/></svg>
+        </button>
+        <button id="f-history" type="button" title="Fight history">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.5V8l2.3 1.5M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.5 2.5v2.3h2.3"/></svg>
+        </button>
+        <button id="f-settings" type="button" title="Settings">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+        </button>
+        <button id="f-close" type="button" class="close" title="Close Glass Cannon">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+        </button>
+      </span>
+      <button id="f-scope" type="button" class="scope-switch"></button>
       <button id="f-view" type="button" class="view-switch"></button>
-      <button id="f-end-fight" type="button" title="End this fight now (your next hit starts a new one)">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l5.5 4L4 12zM11.5 4v8"/></svg>
-      </button>
-      <button id="f-history" type="button" title="Fight history">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.5V8l2.3 1.5M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.5 2.5v2.3h2.3"/></svg>
-      </button>
-      <button id="f-settings" type="button" title="Settings">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
-      </button>
-      <button id="f-close" type="button" class="close" title="Close Glass Cannon">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
-      </button>
     </div>
     <!-- Locks the meter: clicks go through to the game. While locked, this is the only
          part of the meter that takes the mouse. -->

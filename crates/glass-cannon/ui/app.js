@@ -698,16 +698,34 @@ function drawScope(meter, auto) {
   const scope = meter.scope;
   const choice = auto ? "auto" : scope;
   const next = SCOPES[(SCOPES.indexOf(choice) + 1) % SCOPES.length];
-  const b = $("scope");
-  b.textContent = SCOPE_LABELS[scope] || scope;
-  b.classList.toggle("on", scope !== "mine");
-  b.classList.toggle("auto", auto);
   let title = SCOPE_TITLES[scope] || "";
   if (scope === "party") {
     title += meter.party_size > 1 ? ` (${meter.party_size} people)` : " (not in a party: just you)";
   }
   if (auto) title = `Auto: follows your party (your party's fight in a party or expedition, yours on your own)\nNow: ${title}`;
-  b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
+  for (const b of [$("scope"), $("f-scope")]) {
+    b.textContent = SCOPE_LABELS[scope] || scope;
+    b.classList.toggle("on", scope !== "mine");
+    b.classList.toggle("auto", auto);
+    b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
+  }
+}
+
+// Minimal mode: the pills sit on the target's line (or the top line when there's no
+// fight), and the target's name stops short of them.
+function placeFloat() {
+  const float = $("float");
+  const totals = $("totals");
+  if (!minimal()) {
+    totals.style.paddingRight = "";
+    return;
+  }
+  const panel = $("panel").getBoundingClientRect();
+  const line = !totals.hidden ? totals : $("box");
+  const r = line.getBoundingClientRect();
+  const pills = $("f-scope").offsetWidth + $("f-view").offsetWidth + 8;
+  float.style.top = `${r.top - panel.top + (!totals.hidden ? (r.height - $("f-view").offsetHeight) / 2 - 1 : 0)}px`;
+  totals.style.paddingRight = `${pills}px`;
 }
 
 // How tall the window must be to show `rows` players with the current font and layout:
@@ -852,6 +870,7 @@ function followFight() {
 }
 
 function redraw() {
+  requestAnimationFrame(placeFloat);
   followFight();
   drawViewSwitch();
   const live = mode === "live";
@@ -1033,12 +1052,14 @@ $("reset").addEventListener("click", async () => {
   refresh();
 });
 
-$("scope").addEventListener("click", async () => {
+async function cycleScope() {
   const now = !lastView || lastView.auto_scope ? "auto" : lastView.meter.scope;
   const next = SCOPES[(SCOPES.indexOf(now) + 1) % SCOPES.length];
   await invoke("set_scope", { scope: next === "auto" ? null : next });
   refresh();
-});
+}
+$("scope").addEventListener("click", cycleScope);
+$("f-scope").addEventListener("click", cycleScope);
 
 $("settings").addEventListener("click", () => invoke("toggle_settings"));
 $("f-settings").addEventListener("click", () => invoke("toggle_settings"));
@@ -1126,3 +1147,5 @@ tauri.event.listen("history-cleared", () => {
 });
 
 poll();
+
+window.addEventListener("resize", () => requestAnimationFrame(placeFloat));
