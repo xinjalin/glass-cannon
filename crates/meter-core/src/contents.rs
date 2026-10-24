@@ -106,34 +106,27 @@ pub fn parse_abyss(opcode: u16, p: &[u8]) -> Option<(Vec<Siege>, Vec<Artifact>)>
     if wars > 8 {
         return None;
     }
-    // A war's "until" is there or not: whichever reading accounts for every byte.
-    for with_until in 0u32..(1 << wars) {
-        let mut i = start;
-        let mut sieges = Vec::new();
-        let mut ok = true;
-        for w in 0..wars {
-            let until = with_until & (1 << w) != 0;
-            let Some(b) = p.get(i..i + WAR_LEN + if until { 8 } else { 0 }) else {
-                ok = false;
-                break;
-            };
-            let event = u32::from_le_bytes(b[1..5].try_into().ok()?);
-            let since_ms = u64::from_le_bytes(b[7..15].try_into().ok()?);
-            let until_ms = until.then(|| u64::from_le_bytes(b[15..23].try_into().expect("8 bytes")));
-            sieges.push(Siege { event, since_ms, until_ms });
-            i += b.len();
-        }
-        let Some(&n) = p.get(i).filter(|_| ok) else { continue };
-        if p.len() != i + 1 + usize::from(n) * ARTIFACT_LEN {
-            continue;
-        }
-        let artifacts = p[i + 1..]
-            .chunks_exact(ARTIFACT_LEN)
-            .map(|a| Artifact { id: u32::from_le_bytes(a[..4].try_into().expect("4 bytes")), owner: a[8] })
-            .collect();
-        return Some((sieges, artifacts));
+    let mut i = start;
+    let mut sieges = Vec::new();
+    for _ in 0..wars {
+        // Its first byte says whether an "until" follows (1 when it does).
+        let until = *p.get(i)? & 1 != 0;
+        let b = p.get(i..i + WAR_LEN + if until { 8 } else { 0 })?;
+        let event = u32::from_le_bytes(b[1..5].try_into().ok()?);
+        let since_ms = u64::from_le_bytes(b[7..15].try_into().ok()?);
+        let until_ms = until.then(|| u64::from_le_bytes(b[15..23].try_into().expect("8 bytes")));
+        sieges.push(Siege { event, since_ms, until_ms });
+        i += b.len();
     }
-    None
+    let n = usize::from(*p.get(i)?);
+    if p.len() != i + 1 + n * ARTIFACT_LEN {
+        return None;
+    }
+    let artifacts = p[i + 1..]
+        .chunks_exact(ARTIFACT_LEN)
+        .map(|a| Artifact { id: u32::from_le_bytes(a[..4].try_into().expect("4 bytes")), owner: a[8] })
+        .collect();
+    Some((sieges, artifacts))
 }
 
 #[cfg(test)]
@@ -165,7 +158,7 @@ mod tests {
         p.extend([1, 0xe9, 3, 0, 0, 0, 0]); // 1001
         p.extend(1_792_000_000_000u64.to_le_bytes());
         p.extend(1_792_100_000_000u64.to_le_bytes());
-        p.extend([1, 0xd1, 7, 0, 0, 0, 0]); // 2001
+        p.extend([0, 0xd1, 7, 0, 0, 0, 0]); // 2001, no "until"
         p.extend(0u64.to_le_bytes());
         p.push(6);
         for (id, owner) in [(1001u32, 1u8), (1002, 2), (1003, 1), (2001, 0), (2002, 0), (2003, 2)] {
@@ -180,5 +173,16 @@ mod tests {
         // One byte off: not read at all.
         p.push(0);
         assert!(parse_abyss(OPCODE_ABYSS_MAP, &p).is_none());
+    }
+
+    #[test]
+    fn the_abyss_map_in_game() {
+        // Opening the Abyss map (2026-10-23): the second layer's war first, with nobody
+        // holding its artifacts; the Asmodians hold the first layer's until its reset.
+        let (sieges, artifacts) = parse_abyss(OPCODE_ABYSS_MAP, &hex(include_str!("../testdata/abyss-map.hex"))).unwrap();
+        assert_eq!(sieges[0], Siege { event: 2001, since_ms: 0, until_ms: None });
+        assert_eq!(sieges[1], Siege { event: 1001, since_ms: 1_792_672_095_000, until_ms: Some(1_792_843_800_000) });
+        let held: Vec<(u32, u8)> = artifacts.iter().map(|a| (a.id, a.owner)).collect();
+        assert_eq!(held, [(2001, 0), (2002, 0), (2003, 0), (1001, ASMODIANS), (1002, ASMODIANS), (1003, ASMODIANS)]);
     }
 }

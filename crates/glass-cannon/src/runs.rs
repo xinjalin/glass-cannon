@@ -432,19 +432,20 @@ mod tests {
 
     #[test]
     fn stage_splits() {
-        // Vakron Sky Island (2026-10-22): stages began 29 s, 163 s and 511 s in; complete at 723 s.
+        // Vakron Sky Island (2026-10-22): started 30 s in, Tiere died at 150 s, Thamon at
+        // 490 s; complete at 723 s.
         let s = 1_000_000;
         let mut i = meter_core::dungeon::Instance {
             map: 600_072,
             entered_us: 0,
-            started_us: Some(29 * s),
+            started_us: Some(30 * s),
             completed_us: Some(723 * s),
-            stages: [29 * s, 163 * s, 511 * s, 0, 0, 0],
+            stages: [30 * s, 150 * s, 490 * s, 0, 0, 0],
         };
-        assert_eq!(stage_times(&i), [134.0, 348.0, 212.0]);
+        assert_eq!(stage_times(&i), [120.0, 340.0, 233.0]);
         // Not completed: the last stage hasn't ended.
         i.completed_us = None;
-        assert_eq!(stage_times(&i), [134.0, 348.0]);
+        assert_eq!(stage_times(&i), [120.0, 340.0]);
     }
 
     #[test]

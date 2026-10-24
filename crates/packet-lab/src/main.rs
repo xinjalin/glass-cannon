@@ -630,7 +630,8 @@ fn boss_types() -> Vec<u32> {
         .as_object()
         .map(|npcs| {
             npcs.iter()
-                .filter(|(_, n)| n["boss"].as_bool() == Some(true))
+                // Training dummies are marked bosses but aren't fought as one (as in the app).
+                .filter(|(_, n)| n["boss"].as_bool() == Some(true) && n["dummy"].as_bool() != Some(true))
                 .filter_map(|(id, _)| id.parse().ok())
                 .collect()
         })
@@ -836,6 +837,9 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
             println!("── fight {seen} ──\n{}", render_meter(&meter.snapshot()));
         }
         meter.feed(msg.ts_us, msg.opcode, &msg.payload);
+        for i in meter.take_instances() {
+            println!("{}", render_stay(&i));
+        }
     }
     let snap = meter.snapshot();
     if snap.encounter.as_ref().is_some_and(|e| e.active) {
@@ -843,6 +847,21 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
     }
     println!("{}", render_meter(&snap));
     Ok(())
+}
+
+/// A map stay as it changed: when it started and completed, and each stage's start (seconds
+/// after you entered).
+fn render_stay(i: &meter_core::dungeon::Instance) -> String {
+    let after = |t: u64| format!("+{:.0}s", t.saturating_sub(i.entered_us) as f64 / 1e6);
+    let stages: Vec<String> = i.stages.iter().take_while(|t| **t != 0).map(|t| after(*t)).collect();
+    format!(
+        "◆ map {} entered {}  started {}  stages [{}]  completed {}",
+        i.map,
+        i.entered_us,
+        i.started_us.map_or("-".into(), after),
+        stages.join(" "),
+        i.completed_us.map_or("-".into(), after),
+    )
 }
 
 fn buffs_cmd(path: &Path, on: Option<u64>) -> Result<()> {

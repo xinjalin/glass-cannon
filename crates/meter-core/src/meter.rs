@@ -982,7 +982,7 @@ impl Meter {
             return;
         }
         if opcode != OPCODE_DAMAGE {
-            if opcode == OPCODE_MAP_ENTERED && self.current.is_some() {
+            if opcode == OPCODE_MAP_ENTERED && self.current.is_some() && !self.maps.moving_within(payload) {
                 self.finish(FightEnd::Zone, ts_us);
             }
             if let Some(i) = self.maps.feed(ts_us, opcode, payload) {
@@ -1219,11 +1219,15 @@ impl Meter {
                 self.classes.insert(by, code);
             }
         }
-        // Nor does a 1-damage hit (touching an object in a dungeon) or one on a corpse.
-        if self.current.is_none()
-            && (dmg <= 1 || self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US))
-        {
-            return;
+        // Nor does a 1-damage hit (touching an object in a dungeon), a mob's hit (it counts
+        // as damage taken once your side is fighting), or a hit on a corpse. A corpse doesn't
+        // join a fight it wasn't in either: in Fire Temple a hit landing just after Black
+        // Smoke Murute died made it look alive in the next fight.
+        let corpse = self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US);
+        match &self.current {
+            None if dmg <= 1 || corpse || !player => return,
+            Some(enc) if corpse && !enc.targets.contains_key(&ev.target) => return,
+            _ => {}
         }
         if self.current.is_none() {
             let mut enc = Encounter::new(ts_us);
@@ -1294,11 +1298,7 @@ impl Meter {
             return;
         }
         // A boss still fighting (between phases, or out of reach) gets longer.
-        let boss_fighting = self
-            .counted_targets(enc)
-            .into_iter()
-            .any(|t| self.is_boss(t) && !self.died.contains_key(&t) && self.combat.get(&t).is_some_and(|(c, _)| *c));
-        if !boss_fighting || quiet > BOSS_IDLE_TIMEOUT_US {
+        if !self.boss_fighting(enc) || quiet > BOSS_IDLE_TIMEOUT_US {
             self.finish(FightEnd::Idle, now_us);
         }
     }
@@ -1372,7 +1372,16 @@ impl Meter {
         known.then_some(true)
     }
 
-    /// Ends the fight when the game says it's over: its bosses died, or everyone left combat.
+    /// A boss of the fight is alive and still in combat.
+    fn boss_fighting(&self, enc: &Encounter) -> bool {
+        self.counted_targets(enc)
+            .into_iter()
+            .any(|t| self.is_boss(t) && !self.died.contains_key(&t) && self.combat.get(&t).is_some_and(|(c, _)| *c))
+    }
+
+    /// Ends the fight when the game says it's over: its bosses died, or everyone left combat
+    /// (unless a boss is still in combat: in Fire Temple the whole party leaves combat at
+    /// Kromede's Desire's phase changes while it stays in).
     fn check_end(&mut self, ts_us: u64) {
         let Some(enc) = &self.current else { return };
         let targets = self.counted_targets(enc);
@@ -1382,7 +1391,7 @@ impl Meter {
         let end = if !bosses.is_empty() && bosses.iter().all(dead) {
             Some(FightEnd::Kill)
         } else if out && !bosses.is_empty() {
-            Some(FightEnd::Wipe)
+            (!self.boss_fighting(enc)).then_some(FightEnd::Wipe)
         } else if out {
             Some(if targets.iter().all(dead) { FightEnd::Kill } else { FightEnd::Idle })
         } else {
@@ -2481,6 +2490,20 @@ mod tests {
     }
 
     #[test]
+    fn a_mob_hitting_you_after_a_kill_starts_nothing() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
+        // Fire Temple: a mob hits you, then a late hit lands on the dead boss.
+        m.feed(3 * S + 100_000, OPCODE_DAMAGE, &hit(ME, DUMMY, 100_018, 1935));
+        m.feed(3 * S + 200_000, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 895));
+        assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+        m.tick(60 * S);
+        assert!(ends(&mut m).is_empty());
+    }
+
+    #[test]
     fn a_boss_back_to_full_hp_is_a_wipe() {
         let mut m = meter_with_boss();
         m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
@@ -2503,6 +2526,23 @@ mod tests {
     }
 
     #[test]
+    fn a_party_out_of_combat_while_the_boss_stays_in_is_no_wipe() {
+        let mut m = meter_with_boss();
+        m.feed(0, state::OPCODE_COMBAT_STATE, &combat(ME, true));
+        m.feed(0, state::OPCODE_COMBAT_STATE, &combat(BOSS, true));
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // A phase change: you're out of combat, the boss isn't.
+        m.feed(2 * S, state::OPCODE_COMBAT_STATE, &combat(ME, false));
+        assert!(ends(&mut m).is_empty());
+        m.feed(8 * S, state::OPCODE_COMBAT_STATE, &combat(ME, true));
+        m.feed(9 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        // It left combat too: a wipe.
+        m.feed(10 * S, state::OPCODE_COMBAT_STATE, &combat(BOSS, false));
+        m.feed(10 * S, state::OPCODE_COMBAT_STATE, &combat(ME, false));
+        assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+    }
+
+    #[test]
     fn trash_ends_when_you_leave_combat() {
         let mut m = meter_as_me();
         m.feed(S, state::OPCODE_COMBAT_STATE, &combat(ME, true));
@@ -2520,6 +2560,13 @@ mod tests {
         m.feed(S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 5000));
         m.feed(2 * S, OPCODE_MAP_ENTERED, &[0x56, 0x04, 0, 0, 1]);
         assert_eq!(ends(&mut m), [FightEnd::Zone]);
+        // Moved on inside a dungeon (Fire Temple sends its map again): the same fight.
+        let fire_temple = [0xd6, 0x27, 0x09, 0x00, 0x00, 0x01];
+        m.feed(3 * S, OPCODE_MAP_ENTERED, &fire_temple);
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(DUMMY, ME, 18_010_340, 5000));
+        m.feed(5 * S, OPCODE_MAP_ENTERED, &fire_temple);
+        assert!(ends(&mut m).is_empty());
+        assert!(m.snapshot().encounter.unwrap().active);
     }
 
     #[test]
@@ -2617,11 +2664,12 @@ mod tests {
         let mut m = meter_with_boss();
         m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
         m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(777, "Stranger"));
-        // A Force roster (layout unconfirmed): names in it, among other bytes.
-        let mut force = vec![0, 0, 0, 0, 1, 2];
-        force.push(5);
+        // A Force roster: members as in a party roster (character ID, 00 00, server,
+        // name), among other bytes; a legion's name alone isn't a member.
+        let mut force = vec![0, 0x35, 0x29, 0, 0];
+        force.extend([0xcf, 0xec, 0x02, 0x00, 0, 0, 0xc7, 0x09, 5]);
         force.extend(b"Pingu");
-        force.extend([0, 0, 0x22, 0, 9]);
+        force.extend([0x0f, 0, 0, 0, 9]);
         force.extend(b"LegionOne");
         m.feed(0, crate::entities::OPCODE_FORCE_INFO, &force);
         assert!(m.registry().in_force());
@@ -2631,8 +2679,13 @@ mod tests {
         m.feed(S, OPCODE_DAMAGE, &hit(BOSS, 15772, 12_010_340, 3000));
         m.feed(S, OPCODE_DAMAGE, &hit(BOSS, 777, 11_010_340, 9000));
         assert_eq!(m.snapshot().encounter.unwrap().total_damage, 8000, "the Force's damage, not a stranger's");
-        // Leaving it.
-        m.feed(2 * S, crate::entities::OPCODE_FORCE_LEFT, &[0; 9]);
+        assert_eq!(m.registry().force_size(), 1);
+        // Removed from it (by character ID, as 0x9622 says), then back, then leaving it.
+        let remove = [0xcf, 0xec, 0x02, 0x00, 0, 0, 0xc7, 0x09, 0x3f, 0x28, 0x0a, 0, 0x83, 0x24, 0xd5, 0, 3];
+        m.feed(2 * S, crate::entities::OPCODE_FORCE_REMOVE_MEMBER, &remove);
+        assert!(!m.registry().in_party(15772));
+        m.feed(3 * S, crate::entities::OPCODE_FORCE_INFO, &force);
+        m.feed(4 * S, crate::entities::OPCODE_FORCE_LEFT, &[0; 9]);
         assert!(!m.registry().in_force() && !m.registry().in_party(15772));
     }
 
