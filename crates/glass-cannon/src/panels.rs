@@ -17,6 +17,13 @@ use crate::store::TIMER_REGIONS;
 use crate::{lock, AppState, OVERLAY};
 
 pub const PANELS: [&str; 5] = ["history", "cooldowns", "timers", "target", "party-cooldowns"];
+/// The side windows that are widgets in the overlay when it's on (the history stays a
+/// window: it's for looking back, not for the fight).
+pub const WIDGET_PANELS: [&str; 4] = ["cooldowns", "timers", "target", "party-cooldowns"];
+
+fn as_widget(app: &AppState, name: &str) -> bool {
+    lock(&app.settings).overlay && WIDGET_PANELS.contains(&name)
+}
 /// The smallest each may be squeezed to (logical pixels) to fit beside the meter.
 const MIN_SIZE: (f64, f64) = (260.0, 200.0);
 
@@ -28,6 +35,20 @@ fn check(name: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn toggle_panel(handle: AppHandle, app: State<'_, Arc<AppState>>, name: String) -> Result<(), String> {
     check(&name)?;
+    // In the overlay: the widget shows or goes (the window stays hidden).
+    if as_widget(&app, &name) {
+        let mut s = lock(&app.settings);
+        let open = !s.panels.contains(&name);
+        s.panels.retain(|p| p != &name);
+        if open {
+            s.panels.push(name);
+        }
+        s.save(&app.config_dir);
+        let list = s.panels.clone();
+        drop(s);
+        let _ = handle.emit("hud-panels", list);
+        return Ok(());
+    }
     let w = handle.get_webview_window(&name).ok_or("window missing")?;
     let open = !w.is_visible().unwrap_or(false);
     if open {
@@ -66,7 +87,7 @@ fn show(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
 /// Opens the windows that were open last time.
 pub fn reopen(handle: &AppHandle, app: &AppState) {
     let open = lock(&app.settings).panels.clone();
-    for name in open.iter().filter(|n| PANELS.contains(&n.as_str())) {
+    for name in open.iter().filter(|n| PANELS.contains(&n.as_str()) && !as_widget(app, n)) {
         if let Some(w) = handle.get_webview_window(name) {
             show(handle, &w, true);
             lock(&app.panels_placed).insert(name.clone());
@@ -74,14 +95,45 @@ pub fn reopen(handle: &AppHandle, app: &AppState) {
     }
 }
 
-/// Which side windows are showing (for the meter's buttons).
+/// Which side windows (or, in the overlay, widgets) are showing (for the meter's buttons
+/// and the settings).
 #[tauri::command]
-pub fn panels_open(handle: AppHandle) -> Vec<String> {
+pub fn panels_open(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Vec<String> {
+    let chosen = lock(&app.settings).panels.clone();
     PANELS
         .iter()
-        .filter(|n| handle.get_webview_window(n).is_some_and(|w| w.is_visible().unwrap_or(false)))
+        .filter(|n| {
+            if as_widget(&app, n) {
+                chosen.iter().any(|c| c == *n)
+            } else {
+                handle.get_webview_window(n).is_some_and(|w| w.is_visible().unwrap_or(false))
+            }
+        })
         .map(|n| n.to_string())
         .collect()
+}
+
+/// The side windows shown as widgets in the overlay.
+#[tauri::command]
+pub fn hud_panels(app: State<'_, Arc<AppState>>) -> Vec<String> {
+    let s = lock(&app.settings);
+    s.panels.iter().filter(|n| WIDGET_PANELS.contains(&n.as_str())).cloned().collect()
+}
+
+/// Moving into or out of the overlay: the side windows hide (their widgets show), or come
+/// back.
+pub fn overlay_switched(handle: &AppHandle, app: &AppState, on: bool) {
+    let chosen = lock(&app.settings).panels.clone();
+    for name in WIDGET_PANELS {
+        let Some(w) = handle.get_webview_window(name) else { continue };
+        if on {
+            let _ = w.hide();
+        } else if chosen.iter().any(|c| c == name) {
+            show(handle, &w, !lock(&app.panels_placed).contains(name));
+            lock(&app.panels_placed).insert(name.to_string());
+        }
+    }
+    let _ = handle.emit("hud-panels", chosen);
 }
 
 /// Shows a saved fight on the meter (picked in the history window).

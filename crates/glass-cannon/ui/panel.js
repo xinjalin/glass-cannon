@@ -1,9 +1,27 @@
 // Shared by the side windows (history, cooldowns, timers): the app's appearance, the close
 // button and Esc, and small helpers. Loaded after theme.js.
 
-const tauri = window.__TAURI__;
+// In the overlay a side window is a widget: a frame in the HUD's page, which lends it the
+// app. It then has no title bar or close button (the settings show and hide it).
+const WIDGET = new URLSearchParams(location.search).has("widget");
+const tauri = WIDGET ? window.parent.__TAURI__ : window.__TAURI__;
 const invoke = tauri.core.invoke;
 const $ = (id) => document.getElementById(id);
+if (WIDGET) {
+  document.documentElement.classList.add("widget");
+  for (const e of document.querySelectorAll("[data-tauri-drag-region]")) e.removeAttribute("data-tauri-drag-region");
+}
+// A page that fits its content (the target frame) tells the overlay how tall it is.
+if (WIDGET && document.body.hasAttribute("data-fit")) {
+  document.documentElement.classList.add("fit");
+  let sent = 0;
+  new ResizeObserver(() => {
+    const h = Math.ceil($("panel").getBoundingClientRect().height);
+    if (h === sent) return;
+    sent = h;
+    window.parent.postMessage({ type: "gc-fit", widget: document.body.dataset.panel, height: h }, "*");
+  }).observe($("panel"));
+}
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -68,5 +86,5 @@ function closePanel() {
 }
 $("close").addEventListener("click", closePanel);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closePanel();
+  if (e.key === "Escape" && !WIDGET) closePanel();
 });

@@ -81,3 +81,10 @@
 .c17 { --class: #e8dd8c; } /* Cleric */
 .c18 { --class: #abe39c; } /* Chanter */
 .c19 { --class: #f6aa6e; } /* Fighter */
+
+/* ---------------------------------------------------------------- widgets in the overlay */
+
+/* A widget has no window behind it: "frosted" (Windows' blur) can't blur the game there,
+   so it's a stronger tint instead; "tinted" and "clear" are as everywhere. Its frame is the
+   window's border, in the theme's colour. */
+html.widget[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) + 0.15)); }

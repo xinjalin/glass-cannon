@@ -1,6 +1,11 @@
-/* The overlay over the game: transparent everywhere but the widgets, which have no
-   window frames (just the meter's own panel, and text that reads on any background). */
+/* The overlay over the game: transparent everywhere but the widgets. Everything comes from
+   the theme (theme.css, set by theme.js from the settings): accent, font, size, the
+   background's tint and opacity (frosted is a stronger tint here: nothing can blur the
+   game behind a widget), the bars' colour, and clear's heavier outline. */
 
+[hidden] { display: none !important; }
+
+html { font-size: var(--fs); }
 html,
 body {
   margin: 0;
@@ -8,40 +13,46 @@ body {
   height: 100%;
   overflow: hidden;
   background: transparent;
-  font-family: var(--font, "Cascadia Mono", Consolas, monospace);
-  font-size: var(--fs);
+  font-family: var(--mono);
   color: var(--text);
+  text-shadow: var(--shadow);
   user-select: none;
 }
+
+/* Frosted: as in the widgets' own pages, a stronger tint. */
+[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) + 0.15)); }
 
 #widgets { position: absolute; inset: 0; }
 
 .widget { position: absolute; box-sizing: border-box; }
+/* A boss warning is never under another widget. */
+[data-widget="boss-warnings"] { z-index: 5; }
 .widget iframe { width: 100%; height: 100%; border: 0; background: transparent; display: block; }
-/* Warnings and timers never take the mouse (but while being arranged). */
+/* These never take the mouse (but while being arranged): it goes to the game. */
 .passive { pointer-events: none; }
 
 /* ---------------------------------------------------------------- boss warnings */
 
-[data-widget="warnings"] { display: grid; place-items: center; text-align: center; }
+[data-widget="boss-warnings"] { display: grid; place-items: center; text-align: center; }
 #warning {
   padding: 0.3em 1.1em 0.4em;
+  border: 1px solid var(--line);
   border-radius: 0.6em;
-  background: rgba(var(--tint-rgb), 0.55);
+  background: var(--tint);
   text-shadow: 0 0 0.3em #000, 0 0 0.12em #000;
 }
 #warning-name { font-size: 2.6em; font-weight: 700; line-height: 1.15; color: var(--warn); }
 #warning-time { font-size: 1.7em; font-variant-numeric: tabular-nums; color: var(--text); }
 /* The cast is on: red, and the box pulses until it lands. */
-#warning.now { box-shadow: 0 0 0 0.15em var(--bad); animation: pulse 0.5s ease-in-out infinite alternate; }
+#warning.now { border-color: var(--bad); animation: pulse 0.5s ease-in-out infinite alternate; }
 #warning.now #warning-name { color: var(--bad); }
 #warning.lands #warning-name::after { content: " · move"; }
-#warning.soon { background: rgba(var(--tint-rgb), 0.35); }
+#warning.soon { border-color: var(--warn); }
 #warning.soon #warning-name { font-size: 1.6em; }
 #warning.soon #warning-time { font-size: 1.2em; }
 @keyframes pulse {
-  from { box-shadow: 0 0 0 0.15em var(--bad), 0 0 0.4em 0.1em rgba(255, 147, 147, 0.25); }
-  to { box-shadow: 0 0 0 0.15em var(--bad), 0 0 1.4em 0.5em rgba(255, 147, 147, 0.55); }
+  from { box-shadow: 0 0 0 0.1em var(--bad), 0 0 0.4em 0.1em color-mix(in srgb, var(--bad) 25%, transparent); }
+  to { box-shadow: 0 0 0 0.1em var(--bad), 0 0 1.4em 0.5em color-mix(in srgb, var(--bad) 55%, transparent); }
 }
 
 /* ---------------------------------------------------------------- boss timers */
@@ -54,14 +65,16 @@ body {
   gap: 0.6em;
   height: 1.55em;
   padding: 0 0.5em;
+  border: 1px solid var(--line-faint);
   border-radius: 0.3em;
   overflow: hidden;
-  background: rgba(var(--tint-rgb), 0.6);
+  background: var(--tint);
   line-height: 1.55em;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 0.2em #000;
 }
-#timers .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: 0.45; }
+/* The bars take the bar colour chosen in the settings (else the theme's), as the meter's do. */
+#timers .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar, var(--accent-fill)); opacity: 0.5; }
+#timers li.danger { border-color: var(--bad); }
 #timers li.danger .fill { background: var(--bad); opacity: 0.6; }
 #timers .name,
 #timers .left { position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -73,7 +86,7 @@ body {
 .editing body { background: rgba(0, 0, 0, 0.25); }
 .editing .widget {
   outline: 1px dashed var(--accent);
-  background: rgba(var(--tint-rgb), 0.35);
+  background: color-mix(in srgb, var(--tint) 60%, transparent);
   pointer-events: auto;
   cursor: move;
 }
@@ -84,11 +97,13 @@ body {
   left: 0;
   padding: 0 0.4em;
   border-radius: 0.25em;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--ink);
+  text-shadow: none;
   font-size: 0.85em;
+  white-space: nowrap;
 }
-/* While arranging, a cover over the meter's frame takes the drags. */
+/* While arranging, a cover over each frame takes the drags. */
 .editing .widget::after { content: ""; position: absolute; inset: 0; }
 .grip {
   display: none;
@@ -99,7 +114,7 @@ body {
   width: 0.9em;
   height: 0.9em;
   border-radius: 0.2em;
-  background: var(--accent);
+  background: var(--accent-fill);
   cursor: nwse-resize;
 }
 .editing .grip { display: block; }
@@ -113,11 +128,11 @@ body {
   align-items: center;
   gap: 0.8em;
   padding: 0.4em 0.8em;
+  border: 1px solid var(--line);
   border-radius: 0.5em;
-  background: rgba(var(--tint-rgb), 0.9);
+  background: var(--tint-strong);
   color: var(--muted);
 }
-#edit-bar[hidden] { display: none; }
 #edit-bar span { white-space: nowrap; }
-#edit-bar button { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; white-space: nowrap; }
+#edit-bar button { border: 0; background: none; color: var(--accent); font: inherit; text-shadow: inherit; cursor: pointer; white-space: nowrap; }
 #edit-bar button:hover { color: var(--text); }

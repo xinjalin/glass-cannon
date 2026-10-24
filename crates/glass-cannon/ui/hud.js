@@ -10,19 +10,36 @@ const $ = (id) => document.getElementById(id);
 // in CSS pixels (the meter's height follows its rows).
 const DEFAULTS = {
   meter: { x: 0.72, y: 0.28, w: 420, h: 230 },
-  warnings: { x: 0.3, y: 0.16, w: 0.4, h: 120 },
-  timers: { x: 0.015, y: 0.32, w: 300, h: 190 },
+  "boss-warnings": { x: 0.3, y: 0.3, w: 0.4, h: 120 },
+  "boss-timers": { x: 0.015, y: 0.47, w: 300, h: 150 },
+  target: { x: 0.37, y: 0.02, w: 380, h: 170 },
+  cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
+  "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
+  timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
+};
+
+// The side windows' widgets: their page (in widget mode), label, and whether they take the
+// mouse (the world timers have buttons; the others only show).
+const PANEL_WIDGETS = {
+  target: { page: "target.html", label: "target", passive: true },
+  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true },
+  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true },
+  timers: { page: "timers.html", label: "world timers", passive: false },
 };
 // Widths up to 1 are fractions of the overlay's width (the warnings span its middle).
 const px = (w) => (w <= 1 ? w * innerWidth : w);
 
 let layout = {};
+// Heights the widgets asked for to fit (the meter's rows), kept apart from the saved
+// layout so loading it doesn't undo them.
+const fitted = {};
 let editing = false;
 
 function place() {
   for (const el of document.querySelectorAll(".widget")) {
     const id = el.dataset.widget;
     const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
+    if (fitted[id]) p.h = fitted[id];
     const w = px(p.w);
     const x = Math.min(Math.max(0, p.x * innerWidth), innerWidth - Math.min(w, innerWidth));
     const y = Math.min(Math.max(0, p.y * innerHeight), innerHeight - 40);
@@ -67,7 +84,8 @@ function setEditing(on) {
   place();
 }
 
-for (const el of document.querySelectorAll(".widget")) {
+// A widget can be moved (and resized by its corner) while arranging.
+function setUp(el) {
   const grip = document.createElement("span");
   grip.className = "grip";
   el.append(grip);
@@ -101,6 +119,35 @@ for (const el of document.querySelectorAll(".widget")) {
   });
 }
 
+for (const el of document.querySelectorAll(".widget")) setUp(el);
+
+// The side windows' widgets shown: made as they're opened in the settings, taken away as
+// they're closed.
+function showPanels(names) {
+  const want = new Set((names || []).filter((n) => PANEL_WIDGETS[n]));
+  for (const el of document.querySelectorAll(".widget[data-panel]")) {
+    if (!want.has(el.dataset.widget)) el.remove();
+  }
+  for (const name of want) {
+    if (document.querySelector(`.widget[data-widget="${name}"]`)) continue;
+    const w = PANEL_WIDGETS[name];
+    const el = document.createElement("section");
+    el.className = `widget${w.passive ? " passive" : ""}`;
+    el.dataset.widget = name;
+    el.dataset.panel = "";
+    el.dataset.label = w.label;
+    const frame = document.createElement("iframe");
+    frame.src = `${w.page}?widget`;
+    frame.title = w.label;
+    el.append(frame);
+    $("widgets").append(el);
+    setUp(el);
+  }
+  place();
+}
+
+tauri.event.listen("hud-panels", (e) => showPanels(e.payload));
+
 $("edit-done").addEventListener("click", () => invoke("hud_edit", { on: false }));
 $("edit-reset").addEventListener("click", () => {
   layout = {};
@@ -118,7 +165,7 @@ let bossAt = 0;
 window.addEventListener("message", (e) => {
   const m = e.data || {};
   if (m.type === "gc-fit" && m.widget) {
-    layout[m.widget] = { ...DEFAULTS[m.widget], ...(layout[m.widget] || {}), h: Math.ceil(m.height) };
+    fitted[m.widget] = Math.ceil(m.height);
     place();
   } else if (m.type === "gc-boss") {
     boss = m.boss;
@@ -131,7 +178,7 @@ window.addEventListener("message", (e) => {
 
 const PRE_WARN_S = 5;
 const TIMER_SPAN_S = 30;
-const name = (c) => c.skill_name || (c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s cast` : "a cast");
+const castName = (c) => c.skill_name || (c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s cast` : "a cast");
 
 // A short two-note chime, once per warning (settings → alert sound).
 let audio = null;
@@ -163,13 +210,13 @@ function drawWarnings(elapsed) {
   if (live && boss.ahead.cast_danger) {
     const castLeft = live.cast_left_ms - elapsed;
     const landsLeft = live.lands_left_ms - elapsed;
-    if (castLeft > 0) show = { cls: "now", title: name(live), time: (castLeft / 1000).toFixed(1), key: `cast:${live.skill}:${boss.castKey}` };
-    else if (landsLeft > 0) show = { cls: "now lands", title: name(live), time: (landsLeft / 1000).toFixed(1), key: `cast:${live.skill}:${boss.castKey}` };
+    if (castLeft > 0) show = { cls: "now", title: castName(live), time: (castLeft / 1000).toFixed(1), key: `cast:${live.skill}:${boss.castKey}` };
+    else if (landsLeft > 0) show = { cls: "now lands", title: castName(live), time: (landsLeft / 1000).toFixed(1), key: `cast:${live.skill}:${boss.castKey}` };
   }
   if (!show && boss) {
     const next = boss.ahead.upcoming.find((c) => c.danger);
     const left = next && next.in_s - elapsed / 1000;
-    if (next && left > 0 && left <= PRE_WARN_S) show = { cls: "soon", title: name(next), time: `in ${Math.ceil(left)}`, key: "" };
+    if (next && left > 0 && left <= PRE_WARN_S) show = { cls: "soon", title: castName(next), time: `in ${Math.ceil(left)}`, key: "" };
   }
   box.hidden = !show;
   if (!show) return;
@@ -197,7 +244,7 @@ function drawTimers(elapsed) {
     }
     li.className = `${c.danger ? "danger" : ""} ${left <= PRE_WARN_S ? "soon" : ""}`;
     li.children[0].style.width = `${Math.max(0, Math.min(1, left / TIMER_SPAN_S)) * 100}%`;
-    li.children[1].textContent = name(c);
+    li.children[1].textContent = castName(c);
     li.children[2].textContent = left >= 60 ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}` : left.toFixed(left < 10 ? 1 : 0);
   });
 }
@@ -214,5 +261,6 @@ function frame() {
   if (a) applyAppearance(a);
   tauri.event.listen("appearance", (e) => applyAppearance(e.payload));
   await loadLayout();
+  showPanels(await invoke("hud_panels").catch(() => []));
   requestAnimationFrame(frame);
 })();

@@ -256,3 +256,11 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .bc-row.stopped .bc-right { color: var(--ok); }
 .bc-row.soon { background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .bc-row.soon .bc-right { color: var(--warn); font-weight: 700; }
+
+/* ---------------------------------------------------------------- as a widget in the overlay */
+
+/* No title bar (the overlay moves it; the settings show and hide it), rounded like a
+   window, with its border in the theme's colour. */
+.widget #bar { display: none; }
+.widget #panel { padding-top: 0.5em; border: 1px solid var(--line); border-radius: 0.5em; }
+.widget.fit #panel { height: auto; }

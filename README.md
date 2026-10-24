@@ -98,12 +98,14 @@ boss line during the fight (green while you're beating it), and as ★ tags on t
 the history that set them. They're kept per character, count every kill you were in, and
 [clear] resets them.
 
-**Overlay (beta)** (settings → overlay): the meter moves into one transparent overlay over
-the game's picture, with **boss warnings** (a dangerous cast big in the middle of the
+**Overlay (beta)** (settings → overlay): the meter and the side windows you open (target
+frame, cooldowns, party cooldowns, world timers) move into one transparent overlay over the
+game's picture, in your theme, with **boss warnings** (a dangerous cast big in the middle of the
 screen, its time left, then when it lands, with a chime; a heads-up 5 s before one is due)
 and **boss timers** (the boss's next casts from your last fight against it, as bars
 counting down). The overlay follows the game window, hides when you switch away, never takes
-the focus from the game and lets the mouse through except over the meter. **arrange
+the focus from the game and lets the mouse through except over the meter and the world
+timers. History, analysis and settings stay windows. **arrange
 overlay** moves and resizes the widgets. A cast is dangerous when it marks the ground or
 takes 2 s or more; in the analysis window's [boss] tab, click a skill's alert to make it
 always or never warn. While the game isn't running the meter's own window shows instead.

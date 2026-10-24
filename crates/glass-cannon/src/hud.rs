@@ -61,7 +61,7 @@ pub fn hud_edit<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>,
 
 /// The overlay on or off (settings → overlay): the meter moves into it, or back out.
 #[tauri::command]
-pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>, on: bool) {
+pub fn set_overlay(handle: AppHandle, app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
     s.overlay = on;
     s.save(&app.config_dir);
@@ -72,6 +72,7 @@ pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState
     if !on {
         app.hud_editing.store(false, Ordering::SeqCst);
     }
+    crate::panels::overlay_switched(&handle, &app, on);
 }
 
 /// The widgets' places and sizes, as the HUD saved them (`hud.json`; empty at first).

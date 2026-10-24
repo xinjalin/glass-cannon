@@ -935,6 +935,7 @@ fn main() {
             panels::timer_settings,
             panels::party_cooldowns,
             hud::hud_rects,
+            panels::hud_panels,
             hud::hud_edit,
             hud::set_overlay,
             hud::hud_layout,
