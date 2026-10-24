@@ -10,7 +10,7 @@ auto-updates, and it never goes online.
 | --- | --- |
 | ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
 
-![A boss fight with the target frame's cast bar, boss casts, party cooldowns and world timers](docs/screenshots/windows.png)
+![A boss fight with the target frame's cast bar, party cooldowns and world timers](docs/screenshots/windows.png)
 
 | Fight history | Settings |
 | --- | --- |
