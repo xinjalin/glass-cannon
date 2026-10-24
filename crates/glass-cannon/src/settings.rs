@@ -52,6 +52,7 @@ pub struct SettingsStatus {
     locked: bool,
     boss_hp: bool,
     boss_casts: bool,
+    pet_souls: bool,
     hide_after_s: u32,
 }
 
@@ -131,6 +132,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         locked: s.locked,
         boss_hp: s.boss_hp,
         boss_casts: s.boss_casts,
+        pet_souls: s.pet_souls,
         hide_after_s: s.hide_after_s,
     }
 }

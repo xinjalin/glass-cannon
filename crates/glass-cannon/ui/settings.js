@@ -149,6 +149,7 @@ async function refresh() {
     setToggle("record", state.record);
     setToggle("boss-hp", state.boss_hp);
     setToggle("boss-casts", state.boss_casts);
+    setToggle("pet-souls", state.pet_souls);
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
@@ -308,6 +309,11 @@ $("boss-hp").addEventListener("click", async () => {
 
 $("boss-casts").addEventListener("click", async () => {
   await invoke("set_boss_casts", { on: !(state && state.boss_casts) });
+  refresh();
+});
+
+$("pet-souls").addEventListener("click", async () => {
+  await invoke("set_pet_souls", { on: !(state && state.pet_souls) });
   refresh();
 });
 

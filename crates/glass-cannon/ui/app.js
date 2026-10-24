@@ -471,11 +471,19 @@ function noticeSouls(souls) {
   for (const g of souls || []) {
     const name = g.name || `pet ${g.pet}`;
     let progress;
+    if (!g.known) {
+      // The meter started after the game sent your pets (and has none saved): the next
+      // zone change brings them.
+      keyedNotice(`soul:${g.pet}`, `◆ ${name} soul +${g.gained}`, SOUL_NOTICE_MS, "soul");
+      continue;
+    }
     if (g.next_level_souls == null) {
       progress = "top level";
     } else {
+      // The game spends the souls at once when there are enough: the pet goes up.
       const goal = g.level === 0 ? "to summon" : `to level ${g.level + 1}`;
-      progress = `${g.souls}/${g.next_level_souls} ${goal}${g.souls >= g.next_level_souls ? " · ready" : ""}`;
+      const done = g.level === 0 ? "summoned!" : `level ${g.level + 1}!`;
+      progress = g.souls >= g.next_level_souls ? done : `${g.souls}/${g.next_level_souls} ${goal}`;
     }
     keyedNotice(`soul:${g.pet}`, `◆ ${name} soul +${g.gained} · ${progress}`, SOUL_NOTICE_MS, "soul");
   }
