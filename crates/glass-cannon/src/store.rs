@@ -113,7 +113,7 @@ fn default_true() -> bool {
     true
 }
 fn default_widgets() -> Vec<String> {
-    ["meter", "boss-warnings", "boss-timers"].map(String::from).to_vec()
+    ["meter", "boss-warnings", "boss-timers", "cubes"].map(String::from).to_vec()
 }
 
 /// Regions with their own event times (the global client's by time zone, Korea, Taiwan).
@@ -197,6 +197,10 @@ pub struct Appearance {
     /// "frosted": blurred glass; "tinted": see-through tint, no blur; "clear": nothing at all.
     #[serde(default = "default_backdrop")]
     pub backdrop: String,
+    /// How frosted the overlay's frosted glass looks, in percent: 50 as it was, less is
+    /// clearer (less tint over the blur), more is milkier. Windows' blur itself is fixed.
+    #[serde(default = "default_frost")]
+    pub frost: u8,
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
@@ -222,6 +226,9 @@ fn default_font_size() -> u8 {
 fn default_opacity() -> u8 {
     62
 }
+fn default_frost() -> u8 {
+    50
+}
 fn default_backdrop() -> String {
     "frosted".into()
 }
@@ -237,6 +244,7 @@ impl Default for Appearance {
             font: String::new(),
             opacity: default_opacity(),
             backdrop: default_backdrop(),
+            frost: default_frost(),
             info_bar: false,
         }
     }
@@ -255,6 +263,8 @@ pub struct AppearanceChange {
     /// Any number: clamped to 0-100.
     pub opacity: Option<i64>,
     pub backdrop: Option<String>,
+    /// Any number: clamped to 0-100.
+    pub frost: Option<i64>,
     pub info_bar: Option<bool>,
 }
 
@@ -275,6 +285,9 @@ impl Appearance {
         }
         if let Some(f) = c.font_size {
             self.font_size = f.clamp(i64::from(*FONT_SIZES.start()), i64::from(*FONT_SIZES.end())) as u8;
+        }
+        if let Some(f) = c.frost {
+            self.frost = f.clamp(0, 100) as u8;
         }
         if let Some(o) = c.opacity {
             self.opacity = o.clamp(i64::from(*OPACITIES.start()), i64::from(*OPACITIES.end())) as u8;
@@ -310,6 +323,9 @@ impl Appearance {
         }
         if !OPACITIES.contains(&self.opacity) {
             self.opacity = fixed.opacity;
+        }
+        if self.frost > 100 {
+            self.frost = fixed.frost;
         }
         if !BACKDROPS.contains(&self.backdrop.as_str()) {
             self.backdrop = fixed.backdrop;
@@ -1037,10 +1053,10 @@ mod tests {
     #[test]
     fn open_side_windows_become_widgets() {
         let dir = temp_dir("widgets");
-        assert_eq!(Settings::load(&dir).widgets, ["meter", "boss-warnings", "boss-timers"]);
+        assert_eq!(Settings::load(&dir).widgets, ["meter", "boss-warnings", "boss-timers", "cubes"]);
         fs::write(dir.join("settings.json"), r#"{ "panels": ["history", "timers", "target"] }"#).unwrap();
         let s = Settings::load(&dir);
-        assert_eq!(s.widgets, ["meter", "boss-warnings", "boss-timers", "timers", "target"]);
+        assert_eq!(s.widgets, ["meter", "boss-warnings", "boss-timers", "cubes", "timers", "target"]);
         assert!(s.overlay_on, "the overlay is on unless turned off");
         s.save(&dir);
         let saved = fs::read_to_string(dir.join("settings.json")).unwrap();
@@ -1206,6 +1222,7 @@ mod tests {
             font: Some("Consolas".into()),
             opacity: Some(0),
             backdrop: Some("clear".into()),
+            frost: Some(80),
             info_bar: Some(true),
         });
         s.save(&dir);

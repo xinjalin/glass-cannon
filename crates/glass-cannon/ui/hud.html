@@ -31,12 +31,29 @@
     <section class="widget passive fades" data-widget="boss-timers" data-label="boss timers" hidden>
       <ol id="timers"></ol>
     </section>
+
+    <!-- Hidden cubes in view: a compass on the ground pointing at each, with how far, from
+         where the game last said you were (it never sends your own moves). -->
+    <section class="widget passive" data-widget="cubes" data-label="hidden cubes" hidden>
+      <ol id="cubes"></ol>
+    </section>
   </div>
 
-  <div id="edit-bar" hidden>
-    <span>arrange the overlay: drag a widget to move it, its corner to resize</span>
-    <button id="edit-reset" type="button">[ reset ]</button>
-    <button id="edit-done" type="button">[ done ]</button>
+  <!-- While arranging: a menu you can drag by its title, to show or hide each widget, pick
+       the grid widgets snap to, reset the layout, or finish. -->
+  <div id="arrange-menu" hidden>
+    <header id="menu-head">
+      <span class="menu-name">arrange</span>
+      <span class="menu-hint">drag a widget to move it, its corner to resize</span>
+    </header>
+    <div class="menu-title">widgets</div>
+    <div id="menu-widgets" class="menu-list"></div>
+    <div class="menu-title">snap to grid</div>
+    <div id="menu-grid" class="menu-row"></div>
+    <div class="menu-row menu-actions">
+      <button id="edit-reset" type="button">[ reset layout ]</button>
+      <button id="edit-done" type="button" class="done">[ done ]</button>
+    </div>
   </div>
 
   <script src="theme.js"></script>

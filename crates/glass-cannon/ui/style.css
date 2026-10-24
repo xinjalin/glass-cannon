@@ -404,6 +404,4 @@ body:hover #actions { display: flex; }
 ::-webkit-scrollbar { width: 0; }
 
 #notice.alert { color: var(--warn); }
-#notice.cube.gold { color: var(--warn); }
-#notice.cube.red { color: var(--bad); }
 #notice.soul { color: var(--ok); }

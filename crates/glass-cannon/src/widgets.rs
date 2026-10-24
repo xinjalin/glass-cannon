@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 7] = ["meter", "boss-warnings", "boss-timers", "target", "cooldowns", "party-cooldowns", "timers"];
+pub const WIDGETS: [&str; 8] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "cooldowns", "party-cooldowns", "timers"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]

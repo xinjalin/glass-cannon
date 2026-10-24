@@ -56,7 +56,9 @@ The **overlay** is one transparent layer over the game's picture holding the met
 the other widgets, in your theme. It follows the game window, hides when you switch away,
 never takes the focus from the game, and lets the mouse through except over the meter and
 the world timers. **[ arrange ]** (on the launcher, or in the settings) moves and resizes
-the widgets; the settings choose which show:
+the widgets, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging; its
+floating menu (drag it by its title) turns each widget on or off, resets the layout, and
+finishes. The settings choose which show too:
 
 - **meter**: the players, below.
 - **boss warnings**: a dangerous cast big in the middle of the screen, its time left, then
@@ -65,6 +67,11 @@ the widgets; the settings choose which show:
   skill's alert to make it always or never warn.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down.
+- **hidden cubes**: each cube in view (gold or red) with a compass lying on the ground that
+  points at it, how far, and how far up or down; opened cubes show briefly as taken. The
+  game only says where you are when you log in, teleport or change zone (it never sends
+  your own moves, and what your game sends is encrypted), so the compass points from
+  there, north up, for a minute after you arrive; it can't follow you as you walk.
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, stagger.
 - **cooldowns**: your skills that aren't ready, with time left and charges.
@@ -97,7 +104,7 @@ they come back with the next one (the meter under the mouse too).
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
   analysis, end the fight, history, and **≡** for the settings: theme (*night*, the default, or rose, lavender, mint, sky, amber, mono, or any
   colour),
-  font, background, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading
+  font, background, frost (how milky the overlay's frosted glass is), the overlay's widgets, update rate (*live* or every 0.2–2 s), fading
   outside combat, recording and status checks.
 
 ### Analysis
@@ -141,11 +148,6 @@ how many it has toward the pet's next level (5 to summon it, then 25 and 75), e.
 Spark Ignus soul +1 · 4/25 to level 2". The game sends your pets when you log in, enter or
 leave a dungeon and with some other moves, but not every zone change; the meter keeps each
 character's from the first time, so it knows them even when started in between.
-
-**Hidden cubes**: when one comes into view the meter says so (gold or red) and keeps the
-line while it's in view, with how far and which way (and how far up or down) for a minute
-after you arrive somewhere: the game only tells the meter where you are when you log in,
-teleport or change zone. Opened cubes show briefly as opened.
 
 **Boss casts**: under the boss's HP (settings → boss casts), what it's casting with a bar
 and the time left, then, for skills that mark the ground, how long until they land; between

@@ -13,6 +13,7 @@ const DEFAULTS = {
   meter: { x: 0.72, y: 0.28, w: 420, h: 230 },
   "boss-warnings": { x: 0.3, y: 0.3, w: 0.4, h: 120 },
   "boss-timers": { x: 0.015, y: 0.47, w: 300, h: 150 },
+  cubes: { x: 0.72, y: 0.06, w: 280, h: 150 },
   target: { x: 0.37, y: 0.02, w: 380, h: 170 },
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
@@ -28,10 +29,28 @@ const SIDE_WIDGETS = {
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true },
   timers: { page: "timers.html", label: "world timers", passive: false, fades: false },
 };
+// Every widget's name in the arrange menu, in the settings' order.
+const LABELS = [
+  ["meter", "meter"],
+  ["boss-warnings", "boss warnings"],
+  ["boss-timers", "boss timers"],
+  ["cubes", "hidden cubes"],
+  ["target", "target frame"],
+  ["cooldowns", "cooldowns"],
+  ["party-cooldowns", "party cooldowns"],
+  ["timers", "world timers"],
+];
+// The grids widgets can snap to while arranging (CSS pixels; 0: none), and the default.
+const GRIDS = [0, 8, 16, 32, 64];
+const DEFAULT_GRID = 16;
 // Widths up to 1 are fractions of the overlay's width (the warnings span its middle).
 const px = (w) => (w <= 1 ? w * innerWidth : w);
 
+// Widget places by name, and "_grid" (the grid they snap to).
 let layout = {};
+let shown = new Set();
+const grid = () => (GRIDS.includes(layout._grid) ? layout._grid : DEFAULT_GRID);
+const snap = (v) => (grid() ? Math.round(v / grid()) * grid() : v);
 // Heights the widgets asked for to fit (the meter's rows), kept apart from the saved
 // layout so loading it doesn't undo them.
 const fitted = {};
@@ -90,11 +109,73 @@ window.addEventListener("resize", place);
 function setEditing(on) {
   editing = on;
   document.documentElement.classList.toggle("editing", on);
-  $("edit-bar").hidden = !on;
+  $("arrange-menu").hidden = !on;
+  drawMenu();
   place();
 }
 
-// A widget can be moved (and resized by its corner) while arranging.
+// The arrange menu: a switch per widget, the grid sizes.
+function drawMenu() {
+  if (!editing) return;
+  $("menu-widgets").replaceChildren(
+    ...LABELS.map(([id, label]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "menu-switch";
+      b.setAttribute("aria-pressed", String(shown.has(id)));
+      b.append(Object.assign(document.createElement("span"), { textContent: label }));
+      b.append(Object.assign(document.createElement("span"), { className: "state", textContent: shown.has(id) ? "[on]" : "[off]" }));
+      b.addEventListener("click", () => invoke("toggle_widget", { name: id }).catch(() => {}));
+      return b;
+    }),
+  );
+  $("menu-grid").replaceChildren(
+    ...GRIDS.map((g) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = g ? `[${g}]` : "[off]";
+      b.setAttribute("aria-pressed", String(g === grid()));
+      b.title = g ? `Widgets snap to a ${g} px grid` : "Widgets move freely";
+      b.addEventListener("click", () => {
+        layout._grid = g;
+        saveLayout();
+        drawGrid();
+        drawMenu();
+      });
+      return b;
+    }),
+  );
+  drawGrid();
+}
+
+// The grid shows while arranging.
+function drawGrid() {
+  const g = grid();
+  document.documentElement.classList.toggle("gridded", editing && g > 0);
+  document.documentElement.style.setProperty("--grid", `${g}px`);
+}
+
+// The menu moves by its title.
+$("menu-head").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  const menu = $("arrange-menu");
+  const r = menu.getBoundingClientRect();
+  const start = { x: e.clientX, y: e.clientY, left: r.left, top: r.top };
+  $("menu-head").setPointerCapture(e.pointerId);
+  const move = (m) => {
+    const left = Math.min(Math.max(0, start.left + m.clientX - start.x), innerWidth - r.width);
+    const top = Math.min(Math.max(0, start.top + m.clientY - start.y), innerHeight - r.height);
+    Object.assign(menu.style, { left: `${left}px`, top: `${top}px`, transform: "none" });
+  };
+  const up = () => {
+    $("menu-head").removeEventListener("pointermove", move);
+    $("menu-head").removeEventListener("pointerup", up);
+  };
+  $("menu-head").addEventListener("pointermove", move);
+  $("menu-head").addEventListener("pointerup", up);
+});
+
+// A widget can be moved (and resized by its corner) while arranging, snapping to the grid.
 function setUp(el) {
   const grip = document.createElement("span");
   grip.className = "grip";
@@ -110,11 +191,11 @@ function setUp(el) {
       const dy = m.clientY - start.y;
       const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
       if (resizing) {
-        p.w = Math.max(160, start.w + dx);
-        if (id !== "meter") p.h = Math.max(60, start.h + dy);
+        p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
+        if (id !== "meter") p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
       } else {
-        p.x = Math.max(0, start.left + dx) / innerWidth;
-        p.y = Math.max(0, start.top + dy) / innerHeight;
+        p.x = Math.max(0, snap(start.left + dx)) / innerWidth;
+        p.y = Math.max(0, snap(start.top + dy)) / innerHeight;
       }
       layout[id] = p;
       place();
@@ -136,6 +217,7 @@ for (const el of document.querySelectorAll(".widget")) setUp(el);
 // are made as they're chosen, and taken away.
 function showWidgets(names) {
   const want = new Set(names || []);
+  shown = want;
   for (const el of document.querySelectorAll(".widget:not([data-side])")) el.hidden = !want.has(el.dataset.widget);
   for (const el of document.querySelectorAll(".widget[data-side]")) {
     if (!want.has(el.dataset.widget)) el.remove();
@@ -155,6 +237,7 @@ function showWidgets(names) {
     $("widgets").append(el);
     setUp(el);
   }
+  drawMenu();
   place();
 }
 
@@ -162,7 +245,7 @@ tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
 
 $("edit-done").addEventListener("click", () => invoke("hud_edit", { on: false }));
 $("edit-reset").addEventListener("click", () => {
-  layout = {};
+  layout = { _grid: layout._grid };
   saveLayout();
   place();
 });
@@ -180,6 +263,8 @@ window.addEventListener("message", (e) => {
   if (m.type === "gc-fit" && m.widget) {
     fitted[m.widget] = Math.ceil(m.height);
     place();
+  } else if (m.type === "gc-cubes") {
+    drawCubes(m.cubes || []);
   } else if (m.type === "gc-fade") {
     document.documentElement.classList.toggle("faded", !!m.faded);
     reportRects();
@@ -281,6 +366,57 @@ function drawTimers(elapsed) {
     li.children[1].textContent = castName(c);
     li.children[2].textContent = left >= 60 ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}` : left.toFixed(left < 10 ? 1 : 0);
   });
+}
+
+// ---------------------------------------------------------------- hidden cubes
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+// One card per cube: a compass lying on the ground (tilted back), its needle turned to the
+// cube's bearing from where you last were (north up: the game doesn't say which way you
+// face), with the distance, how far up or down, and how old that position is.
+function drawCubes(cubes) {
+  const list = $("cubes");
+  const key = JSON.stringify(cubes);
+  if (key === list.dataset.key) return;
+  list.dataset.key = key;
+  list.replaceChildren(
+    ...cubes.map((c) => {
+      const li = document.createElement("li");
+      li.className = `cube ${c.look}${c.opened ? " opened" : ""}`;
+      const dial = document.createElement("span");
+      dial.className = "dial";
+      const disc = document.createElement("span");
+      disc.className = "disc";
+      disc.append(Object.assign(document.createElement("span"), { className: "north", textContent: "N" }));
+      if (c.bearing != null && !c.opened) {
+        const needle = document.createElement("span");
+        needle.className = "needle";
+        needle.style.setProperty("--bearing", `${c.bearing}deg`);
+        disc.append(needle);
+      } else {
+        disc.append(Object.assign(document.createElement("span"), { className: "unknown", textContent: c.opened ? "✓" : "?" }));
+      }
+      dial.append(disc);
+      const info = document.createElement("span");
+      info.className = "info";
+      const line = (cls, text) => Object.assign(document.createElement("span"), { className: cls, textContent: text });
+      info.append(line("what", `${c.look} hidden cube${c.opened ? " · opened" : ""}`));
+      if (c.opened) {
+        info.append(line("far", "taken"));
+      } else if (c.distance_m != null) {
+        const dir = COMPASS[Math.round(c.bearing / 45) % 8];
+        const rise = Math.abs(c.rise_m) >= 3 ? ` · ${Math.abs(c.rise_m)} m ${c.rise_m > 0 ? "up" : "down"}` : "";
+        info.append(line("far", `${c.distance_m} m ${dir}${rise}`));
+        info.append(line("age", `from where you arrived ${c.fix_age_s} s ago`));
+      } else {
+        info.append(line("far", "nearby"));
+        info.append(line("age", "teleport or change zone for its direction"));
+      }
+      li.append(dial, info);
+      return li;
+    }),
+  );
 }
 
 function frame() {

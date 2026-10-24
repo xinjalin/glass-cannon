@@ -5,7 +5,8 @@
 
 // The meter is a widget in the overlay: a frame in the HUD's page, which lends it the app
 // (frames don't get it themselves). The HUD places it; the meter tells it how tall it wants
-// to be, whether it's faded, and what the boss is casting (for the warnings and timers).
+// to be, whether it's faded, what the boss is casting (for the warnings and timers) and
+// the hidden cubes in view.
 const tauri = window.parent.__TAURI__;
 const invoke = tauri.core.invoke;
 const toHud = (message) => window.parent.postMessage(message, "*");
@@ -506,30 +507,6 @@ function noticeSouls(souls) {
   }
 }
 
-// ---------------------------------------------------------------- hidden cubes
-
-// Each hidden cube in view: its colour, and how far and which way while the game has told
-// us where you are (for a minute after you arrive somewhere; it never sends your moves).
-const CUBE_SEEN_MS = 3000;
-const ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-
-function noticeCubes(cubes) {
-  for (const c of cubes || []) {
-    let text;
-    if (c.opened) {
-      text = `◆ ${c.look} hidden cube opened`;
-    } else if (c.distance_m == null) {
-      text = `◆ ${c.look} hidden cube nearby`;
-    } else {
-      const dir = Math.round(c.bearing / 45) % 8;
-      const rise = Math.abs(c.rise_m) >= 3 ? ` · ${Math.abs(c.rise_m)} m ${c.rise_m > 0 ? "up" : "down"}` : "";
-      text = `◆ ${c.look} hidden cube · ${c.distance_m} m ${ARROWS[dir]} ${COMPASS[dir]}${rise}`;
-    }
-    keyedNotice(`cube:${c.entity}`, text, CUBE_SEEN_MS, `cube ${c.look}`);
-  }
-}
-
 function drawNotice() {
   const now = Date.now();
   notices = notices.filter((n) => n.until > now);
@@ -945,7 +922,8 @@ async function refresh() {
     const view = await invoke("snapshot", { expanded: [...expanded] });
     lastViewAt = performance.now();
     sendBoss(view);
-    noticeCubes(view.cubes);
+    // Hidden cubes have their own widget in the overlay.
+    toHud({ type: "gc-cubes", cubes: view.cubes || [] });
     noticeSouls(view.souls);
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;

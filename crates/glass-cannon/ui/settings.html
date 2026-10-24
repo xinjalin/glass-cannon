@@ -86,6 +86,14 @@
                 <button id="opacity-up" type="button" title="More solid">[+]</button>
               </span>
             </div>
+            <div class="line" title="How frosted the overlay's widgets look with the frosted background: less is clearer, more is milkier (Windows' blur itself is fixed)">
+              <span class="key">frost</span>
+              <span class="stepper">
+                <button id="frost-down" type="button" title="Clearer glass">[−]</button>
+                <span id="frost-value" class="step-value"></span>
+                <button id="frost-up" type="button" title="Milkier glass">[+]</button>
+              </span>
+            </div>
             <div class="line">
               <span class="key">highlight</span>
               <span class="choice" role="radiogroup" aria-label="Highlight">
@@ -110,6 +118,9 @@
             </button>
             <button type="button" class="opt" data-widget="boss-timers" aria-pressed="false" title="The boss's next casts as bars counting down (from the last fight against it)">
               <span class="key">boss timers</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="cubes" aria-pressed="false" title="Hidden cubes in view: a compass pointing at each, with how far (from where you last arrived)">
+              <span class="key">hidden cubes</span><span class="state">[off]</span>
             </button>
             <button type="button" class="opt" data-widget="target" aria-pressed="false" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
               <span class="key">target frame</span><span class="state">[off]</span>

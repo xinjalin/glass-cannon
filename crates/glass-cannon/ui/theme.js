@@ -87,4 +87,5 @@ function applyAppearance(a) {
   const font = a.font && !/["'\\;{}<>]/.test(a.font) ? `"${a.font}", ` : "";
   root.style.setProperty("--mono", `${font}"Cascadia Mono", "Cascadia Code", Consolas, monospace`);
   root.style.setProperty("--alpha", (a.opacity / 100).toFixed(2));
+  root.style.setProperty("--frost", ((a.frost ?? 50) / 100).toFixed(2));
 }

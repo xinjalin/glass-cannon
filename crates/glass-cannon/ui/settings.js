@@ -10,6 +10,7 @@ const FONT_MAX = 18;
 const OPACITY_MIN = 0;
 const OPACITY_MAX = 100;
 const OPACITY_STEP = 5;
+const FROST_STEP = 10;
 // Window width in em: two 29em columns, the gap between them and the margins.
 const WIDTH_EM = 61.5;
 
@@ -113,6 +114,11 @@ function drawAppearance(a) {
   $("opacity-value").textContent = clear ? "none" : `${a.opacity}%`;
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
+  // Frost only means something with the frosted background.
+  const frosted = a.backdrop === "frosted";
+  $("frost-value").textContent = frosted ? `${a.frost}%` : "–";
+  $("frost-down").disabled = !frosted || a.frost <= 0;
+  $("frost-up").disabled = !frosted || a.frost >= 100;
   setToggle("info-bar", a.info_bar);
   fitWindow();
 }
@@ -208,6 +214,12 @@ $("font-up").addEventListener("click", () => setAppearance({ fontSize: state.app
 $("opacity-down").addEventListener("click", () => {
   const o = state.appearance.opacity;
   setAppearance({ opacity: Math.max(OPACITY_MIN, Math.ceil(o / OPACITY_STEP) * OPACITY_STEP - OPACITY_STEP) });
+});
+$("frost-down").addEventListener("click", () => {
+  setAppearance({ frost: Math.max(0, Math.ceil(state.appearance.frost / FROST_STEP) * FROST_STEP - FROST_STEP) });
+});
+$("frost-up").addEventListener("click", () => {
+  setAppearance({ frost: Math.min(100, Math.floor(state.appearance.frost / FROST_STEP) * FROST_STEP + FROST_STEP) });
 });
 $("opacity-up").addEventListener("click", () => {
   const o = state.appearance.opacity;

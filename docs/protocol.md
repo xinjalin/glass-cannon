@@ -438,7 +438,10 @@ Hidden cubes are objects of 19 types (Questlog's list, gold and red); a red one 
 is in the Force session, 28 m from you and 66 m up. Coordinates are centimetres.
 
 The game never sends your own movement: every `0x371a`-`0x371c` in our captures is
-another player's, and party updates (`0x921c`) leave you out. Your position is in your
+another player's (and `0x371d` and the knockbacks `0x3814` too, checked 2026-10-25 against
+a capture with your entity known), and party updates (`0x921c`) leave you out. What your
+game sends is no help either: its messages' opcodes are spread over thousands of values a
+few times each (34,905 messages in one capture), so it's encrypted. Your position is in your
 `0x3633`, 164 bytes after your name, after a u16 of flags starting `0x92` (37 of 40 in our
 captures; the other three have none there), so it's known only after you log in, teleport
 or change zone. As Questlog does, the meter trusts it for 60 s for a cube's distance and
