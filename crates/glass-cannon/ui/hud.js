@@ -111,6 +111,8 @@ function setEditing(on) {
   document.documentElement.classList.toggle("editing", on);
   $("arrange-menu").hidden = !on;
   drawMenu();
+  // On or off with arranging (drawMenu only draws while arranging).
+  drawGrid();
   place();
 }
 
