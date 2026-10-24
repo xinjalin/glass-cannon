@@ -10,7 +10,7 @@ use meter_core::meter::Analysis;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::settings::{anchor_monitor, outer_rect, place_beside, work_area, SIDES};
+use crate::settings::{anchor_monitor, fully_on_screen, outer_rect, place_beside, SIDES};
 use crate::store::Appearance;
 use crate::{lock, AppState, ANALYSIS};
 
@@ -127,12 +127,7 @@ fn place(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
     let (Some(mon), Some(now)) = (anchor_monitor(handle), outer_rect(w)) else {
         return;
     };
-    let on_screen = w
-        .available_monitors()
-        .unwrap_or_default()
-        .iter()
-        .any(|m| now.inside(&work_area(m)));
-    if !first && on_screen {
+    if !first && fully_on_screen(w) {
         return;
     }
     let scale = mon.scale_factor();

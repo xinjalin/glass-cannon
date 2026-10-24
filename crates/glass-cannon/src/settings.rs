@@ -227,12 +227,12 @@ pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<
     if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
         return w.hide().map_err(|e| e.to_string());
     }
-    if !app.history_placed.swap(true, Ordering::SeqCst) {
-        let saved = lock(&app.placements).get(HISTORY);
-        if !saved.is_some_and(|p| crate::placement::restore(&w, p, true)) {
-            if let Ok(size) = w.outer_size() {
-                place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_HISTORY, &SIDES);
-            }
+    let first = !app.history_placed.swap(true, Ordering::SeqCst);
+    let restored = first && lock(&app.placements).get(HISTORY).is_some_and(|p| crate::placement::restore(&w, p, true));
+    // Placed the first time (unless restored), and again whenever it's off every screen.
+    if (first && !restored) || !fully_on_screen(&w) {
+        if let Ok(size) = w.outer_size() {
+            place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_HISTORY, &SIDES);
         }
     }
     w.show().map_err(|e| e.to_string())?;
@@ -280,10 +280,11 @@ fn in_game<R: Runtime>(handle: &AppHandle<R>) -> bool {
 }
 
 /// The screen windows open on: the game's while the overlay is over it, else the
-/// launcher's (or the primary one).
+/// launcher's (or the primary one, the launcher being minimised).
 pub(crate) fn anchor_monitor<R: Runtime>(handle: &AppHandle<R>) -> Option<Monitor> {
     let o = handle.get_webview_window(if in_game(handle) { hud::HUD } else { LAUNCHER })?;
-    o.current_monitor().ok().flatten().or_else(|| o.primary_monitor().ok().flatten())
+    let current = o.current_monitor().ok().flatten().filter(|_| !o.is_minimized().unwrap_or(false));
+    current.or_else(|| o.primary_monitor().ok().flatten())
 }
 
 /// Where you left it, else beside the launcher (its left if there's room, else its right,
@@ -301,9 +302,14 @@ fn place_settings<R: Runtime>(handle: &AppHandle<R>, s: &WebviewWindow<R>) {
     place_beside(handle, s, size, MIN_SETTINGS, &SIDES);
 }
 
+/// Whether all of `w` is on one of the screens (not left off them, nor on one unplugged).
+pub(crate) fn fully_on_screen<R: Runtime>(w: &WebviewWindow<R>) -> bool {
+    outer_rect(w).is_some_and(|now| w.available_monitors().unwrap_or_default().iter().any(|m| now.inside(&work_area(m))))
+}
+
 /// Puts `w` (wanting `size` physical pixels, shrinkable to `min` logical ones) beside the
-/// launcher on its monitor, in the order of `sides`; in game, in the middle of the game's
-/// screen. Returns false when neither can be found.
+/// launcher on its monitor, in the order of `sides`; in game, or while the launcher is
+/// minimised or hidden, in the middle of the screen. Returns false when there's none.
 pub(crate) fn place_beside<R: Runtime>(
     handle: &AppHandle<R>,
     w: &WebviewWindow<R>,
@@ -313,17 +319,22 @@ pub(crate) fn place_beside<R: Runtime>(
 ) -> bool {
     let Some(mon) = anchor_monitor(handle) else { return false };
     let area = work_area(&mon);
-    let r = if in_game(handle) {
-        let middle = Rect::new(area.x + (area.w - size.0) / 2, area.y + (area.h - size.1) / 2, size.0, size.1);
-        layout::keep_inside(middle, area)
-    } else {
-        let Some(launcher) = handle.get_webview_window(LAUNCHER).and_then(|l| outer_rect(&l)) else {
-            return false;
-        };
-        let scale = mon.scale_factor();
-        let gap = (GAP * scale) as i32;
-        let min = ((min.0 * scale) as i32, (min.1 * scale) as i32);
-        layout::beside(area, launcher, size, min, gap, sides)
+    // A minimised launcher reports a place far off every screen: nothing to sit beside.
+    let launcher = handle
+        .get_webview_window(LAUNCHER)
+        .filter(|l| l.is_visible().unwrap_or(false) && !l.is_minimized().unwrap_or(false))
+        .and_then(|l| outer_rect(&l));
+    let r = match launcher.filter(|_| !in_game(handle)) {
+        Some(launcher) => {
+            let scale = mon.scale_factor();
+            let gap = (GAP * scale) as i32;
+            let min = ((min.0 * scale) as i32, (min.1 * scale) as i32);
+            layout::beside(area, launcher, size, min, gap, sides)
+        }
+        None => {
+            let middle = Rect::new(area.x + (area.w - size.0) / 2, area.y + (area.h - size.1) / 2, size.0, size.1);
+            layout::keep_inside(middle, area)
+        }
     };
     let (Ok(outer), Ok(inner)) = (w.outer_size(), w.inner_size()) else { return false };
     if (r.w, r.h) != (outer.width as i32, outer.height as i32) {
