@@ -38,18 +38,46 @@ function el(tag, className, text) {
   return e;
 }
 
-// One line of the list: "key - value" on the left, something short on the right.
-function row(key, value, right = "", opts = {}) {
-  const li = el("li", [opts.current ? "current" : "", opts.onClick ? "link" : ""].join(" ").trim());
-  const what = el("span", "what", `${key} - `);
-  what.append(el("span", opts.cls || "", value));
-  li.append(what, el("span", "right", right));
-  if (opts.title) li.title = opts.title;
-  if (opts.onClick) li.addEventListener("click", opts.onClick);
-  return li;
+// Text too long for its place slides along instead of being cut off: how far, and slower
+// the further it goes.
+function fitScroll(box) {
+  const over = box.firstElementChild.scrollWidth - box.clientWidth;
+  box.classList.toggle("long", over > 2);
+  box.style.setProperty("--shift", `-${over + 6}px`);
+  box.style.setProperty("--slide-s", `${Math.max(6, 4 + over / 12).toFixed(1)}s`);
+}
+
+const ACTIONS = {
+  analysis: () => invoke("open_analysis", { fight: null, run: null, player: null }).catch(() => {}),
+  history: () => invoke("open_history").catch(() => {}),
+};
+
+// The list's rows: "key - value" on the left, something short on the right. Each is only
+// rebuilt when it changes, so sliding text keeps sliding.
+function drawRows(rows) {
+  const list = $("rows");
+  while (list.children.length > rows.length) list.lastChild.remove();
+  rows.forEach((r, i) => {
+    const sig = JSON.stringify(r);
+    let li = list.children[i];
+    if (li && li.dataset.sig === sig) return;
+    const fresh = el("li", [r.group ? "group" : "", r.current ? "current" : "", r.action ? "link" : ""].join(" ").trim());
+    fresh.dataset.sig = sig;
+    const what = el("span", "what scroll");
+    const text = el("span", "", `${r.key} - `);
+    text.append(el("span", r.cls || "", r.value));
+    what.append(text);
+    fresh.append(what, el("span", "right", r.right || ""));
+    if (r.title) fresh.title = r.title;
+    if (r.action) fresh.addEventListener("click", ACTIONS[r.action]);
+    if (li) li.replaceWith(fresh);
+    else list.append(fresh);
+    fitScroll(what);
+  });
 }
 
 function overlayText(s) {
+  if (s.arranging) return ["arranging", "accent"];
   if (!s.overlay_on) return ["off", ""];
   if (s.overlay_showing) return ["over the game", "accent"];
   return s.game ? ["shows with the game in front", ""] : ["waiting for the game", "warn"];
@@ -64,64 +92,76 @@ function drawList(s) {
   const f = s.fight;
   const [phase, phaseCls] = PHASES[s.status.phase] || [s.status.phase, ""];
   const [overlay, overlayCls] = overlayText(s);
+  // Grouped: status, the overlay, the fight, the history.
   const rows = [
-    row("capture", phase, s.ping_ms != null ? `${s.ping_ms} ms` : "", { cls: phaseCls, title: s.status.message }),
-    row("game", s.game ? "running" : "not running", "", { cls: s.game ? "" : "warn" }),
-    row("overlay", overlay, s.overlay_on ? `${s.widgets} widget${s.widgets === 1 ? "" : "s"}` : "", {
+    { key: "capture", value: phase, right: s.ping_ms != null ? `${s.ping_ms} ms` : "", cls: phaseCls, title: s.status.message },
+    { key: "game", value: s.game ? "running" : "not running", cls: s.game ? "" : "warn" },
+    {
+      key: "overlay",
+      value: overlay,
+      right: s.overlay_on ? `${s.widgets} widget${s.widgets === 1 ? "" : "s"}` : "",
       cls: overlayCls,
       current: !(f && f.live),
+      group: true,
       title: "The play button below starts and stops it",
-    }),
+    },
   ];
   if (f) {
-    const openAnalysis = () => invoke("open_analysis", { fight: null, run: null, player: null }).catch(() => {});
     const [end, endCls] = endText(f);
     rows.push(
-      row(f.live ? "fight" : "last fight", (f.boss ? "★ " : "") + (f.target || "unknown target"), clock(f.duration_s), {
+      {
+        key: f.live ? "fight" : "last fight",
+        value: (f.boss ? "★ " : "") + (f.target || "unknown target"),
+        right: clock(f.duration_s),
         current: f.live,
-        onClick: openAnalysis,
+        group: true,
+        action: "analysis",
         title: "Click for its analysis",
-      }),
-      row("result", end, f.progress != null ? `${Math.round(f.progress * 100)}%` : "", { cls: endCls }),
+      },
+      { key: "result", value: end, right: f.progress != null ? `${Math.round(f.progress * 100)}%` : "", cls: endCls },
     );
     if (f.my_dps != null) {
       const share = f.total_dps > 0 ? `${Math.round((f.my_dps / f.total_dps) * 100)}%` : "";
-      rows.push(row("you", `${fmt(f.my_dps)} dps`, share, { cls: "accent" }));
+      rows.push({ key: "you", value: `${fmt(f.my_dps)} dps`, right: share, cls: "accent" });
     }
-    rows.push(row(f.players > 1 ? "party" : "total", `${fmt(f.total_dps)} dps`, `${f.players} player${f.players === 1 ? "" : "s"}`));
+    rows.push({ key: f.players > 1 ? "party" : "total", value: `${fmt(f.total_dps)} dps`, right: `${f.players} player${f.players === 1 ? "" : "s"}` });
   } else {
-    rows.push(row("last fight", "none yet", ""));
+    rows.push({ key: "last fight", value: "none yet", group: true });
   }
-  rows.push(row("history", `${s.fights} fight${s.fights === 1 ? "" : "s"}`, "›", { onClick: () => invoke("open_history").catch(() => {}) }));
-  $("rows").replaceChildren(...rows);
+  rows.push({ key: "history", value: `${s.fights} fight${s.fights === 1 ? "" : "s"}`, right: "›", group: true, action: "history" });
+  drawRows(rows);
 }
 
 function drawCover(s) {
   const f = s.fight;
-  $("cover-sub").textContent = f ? (f.boss ? "★ " : "") + (f.target || "unknown target") : "aion 2 dps meter";
   $("cover-dot").classList.toggle("live", !!(f && f.live));
-  const bars = f && f.bars.length ? f.bars : [0.35, 0.6, 0.25, 0.8, 0.45, 0.3, 0.55];
-  $("skyline").replaceChildren(
-    ...bars.map((b) => {
-      const span = el("span");
-      span.style.height = `${Math.max(5, Math.round(b * 100))}%`;
-      return span;
-    }),
-  );
+  const [phase] = PHASES[s.status.phase] || [s.status.phase];
+  $("cover-status").textContent = f && f.live ? "● in combat" : `● ${phase}`;
 }
 
 function drawBar(s) {
   const f = s.fight;
   $("progress-fill").style.width = `${f && f.progress != null ? f.progress * 100 : 0}%`;
-  const on = s.overlay_on;
   const toggle = $("toggle");
-  toggle.setAttribute("aria-pressed", String(on));
-  toggle.title = on ? "Stop the overlay" : "Start the overlay over the game";
-  $("arrange").disabled = !s.overlay_showing;
-  $("arrange").title = s.overlay_showing ? "Arrange the overlay's widgets" : "Arrange the overlay's widgets (the game must be in front)";
-  $("now").textContent = `GLASS CANNON - ${f ? (f.live ? "" : "last: ") + (f.target || "unknown target") : "waiting for a fight"}`;
+  toggle.setAttribute("aria-pressed", String(s.overlay_on));
+  toggle.title = s.overlay_on ? "Stop the overlay" : "Start the overlay over the game";
+  // Arrange: on while the overlay is over the game; again to save and finish.
+  const arrange = $("arrange");
+  arrange.disabled = !s.overlay_showing && !s.arranging;
+  arrange.setAttribute("aria-pressed", String(s.arranging));
+  arrange.title = s.arranging
+    ? "Save the layout and stop arranging"
+    : s.overlay_showing
+      ? "Arrange the overlay's widgets"
+      : "Arrange the overlay's widgets (the game must be in front)";
+  const now = `GLASS CANNON - ${f ? (f.live ? "" : "last: ") + (f.boss ? "★ " : "") + (f.target || "unknown target") : "waiting for a fight"}`;
+  if ($("now-text").textContent !== now) {
+    $("now-text").textContent = now;
+    fitScroll($("now"));
+  }
+  // Like a player's elapsed / length: the fight's time, and when the boss goes berserk.
   $("clock").textContent = f ? clock(f.duration_s) : "--:--";
-  $("sub").textContent = s.ping_ms != null ? `/ ${s.ping_ms} ms` : `/ v${s.version}`;
+  $("sub").textContent = f && f.enrage_s ? `/ ${clock(f.enrage_s)}` : "";
 }
 
 async function refresh() {
@@ -131,7 +171,7 @@ async function refresh() {
     drawCover(state);
     drawBar(state);
   } catch (e) {
-    $("now").textContent = `GLASS CANNON - ${e}`;
+    $("now-text").textContent = `GLASS CANNON - ${e}`;
   }
 }
 
@@ -139,11 +179,13 @@ $("toggle").addEventListener("click", async () => {
   await invoke("set_overlay", { on: !(state && state.overlay_on) }).catch(() => {});
   refresh();
 });
-const openAnalysis = () => invoke("open_analysis", { fight: null, run: null, player: null }).catch(() => {});
-$("cover").addEventListener("click", openAnalysis);
-$("analysis").addEventListener("click", openAnalysis);
-$("history").addEventListener("click", () => invoke("open_history").catch(() => {}));
-$("arrange").addEventListener("click", () => invoke("hud_edit", { on: true }).catch(() => {}));
+$("cover").addEventListener("click", ACTIONS.analysis);
+$("analysis").addEventListener("click", ACTIONS.analysis);
+$("history").addEventListener("click", ACTIONS.history);
+$("arrange").addEventListener("click", async () => {
+  await invoke("hud_edit", { on: !(state && state.arranging) }).catch(() => {});
+  refresh();
+});
 $("settings").addEventListener("click", () => invoke("toggle_settings").catch(() => {}));
 $("close").addEventListener("click", () => win.close());
 $("min").addEventListener("click", () => win.minimize());

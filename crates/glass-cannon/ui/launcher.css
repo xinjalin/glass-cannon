@@ -62,16 +62,17 @@ svg .solid { fill: currentColor; stroke: none; }
   height: 100%;
 }
 
-/* ---------------------------------------------------------------- left: lights and cover */
+/* ---------------------------------------------------------------- left: the cover */
 
 #side {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 12px 22px 18px;
+  justify-content: center;
+  padding: 18px 22px;
   background: var(--side);
 }
-.lights { display: flex; gap: 7px; }
+/* The window's lights, top right, in Windows' order: minimise, keep on top, close. */
+.lights { position: absolute; top: 10px; right: 12px; display: flex; gap: 8px; }
 .light { width: 11px; height: 11px; border-radius: 50%; }
 .light.red { background: var(--red); }
 .light.yellow { background: var(--yellow); }
@@ -87,38 +88,41 @@ svg .solid { fill: currentColor; stroke: none; }
   align-self: center;
   width: 152px;
   height: 152px;
-  padding: 10px 11px;
-  border-radius: 4px;
+  padding: 11px 12px;
+  border-radius: 3px;
   overflow: hidden;
   background: linear-gradient(160deg, var(--pink), var(--pink-2));
   color: var(--ink);
   text-align: left;
 }
 #cover:hover { filter: brightness(1.04); }
-.cover-title { display: block; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
-.cover-sub { display: block; margin-top: 2px; font-size: 6.5px; letter-spacing: 0.06em; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 112px; }
-.cover-dot { position: absolute; top: 14px; right: 12px; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.cover-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+.cover-sub { margin-top: 1px; font-size: 10px; font-weight: 600; opacity: 0.8; }
+.cover-dot { position: absolute; top: 15px; right: 13px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
 .cover-dot.live { animation: beat 1.2s ease-in-out infinite; }
 @keyframes beat { 50% { transform: scale(0.6); } }
 @media (prefers-reduced-motion: reduce) { .cover-dot { animation: none !important; } }
-/* The skyline: one bar per player, standing on the cover's bottom edge. */
-.skyline {
+/* The mark: a cut gem in the cover's ink, its left facets shaded. */
+.gem { position: absolute; left: 44px; top: 42px; width: 64px; height: 64px; stroke: var(--ink); stroke-width: 2.4; }
+.gem .facet { fill: var(--ink); fill-opacity: 0.16; stroke: none; }
+.cover-status {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 0;
+  right: 0;
   bottom: 0;
-  height: 62px;
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  border-bottom: 10px solid var(--ink);
-  box-sizing: content-box;
+  padding: 5px 12px 6px;
+  background: var(--ink);
+  color: var(--pink);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
 }
-.skyline span { flex: 1; min-height: 3px; background: var(--ink); }
 
 /* ---------------------------------------------------------------- right: the list */
 
 #list {
+  position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -133,7 +137,9 @@ svg .solid { fill: currentColor; stroke: none; }
   line-height: 18px;
   white-space: nowrap;
 }
-#rows .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A gap between groups: status, the overlay, the fight, the history. */
+#rows li.group { margin-top: 9px; }
+#rows .what { min-width: 0; }
 #rows .right { flex: none; font-variant-numeric: tabular-nums; }
 #rows li.current { font-weight: 700; }
 #rows li.link { cursor: pointer; }
@@ -158,6 +164,7 @@ svg .solid { fill: currentColor; stroke: none; }
 .icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 3px; color: var(--text); }
 .icon:hover { background: var(--track); }
 .icon:disabled { color: var(--line); cursor: default; background: none; }
+.icon[aria-pressed="true"]#arrange { background: var(--accent); color: var(--ink); }
 #toggle .pause,
 #toggle[aria-pressed="true"] .play { display: none; }
 #toggle[aria-pressed="true"] .pause { display: block; }
@@ -167,8 +174,18 @@ svg .solid { fill: currentColor; stroke: none; }
   margin-left: 8px;
   font-weight: 700;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+
+/* Text too long for its place slides to its end and back, like a player's title, rather
+   than being cut off (launcher.js sets --shift and the class). */
+.scroll { overflow: hidden; }
+.scroll > span { display: inline-block; }
+.scroll.long > span { animation: slide var(--slide-s, 8s) ease-in-out infinite; }
+@keyframes slide {
+  0%, 15% { transform: translateX(0); }
+  50%, 65% { transform: translateX(var(--shift)); }
+  100% { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) { .scroll.long > span { animation: none; } .scroll { text-overflow: ellipsis; } }
 .time { flex: none; margin-right: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dim { color: var(--dim); font-weight: 400; }

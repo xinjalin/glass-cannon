@@ -20,9 +20,10 @@ pub struct LauncherState {
     ping_ms: Option<u32>,
     /// The game's window is up (or a replay stands in for it).
     game: bool,
-    /// The overlay is on, and whether it's over the game now.
+    /// The overlay is on, whether it's over the game now, and whether it's being arranged.
     overlay_on: bool,
     overlay_showing: bool,
+    arranging: bool,
     /// How many of its widgets show.
     widgets: usize,
     /// The fight going on, else the last one.
@@ -43,16 +44,12 @@ pub struct FightLine {
     end: Option<FightEnd>,
     /// How far the boss's HP has gone (0-1), in a boss fight whose HP is known.
     progress: Option<f64>,
-    /// The players' DPS as fractions of the top one, in the meter's order (at most
-    /// [`BARS`]): the cover's skyline.
-    bars: Vec<f64>,
+    /// When the boss goes berserk, in seconds from the pull, if the game said.
+    enrage_s: Option<f64>,
 }
-
-const BARS: usize = 16;
 
 impl FightLine {
     fn of(view: &EncounterView, live: bool) -> Self {
-        let top = view.players.iter().map(|p| p.dps).fold(0.0, f64::max);
         let progress = match (view.target_boss, view.target_hp, view.target_max_hp) {
             (true, Some(hp), Some(max)) if max > 0 => Some(1.0 - hp.min(max) as f64 / max as f64),
             _ => None,
@@ -67,7 +64,7 @@ impl FightLine {
             players: view.players.len(),
             end: view.end,
             progress,
-            bars: view.players.iter().take(BARS).map(|p| if top > 0.0 { p.dps / top } else { 0.0 }).collect(),
+            enrage_s: view.berserk_us.filter(|&b| b > view.start_us).map(|b| (b - view.start_us) as f64 / 1e6),
         }
     }
 }
@@ -97,6 +94,7 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
         game: app.game_found.load(Ordering::SeqCst),
         overlay_on: settings.overlay_on,
         overlay_showing: app.hud_shown.load(Ordering::SeqCst),
+        arranging: app.hud_editing.load(Ordering::SeqCst),
         widgets: settings.widgets.len(),
         fight,
         fights: history.len(),

@@ -47,7 +47,7 @@ body {
   max-width: 100%;
   padding: 0.3em 1.1em 0.4em;
   border: 1px solid var(--line);
-  border-radius: 0.6em;
+  border-radius: 4px;
   background: var(--tint);
   text-shadow: 0 0 0.3em #000, 0 0 0.12em #000;
 }
@@ -141,7 +141,7 @@ body {
   gap: 0.8em;
   padding: 0.4em 0.8em;
   border: 1px solid var(--line);
-  border-radius: 0.5em;
+  border-radius: 4px;
   background: var(--tint-strong);
   color: var(--muted);
 }

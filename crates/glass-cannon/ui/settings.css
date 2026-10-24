@@ -1,5 +1,6 @@
-/* Glass Cannon settings: same frosted-glass, themed, monospace style as the overlay.
-   Colours live in theme.css; sizes are in em so the font-size setting scales it. */
+/* Glass Cannon settings: the launcher's flat style in the theme's colours (window.css has
+   the title bar). Colours live in theme.css; sizes are in em so the font-size setting
+   scales it. */
 
 * {
   box-sizing: border-box;
@@ -79,14 +80,6 @@ button {
   color: var(--muted);
 }
 button:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
-.close {
-  display: grid;
-  place-items: center;
-  width: 1.9em;
-  height: 1.6em;
-  border-radius: 0.3em;
-}
-.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 svg {
   width: 1.05em;
   height: 1.05em;
@@ -96,17 +89,19 @@ svg {
   stroke-linecap: round;
 }
 
-/* btop-style framed sections */
+/* Sections: a category name on a thin rule, then its lines. */
 .box {
   margin: 0;
-  padding: 0.3em 0.6em 0.5em;
-  border: 1px solid var(--line);
-  border-radius: 0.5em;
+  padding: 0.2em 0.1em 0.4em;
+  border: 0;
+  border-top: 1px solid var(--line-faint);
 }
 legend {
-  padding: 0 0.5em;
+  padding: 0 0.6em 0 0;
   color: var(--accent);
-  font-size: 0.9em;
+  font-size: 0.8em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .check {
@@ -236,8 +231,8 @@ legend {
   flex-direction: column;
   width: 19em;
   padding: 0.35em;
-  border: 1px solid var(--line);
-  border-radius: 0.5em;
+  border: 1px solid var(--line-faint);
+  border-radius: 3px;
   background: rgba(var(--tint-rgb), 0.97);
   box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.5);
 }
@@ -298,12 +293,17 @@ legend {
 .message.error { color: var(--bad); }
 .message.ok { color: var(--ok); }
 
+/* A raised bar along the bottom, like the title bar. */
 footer {
   display: flex;
   flex: none;
   justify-content: space-between;
   gap: 1.2em;
-  padding-top: 0.5em;
+  margin: 0.4em calc(-1 * var(--frame-x)) -0.6em;
+  padding: 0.45em var(--frame-x);
+  background: var(--raised);
+  border-top: 1px solid var(--line-faint);
+  text-shadow: none;
   color: var(--muted);
   font-size: 0.9em;
   white-space: nowrap;

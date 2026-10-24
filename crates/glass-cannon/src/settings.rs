@@ -57,8 +57,9 @@ pub struct SettingsStatus {
     boss_hp: bool,
     boss_casts: bool,
     pet_souls: bool,
-    /// The overlay's widgets that show.
+    /// The overlay's widgets that show, and whether they're being arranged.
     widgets: Vec<String>,
+    arranging: bool,
     alert_sound: bool,
     hide_after_s: u32,
 }
@@ -140,6 +141,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         boss_casts: s.boss_casts,
         pet_souls: s.pet_souls,
         widgets: s.widgets,
+        arranging: app.hud_editing.load(Ordering::SeqCst),
         alert_sound: s.alert_sound,
         hide_after_s: s.hide_after_s,
     }

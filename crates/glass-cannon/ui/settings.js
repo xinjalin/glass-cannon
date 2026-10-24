@@ -150,6 +150,8 @@ async function refresh() {
     setToggle("boss-casts", state.boss_casts);
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
+    $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
+    $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
     for (const b of document.querySelectorAll("[data-widget]")) {
       const on = state.widgets.includes(b.dataset.widget);
       b.setAttribute("aria-pressed", String(on));
@@ -323,7 +325,11 @@ for (const b of document.querySelectorAll("[data-widget]")) {
   });
 }
 
-$("arrange-overlay").addEventListener("click", () => invoke("hud_edit", { on: true }).catch((e) => say(String(e), "error")));
+// Arrange the overlay; again (or [ done ] on the overlay) saves the layout and stops.
+$("arrange-overlay").addEventListener("click", async () => {
+  await invoke("hud_edit", { on: !(state && state.arranging) }).catch((e) => say(String(e), "error"));
+  refresh();
+});
 
 $("alert-sound").addEventListener("click", async () => {
   await invoke("set_alert_sound", { on: !(state && state.alert_sound) });

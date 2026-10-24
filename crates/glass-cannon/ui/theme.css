@@ -103,5 +103,5 @@
    title bar, border, shadow, hints or scrollbars). Its background follows the setting:
    tinted, clear, or frosted, where the overlay puts Windows' blur of the game behind the
    panel (as the windows had) under a lighter tint. */
-html.widget { --widget-radius: 0.6em; }
+html.widget { --widget-radius: 4px; }
 html.widget[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) * 0.55)); }

@@ -16,7 +16,6 @@ use crate::store::Appearance;
 const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
 const DWMWA_BORDER_COLOR: u32 = 34;
 const DWMWA_SYSTEMBACKDROP_TYPE: u32 = 38;
-const DWMWCP_ROUND: u32 = 2;
 const DWMWCP_ROUNDSMALL: u32 = 3;
 const DWMSBT_NONE: u32 = 1;
 const DWMSBT_TRANSIENTWINDOW: u32 = 3;
@@ -159,17 +158,18 @@ fn darker(rgb: u32) -> u32 {
 }
 
 /// Styles a window for the given appearance: its background (frosted, tinted or clear),
-/// rounded corners, a shadow, and a border in the theme's colour.
+/// small rounded corners, a shadow, and a border in the theme's colour.
 pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
     let _ = window.set_shadow(true);
-    frame(window, a.backdrop == "frosted", DWMWCP_ROUND, colorref(border_rgb(&a.theme)));
+    frame(window, a.backdrop == "frosted", DWMWCP_ROUNDSMALL, colorref(border_rgb(&a.theme)));
 }
 
-/// A blur plate under an overlay widget: Windows' frosted backdrop, rounded, no border,
+/// A blur plate under an overlay widget: Windows' frosted backdrop, small rounded corners
+/// (as the widgets'), no border,
 /// kept on while the window isn't active (it never is).
 pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
     let _ = window.set_shadow(false);
-    frame(window, true, DWMWCP_ROUND, NO_BORDER);
+    frame(window, true, DWMWCP_ROUNDSMALL, NO_BORDER);
 }
 
 /// The launcher keeps its own look whatever the theme: solid, small corners, a quiet

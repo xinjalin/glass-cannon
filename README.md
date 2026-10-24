@@ -43,13 +43,13 @@ Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
 ## Using it
 
-Glass Cannon opens to a small **launcher**, laid out like a music player: a cover with the
-last fight's players as a skyline of their DPS (click it for the analysis), a list of
-what's going on (capture and ping, the game, the overlay, the fight, your DPS and share,
-the party's, the history), and a control bar with the boss's HP as its progress line:
-analysis, the **overlay**'s start/stop, history, arrange and settings. Its three lights
-close it (which closes the app), minimise it and keep it on top. It keeps its own colours
-whatever the theme. It starts capturing straight away and waits for the game if it isn't
+Glass Cannon opens to a small **launcher**, laid out like a music player: a cover (click
+it for the analysis), a list of what's going on (capture and ping, the game; the overlay;
+the fight, your DPS and share, the party's; the history), and a control bar with the
+boss's HP as its progress line and the fight's time against its enrage: analysis, the
+**overlay**'s start/stop, history, arrange (again to save and finish) and settings. Text
+too long for its line slides along. The lights at its top right minimise it, keep it on
+top, and close it (which closes the app). It keeps its own colours whatever the theme. It starts capturing straight away and waits for the game if it isn't
 running.
 
 The **overlay** is one transparent layer over the game's picture holding the meter and
@@ -156,7 +156,8 @@ name in the game data, so double-click one there to name it.
 
 ### Windows
 
-The launcher, settings, history and analysis are windows. Each opens where you last left it
+The launcher, settings, history and analysis are windows, with the same lights at the top
+right of their title bars (minimise, keep on top, close). Each opens where you last left it
 (the first time beside the launcher, or in game on the game's screen), and takes the
 background chosen in the settings (the settings and analysis windows stay tinted enough to
 read).
