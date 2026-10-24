@@ -464,6 +464,9 @@ pub struct LiveBossCast {
     /// Filled in by the app from its skill table.
     #[serde(default)]
     pub skill_name: Option<String>,
+    /// When it began (µs since 1970): tells one cast of a skill from the next.
+    #[serde(default)]
+    pub started_us: u64,
     pub cast_ms: u32,
     pub cast_left_ms: u32,
     pub lands_ms: u32,
@@ -1526,6 +1529,7 @@ impl Meter {
                 (casting || lands_left > 0).then_some(LiveBossCast {
                     skill: c.skill,
                     skill_name: None,
+                    started_us: c.at_us,
                     cast_ms: c.cast_ms,
                     cast_left_ms: if casting { (cast_left / 1000) as u32 } else { 0 },
                     lands_ms: c.lands_ms,

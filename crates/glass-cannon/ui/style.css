@@ -539,3 +539,15 @@ body:hover #lock { opacity: 0.8; }
 #panel { transition: opacity 0.4s ease; }
 .faded #panel { opacity: 0; transition: opacity 1.2s ease; }
 .faded body:hover #panel { opacity: 1; transition: opacity 0.2s ease; }
+
+/* ---------------------------------------------------------------- as a widget in the overlay */
+
+/* The HUD moves, sizes and hides it: no window buttons, no lock. Its page has no window
+   behind it to blur, so the panel's tint is its background. */
+.widget #pin,
+.widget #min,
+.widget #close,
+.widget #f-close,
+.widget #lock { display: none; }
+.widget body { background: transparent; }
+.widget #panel { border-radius: 0.5em; }

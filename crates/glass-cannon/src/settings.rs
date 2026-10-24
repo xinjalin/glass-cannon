@@ -53,6 +53,8 @@ pub struct SettingsStatus {
     boss_hp: bool,
     boss_casts: bool,
     pet_souls: bool,
+    overlay: bool,
+    alert_sound: bool,
     hide_after_s: u32,
 }
 
@@ -133,6 +135,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         boss_hp: s.boss_hp,
         boss_casts: s.boss_casts,
         pet_souls: s.pet_souls,
+        overlay: s.overlay,
+        alert_sound: s.alert_sound,
         hide_after_s: s.hide_after_s,
     }
 }

@@ -1,0 +1,123 @@
+/* The overlay over the game: transparent everywhere but the widgets, which have no
+   window frames (just the meter's own panel, and text that reads on any background). */
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: var(--font, "Cascadia Mono", Consolas, monospace);
+  font-size: var(--fs);
+  color: var(--text);
+  user-select: none;
+}
+
+#widgets { position: absolute; inset: 0; }
+
+.widget { position: absolute; box-sizing: border-box; }
+.widget iframe { width: 100%; height: 100%; border: 0; background: transparent; display: block; }
+/* Warnings and timers never take the mouse (but while being arranged). */
+.passive { pointer-events: none; }
+
+/* ---------------------------------------------------------------- boss warnings */
+
+[data-widget="warnings"] { display: grid; place-items: center; text-align: center; }
+#warning {
+  padding: 0.3em 1.1em 0.4em;
+  border-radius: 0.6em;
+  background: rgba(var(--tint-rgb), 0.55);
+  text-shadow: 0 0 0.3em #000, 0 0 0.12em #000;
+}
+#warning-name { font-size: 2.6em; font-weight: 700; line-height: 1.15; color: var(--warn); }
+#warning-time { font-size: 1.7em; font-variant-numeric: tabular-nums; color: var(--text); }
+/* The cast is on: red, and the box pulses until it lands. */
+#warning.now { box-shadow: 0 0 0 0.15em var(--bad); animation: pulse 0.5s ease-in-out infinite alternate; }
+#warning.now #warning-name { color: var(--bad); }
+#warning.lands #warning-name::after { content: " · move"; }
+#warning.soon { background: rgba(var(--tint-rgb), 0.35); }
+#warning.soon #warning-name { font-size: 1.6em; }
+#warning.soon #warning-time { font-size: 1.2em; }
+@keyframes pulse {
+  from { box-shadow: 0 0 0 0.15em var(--bad), 0 0 0.4em 0.1em rgba(255, 147, 147, 0.25); }
+  to { box-shadow: 0 0 0 0.15em var(--bad), 0 0 1.4em 0.5em rgba(255, 147, 147, 0.55); }
+}
+
+/* ---------------------------------------------------------------- boss timers */
+
+#timers { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3em; }
+#timers li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  height: 1.55em;
+  padding: 0 0.5em;
+  border-radius: 0.3em;
+  overflow: hidden;
+  background: rgba(var(--tint-rgb), 0.6);
+  line-height: 1.55em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 0.2em #000;
+}
+#timers .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: 0.45; }
+#timers li.danger .fill { background: var(--bad); opacity: 0.6; }
+#timers .name,
+#timers .left { position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#timers .left { flex: none; }
+#timers li.soon { box-shadow: 0 0 0 1px var(--warn) inset; }
+
+/* ---------------------------------------------------------------- arranging */
+
+.editing body { background: rgba(0, 0, 0, 0.25); }
+.editing .widget {
+  outline: 1px dashed var(--accent);
+  background: rgba(var(--tint-rgb), 0.35);
+  pointer-events: auto;
+  cursor: move;
+}
+.editing .widget::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -1.5em;
+  left: 0;
+  padding: 0 0.4em;
+  border-radius: 0.25em;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 0.85em;
+}
+/* While arranging, a cover over the meter's frame takes the drags. */
+.editing .widget::after { content: ""; position: absolute; inset: 0; }
+.grip {
+  display: none;
+  position: absolute;
+  right: -0.35em;
+  bottom: -0.35em;
+  z-index: 2;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 0.2em;
+  background: var(--accent);
+  cursor: nwse-resize;
+}
+.editing .grip { display: block; }
+
+#edit-bar {
+  position: absolute;
+  top: 1em;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.4em 0.8em;
+  border-radius: 0.5em;
+  background: rgba(var(--tint-rgb), 0.9);
+  color: var(--muted);
+}
+#edit-bar[hidden] { display: none; }
+#edit-bar span { white-space: nowrap; }
+#edit-bar button { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; white-space: nowrap; }
+#edit-bar button:hover { color: var(--text); }

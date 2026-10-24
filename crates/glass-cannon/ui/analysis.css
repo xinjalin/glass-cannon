@@ -364,3 +364,5 @@ table.grid {
   border-radius: 0.25em;
   padding: 0 0.3em;
 }
+#boss-table td.alert-mark { cursor: pointer; color: var(--faint); white-space: nowrap; }
+#boss-table td.alert-mark.on { color: var(--bad); }

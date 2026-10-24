@@ -31,6 +31,8 @@ use meter_core::session;
 mod analysis;
 mod clickthrough;
 mod fonts;
+mod game_window;
+mod hud;
 mod panels;
 mod ping;
 mod gamedata;
@@ -144,6 +146,9 @@ pub struct AppState {
     locked: AtomicBool,
     /// Where the overlay's lock button is.
     lock_button: Mutex<Option<clickthrough::ButtonRect>>,
+    /// The overlay's widgets' boxes, and whether they're being arranged.
+    hud_rects: Mutex<Vec<hud::HitRect>>,
+    hud_editing: AtomicBool,
     /// Player names saved by an earlier run, until we know whether they're from this login.
     known_players: Mutex<Option<KnownPlayers>>,
     /// How many named players were last saved to `players.json`.
@@ -198,6 +203,10 @@ struct View {
     best: Option<store::Best>,
     /// What the boss cast next the last time you fought it, from where this fight is.
     boss_next: Option<NextCast>,
+    /// The boss's next casts and whether its cast now is dangerous (the overlay's boss
+    /// alerts), and whether they sound.
+    boss_ahead: BossAhead,
+    alert_sound: bool,
     /// Hidden cubes in view.
     cubes: Vec<meter_core::cubes::CubeView>,
     /// Pet souls gained since the last snapshot, with each pet's progress.
@@ -210,18 +219,46 @@ struct NextCast {
     skill: u32,
     skill_name: Option<String>,
     cast_ms: u32,
+    /// How long after it went off its marked areas landed (0: none).
+    lands_ms: u32,
+    /// Worth a warning: see [`dangerous`].
+    danger: bool,
     /// Seconds from now.
     in_s: f64,
 }
 
+/// The boss's casts ahead, and whether the one it's casting now is dangerous.
+#[derive(Serialize, Default)]
+struct BossAhead {
+    /// The live cast's: a warning, not just a bar.
+    cast_danger: bool,
+    /// Its next casts that matter (at most [`UPCOMING`], within [`UPCOMING_S`]).
+    upcoming: Vec<NextCast>,
+}
+
 /// Bosses cast these this often or more in a fight as routine; they're not worth a warning.
 const ROUTINE_CASTS: usize = 8;
+const UPCOMING: usize = 5;
+const UPCOMING_S: f64 = 60.0;
+/// A cast this long (or one that marks the ground) is dangerous, unless you say otherwise.
+const DANGER_CAST_MS: u32 = 2000;
+
+/// Whether a boss skill gets a warning: as you marked it (the analysis window's [boss]
+/// tab), else when it marks the ground or takes [`DANGER_CAST_MS`] or more to cast.
+fn dangerous(marks: &std::collections::BTreeMap<u32, bool>, skill: u32, cast_ms: u32, lands_ms: u32) -> bool {
+    marks.get(&skill).copied().unwrap_or(lands_ms > 0 || cast_ms >= DANGER_CAST_MS)
+}
 
 /// The boss casts the meter shows: not routine (cast [`ROUTINE_CASTS`] times or more in
 /// the last fight against it, or in this one so far). Drops a routine live cast, and gives
 /// what it cast next the last time (with a cast time or landing areas: a mechanic), from
 /// where this fight is.
-fn boss_casts_to_show(history: &store::History, data: &GameData, enc: &mut meter_core::meter::EncounterView) -> Option<NextCast> {
+fn boss_casts_to_show(
+    history: &store::History,
+    data: &GameData,
+    marks: &std::collections::BTreeMap<u32, bool>,
+    enc: &mut meter_core::meter::EncounterView,
+) -> BossAhead {
     let kind = enc.boss_casts.iter().find_map(|c| c.boss_type).or(enc.target_type);
     let last = kind.and_then(|kind| {
         history.newest_first().find(|f| f.view.start_us != enc.start_us && f.view.boss_casts.iter().any(|c| c.boss_type == Some(kind)))
@@ -236,21 +273,40 @@ fn boss_casts_to_show(history: &store::History, data: &GameData, enc: &mut meter
     };
     let (before, now_counts) = (tally(casts), tally(&enc.boss_casts));
     let routine = |skill: u32| [&before, &now_counts].iter().any(|n| n.get(&skill).copied().unwrap_or(0) >= ROUTINE_CASTS);
-    if enc.boss_cast.as_ref().is_some_and(|c| routine(c.skill)) {
+    // Its landing areas last time, for a cast that hasn't gone off yet.
+    let lands_before = |skill: u32| casts.iter().filter(|c| c.skill == skill).map(|c| c.lands_ms).max().unwrap_or(0);
+    if enc.boss_cast.as_ref().is_some_and(|c| routine(c.skill) && marks.get(&c.skill) != Some(&true)) {
         enc.boss_cast = None;
     }
-    let now = enc.boss_now_s?;
-    casts
+    let cast_danger = enc
+        .boss_cast
+        .as_ref()
+        .is_some_and(|c| dangerous(marks, c.skill, c.cast_ms, c.lands_ms.max(lands_before(c.skill))));
+    let Some(now) = enc.boss_now_s else {
+        return BossAhead { cast_danger, upcoming: Vec::new() };
+    };
+    let upcoming = casts
         .iter()
-        .find(|c| c.at_s > now && !routine(c.skill) && (c.cast_ms > 0 || c.lands_ms > 0))
-        .map(|c| NextCast { skill: c.skill, skill_name: data.boss_skill_name(c.skill), cast_ms: c.cast_ms, in_s: c.at_s - now })
+        .filter(|c| c.at_s > now && c.at_s - now <= UPCOMING_S)
+        .filter(|c| marks.get(&c.skill) == Some(&true) || (!routine(c.skill) && (c.cast_ms > 0 || c.lands_ms > 0)))
+        .take(UPCOMING)
+        .map(|c| NextCast {
+            skill: c.skill,
+            skill_name: data.boss_skill_name(c.skill),
+            cast_ms: c.cast_ms,
+            lands_ms: c.lands_ms,
+            danger: dangerous(marks, c.skill, c.cast_ms, c.lands_ms),
+            in_s: c.at_s - now,
+        })
+        .collect();
+    BossAhead { cast_danger, upcoming }
 }
 
 /// The current meter with names filled in. Also moves finished fights into the history.
 /// Skill lists come only for the players in `expanded` (the rows open in the overlay):
 /// the rest would only be thrown away, several times a second.
 #[tauri::command]
-fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
+fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>, widget: Option<bool>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
     let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, mut souls) = {
@@ -271,7 +327,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         if let Some(name) = name {
             lock(&app.pets).sync(&name, meter.pets());
         }
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, meter.take_soul_gains())
+        // Pet souls go to the meter that shows: the overlay's widget, or the meter window.
+        let showing = widget.unwrap_or(false) == lock(&app.settings).overlay;
+        let souls = if showing { meter.take_soul_gains() } else { Vec::new() };
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, souls)
     };
     lock(&app.field_bosses).update(field_bosses);
     lock(&app.contents).update(contents);
@@ -329,8 +388,18 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         g.name = data.pet_name(g.pet);
     }
     let mut boss_next = None;
+    let mut boss_ahead = BossAhead::default();
     if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
-        boss_next = boss_casts_to_show(&history, &data, enc);
+        let marks = lock(&app.settings).boss_skill_alerts.clone();
+        boss_ahead = boss_casts_to_show(&history, &data, &marks, enc);
+        boss_next = boss_ahead.upcoming.first().map(|c| NextCast {
+            skill: c.skill,
+            skill_name: c.skill_name.clone(),
+            cast_ms: c.cast_ms,
+            lands_ms: c.lands_ms,
+            danger: c.danger,
+            in_s: c.in_s,
+        });
     }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
@@ -355,6 +424,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         boss_casts: settings.boss_casts,
         best,
         boss_next,
+        boss_ahead,
+        alert_sound: settings.alert_sound,
         cubes,
         souls,
     }
@@ -656,6 +727,10 @@ fn show_overlay(handle: &AppHandle) -> tauri::Result<()> {
             });
         }
     }
+    // In overlay mode the meter is a widget in the HUD.
+    if lock(&app.settings).overlay {
+        return Ok(());
+    }
     window.show()?;
     window.set_focus()?;
     Ok(())
@@ -785,6 +860,8 @@ fn main() {
         overlay_new: AtomicBool::new(overlay_new),
         locked: AtomicBool::new(false),
         lock_button: Mutex::new(None),
+        hud_rects: Mutex::new(Vec::new()),
+        hud_editing: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),
         players_saved: AtomicUsize::new(0),
         pvp: Mutex::new(store::PvpLog::load(&config_dir_for_pvp)),
@@ -852,8 +929,16 @@ fn main() {
             panels::set_boss_hp,
             panels::set_boss_casts,
             panels::set_pet_souls,
+            panels::set_boss_skill_alert,
+            panels::boss_skill_alerts,
+            panels::set_alert_sound,
             panels::timer_settings,
             panels::party_cooldowns,
+            hud::hud_rects,
+            hud::hud_edit,
+            hud::set_overlay,
+            hud::hud_layout,
+            hud::set_hud_layout,
         ])
         .setup(move |app| {
             restyle_windows(app.handle(), &lock(&state.settings).appearance.clone());
@@ -861,6 +946,11 @@ fn main() {
             start_engine(&state);
             show_overlay(app.handle())?;
             clickthrough::watch(app.handle().clone(), Arc::clone(&state));
+            // The overlay never takes the focus from the game (but while being arranged).
+            if let Some(h) = app.get_webview_window(hud::HUD) {
+                let _ = h.set_focusable(false);
+            }
+            hud::watch(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
             panels::reopen(app.handle(), &state);
             save_placements(Arc::clone(&state));

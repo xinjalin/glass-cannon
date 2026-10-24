@@ -4,7 +4,7 @@
 //! Every window's position and size are kept in `windows.json` as you move or resize it
 //! (written at most once a second), so they come back next time even after a crash.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -170,12 +170,7 @@ fn overlaps(m: &Monitor, p: &Placement) -> bool {
 
 /// The monitor showing the game's main window.
 fn game_monitor(monitors: &[Monitor]) -> Option<Monitor> {
-    let pids: HashSet<u32> = meter_core::conns::find_processes("AION2")
-        .ok()?
-        .into_iter()
-        .map(|p| p.pid)
-        .collect();
-    let r = win32::largest_window(&pids)?;
+    let r = crate::game_window::game_rect("AION2")?;
     let (cx, cy) = ((r.left + r.right) / 2, (r.top + r.bottom) / 2);
     monitors
         .iter()
@@ -184,63 +179,6 @@ fn game_monitor(monitors: &[Monitor]) -> Option<Monitor> {
             cx >= mx && cx < mx + m.size().width as i32 && cy >= my && cy < my + m.size().height as i32
         })
         .cloned()
-}
-
-mod win32 {
-    use std::collections::HashSet;
-
-    type Hwnd = isize;
-
-    #[repr(C)]
-    #[derive(Debug, Default, Clone, Copy)]
-    pub struct Rect {
-        pub left: i32,
-        pub top: i32,
-        pub right: i32,
-        pub bottom: i32,
-    }
-
-    #[link(name = "user32")]
-    extern "system" {
-        fn EnumWindows(callback: unsafe extern "system" fn(Hwnd, isize) -> i32, lparam: isize) -> i32;
-        fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
-        fn IsWindowVisible(hwnd: Hwnd) -> i32;
-        fn IsIconic(hwnd: Hwnd) -> i32;
-        fn GetWindowRect(hwnd: Hwnd, rect: *mut Rect) -> i32;
-    }
-
-    struct Search<'a> {
-        pids: &'a HashSet<u32>,
-        best: Option<(i64, Rect)>,
-    }
-
-    unsafe extern "system" fn visit(hwnd: Hwnd, lparam: isize) -> i32 {
-        // SAFETY: lparam is the &mut Search passed to EnumWindows below, alive for the call.
-        let search = &mut *(lparam as *mut Search);
-        let mut pid = 0u32;
-        GetWindowThreadProcessId(hwnd, &mut pid);
-        if search.pids.contains(&pid) && IsWindowVisible(hwnd) != 0 && IsIconic(hwnd) == 0 {
-            let mut r = Rect::default();
-            if GetWindowRect(hwnd, &mut r) != 0 {
-                let area = (r.right - r.left) as i64 * (r.bottom - r.top) as i64;
-                if search.best.is_none_or(|(a, _)| area > a) {
-                    search.best = Some((area, r));
-                }
-            }
-        }
-        1 // keep enumerating
-    }
-
-    /// The largest visible top-level window owned by any of `pids`.
-    pub fn largest_window(pids: &HashSet<u32>) -> Option<Rect> {
-        if pids.is_empty() {
-            return None;
-        }
-        let mut search = Search { pids, best: None };
-        // SAFETY: the callback only touches `search`, which outlives the call.
-        unsafe { EnumWindows(visit, &mut search as *mut Search as isize) };
-        search.best.map(|(_, r)| r)
-    }
 }
 
 #[cfg(test)]

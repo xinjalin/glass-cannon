@@ -138,8 +138,24 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": false
+      },
+      {
+        "label": "hud",
+        "title": "Glass Cannon overlay",
+        "url": "hud.html",
+        "width": 1280,
+        "height": 720,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "visible": false,
+        "focus": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
       }
-
     ],
     "security": {
       "csp": "default-src 'self' ipc: http://ipc.localhost; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"

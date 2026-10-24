@@ -3,9 +3,17 @@
 // Player and mob names come from network traffic, so everything is set with
 // textContent, never innerHTML.
 
-const tauri = window.__TAURI__;
+// In the overlay the meter is a widget: a frame in the HUD's page, which lends it the app
+// (frames don't get it themselves). It then leaves its window alone (size, dragging,
+// pinning, closing, the lock: the HUD has those) and tells the HUD how tall it wants to be.
+const WIDGET = new URLSearchParams(location.search).has("widget");
+const tauri = WIDGET ? window.parent.__TAURI__ : window.__TAURI__;
 const invoke = tauri.core.invoke;
 const win = tauri.window.getCurrentWindow();
+if (WIDGET) {
+  document.documentElement.classList.add("widget");
+  for (const e of document.querySelectorAll("[data-tauri-drag-region]")) e.removeAttribute("data-tauri-drag-region");
+}
 
 const DEFAULT_POLL_MS = 500;
 // The "live" update rate: redraw when new data arrives (the app says so), and once a
@@ -462,6 +470,24 @@ function keyedNotice(key, text, ms, kind = "") {
   drawNotice();
 }
 
+// ---------------------------------------------------------------- to the overlay
+
+// As a widget: the boss's cast and what's ahead go up to the overlay, which draws the boss
+// warnings and timers (and the theme, so its own text matches).
+function sendBoss(view) {
+  const enc = view.meter.encounter;
+  const fighting = enc && enc.active && enc.target_boss;
+  const boss = fighting
+    ? {
+        cast: enc.boss_cast || null,
+        castKey: enc.boss_cast ? enc.boss_cast.started_us : 0,
+        ahead: view.boss_ahead,
+        sound: view.alert_sound,
+      }
+    : null;
+  window.parent.postMessage({ type: "gc-boss", boss: boss && { ...boss, appearance: view.appearance } }, "*");
+}
+
 // ---------------------------------------------------------------- pet souls
 
 // A pet's soul from a kill: how many it has toward its next level (summoning is level 1).
@@ -876,6 +902,10 @@ function fitHeight(a) {
   const width = resetWidth;
   resetWidth = null;
   requestAnimationFrame(() => {
+    if (WIDGET) {
+      window.parent.postMessage({ type: "gc-fit", widget: "meter", height: heightFor(FIT_ROWS) }, "*");
+      return;
+    }
     const minWidth = minimal() ? null : widthFor(LONGEST_PHASE);
     invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width, minWidth }).catch(() => {});
   });
@@ -1002,8 +1032,9 @@ let partyPeek = false;
 async function refresh() {
   if (editing) return;
   try {
-    const view = await invoke("snapshot", { expanded: [...expanded] });
+    const view = await invoke("snapshot", { expanded: [...expanded], widget: WIDGET });
     lastViewAt = performance.now();
+    if (WIDGET) sendBoss(view);
     noticeCubes(view.cubes);
     noticeSouls(view.souls);
     const key = JSON.stringify(view);
@@ -1139,7 +1170,7 @@ $("f-settings").addEventListener("click", () => invoke("toggle_settings"));
 // once the pointer moves, so clicks (open a row) and double-clicks (rename) still work.
 let press = null;
 document.addEventListener("mousedown", (e) => {
-  const draggable = e.button === 0 && minimal() && !e.target.closest("button, input");
+  const draggable = !WIDGET && e.button === 0 && minimal() && !e.target.closest("button, input");
   press = draggable ? { x: e.screenX, y: e.screenY } : null;
 });
 document.addEventListener("mousemove", (e) => {
@@ -1189,7 +1220,7 @@ function reportLockRect() {
   const dpr = window.devicePixelRatio || 1;
   const rect = { x: r.left * dpr, y: r.top * dpr, width: r.width * dpr, height: r.height * dpr };
   const key = Object.values(rect).map(Math.round).join(",");
-  if (key === lockRectKey) return;
+  if (key === lockRectKey || WIDGET) return;
   lockRectKey = key;
   invoke("lock_button_rect", { rect }).catch(() => {});
 }

@@ -88,6 +88,17 @@ pub struct Settings {
     /// A notice for each pet soul from a kill, with the pet's progress.
     #[serde(default = "default_true")]
     pub pet_souls: bool,
+    /// The meter and the other widgets in one overlay over the game (beta), instead of
+    /// their own windows.
+    #[serde(default)]
+    pub overlay: bool,
+    /// Boss skills you marked: true always warns, false never (the rest go by how
+    /// dangerous they look).
+    #[serde(default)]
+    pub boss_skill_alerts: BTreeMap<u32, bool>,
+    /// A sound with each boss warning in the overlay.
+    #[serde(default = "default_true")]
+    pub alert_sound: bool,
 }
 
 fn default_alert_lead() -> u32 {

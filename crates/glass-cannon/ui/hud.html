@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon overlay</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="hud.css">
+</head>
+<body>
+  <!-- The overlay: one transparent window over the game's picture. Each widget sits where
+       you put it (settings → arrange overlay); the mouse goes through to the game except
+       over the meter. -->
+  <div id="widgets">
+    <section class="widget" data-widget="meter" data-label="meter">
+      <iframe id="meter-frame" src="index.html?widget" title="Meter"></iframe>
+    </section>
+
+    <!-- A boss's dangerous cast, big in the middle: its name and the time left, then how
+         long until it lands; a few seconds before one is due, a heads-up. -->
+    <section class="widget passive" data-widget="warnings" data-label="boss warnings">
+      <div id="warning" hidden>
+        <div id="warning-name"></div>
+        <div id="warning-time"></div>
+      </div>
+    </section>
+
+    <!-- The boss's next casts as bars counting down (from the last fight against it). -->
+    <section class="widget passive" data-widget="timers" data-label="boss timers">
+      <ol id="timers"></ol>
+    </section>
+  </div>
+
+  <div id="edit-bar" hidden>
+    <span>arrange the overlay: drag a widget to move it, its corner to resize</span>
+    <button id="edit-reset" type="button">[ reset ]</button>
+    <button id="edit-done" type="button">[ done ]</button>
+  </div>
+
+  <script src="theme.js"></script>
+  <script src="hud.js"></script>
+</body>
+</html>

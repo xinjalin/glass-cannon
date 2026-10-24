@@ -150,6 +150,9 @@ async function refresh() {
     setToggle("boss-hp", state.boss_hp);
     setToggle("boss-casts", state.boss_casts);
     setToggle("pet-souls", state.pet_souls);
+    setToggle("overlay", state.overlay);
+    setToggle("alert-sound", state.alert_sound);
+    $("arrange-overlay").hidden = !state.overlay;
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
@@ -309,6 +312,18 @@ $("boss-hp").addEventListener("click", async () => {
 
 $("boss-casts").addEventListener("click", async () => {
   await invoke("set_boss_casts", { on: !(state && state.boss_casts) });
+  refresh();
+});
+
+$("overlay").addEventListener("click", async () => {
+  await invoke("set_overlay", { on: !(state && state.overlay) });
+  refresh();
+});
+
+$("arrange-overlay").addEventListener("click", () => invoke("hud_edit", { on: true }).catch((e) => say(String(e), "error")));
+
+$("alert-sound").addEventListener("click", async () => {
+  await invoke("set_alert_sound", { on: !(state && state.alert_sound) });
   refresh();
 });
 

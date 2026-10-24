@@ -241,6 +241,30 @@ pub fn set_boss_casts(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Marks a boss skill: always warn (true), never (false), or as it looks (None).
+#[tauri::command]
+pub fn set_boss_skill_alert(app: State<'_, Arc<AppState>>, skill: u32, alert: Option<bool>) {
+    let mut s = lock(&app.settings);
+    match alert {
+        Some(on) => s.boss_skill_alerts.insert(skill, on),
+        None => s.boss_skill_alerts.remove(&skill),
+    };
+    s.save(&app.config_dir);
+}
+
+/// Your marks on boss skills, for the analysis window's [boss] tab.
+#[tauri::command]
+pub fn boss_skill_alerts(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<u32, bool> {
+    lock(&app.settings).boss_skill_alerts.clone()
+}
+
+#[tauri::command]
+pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.alert_sound = on;
+    s.save(&app.config_dir);
+}
+
 #[tauri::command]
 pub fn set_pet_souls(app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
