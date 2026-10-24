@@ -1,0 +1,191 @@
+/* The launcher: its own look, whatever the theme (the "night" theme the rest of the app
+   defaults to is made from the same colours). Sleek and flat: near-black panels, small
+   corners, soft grey monospace, a lavender progress line and a pink cover. Sizes are fixed,
+   as the window is. */
+
+:root {
+  --bg: #101317;
+  --side: #1c1e24;
+  --bar: #15181c;
+  --line: #272a31;
+  --track: #23242a;
+  --text: #d4d4d5;
+  --dim: #949494;
+  --accent: #c397d8;
+  --pink: #fcb2b4;
+  --pink-2: #faa6a4;
+  --red: #f87070;
+  --yellow: #ffe59e;
+  --green: #79dcaa;
+  --ink: #1c1e24;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.35 "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  user-select: none;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+button:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+svg .solid { fill: currentColor; stroke: none; }
+
+#app {
+  display: grid;
+  grid-template-columns: 196px 1fr;
+  grid-template-rows: 1fr auto;
+  height: 100%;
+}
+
+/* ---------------------------------------------------------------- left: the cover */
+
+#side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 18px 22px;
+  background: var(--side);
+}
+/* The window's lights, top right, in Windows' order: minimise, keep on top, close. */
+.lights { position: absolute; top: 10px; right: 12px; display: flex; gap: 8px; }
+.light { width: 11px; height: 11px; border-radius: 50%; }
+.light.red { background: var(--red); }
+.light.yellow { background: var(--yellow); }
+.light.green { background: var(--green); opacity: 0.55; }
+.light.green[aria-pressed="true"] { opacity: 1; }
+.lights:hover .light { filter: brightness(1.08); }
+
+#cover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-self: center;
+  width: 152px;
+  height: 152px;
+  padding: 11px 12px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--pink), var(--pink-2));
+  color: var(--ink);
+  text-align: left;
+}
+#cover:hover { filter: brightness(1.04); }
+.cover-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+.cover-sub { margin-top: 1px; font-size: 10px; font-weight: 600; opacity: 0.8; }
+.cover-dot { position: absolute; top: 15px; right: 13px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.cover-dot.live { animation: beat 1.2s ease-in-out infinite; }
+@keyframes beat { 50% { transform: scale(0.6); } }
+@media (prefers-reduced-motion: reduce) { .cover-dot { animation: none !important; } }
+/* The mark: a cut gem in the cover's ink, its left facets shaded. */
+.gem { position: absolute; left: 44px; top: 42px; width: 64px; height: 64px; stroke: var(--ink); stroke-width: 2.4; }
+.gem .facet { fill: var(--ink); fill-opacity: 0.16; stroke: none; }
+.cover-status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 5px 12px 6px;
+  background: var(--ink);
+  color: var(--pink);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- right: the list */
+
+#list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 14px 26px 14px 28px;
+}
+#rows { width: 100%; margin: 0; padding: 0; list-style: none; }
+#rows li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  height: 18px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+/* A gap between groups: status, the overlay, the fight, the history. */
+#rows li.group { margin-top: 9px; }
+#rows .what { min-width: 0; }
+#rows .right { flex: none; font-variant-numeric: tabular-nums; }
+#rows li.current { font-weight: 700; }
+#rows li.link { cursor: pointer; }
+#rows li.link:hover .what { color: #fff; }
+#rows .ok { color: var(--green); }
+#rows .warn { color: var(--yellow); }
+#rows .bad { color: var(--red); }
+#rows .accent { color: var(--accent); }
+
+/* ---------------------------------------------------------------- bottom: progress and controls */
+
+#bar { grid-column: 1 / -1; background: var(--bar); }
+#progress { height: 3px; background: var(--track); }
+#progress-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.6s ease; }
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 54px;
+  padding: 0 26px 0 30px;
+}
+.icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 3px; color: var(--text); }
+.icon:hover { background: var(--track); }
+.icon:disabled { color: var(--line); cursor: default; background: none; }
+.icon[aria-pressed="true"]#arrange { background: var(--accent); color: var(--ink); }
+#toggle .pause,
+#toggle[aria-pressed="true"] .play { display: none; }
+#toggle[aria-pressed="true"] .pause { display: block; }
+.now {
+  flex: 1;
+  min-width: 0;
+  margin-left: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Text too long for its place slides to its end and back, like a player's title, rather
+   than being cut off (launcher.js sets --shift and the class). */
+.scroll { overflow: hidden; }
+.scroll > span { display: inline-block; }
+.scroll.long > span { animation: slide var(--slide-s, 8s) ease-in-out infinite; }
+@keyframes slide {
+  0%, 15% { transform: translateX(0); }
+  50%, 65% { transform: translateX(var(--shift)); }
+  100% { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) { .scroll.long > span { animation: none; } .scroll { text-overflow: ellipsis; } }
+.time { flex: none; margin-right: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dim { color: var(--dim); font-weight: 400; }

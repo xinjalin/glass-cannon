@@ -71,7 +71,6 @@ button:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .copy { color: var(--accent); font-size: 0.9em; white-space: nowrap; }
 .copy:disabled { color: var(--faint); cursor: default; background: transparent; }
 .copied { color: var(--muted); font-size: 0.85em; white-space: nowrap; }
-.close:hover { background: rgba(255, 147, 147, 0.28); color: #fff; }
 svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 
 /* ---------------------------------------------------------------- toolbar & tabs */
@@ -124,14 +123,15 @@ svg { width: 1.05em; height: 1.05em; fill: none; stroke: currentColor; stroke-wi
 .empty { margin: 3em 0; text-align: center; color: var(--muted); }
 .note { color: var(--faint); font-size: 0.85em; }
 
+/* Sections: a category name on a thin rule, as in the settings. */
 .box {
   margin: 0;
   min-width: 0;
-  padding: 0.4em 0.8em 0.7em;
-  border: 1px solid var(--line);
-  border-radius: 0.5em;
+  padding: 0.3em 0.1em 0.6em;
+  border: 0;
+  border-top: 1px solid var(--line-faint);
 }
-legend { padding: 0 0.5em; color: var(--accent); font-size: 0.9em; }
+legend { padding: 0 0.6em 0 0; color: var(--accent); font-size: 0.8em; letter-spacing: 0.12em; text-transform: uppercase; }
 /* A wide table scrolls inside its box (narrow window) rather than pushing the page sideways. */
 .box:has(> table.grid) { overflow-x: auto; }
 
@@ -142,10 +142,11 @@ legend { padding: 0 0.5em; color: var(--accent); font-size: 0.9em; }
   grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr));
   gap: 0.6em;
 }
+/* Flat tiles, as on the launcher. */
 .tile {
   padding: 0.5em 0.8em;
-  border: 1px solid var(--line-faint);
-  border-radius: 0.5em;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
 }
 .tile .label { color: var(--muted); font-size: 0.85em; }
 .tile .value { font-size: 1.45em; font-variant-numeric: tabular-nums; color: var(--text); }
@@ -221,8 +222,8 @@ table.grid {
   min-width: 10em;
   max-width: 22em;
   padding: 0.4em 0.6em;
-  border: 1px solid var(--line);
-  border-radius: 0.4em;
+  border: 1px solid var(--line-faint);
+  border-radius: 3px;
   background: rgba(var(--tint-rgb), 0.97);
   box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.45);
   font-size: 0.9em;
@@ -324,8 +325,8 @@ table.grid {
 }
 .card {
   padding: 0.5em 0.7em;
-  border: 1px solid var(--line-faint);
-  border-radius: 0.5em;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
 }
 .card-head { display: flex; align-items: center; gap: 0.5em; margin-bottom: 0.4em; }
 .card-head img, .card-head .blank { width: 1.7em; height: 1.7em; border-radius: 0.3em; flex: none; }
@@ -364,3 +365,5 @@ table.grid {
   border-radius: 0.25em;
   padding: 0 0.3em;
 }
+#boss-table td.alert-mark { cursor: pointer; color: var(--faint); white-space: nowrap; }
+#boss-table td.alert-mark.on { color: var(--bad); }

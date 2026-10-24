@@ -36,6 +36,8 @@
 :root {
   --fs: 13px;
   --alpha: 0.62;
+  /* How frosted the overlay's frosted glass looks (settings → frost): 0.5 as designed. */
+  --frost: 0.5;
   --tint: rgba(var(--tint-rgb), var(--alpha));
   --tint-strong: rgba(var(--tint-rgb), 0.85);
   /* Bright text with a soft shadow stays readable over bright game scenes. */
@@ -54,6 +56,21 @@
   --warn: #f6d38f;
   --bad: #ff9393;
   --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+}
+
+/* Night (the default): cool near-black panels, soft grey text, a lavender accent with pink
+   numbers, and its own softer status colours. After :root, so its text colours win. */
+[data-theme="night"] {
+  --accent: #c397d8;
+  --accent-2: #fcb2b4;
+  --tint-rgb: 16, 19, 23;
+  --text: #d4d4d5;
+  --muted: rgba(212, 212, 213, 0.72);
+  --faint: rgba(212, 212, 213, 0.48);
+  --ink: #101317;
+  --ok: #79dcaa;
+  --warn: #ffe59e;
+  --bad: #f87070;
 }
 
 /* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */
@@ -81,3 +98,20 @@
 .c17 { --class: #e8dd8c; } /* Cleric */
 .c18 { --class: #abe39c; } /* Chanter */
 .c19 { --class: #f6aa6e; } /* Fighter */
+
+/* ---------------------------------------------------------------- widgets in the overlay */
+
+/* A widget is part of the game's screen, not a window: a frameless rounded panel (no
+   title bar, border, shadow, hints or scrollbars). Its background follows the setting:
+   tinted, clear, or frosted, where the overlay puts Windows' blur of the game behind the
+   panel (as the windows had) under a lighter tint. */
+html.widget { --widget-radius: 4px; }
+/* Frost: below half, less tint over the blur (clearer, down to a quarter of it); above, a
+   milky white mixed in. */
+html.widget[data-backdrop="frosted"] {
+  --tint: color-mix(
+    in srgb,
+    rgba(var(--tint-rgb), calc(var(--alpha) * 0.55 * (0.25 + 0.75 * min(1, var(--frost) * 2)))),
+    rgba(255, 255, 255, 0.55) calc(max(0, var(--frost) * 2 - 1) * 40%)
+  );
+}

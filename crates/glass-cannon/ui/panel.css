@@ -1,5 +1,6 @@
-/* The side windows (history, cooldowns, timers): the settings window's glass, title bar
-   and type. Colours come from theme.css. */
+/* The history window and the overlay's side widgets (cooldowns, world timers, target
+   frame, party cooldowns): the settings window's glass, title bar and type. Colours come
+   from theme.css. */
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -35,7 +36,6 @@ button {
   height: 100%;
   padding: 0 0.7em 0.6em;
   background: var(--tint);
-  border: 1px solid var(--line-faint);
 }
 
 #bar {
@@ -47,9 +47,6 @@ button {
   cursor: grab;
 }
 .brand { flex: 1; color: var(--muted); letter-spacing: 0.12em; font-size: 0.9em; white-space: nowrap; }
-.close { width: 1.7em; height: 1.7em; padding: 0.2em; color: var(--muted); }
-.close:hover { color: var(--text); background: var(--line-faint); }
-.close svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 
 /* [tab] choices under the title bar. */
 .tabs { display: flex; flex: none; flex-wrap: wrap; gap: 0.2em; margin-bottom: 0.4em; }
@@ -184,11 +181,16 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .end-tag.kill { color: var(--ok); }
 .end-tag.wipe { color: var(--bad); }
 
-.timer { grid-template-columns: auto minmax(0, 1fr) auto; }
+.timer { grid-template-columns: auto auto minmax(0, 1fr) auto; column-gap: 0.4em; }
 .bell { padding: 0; font-size: 0.9em; opacity: 0.45; filter: grayscale(1); }
 .bell-space { display: inline-block; width: 1.3em; }
 .bell.on { opacity: 1; filter: none; }
 .bell:hover { opacity: 1; }
+.star { padding: 0; width: 1.3em; color: var(--faint); }
+.star.on { color: var(--warn); }
+.star:hover { color: var(--text); }
+.fav-filter { margin-left: 0.4em; color: var(--muted); }
+.fav-filter[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
 .lead button { color: var(--accent); }
 .lead button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
@@ -213,6 +215,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 #tf-attacking.you { color: var(--warn); font-weight: 700; }
 #tf-enrage { color: var(--warn); }
 #tf-enrage.soon { color: var(--bad); font-weight: 700; }
+#tf-best { color: var(--faint); }
+#tf-best.beating { color: var(--ok); }
 .tf-stagger { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
 #tf-stagger-fill { display: block; height: 100%; background: var(--warn); }
 #tf-stagger-fill.broken { background: var(--ok); }
@@ -256,3 +260,12 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .bc-row.stopped .bc-right { color: var(--ok); }
 .bc-row.soon { background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .bc-row.soon .bc-right { color: var(--warn); font-weight: 700; }
+
+/* ---------------------------------------------------------------- as a widget in the overlay */
+
+/* No title bar, border, hints or scrollbars: the overlay places it, the settings show and
+   hide it. */
+.widget .hint { display: none; }
+.widget #panel { padding: 0.45em 0.6em; border: 0; border-radius: var(--widget-radius); }
+.widget .scroll::-webkit-scrollbar { width: 0; }
+.widget.fit #panel { height: auto; max-height: 100vh; }

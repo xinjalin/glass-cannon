@@ -1,23 +1,17 @@
-//! Where the windows open: where you last left them. The overlay otherwise opens on the
-//! game's monitor (or the primary one), near the right edge; the others beside it.
+//! Where the windows open: where you last left them. The launcher otherwise opens in the
+//! middle of the main screen; the others beside it (or, in game, on the game's screen).
 //!
 //! Every window's position and size are kept in `windows.json` as you move or resize it
 //! (written at most once a second), so they come back next time even after a crash.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::{Monitor, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, Window};
 
-/// The overlay's placement from before every window's was kept (read if there's no newer).
-const STATE_FILE: &str = "window.json";
 const WINDOWS_FILE: &str = "windows.json";
-/// Gap from the monitor's right edge, in logical pixels.
-const EDGE_MARGIN: f64 = 32.0;
-/// Top of the overlay, as a fraction of the monitor height (clear of the minimap).
-const TOP_FRACTION: f64 = 0.3;
 
 /// Saved in physical pixels.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -38,14 +32,8 @@ pub struct Placements {
 impl Placements {
     pub fn load(config_dir: &Path) -> Self {
         let path = config_dir.join(WINDOWS_FILE);
-        let mut by_label: BTreeMap<String, Placement> =
+        let by_label: BTreeMap<String, Placement> =
             fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        if !by_label.contains_key(crate::OVERLAY) {
-            let old = fs::read(config_dir.join(STATE_FILE)).ok().and_then(|b| serde_json::from_slice(&b).ok());
-            if let Some(p) = old {
-                by_label.insert(crate::OVERLAY.into(), p);
-            }
-        }
         Self { path, by_label, changed: false }
     }
 
@@ -121,44 +109,6 @@ pub fn restore<R: Runtime>(window: &WebviewWindow<R>, p: Placement, size: bool) 
     true
 }
 
-/// Positions the overlay before it is shown. Returns where it was put when that was an
-/// automatic choice (not a restored position), so a later game launch can move it.
-pub fn place<R: Runtime>(window: &WebviewWindow<R>, saved: Option<Placement>) -> Option<PhysicalPosition<i32>> {
-    if saved.is_some_and(|p| restore(window, p, true)) {
-        return None;
-    }
-    let monitors = window.available_monitors().unwrap_or_default();
-    let target = game_monitor(&monitors)
-        .or_else(|| window.primary_monitor().ok().flatten())
-        .or_else(|| monitors.first().cloned())?;
-    let pos = right_edge(&target, window.outer_size().ok()?);
-    let _ = window.set_position(pos);
-    Some(pos)
-}
-
-/// Moves an automatically placed window to the game's monitor once the game appears,
-/// unless the user has moved it in the meantime.
-pub fn follow_game<R: Runtime>(window: &WebviewWindow<R>, placed_at: PhysicalPosition<i32>) -> bool {
-    if window.outer_position().ok() != Some(placed_at) {
-        return true; // the user moved it; leave it alone
-    }
-    let monitors = window.available_monitors().unwrap_or_default();
-    let Some(target) = game_monitor(&monitors) else {
-        return false; // no game window yet; keep waiting
-    };
-    if let Ok(size) = window.outer_size() {
-        let _ = window.set_position(right_edge(&target, size));
-    }
-    true
-}
-
-fn right_edge(m: &Monitor, size: PhysicalSize<u32>) -> PhysicalPosition<i32> {
-    let margin = (EDGE_MARGIN * m.scale_factor()) as i32;
-    let x = m.position().x + m.size().width as i32 - size.width as i32 - margin;
-    let y = m.position().y + (m.size().height as f64 * TOP_FRACTION) as i32;
-    PhysicalPosition::new(x.max(m.position().x), y)
-}
-
 fn overlaps(m: &Monitor, p: &Placement) -> bool {
     let (mx, my) = (m.position().x, m.position().y);
     let (mw, mh) = (m.size().width as i32, m.size().height as i32);
@@ -168,99 +118,20 @@ fn overlaps(m: &Monitor, p: &Placement) -> bool {
     w >= 80 && h >= 40
 }
 
-/// The monitor showing the game's main window.
-fn game_monitor(monitors: &[Monitor]) -> Option<Monitor> {
-    let pids: HashSet<u32> = meter_core::conns::find_processes("AION2")
-        .ok()?
-        .into_iter()
-        .map(|p| p.pid)
-        .collect();
-    let r = win32::largest_window(&pids)?;
-    let (cx, cy) = ((r.left + r.right) / 2, (r.top + r.bottom) / 2);
-    monitors
-        .iter()
-        .find(|m| {
-            let (mx, my) = (m.position().x, m.position().y);
-            cx >= mx && cx < mx + m.size().width as i32 && cy >= my && cy < my + m.size().height as i32
-        })
-        .cloned()
-}
-
-mod win32 {
-    use std::collections::HashSet;
-
-    type Hwnd = isize;
-
-    #[repr(C)]
-    #[derive(Debug, Default, Clone, Copy)]
-    pub struct Rect {
-        pub left: i32,
-        pub top: i32,
-        pub right: i32,
-        pub bottom: i32,
-    }
-
-    #[link(name = "user32")]
-    extern "system" {
-        fn EnumWindows(callback: unsafe extern "system" fn(Hwnd, isize) -> i32, lparam: isize) -> i32;
-        fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
-        fn IsWindowVisible(hwnd: Hwnd) -> i32;
-        fn IsIconic(hwnd: Hwnd) -> i32;
-        fn GetWindowRect(hwnd: Hwnd, rect: *mut Rect) -> i32;
-    }
-
-    struct Search<'a> {
-        pids: &'a HashSet<u32>,
-        best: Option<(i64, Rect)>,
-    }
-
-    unsafe extern "system" fn visit(hwnd: Hwnd, lparam: isize) -> i32 {
-        // SAFETY: lparam is the &mut Search passed to EnumWindows below, alive for the call.
-        let search = &mut *(lparam as *mut Search);
-        let mut pid = 0u32;
-        GetWindowThreadProcessId(hwnd, &mut pid);
-        if search.pids.contains(&pid) && IsWindowVisible(hwnd) != 0 && IsIconic(hwnd) == 0 {
-            let mut r = Rect::default();
-            if GetWindowRect(hwnd, &mut r) != 0 {
-                let area = (r.right - r.left) as i64 * (r.bottom - r.top) as i64;
-                if search.best.is_none_or(|(a, _)| area > a) {
-                    search.best = Some((area, r));
-                }
-            }
-        }
-        1 // keep enumerating
-    }
-
-    /// The largest visible top-level window owned by any of `pids`.
-    pub fn largest_window(pids: &HashSet<u32>) -> Option<Rect> {
-        if pids.is_empty() {
-            return None;
-        }
-        let mut search = Search { pids, best: None };
-        // SAFETY: the callback only touches `search`, which outlives the call.
-        unsafe { EnumWindows(visit, &mut search as *mut Search as isize) };
-        search.best.map(|(_, r)| r)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn placements_are_kept_and_the_old_overlay_file_still_counts() {
+    fn placements_are_kept() {
         let dir = std::env::temp_dir().join(format!("gc-placements-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        // From before every window's was kept: just the overlay's.
-        fs::write(dir.join(STATE_FILE), r#"{ "x": 10, "y": 20, "width": 400, "height": 250 }"#).unwrap();
         let mut p = Placements::load(&dir);
-        assert_eq!(p.get(crate::OVERLAY), Some(Placement { x: 10, y: 20, width: 400, height: 250 }));
         let target = Placement { x: 600, y: 140, width: 340, height: 220 };
         p.set("target", target);
         p.save_if_changed();
         let again = Placements::load(&dir);
         assert_eq!(again.get("target"), Some(target));
-        assert_eq!(again.get(crate::OVERLAY).map(|o| o.x), Some(10), "kept in the new file too");
         assert_eq!(again.get("history"), None);
         fs::remove_dir_all(dir).ok();
     }

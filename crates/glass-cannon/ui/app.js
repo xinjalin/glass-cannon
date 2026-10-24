@@ -1,11 +1,15 @@
-// Glass Cannon overlay. Polls the engine (twice a second by default; settings → update
+// Glass Cannon's meter. Polls the engine (twice a second by default; settings → update
 // rate) and redraws, or on "live" redraws whenever the app says new data has arrived.
 // Player and mob names come from network traffic, so everything is set with
 // textContent, never innerHTML.
 
-const tauri = window.__TAURI__;
+// The meter is a widget in the overlay: a frame in the HUD's page, which lends it the app
+// (frames don't get it themselves). The HUD places it; the meter tells it how tall it wants
+// to be, whether it's faded, what the boss is casting (for the warnings and timers) and
+// the hidden cubes in view.
+const tauri = window.parent.__TAURI__;
 const invoke = tauri.core.invoke;
-const win = tauri.window.getCurrentWindow();
+const toHud = (message) => window.parent.postMessage(message, "*");
 
 const DEFAULT_POLL_MS = 500;
 // The "live" update rate: redraw when new data arrives (the app says so), and once a
@@ -13,8 +17,7 @@ const DEFAULT_POLL_MS = 500;
 const REALTIME = 100;
 const HEARTBEAT_MS = 1000;
 const SEGMENTS = 12; // blocks in each meter bar
-const FIT_ROWS = 5; // the window's default height shows this many players
-const DEFAULT_WIDTH = 420; // logical pixels, as in tauri.conf.json
+const FIT_ROWS = 5; // the meter's height shows this many players
 
 // Whose damage counts; the button cycles through them in this order. "auto" follows your
 // party: your party's fight while you're in one, yours on your own.
@@ -26,7 +29,7 @@ const SCOPE_TITLES = {
   everyone: "Everyone fighting nearby",
 };
 
-// What the rows show; the legend's button cycles through them in this order.
+// What the rows show; the view button cycles through them in this order.
 const VIEWS = ["damage", "healing", "taken", "party"];
 const VIEW_LABELS = { damage: "dmg", healing: "heal", taken: "taken", party: "party" };
 const VIEW_TITLES = {
@@ -42,7 +45,6 @@ const VIEW_UNITS = { damage: "dmg", healing: "healed", taken: "taken" };
 
 const $ = (id) => document.getElementById(id);
 const expanded = new Set(); // player IDs whose skill list is open
-let pinned = true;
 let editing = false; // pause redraws while a name is being typed
 let lastView = null;
 // When it arrived (performance.now()), so countdowns run on between refreshes.
@@ -106,8 +108,6 @@ function timeOfDay(ms) {
 function pingClass(ms) {
   return ms < 200 ? "good" : ms < 300 ? "high" : "bad";
 }
-
-const minimal = () => document.documentElement.classList.contains("minimal");
 
 // Meter blocks, row heights and the gaps between them are whole device pixels, so they're
 // the same size at any font size or display scaling (fractional sizes rounded unevenly).
@@ -437,8 +437,8 @@ function noticePartyChanges(party) {
 }
 
 // Notices show on one line, the newest first; several at once take turns, a few seconds
-// each, until each one's time is up. The line sits on the box's top border, right of the
-// legend (in minimal mode, under the last row), so it never moves or covers a row.
+// each, until each one's time is up. The line sits under the last row, so it never moves
+// or covers a row.
 const NOTICE_TURN_MS = 3000;
 let notices = [];
 let noticeTurn = 0;
@@ -460,6 +460,24 @@ function keyedNotice(key, text, ms, kind = "") {
     noticeTurn = notices.length - 1;
   }
   drawNotice();
+}
+
+// ---------------------------------------------------------------- to the overlay
+
+// As a widget: the boss's cast and what's ahead go up to the overlay, which draws the boss
+// warnings and timers (and the theme, so its own text matches).
+function sendBoss(view) {
+  const enc = view.meter.encounter;
+  const fighting = enc && enc.active && enc.target_boss;
+  const boss = fighting
+    ? {
+        cast: enc.boss_cast || null,
+        castKey: enc.boss_cast ? enc.boss_cast.started_us : 0,
+        ahead: view.boss_ahead,
+        sound: view.alert_sound,
+      }
+    : null;
+  toHud({ type: "gc-boss", boss: boss && { ...boss, appearance: view.appearance } });
 }
 
 // ---------------------------------------------------------------- pet souls
@@ -489,30 +507,6 @@ function noticeSouls(souls) {
   }
 }
 
-// ---------------------------------------------------------------- hidden cubes
-
-// Each hidden cube in view: its colour, and how far and which way while the game has told
-// us where you are (for a minute after you arrive somewhere; it never sends your moves).
-const CUBE_SEEN_MS = 3000;
-const ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-
-function noticeCubes(cubes) {
-  for (const c of cubes || []) {
-    let text;
-    if (c.opened) {
-      text = `◆ ${c.look} hidden cube opened`;
-    } else if (c.distance_m == null) {
-      text = `◆ ${c.look} hidden cube nearby`;
-    } else {
-      const dir = Math.round(c.bearing / 45) % 8;
-      const rise = Math.abs(c.rise_m) >= 3 ? ` · ${Math.abs(c.rise_m)} m ${c.rise_m > 0 ? "up" : "down"}` : "";
-      text = `◆ ${c.look} hidden cube · ${c.distance_m} m ${ARROWS[dir]} ${COMPASS[dir]}${rise}`;
-    }
-    keyedNotice(`cube:${c.entity}`, text, CUBE_SEEN_MS, `cube ${c.look}`);
-  }
-}
-
 function drawNotice() {
   const now = Date.now();
   notices = notices.filter((n) => n.until > now);
@@ -527,31 +521,9 @@ function drawNotice() {
 }
 
 function placeNotice() {
-  const line = $("notice");
   const panel = $("panel").getBoundingClientRect();
   const box = $("box").getBoundingClientRect();
-  if (minimal()) {
-    // Under the last row, centred, clear of the lock button on either side.
-    Object.assign(line.style, {
-      left: "50%",
-      right: "",
-      transform: "translateX(-50%)",
-      top: `${box.bottom - panel.top + 2}px`,
-      height: "",
-      maxWidth: "calc(100% - 4.4em)",
-    });
-    return;
-  }
-  const legend = $("legend").getBoundingClientRect();
-  const left = legend.right - panel.left + 6;
-  Object.assign(line.style, {
-    left: `${left}px`,
-    right: "",
-    transform: "",
-    top: `${legend.top - panel.top}px`,
-    height: `${legend.height}px`,
-    maxWidth: `${box.right - panel.left - 8 - left}px`,
-  });
+  $("notice").style.top = `${box.bottom - panel.top + 2}px`;
 }
 
 setInterval(() => {
@@ -596,14 +568,19 @@ setInterval(checkAlerts, 5000);
 
 // ---------------------------------------------------------------- fading outside combat
 
-// With "fade outside combat" set, the meter fades away that long after the last fight
-// and comes back with the next one (or under the mouse).
+// With "fade outside combat" set, the overlay's fight widgets fade away that long after the
+// last fight and come back with the next one (the meter under the mouse too): the HUD
+// fades them, as the meter says.
 let lastCombatAt = Date.now();
+let fadedSent = null;
 function fadeOutsideCombat(view) {
   const enc = view.meter.encounter;
   if (view.meter.in_combat || (enc && enc.active) || mode !== "live") lastCombatAt = Date.now();
   const after = (view.hide_after_s || 0) * 1000;
-  document.documentElement.classList.toggle("faded", after > 0 && Date.now() - lastCombatAt > after);
+  const faded = after > 0 && Date.now() - lastCombatAt > after;
+  if (faded === fadedSent) return;
+  fadedSent = faded;
+  toHud({ type: "gc-fade", faded });
 }
 
 function drawTotals(enc) {
@@ -626,7 +603,9 @@ function drawTotals(enc) {
     : null;
   const view = rowView();
   const total = view === "damage" ? enc.total_damage : (view === "healing" ? enc.total_healing : enc.total_taken) || 0;
-  $("total").textContent = `${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
+  // The fight's total under the mouse (the line has no room for it beside the switches).
+  const sum = `total ${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
+  target.title = [target.title, sum].filter(Boolean).join("\n");
   drawBossBar(enc);
 }
 
@@ -682,7 +661,7 @@ function drawBossCast(enc) {
     castLine = { kind: "next", name: name(next), total: 0, left: next.in_s * 1000 };
   }
   if (!castLine) {
-    line.className = "";
+    line.className = "idle";
     $("bc-name").textContent = "";
     $("bc-time").textContent = "";
     $("bc-fill").style.width = "0";
@@ -721,11 +700,10 @@ const rowView = () => (meterView() === "party" ? "damage" : meterView());
 function drawViewSwitch() {
   const view = partyPeek && mode === "live" ? "party" : meterView();
   const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
-  for (const b of [$("view"), $("f-view")]) {
-    b.textContent = VIEW_LABELS[view];
-    b.classList.toggle("on", view !== "damage");
-    b.title = `${VIEW_TITLES[view]}\nClick for ${VIEW_TITLES[next].split(" (")[0].toLowerCase()}`;
-  }
+  const b = $("view");
+  b.textContent = VIEW_LABELS[view];
+  b.classList.toggle("on", view !== "damage");
+  b.title = `${VIEW_TITLES[view]}\nClick for ${VIEW_TITLES[next].split(" (")[0].toLowerCase()}`;
 }
 
 // ---------------------------------------------------------------- history
@@ -767,37 +745,31 @@ function drawScope(meter, auto) {
     title += meter.party_size > 1 ? ` (${meter.party_size} people)` : " (not in a party: just you)";
   }
   if (auto) title = `Auto: follows your party (your party's fight in a party or expedition, yours on your own)\nNow: ${title}`;
-  for (const b of [$("scope"), $("f-scope")]) {
-    b.textContent = SCOPE_LABELS[scope] || scope;
-    b.classList.toggle("on", scope !== "mine");
-    b.classList.toggle("auto", auto);
-    b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
-  }
+  const b = $("scope");
+  b.textContent = SCOPE_LABELS[scope] || scope;
+  b.classList.toggle("on", scope !== "mine");
+  b.classList.toggle("auto", auto);
+  b.title = `${title}\nClick for ${SCOPE_LABELS[next] || next}`;
 }
 
-// Minimal mode: the pills sit on the target's line (or the top line when there's no
-// fight), and the target's name stops short of them.
+// The pills sit on the target's line (or the top line when there's no fight), and the
+// target's name stops short of them.
 function placeFloat() {
   const float = $("float");
   const totals = $("totals");
   const box = $("box");
-  if (!minimal()) {
-    totals.style.paddingRight = "";
-    box.style.paddingTop = "";
-    return;
-  }
   // No target line (the party view, no fight yet): the pills get a line of their own
   // above the rows, so they never sit on one.
-  box.style.paddingTop = totals.hidden ? `${$("f-view").offsetHeight + 4}px` : "";
+  box.style.paddingTop = totals.hidden ? `${$("view").offsetHeight + 4}px` : "";
   const panel = $("panel").getBoundingClientRect();
   const line = !totals.hidden ? totals : box;
   const r = line.getBoundingClientRect();
-  const pills = $("f-scope").offsetWidth + $("f-view").offsetWidth + 8;
-  float.style.top = `${r.top - panel.top + (!totals.hidden ? (r.height - $("f-view").offsetHeight) / 2 - 1 : 0)}px`;
+  const pills = $("scope").offsetWidth + $("view").offsetWidth + 8;
+  float.style.top = `${r.top - panel.top + (!totals.hidden ? (r.height - $("view").offsetHeight) / 2 - 1 : 0)}px`;
   totals.style.paddingRight = `${pills}px`;
 }
 
-// How tall the window must be to show `rows` players with the current font and layout:
+// How tall the meter must be to show `rows` players with the current font and layout:
 // lays out a hidden copy of the panel at its natural height.
 function heightFor(rows) {
   const panel = $("panel");
@@ -829,7 +801,6 @@ function heightFor(rows) {
   part("boss-bar").hidden = !bossBarRoom();
   part("boss-cast").hidden = !bossCastRoom();
   part("target").textContent = "x";
-  part("total").textContent = "x";
   for (const id of ["empty", "status"]) part(id).hidden = true;
   document.body.append(copy);
   const height = Math.ceil(copy.getBoundingClientRect().height);
@@ -837,62 +808,31 @@ function heightFor(rows) {
   return height;
 }
 
-// The longest thing the title bar says; the default width fits it.
-const LONGEST_PHASE = "waiting for the game";
-
-// The narrowest window (CSS pixels) whose title bar shows LONGEST_PHASE in full: lays out
-// a hidden copy of the panel at growing widths (the brand label comes back on a wider bar,
-// so it can't just be added up).
-function widthFor(text) {
-  const panel = $("panel");
-  const extra = window.innerWidth - panel.offsetWidth;
-  for (let w = panel.offsetWidth; w <= 900; w += 8) {
-    const copy = panel.cloneNode(true);
-    Object.assign(copy.style, { position: "absolute", visibility: "hidden", left: "0", top: "0", width: `${w}px` });
-    copy.querySelector("#fight").textContent = text;
-    document.body.append(copy);
-    const f = copy.querySelector("#fight");
-    const fits = f.scrollWidth <= f.clientWidth;
-    copy.remove();
-    if (fits) return w + extra;
-  }
-  return null;
-}
-
-// Fits the window to FIT_ROWS players: on start (only ever growing a window you made
-// taller), and exactly whenever the font size, time bar or minimal mode changes. It's
-// made wide enough for the title bar's longest text then too (the app only applies that
-// on first start, after a layout change or a reset, never to a width you chose).
+// The HUD fits the meter to FIT_ROWS players: told on start, and whenever the font, the
+// time bar or the boss lines change.
 let fitFor = null;
-let resetWidth = null; // set by "reset appearance": the width goes back to the default too
 const bossBarRoom = () => !!(lastView && lastView.boss_hp);
 const bossCastRoom = () => bossBarRoom() && !!lastView.boss_casts;
 
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.font}|${a.info_bar}|${a.minimal}|${bossBarRoom()}|${bossCastRoom()}`;
+  const key = `${a.font_size}|${a.font}|${a.info_bar}|${bossBarRoom()}|${bossCastRoom()}`;
   if (key === fitFor) return;
-  const exact = fitFor !== null;
   fitFor = key;
-  const width = resetWidth;
-  resetWidth = null;
   requestAnimationFrame(() => {
-    const minWidth = minimal() ? null : widthFor(LONGEST_PHASE);
-    invoke("fit_overlay", { height: heightFor(FIT_ROWS), exact, width, minWidth }).catch(() => {});
+    // A hidden meter (its widget turned off) has no width to measure at: it fits once shown.
+    if (!$("panel").offsetWidth) {
+      fitFor = null;
+      return;
+    }
+    toHud({ type: "gc-fit", widget: "meter", height: heightFor(FIT_ROWS) });
   });
 }
 
 function drawStatus(view) {
   const { status, meter } = view;
-  const enc = meter.encounter;
   drawScope(meter, view.auto_scope);
-  $("dot").className = "dot " + (enc && enc.active ? "fighting" : status.phase);
-  $("dot").title = status.message;
 
   const ms = view.ping_ms;
-  const ping = $("ping");
-  ping.hidden = ms == null;
-  ping.textContent = ms == null ? "" : `${ms}ms`;
-  ping.className = ms == null ? "" : pingClass(ms);
   const infoPing = $("info-ping");
   infoPing.textContent = ms == null ? "ping –" : `ping ${ms}ms`;
   infoPing.className = ms == null ? "" : pingClass(ms);
@@ -915,20 +855,6 @@ function drawStatus(view) {
   line.title = problem;
 }
 
-function phaseText(view) {
-  if (!view) return "";
-  const enc = view.meter.encounter;
-  if (enc && enc.active) return "in combat";
-  return {
-    idle: "idle",
-    starting: "starting",
-    waiting: "waiting for the game",
-    capturing: enc ? "last fight" : "ready",
-    replay: "replay",
-    error: "error",
-  }[view.status.phase] || "";
-}
-
 // An open analysis window shows the fight shown here: a saved one, or the live one.
 let followed = null;
 function followFight() {
@@ -944,16 +870,11 @@ function redraw() {
   drawViewSwitch();
   const live = mode === "live";
   $("back").hidden = live;
-  $("f-back").hidden = live;
-  $("fight").textContent = phaseText(lastView);
-  for (const b of [$("history"), $("f-history")]) b.classList.toggle("on", !live);
+  $("history").classList.toggle("on", !live);
   if (lastView) drawStatus(lastView);
 
   const party = (lastView && lastView.meter.party) || [];
   if (live && (meterView() === "party" || partyPeek)) {
-    const ready = readyCount(party);
-    $("legend-text").textContent = ready ? `party · ${ready} ready` : "party";
-    $("clock").textContent = party.length ? `[${party.length}]` : "";
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
@@ -964,8 +885,6 @@ function redraw() {
   }
   const enc = live ? lastView && lastView.meter.encounter : fightView;
   if (!enc) {
-    $("legend-text").textContent = "fight";
-    $("clock").textContent = "";
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
@@ -983,8 +902,6 @@ function redraw() {
             : "starting…";
     return;
   }
-  $("legend-text").textContent = live ? "fight" : `fight · ${timeOfDay(enc.end_us / 1000)}`;
-  $("clock").textContent = clock(enc.duration_s);
   drawTotals(enc);
   drawRows(enc);
   const none = rowsOf(enc).length === 0;
@@ -1004,7 +921,9 @@ async function refresh() {
   try {
     const view = await invoke("snapshot", { expanded: [...expanded] });
     lastViewAt = performance.now();
-    noticeCubes(view.cubes);
+    sendBoss(view);
+    // Hidden cubes have their own widget in the overlay.
+    toHud({ type: "gc-cubes", cubes: view.cubes || [] });
     noticeSouls(view.souls);
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
@@ -1023,7 +942,6 @@ async function refresh() {
     fadeOutsideCombat(lastView);
     snapSizes();
     fitHeight(lastView.appearance);
-    drawLock(lastView.locked);
     redraw();
   } catch (e) {
     showError(e);
@@ -1076,7 +994,6 @@ function goBack() {
   redraw();
 }
 $("back").addEventListener("click", goBack);
-$("f-back").addEventListener("click", goBack);
 
 // The analysis window, on the fight shown here (a saved one in history mode).
 function openAnalysis(player) {
@@ -1086,11 +1003,7 @@ function openAnalysis(player) {
 $("analysis").addEventListener("click", () => openAnalysis(null));
 
 // The history has its own window.
-function toggleHistory() {
-  invoke("toggle_panel", { name: "history" }).catch(showError);
-}
-$("history").addEventListener("click", toggleHistory);
-$("f-history").addEventListener("click", toggleHistory);
+$("history").addEventListener("click", () => invoke("open_history").catch(showError));
 
 // Damage → healing → taken → party.
 async function cycleView() {
@@ -1104,7 +1017,6 @@ async function cycleView() {
   redraw();
 }
 $("view").addEventListener("click", cycleView);
-$("f-view").addEventListener("click", cycleView);
 
 // Ends the live fight now instead of waiting for it to go quiet.
 async function endFight() {
@@ -1114,14 +1026,6 @@ async function endFight() {
   refresh();
 }
 $("end-fight").addEventListener("click", endFight);
-$("f-end-fight").addEventListener("click", endFight);
-
-$("reset").addEventListener("click", async () => {
-  expanded.clear();
-  mode = "live";
-  await invoke("reset");
-  refresh();
-});
 
 async function cycleScope() {
   const now = !lastView || lastView.auto_scope ? "auto" : lastView.meter.scope;
@@ -1130,28 +1034,8 @@ async function cycleScope() {
   refresh();
 }
 $("scope").addEventListener("click", cycleScope);
-$("f-scope").addEventListener("click", cycleScope);
 
 $("settings").addEventListener("click", () => invoke("toggle_settings"));
-$("f-settings").addEventListener("click", () => invoke("toggle_settings"));
-
-// Minimal mode has no title bar, so the meter drags from anywhere. Dragging only starts
-// once the pointer moves, so clicks (open a row) and double-clicks (rename) still work.
-let press = null;
-document.addEventListener("mousedown", (e) => {
-  const draggable = e.button === 0 && minimal() && !e.target.closest("button, input");
-  press = draggable ? { x: e.screenX, y: e.screenY } : null;
-});
-document.addEventListener("mousemove", (e) => {
-  if (!press) return;
-  if (!(e.buttons & 1)) {
-    press = null;
-  } else if (Math.hypot(e.screenX - press.x, e.screenY - press.y) >= 4) {
-    press = null;
-    win.startDragging();
-  }
-});
-document.addEventListener("mouseup", () => (press = null));
 
 function tick() {
   $("info-time").textContent = new Date().toLocaleTimeString([], {
@@ -1163,53 +1047,6 @@ function tick() {
 tick();
 setInterval(tick, 1000);
 
-$("pin").addEventListener("click", async () => {
-  pinned = !pinned;
-  $("pin").classList.toggle("on", pinned);
-  await win.setAlwaysOnTop(pinned);
-});
-
-// ---------------------------------------------------------------- lock (click-through)
-
-let locked = false;
-function drawLock(on) {
-  locked = on;
-  document.documentElement.classList.toggle("locked", on);
-  $("lock").title = on
-    ? "Locked: clicks go through to the game. Click to unlock"
-    : "Lock: let clicks through to the game (this button stays clickable)";
-  reportLockRect();
-}
-
-// The app keeps the lock button clickable while the rest lets clicks through, so it
-// needs to know where the button is (in device pixels from the page's top left).
-let lockRectKey = "";
-function reportLockRect() {
-  const r = $("lock").getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const rect = { x: r.left * dpr, y: r.top * dpr, width: r.width * dpr, height: r.height * dpr };
-  const key = Object.values(rect).map(Math.round).join(",");
-  if (key === lockRectKey) return;
-  lockRectKey = key;
-  invoke("lock_button_rect", { rect }).catch(() => {});
-}
-new ResizeObserver(reportLockRect).observe(document.documentElement);
-
-$("lock").addEventListener("click", async () => {
-  await invoke("set_locked", { locked: !locked });
-  refresh();
-});
-
-$("min").addEventListener("click", () => win.minimize());
-$("close").addEventListener("click", () => win.close());
-$("f-close").addEventListener("click", () => win.close());
-
-// "Reset appearance" in the settings: refit at the default size on the next refresh.
-tauri.event.listen("reset-size", () => {
-  resetWidth = DEFAULT_WIDTH;
-  fitFor = "reset";
-});
-
 // A fight picked in the history window.
 tauri.event.listen("show-fight", (e) => openFight(e.payload));
 // The history was cleared: a saved fight shown here is gone with it.
@@ -1219,4 +1056,13 @@ tauri.event.listen("history-cleared", () => {
 
 poll();
 
-window.addEventListener("resize", () => requestAnimationFrame(placeFloat));
+// A new width (the meter shown, or resized while arranging) changes how tall the rows make
+// it: fit again.
+let fitWidth = 0;
+window.addEventListener("resize", () => {
+  requestAnimationFrame(placeFloat);
+  if (innerWidth === fitWidth || !lastView) return;
+  fitWidth = innerWidth;
+  fitFor = null;
+  fitHeight(lastView.appearance);
+});

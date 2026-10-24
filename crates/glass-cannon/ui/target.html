@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="widget">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,14 +7,8 @@
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="panel.css">
 </head>
-<body data-panel="target">
+<body data-panel="target" data-fit>
   <main id="panel">
-    <header id="bar" data-tauri-drag-region>
-      <span class="brand" data-tauri-drag-region>─ target</span>
-      <button id="close" type="button" class="close" title="Close (Esc)">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
-      </button>
-    </header>
     <div id="frame" hidden>
       <div class="tf-head">
         <span id="tf-boss" class="boss" hidden>BOSS</span>
@@ -36,6 +30,9 @@
       <div class="tf-line">
         <span id="tf-attacking"></span>
         <span id="tf-enrage"></span>
+      </div>
+      <div id="tf-best-line" class="tf-line" hidden>
+        <span id="tf-best"></span>
       </div>
       <div id="tf-stagger-box" hidden>
         <div class="tf-stagger"><span id="tf-stagger-fill"></span></div>

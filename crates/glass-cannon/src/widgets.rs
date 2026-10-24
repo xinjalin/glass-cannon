@@ -1,93 +1,49 @@
-//! The side windows: fight history, cooldowns and world timers. Each opens beside the
-//! meter the first time, stays where you put it, and is opened again at start if it was
-//! open when the app closed.
+//! The overlay's widgets: which show (settings → overlay), and what the side widgets
+//! (cooldowns, world timers, target frame, party cooldowns) and the history window read.
 
 use std::sync::Arc;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 use meter_core::fieldboss::FieldBoss;
 use meter_core::meter::TargetView;
 use meter_core::pvp::PvpSession;
 
-use crate::layout::Side;
-use crate::settings::place_beside;
 use crate::store::TIMER_REGIONS;
-use crate::{lock, AppState, OVERLAY};
+use crate::{hud, lock, AppState};
 
-pub const PANELS: [&str; 5] = ["history", "cooldowns", "timers", "target", "party-cooldowns"];
-/// The smallest each may be squeezed to (logical pixels) to fit beside the meter.
-const MIN_SIZE: (f64, f64) = (260.0, 200.0);
+/// Every widget the overlay has, in the settings' order.
+pub const WIDGETS: [&str; 8] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "cooldowns", "party-cooldowns", "timers"];
 
-fn check(name: &str) -> Result<(), String> {
-    PANELS.contains(&name).then_some(()).ok_or_else(|| format!("no window called {name}"))
-}
-
-/// Shows a side window (beside the meter the first time), or hides it if it's showing.
+/// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
-pub fn toggle_panel(handle: AppHandle, app: State<'_, Arc<AppState>>, name: String) -> Result<(), String> {
-    check(&name)?;
-    let w = handle.get_webview_window(&name).ok_or("window missing")?;
-    let open = !w.is_visible().unwrap_or(false);
-    if open {
-        show(&handle, &w, !lock(&app.panels_placed).contains(&name));
-        lock(&app.panels_placed).insert(name.clone());
-    } else {
-        w.hide().map_err(|e| e.to_string())?;
+pub fn toggle_widget(handle: AppHandle, app: State<'_, Arc<AppState>>, name: String) -> Result<(), String> {
+    if !WIDGETS.contains(&name.as_str()) {
+        return Err(format!("no widget called {name}"));
     }
     let mut s = lock(&app.settings);
-    s.panels.retain(|p| p != &name);
-    if open {
-        s.panels.push(name);
+    let show = !s.widgets.contains(&name);
+    s.widgets.retain(|w| w != &name);
+    if show {
+        s.widgets.push(name);
     }
     s.save(&app.config_dir);
-    Ok(())
+    let list = s.widgets.clone();
+    drop(s);
+    handle.emit_to(hud::HUD, "hud-widgets", list).map_err(|e| e.to_string())
 }
 
-fn show(handle: &AppHandle, w: &tauri::WebviewWindow, first: bool) {
-    // The first time this session: where you left it last time, else beside the meter.
-    let saved = first.then(|| lock(&handle.state::<Arc<AppState>>().placements).get(w.label())).flatten();
-    if first && !saved.is_some_and(|p| crate::placement::restore(w, p, true)) {
-        if let Ok(size) = w.outer_size() {
-            place_beside(
-                handle,
-                w,
-                (size.width as i32, size.height as i32),
-                MIN_SIZE,
-                &[Side::Left, Side::Right, Side::Below, Side::Above],
-            );
-        }
-    }
-    let _ = w.show();
-    let _ = w.unminimize();
-}
-
-/// Opens the windows that were open last time.
-pub fn reopen(handle: &AppHandle, app: &AppState) {
-    let open = lock(&app.settings).panels.clone();
-    for name in open.iter().filter(|n| PANELS.contains(&n.as_str())) {
-        if let Some(w) = handle.get_webview_window(name) {
-            show(handle, &w, true);
-            lock(&app.panels_placed).insert(name.clone());
-        }
-    }
-}
-
-/// Which side windows are showing (for the meter's buttons).
+/// The widgets that show.
 #[tauri::command]
-pub fn panels_open(handle: AppHandle) -> Vec<String> {
-    PANELS
-        .iter()
-        .filter(|n| handle.get_webview_window(n).is_some_and(|w| w.is_visible().unwrap_or(false)))
-        .map(|n| n.to_string())
-        .collect()
+pub fn widgets_shown(app: State<'_, Arc<AppState>>) -> Vec<String> {
+    lock(&app.settings).widgets.clone()
 }
 
 /// Shows a saved fight on the meter (picked in the history window).
 #[tauri::command]
 pub fn show_fight(handle: AppHandle, index: usize) -> Result<(), String> {
-    handle.emit_to(OVERLAY, "show-fight", index).map_err(|e| e.to_string())
+    handle.emit_to(hud::HUD, "show-fight", index).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -153,12 +109,30 @@ pub fn set_timer_region(app: State<'_, Arc<AppState>>, region: String) -> Result
     Ok(())
 }
 
-/// What you're targeting (or fighting), named.
+/// The target frame: the target, with your best against it (a boss) and your DPS now.
+#[derive(Serialize)]
+pub struct TargetFrame {
+    #[serde(flatten)]
+    target: TargetView,
+    best: Option<crate::store::Best>,
+    my_dps: Option<f64>,
+}
+
+/// What you're targeting (or fighting), named, with your best against it.
 #[tauri::command]
-pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetView> {
+pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetFrame> {
     let mut snap = app.engine.meter().snapshot();
     lock(&app.data).annotate(&mut snap);
-    snap.target
+    let my_dps = snap.encounter.as_ref().and_then(|e| e.players.iter().find(|p| p.is_self)).map(|p| p.dps);
+    let target = snap.target?;
+    let best = match (target.boss, target.mob_type) {
+        (true, Some(kind)) => {
+            let profile = lock(&app.profile);
+            lock(&app.bests).get(profile.name.as_deref(), kind)
+        }
+        _ => None,
+    };
+    Some(TargetFrame { target, best, my_dps })
 }
 
 #[derive(Serialize)]
@@ -241,6 +215,30 @@ pub fn set_boss_casts(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Marks a boss skill: always warn (true), never (false), or as it looks (None).
+#[tauri::command]
+pub fn set_boss_skill_alert(app: State<'_, Arc<AppState>>, skill: u32, alert: Option<bool>) {
+    let mut s = lock(&app.settings);
+    match alert {
+        Some(on) => s.boss_skill_alerts.insert(skill, on),
+        None => s.boss_skill_alerts.remove(&skill),
+    };
+    s.save(&app.config_dir);
+}
+
+/// Your marks on boss skills, for the analysis window's [boss] tab.
+#[tauri::command]
+pub fn boss_skill_alerts(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<u32, bool> {
+    lock(&app.settings).boss_skill_alerts.clone()
+}
+
+#[tauri::command]
+pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.alert_sound = on;
+    s.save(&app.config_dir);
+}
+
 #[tauri::command]
 pub fn set_pet_souls(app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
@@ -253,13 +251,40 @@ pub struct TimerSettings {
     pub region: String,
     pub alerts: Vec<String>,
     pub alert_lead_min: u32,
+    pub favourites: Vec<String>,
+    pub favourites_only: bool,
 }
 
 #[tauri::command]
 pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
     let s = lock(&app.settings);
     let region = if TIMER_REGIONS.contains(&s.timer_region.as_str()) { s.timer_region.clone() } else { TIMER_REGIONS[0].into() };
-    TimerSettings { region, alerts: s.alerts.clone(), alert_lead_min: s.alert_lead_min }
+    TimerSettings {
+        region,
+        alerts: s.alerts.clone(),
+        alert_lead_min: s.alert_lead_min,
+        favourites: s.timer_favourites.clone(),
+        favourites_only: s.timer_favourites_only,
+    }
+}
+
+/// Stars (or unstars) an event or field boss in the world timers.
+#[tauri::command]
+pub fn set_timer_favourite(app: State<'_, Arc<AppState>>, id: String, on: bool) {
+    let mut s = lock(&app.settings);
+    s.timer_favourites.retain(|f| f != &id);
+    if on {
+        s.timer_favourites.push(id);
+    }
+    s.save(&app.config_dir);
+}
+
+/// Shows only the starred events and field bosses, or all of them.
+#[tauri::command]
+pub fn set_timer_favourites_only(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.timer_favourites_only = on;
+    s.save(&app.config_dir);
 }
 
 /// Party cooldowns worth watching: 60 s or more, or a party-wide skill of 30 s or more.

@@ -1,9 +1,28 @@
-// Shared by the side windows (history, cooldowns, timers): the app's appearance, the close
-// button and Esc, and small helpers. Loaded after theme.js.
+// Shared by the history window and the overlay's side widgets (cooldowns, world timers,
+// target frame, party cooldowns): the app's appearance and small helpers; for the history,
+// its close button and Esc. Loaded after theme.js.
 
-const tauri = window.__TAURI__;
+// A widget's page (class "widget") is a frame in the HUD's page, which lends it the app
+// (frames don't get it themselves). The settings show and hide it.
+const WIDGET = document.documentElement.classList.contains("widget");
+const tauri = WIDGET ? window.parent.__TAURI__ : window.__TAURI__;
 const invoke = tauri.core.invoke;
 const $ = (id) => document.getElementById(id);
+// A page that fits its content (the target frame) tells the overlay how tall it is.
+if (WIDGET && document.body.hasAttribute("data-fit")) {
+  document.documentElement.classList.add("fit");
+  // Its full height (scrollHeight: what it would take, not the box it has now), whenever
+  // its content changes.
+  let sent = 0;
+  const report = () => {
+    const h = Math.ceil($("panel").scrollHeight);
+    if (h === sent) return;
+    sent = h;
+    window.parent.postMessage({ type: "gc-fit", widget: document.body.dataset.panel, height: h }, "*");
+  };
+  new ResizeObserver(report).observe($("panel"));
+  new MutationObserver(report).observe($("panel"), { childList: true, subtree: true, characterData: true, attributes: true });
+}
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -62,11 +81,11 @@ function iconFor(key, label, onLoad) {
 invoke("appearance").then(applyAppearance).catch(() => {});
 tauri.event.listen("appearance", (e) => applyAppearance(e.payload));
 
-const panelName = document.body.dataset.panel;
-function closePanel() {
-  invoke("toggle_panel", { name: panelName }).catch(() => {});
+// The history window: its close button and Esc only hide it.
+if (!WIDGET) {
+  const hide = () => tauri.window.getCurrentWindow().hide();
+  $("close").addEventListener("click", hide);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hide();
+  });
 }
-$("close").addEventListener("click", closePanel);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closePanel();
-});

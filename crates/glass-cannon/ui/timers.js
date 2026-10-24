@@ -3,6 +3,10 @@
 
 let region = "as";
 let alerts = new Set();
+// Starred events and field bosses, and whether only they show ([★ only]).
+let favourites = new Set();
+let favouritesOnly = false;
+const shown = (id) => !favouritesOnly || favourites.has(id);
 let lead = 5;
 let bosses = [];
 const LEADS = [1, 3, 5, 10, 15];
@@ -50,6 +54,32 @@ function drawRegions() {
     leadBox.append(b);
   }
   nav.append(leadBox);
+  const only = el("button", "fav-filter", "[★ only]");
+  only.type = "button";
+  only.setAttribute("aria-selected", String(favouritesOnly));
+  only.title = favouritesOnly ? "Showing your starred events and bosses · click for all" : "Show only the events and bosses you starred";
+  only.addEventListener("click", () => {
+    favouritesOnly = !favouritesOnly;
+    invoke("set_timer_favourites_only", { on: favouritesOnly }).catch(() => {});
+    drawRegions();
+    draw();
+  });
+  nav.append(only);
+}
+
+function star(id, name) {
+  const on = favourites.has(id);
+  const b = el("button", "star" + (on ? " on" : ""), on ? "★" : "☆");
+  b.type = "button";
+  b.title = on ? `${name} is starred · click to unstar` : `Star ${name} ([★ only] shows just the starred)`;
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (on) favourites.delete(id);
+    else favourites.add(id);
+    invoke("set_timer_favourite", { id, on: !on }).catch(() => {});
+    draw();
+  });
+  return b;
 }
 
 function bell(id, name) {
@@ -73,7 +103,7 @@ function row(name, meta, when, cls, id, title) {
   text.append(el("span", "timer-name", name), el("span", "timer-meta", meta));
   const w = el("span", "timer-when", when);
   if (title) w.title = title;
-  li.append(bell(id, name), text, w);
+  li.append(star(id, name), bell(id, name), text, w);
   return li;
 }
 
@@ -81,7 +111,9 @@ function draw() {
   const now = Date.now();
   const list = $("list");
   list.replaceChildren();
-  for (const { id, name, e, start } of upcoming(region, now, Infinity)) {
+  const events = upcoming(region, now, Infinity).filter((x) => shown(x.id));
+  $("favourites-empty").hidden = !favouritesOnly || favourites.size > 0;
+  for (const { id, name, e, start } of events) {
     const on = start <= now;
     const left = on ? start + e.minutes * 60_000 - now : start - now;
     const how = [every_text(e), e.minutes ? `${e.minutes} min` : ""].filter(Boolean).join(" · ");
@@ -105,7 +137,7 @@ function drawBosses(now) {
   const box = $("bosses");
   box.replaceChildren();
   $("bosses-empty").hidden = bosses.length > 0;
-  const sorted = [...bosses].sort((a, b) => (a.time_ms <= now) - (b.time_ms <= now) || a.time_ms - b.time_ms);
+  const sorted = bosses.filter((b) => shown(`boss:${b.id}`)).sort((a, b) => (a.time_ms <= now) - (b.time_ms <= now) || a.time_ms - b.time_ms);
   sorted.sort((a, b) => (b.time_ms <= now) - (a.time_ms <= now));
   for (const b of sorted) {
     const up = b.time_ms <= now;
@@ -143,7 +175,7 @@ function plainRow(name, meta, when, cls, title) {
   text.append(el("span", "timer-name", name), el("span", "timer-meta", meta));
   const w = el("span", "timer-when", when);
   if (title) w.title = title;
-  li.append(el("span", "bell-space"), text, w);
+  li.append(el("span", "bell-space"), el("span", "bell-space"), text, w);
   return li;
 }
 
@@ -214,6 +246,8 @@ invoke("timer_settings")
     if (REGIONS[s.region]) region = s.region;
     alerts = new Set(s.alerts);
     lead = s.alert_lead_min;
+    favourites = new Set(s.favourites || []);
+    favouritesOnly = !!s.favourites_only;
   })
   .catch(() => {})
   .finally(() => {

@@ -1557,6 +1557,7 @@ function render() {
     drawDeaths();
   } else if (tab === "boss") {
     drawBossCasts();
+    loadAlertMarks();
   }
 }
 
@@ -1610,6 +1611,29 @@ function nameBossSkill(cell, c) {
   input.addEventListener("blur", () => finish(true));
 }
 
+// Which boss skills warn in the overlay: as they look (a cast that marks the ground or
+// takes 2 s or more), always, or never. Click the alert cell to go round them.
+let alertMarks = {};
+const looksDangerous = (c) => c.lands_ms > 0 || c.cast_ms >= 2000;
+
+async function loadAlertMarks() {
+  alertMarks = (await invoke("boss_skill_alerts").catch(() => null)) || {};
+  if (tab === "boss") drawBossCasts();
+}
+
+function alertCell(c) {
+  const mark = alertMarks[c.skill];
+  const td = el("td", "alert-mark", mark === true ? "⚠ always" : mark === false ? "✕ never" : looksDangerous(c) ? "⚠" : "·");
+  td.classList.toggle("on", mark === true || (mark == null && looksDangerous(c)));
+  td.title = "Warn in the overlay: as it looks, always or never (click to change)";
+  td.addEventListener("click", async () => {
+    const next = mark == null ? true : mark === true ? false : null;
+    await invoke("set_boss_skill_alert", { skill: c.skill, alert: next }).catch(() => {});
+    loadAlertMarks();
+  });
+  return td;
+}
+
 function drawBossCasts() {
   const casts = data.view.boss_casts || [];
   const count = new Map();
@@ -1630,7 +1654,7 @@ function drawBossCasts() {
   const head = el("tr");
   head.append(th("time", null, true));
   if (bosses.size > 1) head.append(th("boss", null, true));
-  head.append(th("skill", null, true), th("cast"), th("lands"), th("", null, true));
+  head.append(th("skill", null, true), th("cast"), th("lands"), th("alert", null, true), th("", null, true));
   table.append(head);
   for (const c of shown) {
     const tr = el("tr", c.stopped ? "faded" : "");
@@ -1643,6 +1667,7 @@ function drawBossCasts() {
       skill,
       el("td", "", c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s` : "instant"),
       el("td", "", c.lands_ms ? `${(c.lands_ms / 1000).toFixed(1)} s${c.areas > 1 ? ` · ${c.areas} areas` : ""}` : "–"),
+      alertCell(c),
       el("td", "left", c.stopped ? "✕ stopped" : ""),
     );
     table.append(tr);

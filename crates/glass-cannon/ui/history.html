@@ -6,15 +6,18 @@
   <title>Glass Cannon history</title>
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="window.css">
 </head>
 <body data-panel="history">
   <main id="panel">
     <header id="bar" data-tauri-drag-region>
-      <span class="brand" data-tauri-drag-region>─ fight history</span>
+      <span class="brand" data-tauri-drag-region>fight history</span>
       <span id="count" class="note" data-tauri-drag-region></span>
-      <button id="close" type="button" class="close" title="Close (Esc)">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
-      </button>
+      <span class="lights">
+        <button id="min" type="button" class="light yellow" title="Minimise" aria-label="Minimise"></button>
+        <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
+        <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
+      </span>
     </header>
     <nav id="tabs" class="tabs" role="tablist" aria-label="Show">
       <button type="button" role="tab" data-tab="all">[all]</button>
@@ -37,6 +40,7 @@
     </div>
   </main>
   <script src="theme.js"></script>
+  <script src="window.js"></script>
   <script src="panel.js"></script>
   <script src="history.js"></script>
 </body>

@@ -464,6 +464,9 @@ pub struct LiveBossCast {
     /// Filled in by the app from its skill table.
     #[serde(default)]
     pub skill_name: Option<String>,
+    /// When it began (µs since 1970): tells one cast of a skill from the next.
+    #[serde(default)]
+    pub started_us: u64,
     pub cast_ms: u32,
     pub cast_left_ms: u32,
     pub lands_ms: u32,
@@ -1526,6 +1529,7 @@ impl Meter {
                 (casting || lands_left > 0).then_some(LiveBossCast {
                     skill: c.skill,
                     skill_name: None,
+                    started_us: c.at_us,
                     cast_ms: c.cast_ms,
                     cast_left_ms: if casting { (cast_left / 1000) as u32 } else { 0 },
                     lands_ms: c.lands_ms,
@@ -1971,7 +1975,10 @@ impl Meter {
     /// Your target if you've picked one that's alive, else the live fight's main target.
     fn target_view(&self) -> Option<TargetView> {
         let alive = |t: &u64| !self.died.contains_key(t) && !self.registry.is_self(*t);
-        let picked = self.selected.filter(alive);
+        // Only a mob or a named player: a gathering node or another object you target has
+        // nothing to show but its ID.
+        let known = |t: &u64| self.registry.mob_type(*t).is_some() || self.registry.player_name(*t).is_some();
+        let picked = self.selected.filter(|t| alive(t) && known(t));
         let fighting = self.current.as_ref().and_then(|e| {
             e.targets.iter().filter(|(t, _)| alive(t)).max_by_key(|(id, t)| (t.total, std::cmp::Reverse(**id))).map(|(id, _)| *id)
         });
@@ -2894,6 +2901,19 @@ mod tests {
         p.extend(encode_varint(cast_ms));
         p.push(1);
         p
+    }
+
+    #[test]
+    fn a_targeted_object_is_not_a_target() {
+        let mut m = meter_with_boss();
+        // You target ore (an object the meter never saw spawn as a mob): no target frame.
+        m.feed(S, state::OPCODE_YOUR_TARGET, &[0, 0, 0, 0xe4, 0xfb, 0x05]);
+        assert!(m.snapshot().target.is_none());
+        // The boss: it shows.
+        let mut pick = vec![0, 0, 0];
+        pick.extend(encode_varint(BOSS));
+        m.feed(2 * S, state::OPCODE_YOUR_TARGET, &pick);
+        assert_eq!(m.snapshot().target.map(|t| t.entity), Some(BOSS));
     }
 
     #[test]

@@ -1,0 +1,225 @@
+/* The overlay over the game: transparent everywhere but the widgets. Everything comes from
+   the theme (theme.css, set by theme.js from the settings): accent, font, size, the
+   background's tint and opacity (frosted: a lighter tint over the app's frosted plates,
+   or a stronger one where there are none), the bars' colour, and clear's heavier
+   outline. */
+
+[hidden] { display: none !important; }
+
+html { font-size: var(--fs); }
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: var(--mono);
+  color: var(--text);
+  text-shadow: var(--shadow);
+  user-select: none;
+}
+
+/* Frosted: as in the widgets' own pages, a stronger tint. */
+[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) + 0.15)); }
+
+#widgets { position: absolute; inset: 0; }
+
+.widget { position: absolute; box-sizing: border-box; }
+/* A boss warning is never under another widget. */
+[data-widget="boss-warnings"] { z-index: 5; }
+.widget iframe { width: 100%; height: 100%; border: 0; background: transparent; display: block; }
+/* These never take the mouse (but while being arranged): it goes to the game. */
+.passive { pointer-events: none; }
+
+/* Faded outside combat (settings → fade outside combat): the fight widgets go, and come
+   back in the next fight; the meter under the mouse too. Never while arranging. */
+.widget.fades { transition: opacity 0.4s ease; }
+.faded .widget.fades { opacity: 0; transition: opacity 1.2s ease; }
+.faded .widget.fades:hover,
+.editing .widget.fades { opacity: 1; transition: opacity 0.2s ease; }
+
+/* ---------------------------------------------------------------- boss warnings */
+
+[data-widget="boss-warnings"] { display: grid; place-items: center; text-align: center; }
+#warning {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.3em 1.1em 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--tint);
+  text-shadow: 0 0 0.3em #000, 0 0 0.12em #000;
+}
+/* One line, shrunk to fit the widget (hud.js) rather than wrapping. */
+#warning-name { font-size: 2.6em; font-weight: 700; line-height: 1.15; color: var(--warn); white-space: nowrap; }
+#warning-time { font-size: 1.7em; font-variant-numeric: tabular-nums; color: var(--text); }
+/* The cast is on: red, and the box pulses until it lands. */
+#warning.now { border-color: var(--bad); animation: pulse 0.5s ease-in-out infinite alternate; }
+#warning.now #warning-name { color: var(--bad); }
+#warning.lands #warning-name::after { content: " · move"; }
+#warning.soon { border-color: var(--warn); }
+#warning.soon #warning-name { font-size: 1.6em; }
+#warning-time { white-space: nowrap; }
+#warning.soon #warning-time { font-size: 1.2em; }
+@keyframes pulse {
+  from { box-shadow: 0 0 0 0.1em var(--bad), 0 0 0.4em 0.1em color-mix(in srgb, var(--bad) 25%, transparent); }
+  to { box-shadow: 0 0 0 0.1em var(--bad), 0 0 1.4em 0.5em color-mix(in srgb, var(--bad) 55%, transparent); }
+}
+
+/* ---------------------------------------------------------------- boss timers */
+
+#timers { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3em; }
+#timers li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  height: 1.55em;
+  padding: 0 0.5em;
+  border: 1px solid var(--line-faint);
+  border-radius: 0.3em;
+  overflow: hidden;
+  background: var(--tint);
+  line-height: 1.55em;
+  font-variant-numeric: tabular-nums;
+}
+/* The bars take the bar colour chosen in the settings (else the theme's), as the meter's do. */
+#timers .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar, var(--accent-fill)); opacity: 0.5; }
+#timers li.danger { border-color: var(--bad); }
+#timers li.danger .fill { background: var(--bad); opacity: 0.6; }
+#timers .name,
+#timers .left { position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#timers .left { flex: none; }
+#timers li.soon { box-shadow: 0 0 0 1px var(--warn) inset; }
+
+/* ---------------------------------------------------------------- hidden cubes */
+
+#cubes { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35em; }
+.cube {
+  --cube: var(--warn);
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.35em 0.6em 0.35em 0.4em;
+  border-left: 3px solid var(--cube);
+  border-radius: 4px;
+  background: var(--tint);
+}
+.cube.red { --cube: var(--bad); }
+.cube.opened { opacity: 0.6; }
+/* The compass lies on the ground: a disc tilted back in 3D, its needle turned on it. */
+.dial { flex: none; width: 3.2em; height: 3.2em; perspective: 9em; }
+.disc {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--cube) 18%, transparent), transparent 70%);
+  transform: rotateX(52deg);
+  transform-style: preserve-3d;
+}
+.north { position: absolute; top: -0.15em; left: 50%; transform: translateX(-50%); font-size: 0.7em; color: var(--muted); }
+.needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.1em;
+  height: 2.6em;
+  margin: -1.3em 0 0 -0.55em;
+  background: var(--cube);
+  clip-path: polygon(50% 0, 100% 62%, 62% 56%, 62% 100%, 38% 100%, 38% 56%, 0 62%);
+  transform: rotate(var(--bearing)) translateZ(0.3em);
+  filter: drop-shadow(0 0.15em 0.1em rgba(0, 0, 0, 0.6));
+}
+.unknown { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+.info { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.info .what { color: var(--cube); font-weight: 700; }
+.info .far { color: var(--text); font-variant-numeric: tabular-nums; }
+.info .age { color: var(--faint); font-size: 0.8em; }
+.info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------------------------------------------------------- arranging */
+
+.editing body { background: rgba(0, 0, 0, 0.25); }
+/* The grid widgets snap to (the arrange menu picks its size). */
+.gridded body {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
+}
+.editing .widget {
+  outline: 1px dashed var(--accent);
+  background: color-mix(in srgb, var(--tint) 60%, transparent);
+  pointer-events: auto;
+  cursor: move;
+}
+.editing .widget::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -1.5em;
+  left: 0;
+  padding: 0 0.4em;
+  border-radius: 0.25em;
+  background: var(--accent-fill);
+  color: var(--ink);
+  text-shadow: none;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+/* While arranging, a cover over each frame takes the drags. */
+.editing .widget::after { content: ""; position: absolute; inset: 0; }
+.grip {
+  display: none;
+  position: absolute;
+  right: -0.35em;
+  bottom: -0.35em;
+  z-index: 2;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 0.2em;
+  background: var(--accent-fill);
+  cursor: nwse-resize;
+}
+.editing .grip { display: block; }
+
+/* The arrange menu: a raised panel like the windows' title bars, moved by its title. */
+#arrange-menu {
+  position: absolute;
+  top: 1em;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: 19em;
+  padding: 0 0.8em 0.6em;
+  border: 1px solid var(--line-faint);
+  border-radius: 4px;
+  background: rgba(var(--tint-rgb), 0.96);
+  box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.5);
+  text-shadow: none;
+}
+#menu-head {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -0.8em 0.4em;
+  padding: 0.45em 0.8em;
+  background: color-mix(in srgb, rgb(var(--tint-rgb)) 91%, white);
+  border-bottom: 1px solid var(--line-faint);
+  cursor: move;
+}
+.menu-name { font-weight: 700; }
+.menu-hint { color: var(--faint); font-size: 0.8em; }
+.menu-title { margin: 0.5em 0 0.15em; color: var(--accent); font-size: 0.75em; letter-spacing: 0.12em; text-transform: uppercase; }
+.menu-list { display: grid; }
+.menu-row { display: flex; flex-wrap: wrap; gap: 0.3em; }
+#arrange-menu button { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; padding: 0 0.15em; border-radius: 3px; }
+#arrange-menu button:hover { background: var(--line-faint); }
+.menu-switch { display: flex; justify-content: space-between; width: 100%; color: var(--text) !important; line-height: 1.6; }
+.menu-switch .state { color: var(--accent); }
+.menu-switch[aria-pressed="true"] .state,
+#menu-grid button[aria-pressed="true"] { background: var(--accent-fill); color: var(--ink); }
+.menu-actions { justify-content: space-between; margin-top: 0.6em; }
+#arrange-menu button.done { color: var(--ink); background: var(--accent-fill); }

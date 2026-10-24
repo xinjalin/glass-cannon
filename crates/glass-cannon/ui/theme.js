@@ -1,5 +1,5 @@
-// Applies the saved appearance (theme, font, tint, row colouring) to a window.
-// Loaded by the overlay, the analysis window and the settings page.
+// Applies the saved appearance (theme, font, tint, row colouring) to a page.
+// Loaded by every page: the launcher, the overlay and its widgets, and the windows.
 
 let appliedAppearance = "";
 
@@ -80,7 +80,6 @@ function applyAppearance(a) {
     root.style.removeProperty("--bar");
     root.style.removeProperty("--bar-ink");
   }
-  root.classList.toggle("minimal", a.minimal);
   root.classList.toggle("info-bar", a.info_bar);
   root.style.setProperty("--fs", `${a.font_size}px`);
   // A chosen font goes first, with the built-in monospace behind it. The app only
@@ -88,4 +87,5 @@ function applyAppearance(a) {
   const font = a.font && !/["'\\;{}<>]/.test(a.font) ? `"${a.font}", ` : "";
   root.style.setProperty("--mono", `${font}"Cascadia Mono", "Cascadia Code", Consolas, monospace`);
   root.style.setProperty("--alpha", (a.opacity / 100).toFixed(2));
+  root.style.setProperty("--frost", ((a.frost ?? 50) / 100).toFixed(2));
 }

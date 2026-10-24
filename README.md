@@ -1,20 +1,22 @@
 # Glass Cannon
 
-A frosted-glass DPS meter for **Aion 2** on Windows. It reads the game's network traffic
-passively through Npcap, so it never touches the game or its memory. No admin rights, no
-auto-updates, and it never goes online.
+A DPS meter for **Aion 2** on Windows, in a frosted-glass overlay over the game. It reads
+the game's network traffic passively through Npcap, so it never touches the game or its
+memory. No admin rights, no auto-updates, and it never goes online.
 
-![The meter in a boss fight: the boss's HP, your best against it, deaths and five players](docs/screenshots/overlay.png)
+![The overlay in a boss fight: world timers, the target frame, party cooldowns and the meter](docs/screenshots/overlay.png)
 
-| Skill breakdown | Minimal mode, class-coloured bars |
+| The launcher | Arranging the overlay |
 | --- | --- |
-| ![A player's skills](docs/screenshots/skills.png) | ![Minimal mode](docs/screenshots/minimal.png) |
+| ![The launcher: status, the overlay, the fight going on and the history](docs/screenshots/launcher.png) | ![Arranging: widgets snap to a grid, and a menu turns each on or off](docs/screenshots/arrange.png) |
 
-![A boss fight with the target frame's cast bar, party cooldowns and world timers](docs/screenshots/windows.png)
+| The meter in a boss fight | A player's skills |
+| --- | --- |
+| ![The meter with the boss's HP and five players](docs/screenshots/meter.png) | ![A player's skills under their row](docs/screenshots/skills.png) |
 
 | Fight history | Settings |
 | --- | --- |
-| ![Dungeon runs with stage splits and personal bests in the fight history window](docs/screenshots/history.png) | ![Settings beside the meter](docs/screenshots/settings.png) |
+| ![Dungeon runs with stage splits and personal bests in the fight history](docs/screenshots/history.png) | ![Settings: appearance, the overlay's widgets, status, meter and tools](docs/screenshots/settings.png) |
 
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
 
@@ -28,7 +30,8 @@ auto-updates, and it never goes online.
 | --- | --- |
 | ![Healing done, by healer, heal and who was healed](docs/screenshots/analysis-healing.png) | ![Deaths, and the hits and heals before one](docs/screenshots/analysis-deaths.png) |
 
-<sub>A real dungeon run replayed from a recording, with other players' names made up.</sub>
+<sub>A real dungeon run replayed from a recording over a painted backdrop, with other
+players' names made up.</sub>
 
 ## Install
 
@@ -41,9 +44,69 @@ auto-updates, and it never goes online.
 To update, extract a new release over the old one; your settings and history are kept.
 Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
-## Using the meter
+## Using it
 
 It starts capturing straight away and waits for the game if it isn't running.
+
+### The launcher
+
+Glass Cannon opens to a small **launcher**, laid out like a music player, in its own
+colours whatever the theme:
+
+- **the cover**: click it for the analysis of the fight going on, or the last one;
+- **the list**: the status (capturing, waiting…) and the game's ping, whether the game is
+  running, the overlay, how the fight is going or how it ended, your DPS and share, the
+  party's, and the history;
+- **the bar**: the fight's target and time against the boss's enrage, the boss's HP as its
+  progress line, and buttons for the analysis, the overlay's start/stop, the history,
+  arranging the overlay (again to save and finish) and the settings;
+- **the lights** at the top right: minimise, keep on top, and close (which closes the
+  app).
+
+Text too long for its line slides along rather than being cut off.
+
+### The overlay
+
+One transparent layer over the game's picture holding the meter and the other widgets, in
+your theme. It follows the game window, hides when you switch away, never takes the focus
+from the game, and lets the mouse through except over the meter and the world timers.
+
+**Arrange** (on the launcher, or in the settings) moves widgets and resizes them by their
+corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Its
+floating menu (drag it by its title) turns each widget on or off, resets the layout, and
+finishes. The widgets:
+
+- **meter**: the players, below.
+- **boss warnings**: a dangerous cast big in the middle of the screen, its time left, then
+  when it lands, with a chime; a heads-up 5 s before one is due. A cast is dangerous when
+  it marks the ground or takes 2 s or more; in the analysis window's [boss] tab, click a
+  skill's alert to make it always or never warn.
+- **boss timers**: the boss's next casts from your last fight against it, as bars counting
+  down.
+- **hidden cubes**: each cube in view (gold or red) with a compass lying on the ground that
+  points at it, how far, and how far up or down; opened cubes show briefly as taken. The
+  game only says where you are when you log in, teleport or change zone (it never sends
+  your own moves, and what your game sends is encrypted), so the compass points from
+  there, north up, for a minute after you arrive; it can't follow you as you walk.
+- **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
+  attacking, your best against it, stagger. While it shows, the meter leaves out its own
+  boss HP, enrage and cast lines, so nothing is shown twice.
+- **cooldowns**: your skills that aren't ready, with time left and charges.
+- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
+  (yours from the start, the others' once used).
+- **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
+  in game to read them) in your time; star (☆) the ones you want and **[★ only]** shows just
+  those, and ring the 🔔 for an alert on the meter before one starts. Also who holds the
+  Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
+  Odyle energy, and your content tickets: the game doesn't name them, so double-click one
+  to give it a name.
+
+**Fade outside combat** (settings) fades the fight widgets a while after the last fight;
+they come back with the next one (the meter under the mouse too). With the **frosted**
+background, Windows blurs the game behind each widget; **frost** sets how milky that glass
+looks.
+
+### The meter
 
 - **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
   party: your party's fight while you're in a party or expedition, yours on your own.
@@ -55,17 +118,18 @@ It starts capturing straight away and waits for the game if it isn't running.
   says who.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
-  party leaves combat, on a map change, or after 15 s of quiet. **▷|** ends it now; **↺**
-  resets. A live boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
-- **Lock** (bottom right): clicks pass through to the game. Click it again to unlock.
-- **≡** opens the settings: theme (or any colour), font, background, minimal mode, update
-  rate (*live* or every 0.2–2 s), fading outside combat, recording, status checks, and
-  the windows below.
+  party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live
+  boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
+- Over the meter, its buttons appear beside the two switches: back (from a saved fight),
+  analysis, end the fight, history, and **≡** for the settings: theme (*night*, the
+  default, or rose, lavender, mint, sky, amber, mono, or any colour), font, background,
+  frost, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
+  combat, recording and status checks.
 
 ### Analysis
 
-**Right-click a player** (or the chart icon) for the full fight; right-click again to
-close it. Tabs:
+**Right-click a player** (or the chart icon, on the meter or the launcher) for the full
+fight; right-click again to close it. Tabs:
 
 - **overview**: DPS, crits, positionals and DPS over time with the target's HP.
 - **skills**: every skill with the player's chosen specialties and accuracy (hits the
@@ -82,9 +146,9 @@ close it. Tabs:
 
 ### History and dungeon runs
 
-The **clock icon** opens the history window with the last 200 fights (the newest 50 keep
-their full analysis), dungeon runs, bosses and PvP sessions; click a fight to show it on
-the meter.
+The **clock icon** (on the meter or the launcher) opens the history window with the last
+200 fights (the newest 50 keep their full analysis), dungeon runs, bosses and PvP sessions;
+click a fight to show it on the meter.
 Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
 damage and, when the game says it was completed, the clear time (✓) and each stage's
 time; your fastest clear and stages of a dungeon and mode get a ★. Right-click a run for
@@ -93,10 +157,10 @@ dungeon (older fights: no break over 10 minutes and no boss fought twice). **[cl
 the bottom deletes every fight, dungeon run and PvP session (it asks first); a dungeon
 you're in at the time keeps grouping its next fights as a run.
 
-**Personal bests**: your highest DPS and fastest kill against each boss show on the meter's
-boss line during the fight (green while you're beating it), and as ★ tags on the fights in
-the history that set them. They're kept per character, count every kill you were in, and
-[clear] resets them.
+**Personal bests**: your highest DPS and fastest kill against each boss show during the
+fight on the meter's boss line, or the target frame while it shows (green while you're
+beating it), and as ★ tags on the fights in the history that set them. They're kept per
+character, count every kill you were in, and [clear] resets them.
 
 **Pet souls** (settings → pet souls): a kill that gives a pet's soul shows on the meter with
 how many it has toward the pet's next level (5 to summon it, then 25 and 75), e.g. "Red
@@ -104,34 +168,21 @@ Spark Ignus soul +1 · 4/25 to level 2". The game sends your pets when you log i
 leave a dungeon and with some other moves, but not every zone change; the meter keeps each
 character's from the first time, so it knows them even when started in between.
 
-**Hidden cubes**: when one comes into view the meter says so (gold or red) and keeps the
-line while it's in view, with how far and which way (and how far up or down) for a minute
-after you arrive somewhere: the game only tells the meter where you are when you log in,
-teleport or change zone. Opened cubes show briefly as opened.
-
-**Boss casts**: under the boss's HP (settings → boss casts), what it's casting with a bar
-and the time left, then, for skills that mark the ground, how long until they land; between
-casts, what it cast next the last time you fought it, with a countdown. Times run from the
+**Boss casts**: under the boss's HP on the meter (settings → boss casts; the target frame
+has them instead while it shows), what it's casting with a bar and the time left, then,
+for skills that mark the ground, how long until they land; between casts, what it cast
+next the last time you fought it, with a countdown. Times run from the
 boss's pull, so they line up from one fight to the next; its routine skills are left out.
 The analysis window's **[boss]** tab lists every cast of a fight; most boss skills have no
 name in the game data, so double-click one there to name it.
 
 ### Windows
 
-Open from the settings; they open again next time. Every window, the meter and settings too,
-opens where you last left it, and takes the background chosen in the settings (the
-settings and analysis windows stay tinted enough to read).
-
-- **cooldowns**: your skills that aren't ready, with time left and charges.
-- **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
-  (yours from the start, the others' once used).
-- **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
-  attacking, stagger.
-- **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
-  in game to read them) in your time; ring the 🔔 for an alert on the meter before one
-  starts. Also who holds the Abyss artifacts (when you open the Abyss map or enter it; not
-  tested in game yet), your Odyle energy, and your content tickets: the game doesn't name
-  them, so double-click one to give it a name.
+The launcher, settings, history and analysis are windows, with the same lights at the top
+right of their title bars (minimise, keep on top, close). Each opens where you last left it
+(the first time beside the launcher, or in game, or with the launcher minimised, in the
+middle of the screen), and takes the background chosen in the settings (the settings and
+analysis windows stay tinted enough to read).
 
 ### Names
 
@@ -177,7 +228,9 @@ target/release/packet-lab messages captures/<session> 8d00
 target/release/packet-lab find captures/<session> 2674
 ```
 
-The meter replays a recording with `glass-cannon.exe --replay <session> --speed 10`.
+The app replays a recording with `glass-cannon.exe --replay <session> --speed 10` (the
+overlay then covers the launcher's screen); `--hidden` starts it without the launcher, for
+scripted checks.
 What's known about the protocol is in [docs/protocol.md](docs/protocol.md). Captures go to
 `captures/` and can hold login tokens: don't share them.
 

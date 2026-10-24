@@ -1,0 +1,40 @@
+/* The windows' shared frame (settings, history, analysis), in the launcher's style: a
+   raised title bar with the window lights at its right, in Windows' order (minimise, keep
+   on top, close), flat panels and
+   small corners. Loaded after each window's own stylesheet; colours follow the theme. */
+
+:root {
+  /* A step lighter than the window, for the title and footer bars. */
+  --raised: color-mix(in srgb, rgb(var(--tint-rgb)) 91%, white);
+  --frame-x: 0.9em;
+}
+
+#panel { padding-left: var(--frame-x); padding-right: var(--frame-x); }
+
+#bar {
+  gap: 0.7em;
+  margin: 0 calc(-1 * var(--frame-x)) 0.5em;
+  padding: 0 var(--frame-x);
+  background: var(--raised);
+  border-bottom: 1px solid var(--line-faint);
+  text-shadow: none;
+}
+#bar .brand { color: var(--text); font-weight: 700; letter-spacing: 0.04em; }
+
+/* The lights, as on the launcher (their colours are the same in every theme). */
+.lights { display: flex; flex: none; gap: 8px; margin-left: 0.4em; }
+.light {
+  width: 11px;
+  min-width: 0;
+  height: 11px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+/* Specific enough to beat each page's button hover colours. */
+.lights .light.red { background: #f87070; }
+.lights .light.yellow { background: #ffe59e; }
+.lights .light.green { background: #79dcaa; opacity: 0.55; }
+.lights .light.green[aria-pressed="true"] { opacity: 1; }
+.lights:hover .light { filter: brightness(1.08); }

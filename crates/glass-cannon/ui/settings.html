@@ -6,15 +6,18 @@
   <title>Glass Cannon settings</title>
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="window.css">
 </head>
 <body>
   <main id="panel">
     <header id="bar" data-tauri-drag-region>
-      <span class="brand" data-tauri-drag-region>─ settings</span>
+      <span class="brand" data-tauri-drag-region>settings</span>
       <span id="version" class="version" data-tauri-drag-region></span>
-      <button id="close" type="button" class="close" title="Close (Esc)">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
-      </button>
+      <span class="lights">
+        <button id="min" type="button" class="light yellow" title="Minimise" aria-label="Minimise"></button>
+        <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
+        <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
+      </span>
     </header>
 
     <!-- Two columns side by side; they stack if the window is ever too narrow. -->
@@ -26,6 +29,7 @@
             <div class="line">
               <span class="key">theme</span>
               <span id="themes" class="swatches" role="radiogroup" aria-label="Theme">
+                <button type="button" class="swatch" data-theme-choice="night" title="night (default)"></button>
                 <button type="button" class="swatch" data-theme-choice="rose" title="rose"></button>
                 <button type="button" class="swatch" data-theme-choice="lavender" title="lavender"></button>
                 <button type="button" class="swatch" data-theme-choice="mint" title="mint"></button>
@@ -82,6 +86,14 @@
                 <button id="opacity-up" type="button" title="More solid">[+]</button>
               </span>
             </div>
+            <div class="line" title="How frosted the overlay's widgets look with the frosted background: less is clearer, more is milkier (Windows' blur itself is fixed)">
+              <span class="key">frost</span>
+              <span class="stepper">
+                <button id="frost-down" type="button" title="Clearer glass">[−]</button>
+                <span id="frost-value" class="step-value"></span>
+                <button id="frost-up" type="button" title="Milkier glass">[+]</button>
+              </span>
+            </div>
             <div class="line">
               <span class="key">highlight</span>
               <span class="choice" role="radiogroup" aria-label="Highlight">
@@ -90,13 +102,53 @@
                 <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
               </span>
             </div>
-            <button id="minimal" type="button" class="opt" aria-pressed="false">
-              <span class="key">minimal mode</span><span class="state">[off]</span>
-            </button>
-            <p class="hint">target&nbsp;and&nbsp;bars&nbsp;only · drag&nbsp;to&nbsp;move · hover&nbsp;for&nbsp;≡</p>
-            <button id="info-bar" type="button" class="opt" aria-pressed="false">
+            <button id="info-bar" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
               <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
             </button>
+          </fieldset>
+
+          <fieldset class="box">
+            <legend>overlay</legend>
+            <p class="hint">the widgets over the game · start and stop it from the launcher</p>
+            <button type="button" class="opt" data-widget="meter" aria-pressed="false" title="The players' damage, healing or damage taken">
+              <span class="key">meter</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="boss-warnings" aria-pressed="false" title="A boss's dangerous cast, big in the middle of the screen">
+              <span class="key">boss warnings</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="boss-timers" aria-pressed="false" title="The boss's next casts as bars counting down (from the last fight against it)">
+              <span class="key">boss timers</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="cubes" aria-pressed="false" title="Hidden cubes in view: a compass pointing at each, with how far (from where you last arrived)">
+              <span class="key">hidden cubes</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="target" aria-pressed="false" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
+              <span class="key">target frame</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="cooldowns" aria-pressed="false" title="Your skills' cooldowns">
+              <span class="key">cooldowns</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="party-cooldowns" aria-pressed="false" title="Your party's long cooldowns and party buffs: ready, or how long left">
+              <span class="key">party cooldowns</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="timers" aria-pressed="false" title="When the world events and field bosses start, with alerts">
+              <span class="key">world timers</span><span class="state">[off]</span>
+            </button>
+            <button id="arrange-overlay" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
+              <span class="key">arrange</span><span class="state">[ arrange ]</span>
+            </button>
+            <button id="alert-sound" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning">
+              <span class="key">alert sound</span><span class="state">[on]</span>
+            </button>
+            <div class="line">
+              <span class="key">fade outside combat</span>
+              <span class="choice" role="radiogroup" aria-label="Fade the fight widgets outside combat">
+                <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
+                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight (the meter under the mouse too)">[10s]</button>
+                <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
+                <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
+              </span>
+            </div>
           </fieldset>
         </div>
 
@@ -104,7 +156,6 @@
           <fieldset class="box">
             <legend>status</legend>
             <div class="check" id="check-npcap"><span class="led"></span><span class="key">npcap</span><span class="value">…</span></div>
-            <div class="check" id="check-game"><span class="led"></span><span class="key">aion 2</span><span class="value">…</span></div>
             <div class="check" id="check-data"><span class="led"></span><span class="key">game data</span><span class="value">…</span></div>
             <div class="check" id="check-details"><span class="led"></span><span class="key" title="Cooldowns, descriptions and specialties for the analysis window's skill tooltips">skill info</span><span class="value">…</span></div>
           </fieldset>
@@ -131,28 +182,15 @@
                 <button type="button" data-refresh-choice="2000" title="Every two seconds">[2s]</button>
               </span>
             </div>
-            <button id="boss-hp" type="button" class="opt" aria-pressed="false" title="The boss's HP and enrage timer under its name, in live boss fights">
+            <button id="boss-hp" type="button" class="opt" aria-pressed="false" title="The boss's HP and enrage timer under its name, in live boss fights (left out while the target frame shows them)">
               <span class="key">boss hp &amp; enrage</span><span class="state">[on]</span>
             </button>
-            <button id="boss-casts" type="button" class="opt" aria-pressed="false" title="Under the boss's HP: what it's casting and when it lands, else what it cast next the last time you fought it">
+            <button id="boss-casts" type="button" class="opt" aria-pressed="false" title="Under the boss's HP: what it's casting and when it lands, else what it cast next the last time you fought it (left out while the target frame shows)">
               <span class="key">boss casts</span><span class="state">[on]</span>
             </button>
             <button id="pet-souls" type="button" class="opt" aria-pressed="false" title="A notice for each pet soul from a kill, with how many the pet has toward its next level">
               <span class="key">pet souls</span><span class="state">[on]</span>
             </button>
-            <div class="line">
-              <span class="key">fade outside combat</span>
-              <span class="choice" role="radiogroup" aria-label="Fade the meter outside combat">
-                <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
-                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight or under the mouse">[10s]</button>
-                <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
-                <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
-              </span>
-            </div>
-            <button id="locked" type="button" class="opt" aria-pressed="false">
-              <span class="key">click-through</span><span class="state">[off]</span>
-            </button>
-            <p class="hint">clicks pass through to the game · unlock with the lock at the bottom right</p>
             <button id="record" type="button" class="opt" aria-pressed="false">
               <span class="key">record fights</span><span class="state">[off]</span>
             </button>
@@ -161,25 +199,10 @@
 
           <fieldset class="box">
             <legend>tools</legend>
-            <button id="history" type="button" class="opt">
-              <span class="key">fight history</span><span class="state">[ open ]</span>
-            </button>
             <button id="shortcut" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
             </button>
-            <button id="open-cooldowns" type="button" class="opt" title="Your skills' cooldowns in a window of their own">
-              <span class="key">cooldowns</span><span class="state">[ open ]</span>
-            </button>
-            <button id="open-party-cooldowns" type="button" class="opt" title="Your party's long cooldowns and party buffs: ready, or how long left">
-              <span class="key">party cooldowns</span><span class="state">[ open ]</span>
-            </button>
-            <button id="open-timers" type="button" class="opt" title="When the world events and field bosses start, with alerts">
-              <span class="key">world timers</span><span class="state">[ open ]</span>
-            </button>
-            <button id="open-target" type="button" class="opt" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
-              <span class="key">target frame</span><span class="state">[ open ]</span>
-            </button>
-            <button id="reset" type="button" class="opt" title="Theme, font, colours, background and window size back to the defaults">
+            <button id="reset" type="button" class="opt" title="Theme, font, colours and background back to the defaults (the overlay's layout resets while arranging it)">
               <span class="key">reset appearance</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
@@ -202,6 +225,7 @@
     </footer>
   </main>
   <script src="theme.js"></script>
+  <script src="window.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

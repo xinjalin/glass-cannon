@@ -87,6 +87,9 @@ pub struct CubeView {
     pub distance_m: Option<u32>,
     pub bearing: Option<u16>,
     pub rise_m: Option<i32>,
+    /// How long ago your position was known (seconds), while it's fresh: the direction is
+    /// from where you were then.
+    pub fix_age_s: Option<u32>,
 }
 
 #[derive(Debug, Default)]
@@ -138,7 +141,9 @@ impl Cubes {
 
     /// The cubes in view (opened ones for a few seconds), the first seen first.
     pub fn view(&self, now_us: u64) -> Vec<CubeView> {
-        let me = self.me.filter(|(_, at)| now_us.saturating_sub(*at) < POSITION_FRESH_US).map(|(p, _)| p);
+        let fresh = self.me.filter(|(_, at)| now_us.saturating_sub(*at) < POSITION_FRESH_US);
+        let me = fresh.map(|(p, _)| p);
+        let fix_age_s = fresh.map(|(_, at)| (now_us.saturating_sub(at) / 1_000_000) as u32);
         let mut out: Vec<CubeView> = self
             .cubes
             .iter()
@@ -153,7 +158,16 @@ impl Cubes {
                     }
                     None => (None, None, None),
                 };
-                CubeView { entity: *entity, look: c.look, seen_us: c.seen_us, opened: c.opened_us.is_some(), distance_m, bearing, rise_m }
+                CubeView {
+                    entity: *entity,
+                    look: c.look,
+                    seen_us: c.seen_us,
+                    opened: c.opened_us.is_some(),
+                    distance_m,
+                    bearing,
+                    rise_m,
+                    fix_age_s,
+                }
             })
             .collect();
         out.sort_by_key(|c| (c.seen_us, c.entity));
