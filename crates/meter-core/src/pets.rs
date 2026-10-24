@@ -15,8 +15,10 @@
 //! soul was spent at once (25, level 2). Pets from reward boxes or the shop come in the
 //! list and with `0x9009` as well.
 //!
-//! The list comes when you log in or change zone, so a meter started in between knows no
-//! pet: the app keeps each character's [`PetState`] and hands it back ([`Pets::seed`]).
+//! The list comes at login, on entering or leaving a dungeon and with some other moves,
+//! but not with every zone change (on 2026-10-24: three zone changes and 19 souls with
+//! none, then one with a respawn 20 minutes later), so a meter started in between can know
+//! no pet: the app keeps each character's [`PetState`] and hands it back ([`Pets::seed`]).
 
 use std::collections::{BTreeMap, HashMap};
 

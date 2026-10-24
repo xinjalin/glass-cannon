@@ -472,9 +472,9 @@ function noticeSouls(souls) {
     const name = g.name || `pet ${g.pet}`;
     let progress;
     if (!g.known) {
-      // The meter started after the game sent your pets (and has none saved): the next
-      // zone change brings them.
-      keyedNotice(`soul:${g.pet}`, `◆ ${name} soul +${g.gained}`, SOUL_NOTICE_MS, "soul");
+      // The meter started after the game sent your pets (and has none saved): they come
+      // with your next dungeon or login, and are kept from then on.
+      keyedNotice(`soul:${g.pet}`, `◆ ${name} soul +${g.gained} · progress after your next dungeon or login`, SOUL_NOTICE_MS, "soul");
       continue;
     }
     if (g.next_level_souls == null) {

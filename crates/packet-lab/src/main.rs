@@ -855,7 +855,11 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
             println!("{}", render_stay(&i));
         }
         for g in meter.take_soul_gains() {
-            let next = g.next_level_souls.map_or("top level".to_string(), |n| format!("{}/{n} to level {}", g.souls, g.level + 1));
+            let next = match g.next_level_souls {
+                _ if !g.known => "progress not known yet".to_string(),
+                Some(n) => format!("{}/{n} to level {}", g.souls, g.level + 1),
+                None => "top level".to_string(),
+            };
             println!("◆ pet {} soul +{} · {next}", g.pet, g.gained);
         }
         if matches!(msg.opcode, meter_core::cubes::OPCODE_OBJECT_SPAWN | meter_core::cubes::OPCODE_OBJECT_DESPAWN) {

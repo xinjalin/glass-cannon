@@ -801,7 +801,8 @@ impl Bests {
 }
 
 /// Each character's pets: level and souls toward the next one (`pets.json`), so a meter
-/// started after the game sent its pet list (at login or a zone change) still knows them.
+/// started after the game sent its pet list (at login, entering or leaving a dungeon, and
+/// some other moves) still knows them.
 pub struct PetBook {
     path: PathBuf,
     by_character: BTreeMap<String, meter_core::pets::PetState>,
