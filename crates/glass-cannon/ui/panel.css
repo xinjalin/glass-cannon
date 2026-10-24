@@ -215,6 +215,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 #tf-attacking.you { color: var(--warn); font-weight: 700; }
 #tf-enrage { color: var(--warn); }
 #tf-enrage.soon { color: var(--bad); font-weight: 700; }
+#tf-best { color: var(--faint); }
+#tf-best.beating { color: var(--ok); }
 .tf-stagger { height: 0.4em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
 #tf-stagger-fill { display: block; height: 100%; background: var(--warn); }
 #tf-stagger-fill.broken { background: var(--ok); }

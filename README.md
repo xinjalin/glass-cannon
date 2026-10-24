@@ -44,7 +44,7 @@ Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 ## Using it
 
 Glass Cannon opens to a small **launcher**, laid out like a music player: a cover (click
-it for the analysis), a list of what's going on (capture and ping, the game; the overlay;
+it for the analysis), a list of what's going on (status and ping, the game; the overlay;
 the fight, your DPS and share, the party's; the history), and a control bar with the
 boss's HP as its progress line and the fight's time against its enrage: analysis, the
 **overlay**'s start/stop, history, arrange (again to save and finish) and settings. Text
@@ -73,7 +73,8 @@ finishes. The settings choose which show too:
   your own moves, and what your game sends is encrypted), so the compass points from
   there, north up, for a minute after you arrive; it can't follow you as you walk.
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
-  attacking, stagger.
+  attacking, your best against it, stagger. While it shows, the meter leaves out its own
+  boss HP, enrage and cast lines, so nothing is shown twice.
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used).
@@ -139,7 +140,8 @@ the bottom deletes every fight, dungeon run and PvP session (it asks first); a d
 you're in at the time keeps grouping its next fights as a run.
 
 **Personal bests**: your highest DPS and fastest kill against each boss show on the meter's
-boss line during the fight (green while you're beating it), and as ★ tags on the fights in
+boss line (or the target frame, while it shows) during the fight (green while you're
+beating it), and as ★ tags on the fights in
 the history that set them. They're kept per character, count every kill you were in, and
 [clear] resets them.
 
@@ -149,7 +151,8 @@ Spark Ignus soul +1 · 4/25 to level 2". The game sends your pets when you log i
 leave a dungeon and with some other moves, but not every zone change; the meter keeps each
 character's from the first time, so it knows them even when started in between.
 
-**Boss casts**: under the boss's HP (settings → boss casts), what it's casting with a bar
+**Boss casts**: under the boss's HP on the meter (settings → boss casts; the target frame
+has them instead while it shows), what it's casting with a bar
 and the time left, then, for skills that mark the ground, how long until they land; between
 casts, what it cast next the last time you fought it, with a countdown. Times run from the
 boss's pull, so they line up from one fight to the next; its routine skills are left out.

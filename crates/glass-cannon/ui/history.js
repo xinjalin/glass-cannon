@@ -166,7 +166,8 @@ function draw(force) {
     if (pvp.current) list.append(...pvpItem(pvp.current, true));
     for (const s of pvp.sessions) list.append(...pvpItem(s, false));
     shown = pvp.sessions.length + (pvp.current ? 1 : 0);
-    $("count").textContent = `[${pvp.sessions.length}]`;
+    // No count over an empty list (it says there are none).
+    $("count").textContent = pvp.sessions.length ? `[${pvp.sessions.length}]` : "";
   } else {
     let shownRun = null;
     fights.forEach((f, i) => {
@@ -190,7 +191,7 @@ function draw(force) {
         shown++;
       }
     });
-    $("count").textContent = `[${fights.length}]`;
+    $("count").textContent = fights.length ? `[${fights.length}]` : "";
   }
   const empty = { all: "no finished fights yet", runs: "no dungeon runs yet", bosses: "no boss fights yet", pvp: "no PvP yet: fights with players outside your party show here" };
   $("empty").hidden = shown > 0;

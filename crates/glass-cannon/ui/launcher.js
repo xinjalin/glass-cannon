@@ -12,7 +12,7 @@ const REFRESH_MS = 1000;
 const PHASES = {
   idle: ["idle", ""],
   starting: ["starting", "warn"],
-  waiting: ["waiting for the game", "warn"],
+  waiting: ["waiting", "warn"],
   capturing: ["capturing", "ok"],
   replay: ["replay", "accent"],
   error: ["error", "bad"],
@@ -76,11 +76,11 @@ function drawRows(rows) {
   });
 }
 
+// Off, on, or over the game (the game line says whether it's running).
 function overlayText(s) {
   if (s.arranging) return ["arranging", "accent"];
   if (!s.overlay_on) return ["off", ""];
-  if (s.overlay_showing) return ["over the game", "accent"];
-  return s.game ? ["shows with the game in front", ""] : ["waiting for the game", "warn"];
+  return s.overlay_showing ? ["over the game", "accent"] : ["on", ""];
 }
 
 function endText(f) {
@@ -94,7 +94,7 @@ function drawList(s) {
   const [overlay, overlayCls] = overlayText(s);
   // Grouped: status, the overlay, the fight, the history.
   const rows = [
-    { key: "capture", value: phase, right: s.ping_ms != null ? `${s.ping_ms} ms` : "", cls: phaseCls, title: s.status.message },
+    { key: "status", value: phase, right: s.ping_ms != null ? `${s.ping_ms} ms` : "", cls: phaseCls, title: s.status.message },
     { key: "game", value: s.game ? "running" : "not running", cls: s.game ? "" : "warn" },
     {
       key: "overlay",
@@ -108,18 +108,17 @@ function drawList(s) {
   ];
   if (f) {
     const [end, endCls] = endText(f);
-    rows.push(
-      {
-        key: f.live ? "fight" : "last fight",
-        value: (f.boss ? "★ " : "") + (f.target || "unknown target"),
-        right: clock(f.duration_s),
-        current: f.live,
-        group: true,
-        action: "analysis",
-        title: "Click for its analysis",
-      },
-      { key: "result", value: end, right: f.progress != null ? `${Math.round(f.progress * 100)}%` : "", cls: endCls },
-    );
+    // How it's going or how it ended (its name, time and the boss's HP are on the bar below,
+    // so they're not said twice).
+    rows.push({
+      key: f.live ? "fight" : "last fight",
+      value: end,
+      cls: endCls,
+      current: f.live,
+      group: true,
+      action: "analysis",
+      title: "Click for its analysis",
+    });
     if (f.my_dps != null) {
       const share = f.total_dps > 0 ? `${Math.round((f.my_dps / f.total_dps) * 100)}%` : "";
       rows.push({ key: "you", value: `${fmt(f.my_dps)} dps`, right: share, cls: "accent" });
@@ -132,16 +131,17 @@ function drawList(s) {
   drawRows(rows);
 }
 
+// The cover: its dot beats during a fight (the list says so in words), and the version.
 function drawCover(s) {
   const f = s.fight;
   $("cover-dot").classList.toggle("live", !!(f && f.live));
-  const [phase] = PHASES[s.status.phase] || [s.status.phase];
-  $("cover-status").textContent = f && f.live ? "● in combat" : `● ${phase}`;
+  $("cover-status").textContent = `v${s.version}`;
 }
 
 function drawBar(s) {
   const f = s.fight;
   $("progress-fill").style.width = `${f && f.progress != null ? f.progress * 100 : 0}%`;
+  $("progress").title = f && f.progress != null ? `The boss's HP: ${Math.round(f.progress * 100)}% gone` : "";
   const toggle = $("toggle");
   toggle.setAttribute("aria-pressed", String(s.overlay_on));
   toggle.title = s.overlay_on ? "Stop the overlay" : "Start the overlay over the game";
@@ -154,7 +154,8 @@ function drawBar(s) {
     : s.overlay_showing
       ? "Arrange the overlay's widgets"
       : "Arrange the overlay's widgets (the game must be in front)";
-  const now = `GLASS CANNON - ${f ? (f.live ? "" : "last: ") + (f.boss ? "★ " : "") + (f.target || "unknown target") : "waiting for a fight"}`;
+  // What's playing: the fight's target (the cover already says it's Glass Cannon).
+  const now = f ? (f.boss ? "★ " : "") + (f.target || "unknown target") : "";
   if ($("now-text").textContent !== now) {
     $("now-text").textContent = now;
     fitScroll($("now"));

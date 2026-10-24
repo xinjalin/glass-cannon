@@ -40,7 +40,6 @@ pub struct Check {
 pub struct SettingsStatus {
     version: &'static str,
     npcap: Check,
-    game: Check,
     data: Check,
     /// Skill details for the analysis window's tooltips.
     details: Check,
@@ -83,13 +82,6 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
             text: "not installed (npcap.com)".into(),
         },
     };
-    let game = match meter_core::conns::find_processes(&app.args.process) {
-        Ok(p) if !p.is_empty() => Check { level: "ok", text: "running".into() },
-        _ => Check {
-            level: "warn",
-            text: "not running".into(),
-        },
-    };
     let (data, details) = {
         let mut d = lock(&app.data);
         d.reload_if_empty();
@@ -127,7 +119,6 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
     SettingsStatus {
         version: env!("CARGO_PKG_VERSION"),
         npcap,
-        game,
         data,
         details,
         record: s.record,

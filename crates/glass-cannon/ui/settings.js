@@ -142,7 +142,6 @@ async function refresh() {
     state = await invoke("settings_status");
     $("version").textContent = `v${state.version}`;
     setCheck("check-npcap", state.npcap);
-    setCheck("check-game", state.game);
     setCheck("check-data", state.data);
     setCheck("check-details", state.details);
     drawAppearance(state.appearance);

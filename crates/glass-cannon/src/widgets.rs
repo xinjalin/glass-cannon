@@ -109,12 +109,30 @@ pub fn set_timer_region(app: State<'_, Arc<AppState>>, region: String) -> Result
     Ok(())
 }
 
-/// What you're targeting (or fighting), named.
+/// The target frame: the target, with your best against it (a boss) and your DPS now.
+#[derive(Serialize)]
+pub struct TargetFrame {
+    #[serde(flatten)]
+    target: TargetView,
+    best: Option<crate::store::Best>,
+    my_dps: Option<f64>,
+}
+
+/// What you're targeting (or fighting), named, with your best against it.
 #[tauri::command]
-pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetView> {
+pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetFrame> {
     let mut snap = app.engine.meter().snapshot();
     lock(&app.data).annotate(&mut snap);
-    snap.target
+    let my_dps = snap.encounter.as_ref().and_then(|e| e.players.iter().find(|p| p.is_self)).map(|p| p.dps);
+    let target = snap.target?;
+    let best = match (target.boss, target.mob_type) {
+        (true, Some(kind)) => {
+            let profile = lock(&app.profile);
+            lock(&app.bests).get(profile.name.as_deref(), kind)
+        }
+        _ => None,
+    };
+    Some(TargetFrame { target, best, my_dps })
 }
 
 #[derive(Serialize)]

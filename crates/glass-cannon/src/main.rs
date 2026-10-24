@@ -400,6 +400,9 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
+    // The target frame shows the boss's HP, enrage and cast (and your best): the meter
+    // leaves them out while it's on.
+    let target_frame = settings.widgets.iter().any(|w| w == "target");
     View {
         status: lock(&app.engine.status).clone(),
         meter: snap,
@@ -416,8 +419,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         alerts: settings.alerts,
         alert_lead_min: settings.alert_lead_min,
         hide_after_s: settings.hide_after_s,
-        boss_hp: settings.boss_hp,
-        boss_casts: settings.boss_casts,
+        boss_hp: settings.boss_hp && !target_frame,
+        boss_casts: settings.boss_casts && !target_frame,
         best,
         boss_next,
         boss_ahead,

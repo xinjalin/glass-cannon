@@ -1,6 +1,7 @@
 // The target frame: what you've picked (or what you're fighting), its HP, how long until
-// it dies at the current rate, what it's casting, when it enrages, who it's attacking and
-// its stagger gauge.
+// it dies at the current rate, what it's casting, when it enrages, who it's attacking, your
+// best against it and its stagger gauge. (While it shows, the meter leaves out its own
+// boss HP, enrage and cast lines.)
 
 const POLL_MS = 250;
 
@@ -40,6 +41,14 @@ async function refresh() {
   enrage.hidden = left == null || left < -60_000 || left > 3_600_000;
   enrage.textContent = left > 0 ? `enrage ${clock(left / 1000)}` : "enraged";
   enrage.className = left != null && left < 30_000 ? "soon" : "";
+  // Your best against this boss: green while you're doing better.
+  const b = t.best;
+  $("tf-best-line").hidden = !b;
+  if (b) {
+    $("tf-best").textContent = `best ${fmt(b.dps)} dps · fastest ${clock(b.kill_s)}`;
+    $("tf-best").className = t.my_dps != null && t.my_dps > b.dps ? "beating" : "";
+    $("tf-best").title = `Your best DPS against it, and its fastest kill (${b.kills} ${b.kills === 1 ? "kill" : "kills"})`;
+  }
   const s = t.stagger;
   $("tf-stagger-box").hidden = !s || !s.size;
   if (s && s.size) {
