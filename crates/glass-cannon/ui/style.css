@@ -533,6 +533,7 @@ body:hover #lock { opacity: 0.8; }
 #notice.alert { color: var(--warn); }
 #notice.cube.gold { color: var(--warn); }
 #notice.cube.red { color: var(--bad); }
+#notice.soul { color: var(--ok); }
 
 /* Faded outside combat (settings → fade outside combat): back under the mouse. */
 #panel { transition: opacity 0.4s ease; }

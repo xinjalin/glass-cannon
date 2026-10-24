@@ -199,6 +199,8 @@ struct View {
     boss_next: Option<NextCast>,
     /// Hidden cubes in view.
     cubes: Vec<meter_core::cubes::CubeView>,
+    /// Pet souls gained since the last snapshot, with each pet's progress.
+    souls: Vec<meter_core::pets::SoulGain>,
 }
 
 /// A boss's next cast, as it came the last time you fought it.
@@ -250,7 +252,7 @@ fn boss_casts_to_show(history: &store::History, data: &GameData, enc: &mut meter
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, mut souls) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -263,7 +265,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let contents = meter.take_contents();
         let cubes = meter.cubes(now);
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes)
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, meter.take_soul_gains())
     };
     lock(&app.field_bosses).update(field_bosses);
     lock(&app.contents).update(contents);
@@ -314,6 +316,9 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         .filter(|e| e.target_boss)
         .and_then(|e| e.target_type)
         .and_then(|t| lock(&app.bests).get(profile.name.as_deref(), t));
+    for g in &mut souls {
+        g.name = data.pet_name(g.pet);
+    }
     let mut boss_next = None;
     if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
         boss_next = boss_casts_to_show(&history, &data, enc);
@@ -342,6 +347,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         best,
         boss_next,
         cubes,
+        souls,
     }
 }
 

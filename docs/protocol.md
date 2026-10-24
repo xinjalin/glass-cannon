@@ -444,6 +444,20 @@ captures; the other three have none there), so it's known only after you log in,
 or change zone. As Questlog does, the meter trusts it for 60 s for a cube's distance and
 direction, taking north as -y.
 
+### Pet souls (confirmed 2026-10-24)
+
+| opcode   | layout | what |
+| -------- | ------ | ---- |
+| `0x9000` | u32, varint n, n × (u32 key, u32 pet, u32 level), varint n, n × (u32 pet, u32 souls), … | your pets and their souls (each connection) |
+| `0x9009` | varint entity, u32 pet, u32 level, … | a pet summoned |
+| `0x900d` | varint n, n × (u32 pet, u32 souls) | souls gained: 1 a kill (23 in our captures) |
+| `0x900e` | the same | souls spent: 5 to summon a pet (with its `0x9009`) |
+
+Names are Questlog's (RideInitData, CharRideAcquire, RideSoulPointIncrease/Decrease). A
+pet's ID is the mob it comes from's kind (1091, Red Spark Ignus, from Fire Temple's first
+boss). It takes 5 souls to summon, then 25 and 75 for its next two levels (Questlog's table;
+the scraped pet data says "Souls to summon: 5").
+
 ### Classes (confirmed)
 
 The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Templar,

@@ -31,6 +31,7 @@ const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
+const PETS_FILE: &str = "pets.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// Player skills have 8-digit IDs; mobs' are shorter.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
@@ -87,6 +88,18 @@ struct TheostoneFile {
 struct ItemIconFile {
     #[serde(default)]
     icons: BTreeMap<u32, String>,
+}
+
+/// Pets' names, by the ID their souls come with (optional).
+#[derive(Debug, Default, Deserialize)]
+struct PetFile {
+    #[serde(default)]
+    pets: BTreeMap<u32, PetEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PetEntry {
+    name: String,
 }
 
 /// Which dungeon (and mode) each dungeon mob type is in.
@@ -181,6 +194,8 @@ pub struct GameData {
     dungeons: DungeonFile,
     /// Field bosses on the world map (optional).
     field_bosses: FieldBossFile,
+    /// Pets' names (optional).
+    pets: PetFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -201,6 +216,7 @@ impl GameData {
             theostones: TheostoneFile::default(),
             dungeons: DungeonFile::default(),
             field_bosses: FieldBossFile::default(),
+            pets: PetFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -228,6 +244,7 @@ impl GameData {
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
+                    self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     // Consumables' icons fill in skills that have none.
                     let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
                     for (id, file) in items.icons {
@@ -458,6 +475,11 @@ impl GameData {
                 }
             }
         }
+    }
+
+    /// A pet's name, by the ID its souls come with.
+    pub fn pet_name(&self, pet: u32) -> Option<String> {
+        self.pets.pets.get(&pet).map(|p| p.name.clone())
     }
 
     /// A boss skill's name: the data names most mob skills only "Attack", which says

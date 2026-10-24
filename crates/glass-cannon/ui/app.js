@@ -462,6 +462,25 @@ function keyedNotice(key, text, ms, kind = "") {
   drawNotice();
 }
 
+// ---------------------------------------------------------------- pet souls
+
+// A pet's soul from a kill: how many it has toward its next level (summoning is level 1).
+const SOUL_NOTICE_MS = 8000;
+
+function noticeSouls(souls) {
+  for (const g of souls || []) {
+    const name = g.name || `pet ${g.pet}`;
+    let progress;
+    if (g.next_level_souls == null) {
+      progress = "top level";
+    } else {
+      const goal = g.level === 0 ? "to summon" : `to level ${g.level + 1}`;
+      progress = `${g.souls}/${g.next_level_souls} ${goal}${g.souls >= g.next_level_souls ? " · ready" : ""}`;
+    }
+    keyedNotice(`soul:${g.pet}`, `◆ ${name} soul +${g.gained} · ${progress}`, SOUL_NOTICE_MS, "soul");
+  }
+}
+
 // ---------------------------------------------------------------- hidden cubes
 
 // Each hidden cube in view: its colour, and how far and which way while the game has told
@@ -753,12 +772,17 @@ function drawScope(meter, auto) {
 function placeFloat() {
   const float = $("float");
   const totals = $("totals");
+  const box = $("box");
   if (!minimal()) {
     totals.style.paddingRight = "";
+    box.style.paddingTop = "";
     return;
   }
+  // No target line (the party view, no fight yet): the pills get a line of their own
+  // above the rows, so they never sit on one.
+  box.style.paddingTop = totals.hidden ? `${$("f-view").offsetHeight + 4}px` : "";
   const panel = $("panel").getBoundingClientRect();
-  const line = !totals.hidden ? totals : $("box");
+  const line = !totals.hidden ? totals : box;
   const r = line.getBoundingClientRect();
   const pills = $("f-scope").offsetWidth + $("f-view").offsetWidth + 8;
   float.style.top = `${r.top - panel.top + (!totals.hidden ? (r.height - $("f-view").offsetHeight) / 2 - 1 : 0)}px`;
@@ -973,6 +997,7 @@ async function refresh() {
     const view = await invoke("snapshot", { expanded: [...expanded] });
     lastViewAt = performance.now();
     noticeCubes(view.cubes);
+    noticeSouls(view.souls);
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
     lastKey = key;

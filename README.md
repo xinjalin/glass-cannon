@@ -98,6 +98,10 @@ boss line during the fight (green while you're beating it), and as ★ tags on t
 the history that set them. They're kept per character, count every kill you were in, and
 [clear] resets them.
 
+**Pet souls**: a kill that gives a pet's soul shows on the meter with how many it has
+toward the pet's next level (5 to summon it, then 25 and 75), e.g. "Red Spark Ignus soul +1
+· 4/25 to level 2".
+
 **Hidden cubes**: when one comes into view the meter says so (gold or red) and keeps the
 line while it's in view, with how far and which way (and how far up or down) for a minute
 after you arrive somewhere: the game only tells the meter where you are when you log in,

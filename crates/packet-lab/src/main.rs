@@ -29,6 +29,7 @@ use meter_core::{damage, decode, protocol};
 mod gamedata;
 mod skill_details;
 mod dungeons;
+mod pets;
 mod item_icons;
 mod theostones;
 
@@ -221,6 +222,17 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Build gamedata/pets.json (pet names and genus by ID, for the pet soul ticker) from a
+    /// scraped pet database
+    Pets {
+        /// The scrape's pets: a JSON object by pet ID
+        pets: PathBuf,
+        #[arg(long, default_value = "gamedata/pets.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Download icons for consumables' buffs (scrolls, potions, food) from NCSOFT's asset
     /// server into gamedata, matched to skills by name through a scraped item database
     ItemIcons {
@@ -372,6 +384,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::SkillDetails { input, out, scraped } => skill_details::run(&input, &out, &scraped),
         Cmd::ItemIcons { items, dir, fetched } => item_icons::run(&items, &dir, &fetched),
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
+        Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
             process,
@@ -840,6 +853,10 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
         meter.feed(msg.ts_us, msg.opcode, &msg.payload);
         for i in meter.take_instances() {
             println!("{}", render_stay(&i));
+        }
+        for g in meter.take_soul_gains() {
+            let next = g.next_level_souls.map_or("top level".to_string(), |n| format!("{}/{n} to level {}", g.souls, g.level + 1));
+            println!("◆ pet {} soul +{} · {next}", g.pet, g.gained);
         }
         if matches!(msg.opcode, meter_core::cubes::OPCODE_OBJECT_SPAWN | meter_core::cubes::OPCODE_OBJECT_DESPAWN) {
             let now = meter.cubes(msg.ts_us);

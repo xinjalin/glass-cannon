@@ -22,6 +22,7 @@ pub mod live;
 pub mod meter;
 pub mod npcap;
 pub mod pcapfile;
+pub mod pets;
 pub mod pipeline;
 pub mod protocol;
 pub mod pvp;
