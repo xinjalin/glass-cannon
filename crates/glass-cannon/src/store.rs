@@ -75,6 +75,11 @@ pub struct Settings {
     pub alerts: Vec<String>,
     #[serde(default = "default_alert_lead")]
     pub alert_lead_min: u32,
+    /// Events and field bosses you starred in the world timers, and whether only those show.
+    #[serde(default)]
+    pub timer_favourites: Vec<String>,
+    #[serde(default)]
+    pub timer_favourites_only: bool,
     /// The meter fades away this many seconds after combat ends (0: it doesn't), and comes
     /// back in the next fight or under the mouse.
     #[serde(default)]

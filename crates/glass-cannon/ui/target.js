@@ -27,7 +27,7 @@ async function refresh() {
   const c = t.cast;
   $("tf-cast-box").hidden = !c;
   if (c) {
-    $("tf-cast-name").textContent = `casting ${c.skill_name || `#${c.skill}`}`;
+    $("tf-cast-name").textContent = c.skill_name ? `casting ${c.skill_name}` : `casting (${(c.cast_ms / 1000).toFixed(1)} s)`;
     $("tf-cast-time").textContent = `${(c.remaining_ms / 1000).toFixed(1)} s`;
     $("tf-cast-fill").style.width = `${Math.max(0, Math.min(100, (1 - c.remaining_ms / c.cast_ms) * 100))}%`;
   }

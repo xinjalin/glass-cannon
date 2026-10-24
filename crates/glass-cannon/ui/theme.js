@@ -80,7 +80,7 @@ function applyAppearance(a) {
     root.style.removeProperty("--bar");
     root.style.removeProperty("--bar-ink");
   }
-  root.classList.toggle("minimal", a.minimal);
+  root.classList.toggle("minimal", a.minimal || root.classList.contains("widget"));
   root.classList.toggle("info-bar", a.info_bar);
   root.style.setProperty("--fs", `${a.font_size}px`);
   // A chosen font goes first, with the built-in monospace behind it. The app only

@@ -39,7 +39,9 @@ function place() {
   for (const el of document.querySelectorAll(".widget")) {
     const id = el.dataset.widget;
     const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
-    if (fitted[id]) p.h = fitted[id];
+    // A widget that fits its content: the meter exactly; the side windows' up to the
+    // height you gave them (they scroll beyond it).
+    if (fitted[id]) p.h = el.dataset.panel !== undefined ? Math.min(fitted[id], p.h) : fitted[id];
     const w = px(p.w);
     const x = Math.min(Math.max(0, p.x * innerWidth), innerWidth - Math.min(w, innerWidth));
     const y = Math.min(Math.max(0, p.y * innerHeight), innerHeight - 40);
@@ -53,14 +55,17 @@ function place() {
 let rectsKey = "";
 function reportRects() {
   const dpr = window.devicePixelRatio || 1;
-  const rects = [...document.querySelectorAll(".widget:not(.passive)")].map((el) => {
+  const box = (el) => {
     const r = el.getBoundingClientRect();
     return { x: r.left * dpr, y: r.top * dpr, width: r.width * dpr, height: r.height * dpr };
-  });
-  const key = JSON.stringify(rects.map((r) => Object.values(r).map(Math.round)));
+  };
+  const rects = [...document.querySelectorAll(".widget:not(.passive)")].map(box);
+  // The widgets with a panel get a frosted plate behind it (when frosted is chosen).
+  const panels = [...document.querySelectorAll(".widget")].filter((el) => el.querySelector("iframe")).map(box);
+  const key = JSON.stringify([rects, panels].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
-  invoke("hud_rects", { rects }).catch(() => {});
+  invoke("hud_rects", { rects, panels }).catch(() => {});
 }
 
 async function loadLayout() {

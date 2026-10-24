@@ -329,13 +329,40 @@ pub struct TimerSettings {
     pub region: String,
     pub alerts: Vec<String>,
     pub alert_lead_min: u32,
+    pub favourites: Vec<String>,
+    pub favourites_only: bool,
 }
 
 #[tauri::command]
 pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
     let s = lock(&app.settings);
     let region = if TIMER_REGIONS.contains(&s.timer_region.as_str()) { s.timer_region.clone() } else { TIMER_REGIONS[0].into() };
-    TimerSettings { region, alerts: s.alerts.clone(), alert_lead_min: s.alert_lead_min }
+    TimerSettings {
+        region,
+        alerts: s.alerts.clone(),
+        alert_lead_min: s.alert_lead_min,
+        favourites: s.timer_favourites.clone(),
+        favourites_only: s.timer_favourites_only,
+    }
+}
+
+/// Stars (or unstars) an event or field boss in the world timers.
+#[tauri::command]
+pub fn set_timer_favourite(app: State<'_, Arc<AppState>>, id: String, on: bool) {
+    let mut s = lock(&app.settings);
+    s.timer_favourites.retain(|f| f != &id);
+    if on {
+        s.timer_favourites.push(id);
+    }
+    s.save(&app.config_dir);
+}
+
+/// Shows only the starred events and field bosses, or all of them.
+#[tauri::command]
+pub fn set_timer_favourites_only(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.timer_favourites_only = on;
+    s.save(&app.config_dir);
 }
 
 /// Party cooldowns worth watching: 60 s or more, or a party-wide skill of 30 s or more.

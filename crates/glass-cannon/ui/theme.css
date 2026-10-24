@@ -84,7 +84,9 @@
 
 /* ---------------------------------------------------------------- widgets in the overlay */
 
-/* A widget has no window behind it: "frosted" (Windows' blur) can't blur the game there,
-   so it's a stronger tint instead; "tinted" and "clear" are as everywhere. Its frame is the
-   window's border, in the theme's colour. */
-html.widget[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) + 0.15)); }
+/* A widget is part of the game's screen, not a window: a frameless rounded panel (no
+   title bar, border, shadow, hints or scrollbars). Its background follows the setting:
+   tinted, clear, or frosted, where the overlay puts Windows' blur of the game behind the
+   panel (as the windows had) under a lighter tint. */
+html.widget { --widget-radius: 0.6em; }
+html.widget[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) * 0.55)); }

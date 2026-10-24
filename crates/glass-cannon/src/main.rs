@@ -148,6 +148,7 @@ pub struct AppState {
     lock_button: Mutex<Option<clickthrough::ButtonRect>>,
     /// The overlay's widgets' boxes, and whether they're being arranged.
     hud_rects: Mutex<Vec<hud::HitRect>>,
+    hud_panels: Mutex<Vec<hud::HitRect>>,
     hud_editing: AtomicBool,
     /// Player names saved by an earlier run, until we know whether they're from this login.
     known_players: Mutex<Option<KnownPlayers>>,
@@ -861,6 +862,7 @@ fn main() {
         locked: AtomicBool::new(false),
         lock_button: Mutex::new(None),
         hud_rects: Mutex::new(Vec::new()),
+        hud_panels: Mutex::new(Vec::new()),
         hud_editing: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),
         players_saved: AtomicUsize::new(0),
@@ -933,6 +935,8 @@ fn main() {
             panels::boss_skill_alerts,
             panels::set_alert_sound,
             panels::timer_settings,
+            panels::set_timer_favourite,
+            panels::set_timer_favourites_only,
             panels::party_cooldowns,
             hud::hud_rects,
             panels::hud_panels,

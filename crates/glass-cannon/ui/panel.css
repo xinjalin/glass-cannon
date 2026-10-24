@@ -184,11 +184,16 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .end-tag.kill { color: var(--ok); }
 .end-tag.wipe { color: var(--bad); }
 
-.timer { grid-template-columns: auto minmax(0, 1fr) auto; }
+.timer { grid-template-columns: auto auto minmax(0, 1fr) auto; column-gap: 0.4em; }
 .bell { padding: 0; font-size: 0.9em; opacity: 0.45; filter: grayscale(1); }
 .bell-space { display: inline-block; width: 1.3em; }
 .bell.on { opacity: 1; filter: none; }
 .bell:hover { opacity: 1; }
+.star { padding: 0; width: 1.3em; color: var(--faint); }
+.star.on { color: var(--warn); }
+.star:hover { color: var(--text); }
+.fav-filter { margin-left: 0.4em; color: var(--muted); }
+.fav-filter[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
 .lead button { color: var(--accent); }
 .lead button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
@@ -259,8 +264,10 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 
 /* ---------------------------------------------------------------- as a widget in the overlay */
 
-/* No title bar (the overlay moves it; the settings show and hide it), rounded like a
-   window, with its border in the theme's colour. */
-.widget #bar { display: none; }
-.widget #panel { padding-top: 0.5em; border: 1px solid var(--line); border-radius: 0.5em; }
-.widget.fit #panel { height: auto; }
+/* No title bar, border, hints or scrollbars: the overlay places it, the settings show and
+   hide it. */
+.widget #bar,
+.widget .hint { display: none; }
+.widget #panel { padding: 0.45em 0.6em; border: 0; border-radius: var(--widget-radius); }
+.widget .scroll::-webkit-scrollbar { width: 0; }
+.widget.fit #panel { height: auto; max-height: 100vh; }

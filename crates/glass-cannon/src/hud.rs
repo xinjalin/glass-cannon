@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Runtime, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::game_window::{Rect, Tracker};
 use crate::{lock, AppState, OVERLAY};
@@ -43,10 +43,12 @@ impl HitRect {
     }
 }
 
-/// Where the widgets are; the HUD reports it whenever its layout changes.
+/// Where the widgets are; the HUD reports it whenever its layout changes: those that take
+/// the mouse, and every widget's panel (for its frosted plate).
 #[tauri::command]
-pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>) {
+pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>, panels: Option<Vec<HitRect>>) {
     *lock(&app.hud_rects) = rects;
+    *lock(&app.hud_panels) = panels.unwrap_or_default();
 }
 
 /// Arranging the widgets: the whole HUD takes the mouse (and the keyboard) until done.
@@ -115,6 +117,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             // With the overlay on, the meter's window comes back while there's no game
             // window (so the app is never out of reach), and goes when the game appears.
             let mut meter_shown: Option<bool> = None;
+            let mut plates = Plates::default();
             let mut tick = 0u32;
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
@@ -152,6 +155,9 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                         }
                     }
                 }
+                let frosted = lock(&app.settings).appearance.backdrop == "frosted";
+                let wanted: Vec<HitRect> = if shown && frosted { lock(&app.hud_panels).clone() } else { Vec::new() };
+                plates.update(&handle, &w, &wanted);
                 if shown {
                     let ignore = !editing && !pointer_on_widget(&handle, &w, &app);
                     if ignoring != Some(ignore) && w.set_ignore_cursor_events(ignore).is_ok() {
@@ -162,6 +168,82 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             }
         })
         .expect("starting the HUD thread");
+}
+
+/// "Frosted" in the overlay: the HUD is one window over the whole game, which Windows
+/// can't blur under just its widgets, so each widget gets a plate: a small empty window
+/// with Windows' frosted backdrop, just under the HUD, exactly behind the widget's panel,
+/// letting the mouse through. The widget's own tint is then lighter, as the windows' was.
+struct Plates<R: Runtime> {
+    windows: Vec<WebviewWindow<R>>,
+    /// Where each is (physical pixels), None while hidden.
+    at: Vec<Option<(i32, i32, u32, u32)>>,
+}
+
+impl<R: Runtime> Default for Plates<R> {
+    fn default() -> Self {
+        Self { windows: Vec::new(), at: Vec::new() }
+    }
+}
+
+impl<R: Runtime> Plates<R> {
+    fn update(&mut self, handle: &AppHandle<R>, hud: &WebviewWindow<R>, wanted: &[HitRect]) {
+        let origin = hud.inner_position().ok();
+        while self.windows.len() < wanted.len() {
+            let label = format!("plate-{}", self.windows.len());
+            let built = WebviewWindowBuilder::new(handle, &label, WebviewUrl::App("plate.html".into()))
+                .title("Glass Cannon")
+                .decorations(false)
+                .transparent(true)
+                .shadow(false)
+                .resizable(false)
+                .skip_taskbar(true)
+                .always_on_top(true)
+                .focusable(false)
+                .visible(false)
+                .build();
+            let Ok(w) = built else { return };
+            crate::style::plate(&w);
+            let _ = w.set_ignore_cursor_events(true);
+            self.windows.push(w);
+            self.at.push(None);
+        }
+        for (i, w) in self.windows.iter().enumerate() {
+            let want = origin.and_then(|o| wanted.get(i).map(|r| (o.x + r.x as i32, o.y + r.y as i32, r.width as u32, r.height as u32)));
+            if want == self.at[i] {
+                continue;
+            }
+            match want {
+                Some((x, y, width, height)) if width > 0 && height > 0 => {
+                    let _ = w.set_position(PhysicalPosition::new(x, y));
+                    let _ = w.set_size(PhysicalSize::new(width, height));
+                    if self.at[i].is_none() {
+                        let _ = w.show();
+                    }
+                    below(w, hud);
+                }
+                _ => {
+                    let _ = w.hide();
+                }
+            }
+            self.at[i] = want;
+        }
+    }
+}
+
+/// Puts `plate` just under `hud` (both stay on top of the game).
+fn below<R: Runtime>(plate: &WebviewWindow<R>, hud: &WebviewWindow<R>) {
+    #[link(name = "user32")]
+    extern "system" {
+        fn SetWindowPos(hwnd: isize, after: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
+    }
+    const SWP_NOSIZE: u32 = 0x1;
+    const SWP_NOMOVE: u32 = 0x2;
+    const SWP_NOACTIVATE: u32 = 0x10;
+    if let (Ok(p), Ok(h)) = (plate.hwnd(), hud.hwnd()) {
+        // SAFETY: both are our own windows' handles.
+        unsafe { SetWindowPos(p.0 as isize, h.0 as isize, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE) };
+    }
 }
 
 fn pointer_on_widget<R: Runtime>(handle: &AppHandle<R>, w: &tauri::WebviewWindow<R>, app: &AppState) -> bool {

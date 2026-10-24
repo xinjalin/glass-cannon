@@ -14,13 +14,17 @@ if (WIDGET) {
 // A page that fits its content (the target frame) tells the overlay how tall it is.
 if (WIDGET && document.body.hasAttribute("data-fit")) {
   document.documentElement.classList.add("fit");
+  // Its full height (scrollHeight: what it would take, not the box it has now), whenever
+  // its content changes.
   let sent = 0;
-  new ResizeObserver(() => {
-    const h = Math.ceil($("panel").getBoundingClientRect().height);
+  const report = () => {
+    const h = Math.ceil($("panel").scrollHeight);
     if (h === sent) return;
     sent = h;
     window.parent.postMessage({ type: "gc-fit", widget: document.body.dataset.panel, height: h }, "*");
-  }).observe($("panel"));
+  };
+  new ResizeObserver(report).observe($("panel"));
+  new MutationObserver(report).observe($("panel"), { childList: true, subtree: true, characterData: true, attributes: true });
 }
 
 function el(tag, className, text) {

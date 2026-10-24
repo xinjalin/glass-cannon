@@ -188,6 +188,26 @@ pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance, is_overlay: 
     });
 }
 
+/// A blur plate under an overlay widget: Windows' frosted backdrop, rounded, no border,
+/// kept on while the window isn't active (it never is).
+pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
+    let _ = window.set_shadow(false);
+    let Ok(hwnd) = window.hwnd() else { return };
+    let hwnd = hwnd.0 as isize;
+    let _ = window.run_on_main_thread(move || {
+        // SAFETY: plain DWM and subclass calls on our own window with 4-byte values.
+        unsafe {
+            SetWindowSubclass(hwnd, always_active, 1, 0);
+            let modern = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &DWMSBT_TRANSIENTWINDOW, 4) == 0;
+            if !modern {
+                set_accent(hwnd, ACCENT_ENABLE_ACRYLICBLURBEHIND);
+            }
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &DWMWCP_ROUND, 4);
+            DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &NO_BORDER, 4);
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

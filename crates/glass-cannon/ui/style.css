@@ -550,5 +550,4 @@ body:hover #lock { opacity: 0.8; }
 .widget #f-close,
 .widget #lock { display: none; }
 .widget body { background: transparent; }
-.widget #panel { border: 1px solid var(--line); border-radius: 0.5em; }
-.widget.minimal #panel { border-color: transparent; }
+.widget #panel { border-radius: var(--widget-radius); }
