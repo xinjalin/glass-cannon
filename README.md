@@ -43,11 +43,14 @@ Needs Windows 10 or 11 with WebView2 (built into Windows 11).
 
 ## Using it
 
-Glass Cannon opens to a small **launcher**: whether it's capturing (and the game's ping),
-the fight going on or the last one (click it for the analysis), and the **overlay** with
-its start/stop button. The dock down its left opens the analysis, fight history and
-settings; closing the launcher closes the app. It starts capturing straight away and waits
-for the game if it isn't running.
+Glass Cannon opens to a small **launcher**, laid out like a music player: a cover with the
+last fight's players as a skyline of their DPS (click it for the analysis), a list of
+what's going on (capture and ping, the game, the overlay, the fight, your DPS and share,
+the party's, the history), and a control bar with the boss's HP as its progress line:
+analysis, the **overlay**'s start/stop, history, arrange and settings. Its three lights
+close it (which closes the app), minimise it and keep it on top. It keeps its own colours
+whatever the theme. It starts capturing straight away and waits for the game if it isn't
+running.
 
 The **overlay** is one transparent layer over the game's picture holding the meter and
 the other widgets, in your theme. It follows the game window, hides when you switch away,
@@ -92,7 +95,8 @@ they come back with the next one (the meter under the mouse too).
   party leaves combat, on a map change, or after 15 s of quiet. **▷|** ends it now; **↺**
   resets. A live boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
-  analysis, end the fight, history, and **≡** for the settings: theme (or any colour),
+  analysis, end the fight, history, and **≡** for the settings: theme (*night*, the default, or rose, lavender, mint, sky, amber, mono, or any
+  colour),
   font, background, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading
   outside combat, recording and status checks.
 

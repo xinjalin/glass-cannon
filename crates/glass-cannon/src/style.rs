@@ -17,6 +17,7 @@ const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
 const DWMWA_BORDER_COLOR: u32 = 34;
 const DWMWA_SYSTEMBACKDROP_TYPE: u32 = 38;
 const DWMWCP_ROUND: u32 = 2;
+const DWMWCP_ROUNDSMALL: u32 = 3;
 const DWMSBT_NONE: u32 = 1;
 const DWMSBT_TRANSIENTWINDOW: u32 = 3;
 /// DWMWA_COLOR_NONE: no border at all.
@@ -99,6 +100,8 @@ fn set_accent(hwnd: isize, state: u32) {
 /// A muted version of each theme's accent for the window border, as `0xRRGGBB`.
 fn border_rgb(theme: &str) -> u32 {
     match theme {
+        // Night's frame is as quiet as its panels.
+        "night" => 0x2c2f37,
         "lavender" => 0x9c88cf,
         "mint" => 0x6fb592,
         "sky" => 0x6fa3cc,
@@ -158,14 +161,36 @@ fn darker(rgb: u32) -> u32 {
 /// Styles a window for the given appearance: its background (frosted, tinted or clear),
 /// rounded corners, a shadow, and a border in the theme's colour.
 pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
-    let frosted = a.backdrop == "frosted";
     let _ = window.set_shadow(true);
+    frame(window, a.backdrop == "frosted", DWMWCP_ROUND, colorref(border_rgb(&a.theme)));
+}
 
+/// A blur plate under an overlay widget: Windows' frosted backdrop, rounded, no border,
+/// kept on while the window isn't active (it never is).
+pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
+    let _ = window.set_shadow(false);
+    frame(window, true, DWMWCP_ROUND, NO_BORDER);
+}
+
+/// The launcher keeps its own look whatever the theme: solid, small corners, a quiet
+/// border (its page has the colours).
+pub fn launcher<R: Runtime>(window: &WebviewWindow<R>) {
+    let _ = window.set_shadow(true);
+    frame(window, false, DWMWCP_ROUNDSMALL, colorref(LAUNCHER_BORDER));
+}
+
+/// The launcher's border, as its panels' edges.
+const LAUNCHER_BORDER: u32 = 0x272a31;
+
+/// 0xRRGGBB as Windows' COLORREF (0x00BBGGRR).
+fn colorref(rgb: u32) -> u32 {
+    (rgb & 0xff) << 16 | (rgb & 0xff00) | (rgb >> 16 & 0xff)
+}
+
+/// Puts the backdrop (frosted or none), corners and border on a window, kept as if active.
+fn frame<R: Runtime>(window: &WebviewWindow<R>, frosted: bool, corners: u32, border: u32) {
     let Ok(hwnd) = window.hwnd() else { return };
     let hwnd = hwnd.0 as isize;
-    let rgb = border_rgb(&a.theme);
-    // COLORREF is 0x00BBGGRR.
-    let border = (rgb & 0xff) << 16 | (rgb & 0xff00) | (rgb >> 16 & 0xff);
     // Subclassing has to happen on the thread that owns the window.
     let _ = window.run_on_main_thread(move || {
         // SAFETY: plain DWM and subclass calls on our own window with 4-byte values.
@@ -176,28 +201,8 @@ pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
             if !modern {
                 set_accent(hwnd, if frosted { ACCENT_ENABLE_ACRYLICBLURBEHIND } else { ACCENT_DISABLED });
             }
-            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &DWMWCP_ROUND, 4);
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corners, 4);
             DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &border, 4);
-        }
-    });
-}
-
-/// A blur plate under an overlay widget: Windows' frosted backdrop, rounded, no border,
-/// kept on while the window isn't active (it never is).
-pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
-    let _ = window.set_shadow(false);
-    let Ok(hwnd) = window.hwnd() else { return };
-    let hwnd = hwnd.0 as isize;
-    let _ = window.run_on_main_thread(move || {
-        // SAFETY: plain DWM and subclass calls on our own window with 4-byte values.
-        unsafe {
-            SetWindowSubclass(hwnd, always_active, 1, 0);
-            let modern = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &DWMSBT_TRANSIENTWINDOW, 4) == 0;
-            if !modern {
-                set_accent(hwnd, ACCENT_ENABLE_ACRYLICBLURBEHIND);
-            }
-            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &DWMWCP_ROUND, 4);
-            DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &NO_BORDER, 4);
         }
     });
 }
@@ -217,5 +222,6 @@ mod tests {
         assert_eq!(readable(0xeb0f58), 0xf34981);
         assert_eq!(border_rgb("#f2a8a4"), 0xc98b88);
         assert_eq!(border_rgb("rose"), 0xc98a86);
+        assert_eq!(border_rgb("night"), 0x2c2f37);
     }
 }

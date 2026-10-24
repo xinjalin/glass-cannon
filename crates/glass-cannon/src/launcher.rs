@@ -39,11 +39,24 @@ pub struct FightLine {
     duration_s: f64,
     my_dps: Option<f64>,
     total_dps: f64,
+    players: usize,
     end: Option<FightEnd>,
+    /// How far the boss's HP has gone (0-1), in a boss fight whose HP is known.
+    progress: Option<f64>,
+    /// The players' DPS as fractions of the top one, in the meter's order (at most
+    /// [`BARS`]): the cover's skyline.
+    bars: Vec<f64>,
 }
+
+const BARS: usize = 16;
 
 impl FightLine {
     fn of(view: &EncounterView, live: bool) -> Self {
+        let top = view.players.iter().map(|p| p.dps).fold(0.0, f64::max);
+        let progress = match (view.target_boss, view.target_hp, view.target_max_hp) {
+            (true, Some(hp), Some(max)) if max > 0 => Some(1.0 - hp.min(max) as f64 / max as f64),
+            _ => None,
+        };
         Self {
             live,
             target: view.target.clone(),
@@ -51,7 +64,10 @@ impl FightLine {
             duration_s: view.duration_s,
             my_dps: view.players.iter().find(|p| p.is_self).map(|p| p.dps),
             total_dps: view.total_dps,
+            players: view.players.len(),
             end: view.end,
+            progress,
+            bars: view.players.iter().take(BARS).map(|p| if top > 0.0 { p.dps / top } else { 0.0 }).collect(),
         }
     }
 }
@@ -90,6 +106,7 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
 /// Shows the launcher where you left it, else in the middle of the main screen.
 pub fn show(handle: &AppHandle) -> tauri::Result<()> {
     let Some(w) = handle.get_webview_window(LAUNCHER) else { return Ok(()) };
+    crate::style::launcher(&w);
     let saved = lock(&handle.state::<Arc<AppState>>().placements).get(LAUNCHER);
     if !saved.is_some_and(|p| crate::placement::restore(&w, p, false)) {
         w.center()?;

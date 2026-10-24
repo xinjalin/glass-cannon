@@ -203,7 +203,8 @@ svg {
 #boss-cast.landing #bc-fill { background: var(--warn); }
 #boss-cast.soon #bc-time { color: var(--bad); }
 #boss-cast.next #bc-name { color: var(--muted); }
-#boss-cast.next .cast-track { visibility: hidden; }
+#boss-cast.next .cast-track,
+#boss-cast.idle .cast-track { visibility: hidden; }
 #best.beating { color: var(--ok); }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 

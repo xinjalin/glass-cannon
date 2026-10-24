@@ -174,6 +174,7 @@ legend {
   background: var(--swatch);
   outline-offset: 2px;
 }
+.swatch[data-theme-choice="night"] { --swatch: linear-gradient(135deg, #c397d8 50%, #fcb2b4 50%); }
 .swatch[data-theme-choice="rose"], .swatch[data-bar-choice="rose"] { --swatch: #f2a8a4; }
 .swatch[data-theme-choice="lavender"], .swatch[data-bar-choice="lavender"] { --swatch: #c8b4f7; }
 .swatch[data-theme-choice="mint"], .swatch[data-bar-choice="mint"] { --swatch: #94dcb9; }

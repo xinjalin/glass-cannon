@@ -684,7 +684,7 @@ function drawBossCast(enc) {
     castLine = { kind: "next", name: name(next), total: 0, left: next.in_s * 1000 };
   }
   if (!castLine) {
-    line.className = "";
+    line.className = "idle";
     $("bc-name").textContent = "";
     $("bc-time").textContent = "";
     $("bc-fill").style.width = "0";
@@ -841,7 +841,14 @@ function fitHeight(a) {
   const key = `${a.font_size}|${a.font}|${a.info_bar}|${bossBarRoom()}|${bossCastRoom()}`;
   if (key === fitFor) return;
   fitFor = key;
-  requestAnimationFrame(() => toHud({ type: "gc-fit", widget: "meter", height: heightFor(FIT_ROWS) }));
+  requestAnimationFrame(() => {
+    // A hidden meter (its widget turned off) has no width to measure at: it fits once shown.
+    if (!$("panel").offsetWidth) {
+      fitFor = null;
+      return;
+    }
+    toHud({ type: "gc-fit", widget: "meter", height: heightFor(FIT_ROWS) });
+  });
 }
 
 function drawStatus(view) {
@@ -1071,4 +1078,13 @@ tauri.event.listen("history-cleared", () => {
 
 poll();
 
-window.addEventListener("resize", () => requestAnimationFrame(placeFloat));
+// A new width (the meter shown, or resized while arranging) changes how tall the rows make
+// it: fit again.
+let fitWidth = 0;
+window.addEventListener("resize", () => {
+  requestAnimationFrame(placeFloat);
+  if (innerWidth === fitWidth || !lastView) return;
+  fitWidth = innerWidth;
+  fitFor = null;
+  fitHeight(lastView.appearance);
+});

@@ -160,7 +160,7 @@ pub const REFRESH_RATES: [u32; 5] = [REALTIME, 200, 500, 1000, 2000];
 pub const REALTIME: u32 = 100;
 pub const DEFAULT_REFRESH_MS: u32 = 500;
 
-pub const THEMES: [&str; 6] = ["rose", "lavender", "mint", "sky", "amber", "mono"];
+pub const THEMES: [&str; 7] = ["night", "rose", "lavender", "mint", "sky", "amber", "mono"];
 pub const HIGHLIGHTS: [&str; 3] = ["self", "all", "off"];
 pub const BACKDROPS: [&str; 3] = ["frosted", "tinted", "clear"];
 /// Bar colours: follow the theme, each player's class, or one of the theme colours.
@@ -208,7 +208,7 @@ fn is_hex_color(s: &str) -> bool {
 }
 
 fn default_theme() -> String {
-    "rose".into()
+    "night".into()
 }
 fn default_bar_color() -> String {
     "theme".into()
@@ -1321,7 +1321,7 @@ mod tests {
             backdrop: Some("fog".into()),
             ..AppearanceChange::default()
         });
-        assert_eq!(a.theme, "rose");
+        assert_eq!(a.theme, "night");
         assert_eq!(a.bar_color, "theme");
         assert_eq!(a.highlight, "self");
         assert_eq!(a.font_size, 18);

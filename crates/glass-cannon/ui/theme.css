@@ -56,6 +56,21 @@
   --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 }
 
+/* Night (the default): cool near-black panels, soft grey text, a lavender accent with pink
+   numbers, and its own softer status colours. After :root, so its text colours win. */
+[data-theme="night"] {
+  --accent: #c397d8;
+  --accent-2: #fcb2b4;
+  --tint-rgb: 16, 19, 23;
+  --text: #d4d4d5;
+  --muted: rgba(212, 212, 213, 0.72);
+  --faint: rgba(212, 212, 213, 0.48);
+  --ink: #101317;
+  --ok: #79dcaa;
+  --warn: #ffe59e;
+  --bad: #f87070;
+}
+
 /* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */
 /* "clear": no tint at all, so the text gets a heavier outline to stay readable. Every
    window follows the background chosen in the settings (frosted, tinted or clear). */

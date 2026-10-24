@@ -924,7 +924,8 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
-    for label in [LAUNCHER, SETTINGS, ANALYSIS, HISTORY] {
+    // The launcher keeps its own look (styled once, at start).
+    for label in [SETTINGS, ANALYSIS, HISTORY] {
         if Some(label) == skip {
             continue;
         }
