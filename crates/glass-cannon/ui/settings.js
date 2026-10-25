@@ -540,7 +540,7 @@ setInterval(refresh, 2000);
 // ---- The pet tracker's picker: every pet (search one, or an area it's found in), to track
 // the ones you're working on.
 let petData = null;
-let petNeededOnly = false;
+let petNeededOnly = true;
 
 // Portraits, by pet (asked for once each).
 const petPortraits = new Map();

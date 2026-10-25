@@ -1,8 +1,8 @@
 // The pet tracker: the pets you track (settings → pet tracker), with their level and souls
 // toward the next one, where they're found, and their mobs in view now (how far and which
 // way while the meter knows where you are: for a minute after you log in, teleport or
-// change zone). With [nearest], the tracked pets that still need souls, those whose mobs
-// are in view first, nearest first.
+// change zone). With [nearest], every pet you still need whose mobs are in view, tracked
+// or not, nearest first.
 
 const POLL_MS = 1000;
 let state = null;
@@ -78,16 +78,18 @@ function draw() {
   const tracked = state.pets.filter((p) => p.tracked);
   const dist = (p) => (p.distance_m != null ? p.distance_m : Infinity);
   const shown = nearest
-    ? tracked.filter(needs).sort((a, b) => (b.in_view > 0) - (a.in_view > 0) || dist(a) - dist(b) || b.in_view - a.in_view || a.name.localeCompare(b.name))
+    ? state.pets.filter((p) => needs(p) && p.in_view).sort((a, b) => dist(a) - dist(b) || b.in_view - a.in_view || a.name.localeCompare(b.name))
     : tracked.sort((a, b) => needs(b) - needs(a) || (b.in_view > 0) - (a.in_view > 0) || a.name.localeCompare(b.name));
   $("list").replaceChildren(...shown.map(row));
   const empty = $("empty");
   empty.hidden = shown.length > 0;
-  empty.textContent = !state.character
-    ? "log in to a character to track its pets"
-    : !tracked.length
-      ? "pick pets to track in settings → pet tracker"
-      : "every pet you track is maxed ✓";
+  empty.textContent = nearest
+    ? "none of the mobs in view give souls you still need"
+    : !state.character
+      ? "log in to a character to track its pets"
+      : !tracked.length
+        ? "pick pets to track in settings → pet tracker, or [nearest] for the pets around you"
+        : "every pet you track is maxed ✓";
 }
 
 async function refresh() {

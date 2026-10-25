@@ -107,8 +107,8 @@ finishes. The widgets:
   portrait: search one, or an area, and click [track]) with their level, souls toward the
   next one and every area they're found in; a pet whose mobs are in view turns green with
   how many, and how far and which way while the meter knows where you are (for a minute
-  after you log in, teleport or change zone). **[nearest]** shows only the tracked pets
-  that still need souls, those in view first. Which mobs give which souls is from Aion
+  after you log in, teleport or change zone). **[nearest]** shows every pet you still need
+  whose mobs are in view, tracked or not, nearest first. Which mobs give which souls is from Aion
   DPS Meter's data; a few mobs aren't in it.
 
 **Hide on the world map** (settings, on by default): the overlay steps aside while the
