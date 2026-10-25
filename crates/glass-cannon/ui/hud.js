@@ -266,7 +266,7 @@ window.addEventListener("message", (e) => {
     fitted[m.widget] = Math.ceil(m.height);
     place();
   } else if (m.type === "gc-cubes") {
-    drawCubes(m.cubes || []);
+    drawCubes(m.cubes || [], !!m.sound);
   } else if (m.type === "gc-fade") {
     document.documentElement.classList.toggle("faded", !!m.faded);
     reportRects();
@@ -285,11 +285,14 @@ const castName = (c) => c.skill_name || (c.cast_ms ? `${(c.cast_ms / 1000).toFix
 
 // A short two-note chime, once per warning (settings → alert sound).
 let audio = null;
-function chime() {
+// The boss warnings' rising pair, and the hidden cubes' falling one.
+const BOSS_NOTES = [880, 1320];
+const CUBE_NOTES = [1568, 1175];
+function chime(notes = BOSS_NOTES) {
   try {
     audio = audio || new AudioContext();
     const t = audio.currentTime;
-    for (const [i, f] of [880, 1320].entries()) {
+    for (const [i, f] of notes.entries()) {
       const o = audio.createOscillator();
       const g = audio.createGain();
       o.frequency.value = f;
@@ -347,7 +350,7 @@ function drawWarnings(elapsed) {
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
-    if (boss.sound && !box.closest(".widget").hidden) chime();
+    if (boss.sound && !box.closest(".widget").hidden) chime(BOSS_NOTES);
   }
 }
 
@@ -373,50 +376,31 @@ function drawTimers(elapsed) {
 
 // ---------------------------------------------------------------- hidden cubes
 
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+// How long a cube that just came into view stands out (and its sound plays once).
+const CUBE_NEW_MS = 6000;
+// The cubes in view at the last update, by entity: one not among them is new.
+let cubesSeen = new Set();
 
-// One card per cube: a compass lying on the ground (tilted back), its needle turned to the
-// cube's bearing from where you last were (north up: the game doesn't say which way you
-// face), with the distance, how far up or down, and how old that position is.
-function drawCubes(cubes) {
+// An alert per hidden cube in view: gold or red, nearby, or taken once opened. The game
+// never says where you are as you move, so it can't say which way the cube is: it only
+// tells you one is close, with a sound the first time (settings → alert sound).
+function drawCubes(cubes, sound) {
+  const fresh = cubes.filter((c) => !c.opened && !cubesSeen.has(c.entity));
+  cubesSeen = new Set(cubes.map((c) => c.entity));
+  if (fresh.length && sound && !$("cubes").closest(".widget").hidden) chime(CUBE_NOTES);
   const list = $("cubes");
-  const key = JSON.stringify(cubes);
-  if (key === list.dataset.key) return;
+  const key = JSON.stringify(cubes.map((c) => [c.entity, c.look, c.opened]));
+  if (key === list.dataset.key && !fresh.length) return;
   list.dataset.key = key;
+  const isNew = new Set(fresh.map((c) => c.entity));
   list.replaceChildren(
     ...cubes.map((c) => {
       const li = document.createElement("li");
-      li.className = `cube ${c.look}${c.opened ? " opened" : ""}`;
-      const dial = document.createElement("span");
-      dial.className = "dial";
-      const disc = document.createElement("span");
-      disc.className = "disc";
-      disc.append(Object.assign(document.createElement("span"), { className: "north", textContent: "N" }));
-      if (c.bearing != null && !c.opened) {
-        const needle = document.createElement("span");
-        needle.className = "needle";
-        needle.style.setProperty("--bearing", `${c.bearing}deg`);
-        disc.append(needle);
-      } else {
-        disc.append(Object.assign(document.createElement("span"), { className: "unknown", textContent: c.opened ? "✓" : "?" }));
-      }
-      dial.append(disc);
-      const info = document.createElement("span");
-      info.className = "info";
-      const line = (cls, text) => Object.assign(document.createElement("span"), { className: cls, textContent: text });
-      info.append(line("what", `${c.look} hidden cube${c.opened ? " · opened" : ""}`));
-      if (c.opened) {
-        info.append(line("far", "taken"));
-      } else if (c.distance_m != null) {
-        const dir = COMPASS[Math.round(c.bearing / 45) % 8];
-        const rise = Math.abs(c.rise_m) >= 3 ? ` · ${Math.abs(c.rise_m)} m ${c.rise_m > 0 ? "up" : "down"}` : "";
-        info.append(line("far", `${c.distance_m} m ${dir}${rise}`));
-        info.append(line("age", `from where you arrived ${c.fix_age_s} s ago`));
-      } else {
-        info.append(line("far", "nearby"));
-        info.append(line("age", "teleport or change zone for its direction"));
-      }
-      li.append(dial, info);
+      li.className = `cube ${c.look}${c.opened ? " opened" : ""}${isNew.has(c.entity) ? " new" : ""}`;
+      if (isNew.has(c.entity)) setTimeout(() => li.classList.remove("new"), CUBE_NEW_MS);
+      li.append(Object.assign(document.createElement("span"), { className: "mark", textContent: "◆" }));
+      li.append(Object.assign(document.createElement("span"), { className: "what", textContent: `${c.look} hidden cube` }));
+      li.append(Object.assign(document.createElement("span"), { className: "state", textContent: c.opened ? "taken" : "nearby" }));
       return li;
     }),
   );

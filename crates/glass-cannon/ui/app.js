@@ -923,7 +923,7 @@ async function refresh() {
     lastViewAt = performance.now();
     sendBoss(view);
     // Hidden cubes have their own widget in the overlay.
-    toHud({ type: "gc-cubes", cubes: view.cubes || [] });
+    toHud({ type: "gc-cubes", cubes: view.cubes || [], sound: view.alert_sound });
     noticeSouls(view.souls);
     const key = JSON.stringify(view);
     const same = key === lastKey && drawnMode === `${mode}/${fightIndex}`;
