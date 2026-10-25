@@ -438,7 +438,7 @@ Hidden cubes are objects of 19 types (Questlog's list, gold and red); a red one 
 is in the Force session, 28 m from you and 66 m up. Coordinates are centimetres.
 
 The game never sends your own movement: every `0x371a`-`0x371c` in our captures is
-another player's (and `0x371d` and the knockbacks `0x3814` too, checked 2026-10-25 against
+another player's or a mob's (and `0x371d` and the knockbacks `0x3814` too, checked 2026-10-25 against
 a capture with your entity known), and party updates (`0x921c`) leave you out. What your
 game sends is no help either: its messages' opcodes are spread over thousands of values a
 few times each (34,905 messages in one capture), so it's encrypted. Your position is in your
@@ -446,6 +446,50 @@ few times each (34,905 messages in one capture), so it's encrypted. Your positio
 captures; the other three have none there), so it's known only after you log in, teleport
 or change zone. As Questlog does, the meter trusts it for 60 s for a cube's distance and
 direction, taking north as -y.
+
+### Other players and mobs moving (confirmed 2026-10-25)
+
+The server sends where every player and mob in range is, never you: keyframes with a
+position and deltas (about 10 a second) between them. Leads from SkeeveAN's Aion DPS
+Meter notes (see [opcodes.md](opcodes.md#sources)), checked on all 25 recordings
+(5.3 million messages) with our own code. Each message is: varint entity, then a flag
+byte (except `0x3730`) whose bits say which optional bytes follow. Positions are
+3 × f32 in cm, the world coordinates of `0x3634` and `0x3633`; velocities 3 × f32 in
+cm/s; a heading is a u16 (65536 = 360°, 0 = +x, growing towards +y).
+
+| opcode | after the flag byte | rule (bytes after the entity) |
+| --- | --- | --- |
+| `0x3729` | [S if f & 1], x y z, velocity, heading, [S if not f & 1] | 28 |
+| `0x3728` | as `0x3729`, a byte more if f & 2 | 28 + (f >> 1 & 1) |
+| `0x371e` | [byte if f & 1], x y z, heading, velocity, [byte if f & 0x14] | 27 + (f & 1) + (f & 0x14 ? 1 : 0) |
+| `0x371f` | x y z, heading, velocity, [01 if f & 2] | 27 + (f >> 1 & 1) |
+| `0x3724` | x y z, heading, velocity, [byte if f & 1] | 27 + (f & 1) |
+| `0x372f` | x y z, direction (unit vector, 3 × f32), facing (f32), [01 if f & 2] | 29 + (f >> 1 & 1) |
+| `0x371a` | a byte, [byte if f & 1], x y z, heading | |
+| `0x371b`, `0x371c` | [byte if f & 1], x y z, heading, facing (u16), … | |
+| `0x3730` | no flag byte: x y z, heading, facing, a byte | |
+| `0x371d` | [S if f & 1], [dx if f & 2], [dy if f & 4], [dz if f & 8], heading, facing, … | |
+| `0x3720` | [dx if f & 1], [dy if f & 2], dz, heading, velocity, [01 if f & 8] | 16 + (f & 1) + (f >> 1 & 1) + (f >> 3 & 1) |
+| `0x3725` | [dx if f & 1], [dy if f & 2], [dz if f & 4], heading, velocity, [byte if f & 8] | 15 + bits(f & 0xf) |
+| `0x372a` | [S if f & 1], [dx if f & 2], [dy if f & 4], [dz if f & 8], velocity, heading, [S] | 15 + bits(f & 0xe) + (f & 0x11 ? 1 : 0) |
+| `0x372d` | [dx if f & 1], [dy if f & 2], [dz if f & 4], heading, facing (f32) | 7 + bits(f & 7) |
+| `0x3732` | [dx if f & 1], [dy if f & 2], [dz if f & 4], heading, facing, [byte if f & 8] | 5 + bits(f & 0xf) |
+
+dx, dy and dz are signed bytes in cm since the entity's last position. What fits:
+
+- Every message of the opcodes with a rule has exactly that length (15,327 of 15,343
+  for `0x371e`, all of the others).
+- Keyframes are continuous: 99.99 % are within 30 m of the same entity's last position
+  (all 111,435 `0x371c`, all 66,422 `0x3729` with an earlier one).
+- `0x3729`'s velocity is real: the speed worked out from its positions over the reported
+  speed is 1.00 (median of 66,272), and its heading is the velocity's direction (0.0°).
+- The deltas between two keyframes add up to the move: within 18 cm for `0x371d`
+  (median, moves of 180 cm), 28 cm for `0x3720`, 36 cm for `0x372a`.
+- `0x3723` (flags, x y z, …) is a keyframe too (845 of 846 near the last position), though
+  no project names it.
+
+`0x372e` is where a skill was used: flags, skill u32, 01, x y z, direction, facing (f32),
+caster u32 (the entity in 7,614 of 8,000), …, basic attacks and dodge rolls included.
 
 ### Pet souls (confirmed 2026-10-24)
 
@@ -648,7 +692,10 @@ and may be the basic attack. Needs a name table from our own observations.
 4. Parry: probably another `special` bit; needs a fight where an enemy parries.
 5. `result` values 0, 1, 6 and `special` bits 0x01, 0x02, 0x10, 0x20, 0x40, 0x80: what
    are they? (0x80 is common on hits players take: block? shield?)
-6. Opcodes `0x371d`, `0x3600` are among the most frequent; probably movement/state.
+6. ~~Opcodes `0x371d`, `0x3600` are among the most frequent; probably movement/state.~~
+   Answered 2026-10-25: `0x371d` is other players' and mobs' movement (see
+   [Other players and mobs moving](#other-players-and-mobs-moving-confirmed-2026-10-25)),
+   `0x3600` the server's clock (u64, UTC ms).
 7. Why do mobs lose 4.5 HP per point of damage? Is it the same for bosses and in dungeons?
 8. `0x8d00`'s u32 stats and u64 stat 7: one of them is probably MP (stat 3 on you counts
    down by 500 at a time).

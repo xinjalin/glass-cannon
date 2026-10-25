@@ -127,9 +127,10 @@ mod tests {
         let hit = &c[&0x3804];
         assert_eq!((hit.status, hit.name.as_str(), hit.family), (Status::Decoded, "SkillEffect_NT", "combat"));
         assert!(hit.what.contains("damage"));
-        assert_eq!(c[&0x372a].status, Status::Unknown);
-        assert_eq!(c[&0x3600].status, Status::Named);
+        assert_eq!((c[&0x372a].status, c[&0x372a].family), (Status::Understood, "movement"));
+        assert_eq!(c[&0x3806].status, Status::Named);
         assert_eq!(c[&0x3600].name, "MapFrame_NT");
+        assert!(c.values().any(|e| e.status == Status::Unknown));
         assert!(c.values().filter(|e| e.status == Status::Decoded).count() >= 40);
     }
 }
