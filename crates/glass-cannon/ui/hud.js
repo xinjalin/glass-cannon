@@ -250,18 +250,6 @@ tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
 // once, and comes back at once.
 tauri.event.listen("hud-map", (e) => document.documentElement.classList.toggle("map-hidden", !!e.payload));
 
-// The window hidden (the game out of front), then shown again: each widget's frame redraws
-// in its own time, so they stay out of sight a moment and appear together. (A timer, not
-// animation frames: it runs even if the page thinks it's still hidden.)
-const WAKE_MS = 80;
-let waking = 0;
-tauri.event.listen("hud-visible", (e) => {
-  const root = document.documentElement;
-  clearTimeout(waking);
-  if (!e.payload) root.classList.add("waking");
-  else waking = setTimeout(() => root.classList.remove("waking"), WAKE_MS);
-});
-
 $("edit-done").addEventListener("click", () => invoke("hud_edit", { on: false }));
 $("edit-reset").addEventListener("click", () => {
   layout = { _grid: layout._grid };

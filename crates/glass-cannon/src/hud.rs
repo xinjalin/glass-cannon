@@ -133,18 +133,12 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 }
                 tick = tick.wrapping_add(1);
                 if show_wanted != shown {
-                    // The page hides its widgets before the window goes, and shows them all at
-                    // once a moment after it's back ("hud-visible").
-                    if !show_wanted {
-                        let _ = handle.emit_to(HUD, "hud-visible", false);
-                    }
                     let ok = if show_wanted { w.show() } else { w.hide() };
                     if ok.is_ok() {
                         shown = show_wanted;
                         app.hud_shown.store(shown, Ordering::SeqCst);
                         if shown {
                             let _ = w.set_always_on_top(true);
-                            let _ = handle.emit_to(HUD, "hud-visible", true);
                         }
                     }
                 }
@@ -194,15 +188,22 @@ fn replay_screen<R: Runtime>(handle: &AppHandle<R>) -> Option<GameWindow> {
 /// letting the mouse through. The widget's own tint is then lighter, as the windows' was.
 struct Plates<R: Runtime> {
     windows: Vec<WebviewWindow<R>>,
-    /// Where each is (physical pixels), None while hidden.
+    /// Where each is (physical pixels), None while parked.
     at: Vec<Option<(i32, i32, u32, u32)>>,
+    /// Shown once already (from then on they're only moved).
+    shown: Vec<bool>,
 }
 
 impl<R: Runtime> Default for Plates<R> {
     fn default() -> Self {
-        Self { windows: Vec::new(), at: Vec::new() }
+        Self { windows: Vec::new(), at: Vec::new(), shown: Vec::new() }
     }
 }
+
+/// Where a plate waits while it isn't wanted (the map open, the game out of front): off
+/// every screen. Moved there rather than hidden, because a hidden plate shown again has
+/// Windows build its blur anew, which flashes.
+const PARKED: PhysicalPosition<i32> = PhysicalPosition { x: -20_000, y: -20_000 };
 
 impl<R: Runtime> Plates<R> {
     fn update(&mut self, handle: &AppHandle<R>, hud: &WebviewWindow<R>, wanted: &[HitRect]) {
@@ -225,6 +226,7 @@ impl<R: Runtime> Plates<R> {
             let _ = w.set_ignore_cursor_events(true);
             self.windows.push(w);
             self.at.push(None);
+            self.shown.push(false);
         }
         for (i, w) in self.windows.iter().enumerate() {
             let want = origin.and_then(|o| wanted.get(i).map(|r| (o.x + r.x as i32, o.y + r.y as i32, r.width as u32, r.height as u32)));
@@ -235,13 +237,13 @@ impl<R: Runtime> Plates<R> {
                 Some((x, y, width, height)) if width > 0 && height > 0 => {
                     let _ = w.set_position(PhysicalPosition::new(x, y));
                     let _ = w.set_size(PhysicalSize::new(width, height));
-                    if self.at[i].is_none() {
-                        let _ = w.show();
+                    if !self.shown[i] {
+                        self.shown[i] = w.show().is_ok();
                     }
                     below(w, hud);
                 }
                 _ => {
-                    let _ = w.hide();
+                    let _ = w.set_position(PARKED);
                 }
             }
             self.at[i] = want;

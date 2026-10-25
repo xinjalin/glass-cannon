@@ -24,9 +24,8 @@ body {
 [data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) + 0.15)); }
 
 #widgets { position: absolute; inset: 0; }
-/* Out of the way for the world map, or waiting to appear together (hud.js). */
-.map-hidden #widgets,
-.waking #widgets { visibility: hidden; }
+/* Out of the way for the world map (hud.js). */
+.map-hidden #widgets { visibility: hidden; }
 
 .widget { position: absolute; box-sizing: border-box; }
 /* A boss warning is never under another widget. */
