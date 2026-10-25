@@ -286,7 +286,13 @@ window.addEventListener("message", (e) => {
 
 const PRE_WARN_S = 5;
 const TIMER_SPAN_S = 30;
-const castName = (c) => c.skill_name || (c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s cast` : "a cast");
+// A cast's name; most boss skills have none in any data we have (name one in the analysis
+// window's [boss] tab), so then the boss's name and how long it takes to cast.
+function castName(c) {
+  if (c.skill_name) return c.skill_name;
+  const what = c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s cast` : "a cast";
+  return boss && boss.name ? `${boss.name} · ${what}` : what;
+}
 
 // A short two-note chime, once per warning (settings → alert sound).
 let audio = null;
@@ -361,7 +367,9 @@ function drawWarnings(elapsed) {
 
 function drawTimers(elapsed) {
   const list = $("timers");
-  const items = boss ? boss.ahead.upcoming.map((c) => ({ c, left: c.in_s - elapsed / 1000 })).filter((x) => x.left > 0) : [];
+  // The casts worth a warning only (2.5 s or more to cast, or marking the ground, unless
+  // you marked them otherwise), as the warnings themselves.
+  const items = boss ? boss.ahead.upcoming.filter((c) => c.danger).map((c) => ({ c, left: c.in_s - elapsed / 1000 })).filter((x) => x.left > 0) : [];
   while (list.children.length > items.length) list.lastChild.remove();
   items.forEach(({ c, left }, i) => {
     let li = list.children[i];
