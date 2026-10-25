@@ -61,8 +61,9 @@ function place() {
     const id = el.dataset.widget;
     const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
     // A widget that fits its content: the meter exactly; the side widgets up to the
-    // height you gave them (they scroll beyond it).
-    if (fitted[id]) p.h = el.dataset.side !== undefined ? Math.min(fitted[id], p.h) : fitted[id];
+    // height you gave them (they scroll beyond it). While arranging, the side widgets show
+    // that full height, the most they'll take, so they're placed clear of each other.
+    if (fitted[id]) p.h = el.dataset.side === undefined ? fitted[id] : editing ? p.h : Math.min(fitted[id], p.h);
     const w = px(p.w);
     const x = Math.min(Math.max(0, p.x * innerWidth), innerWidth - Math.min(w, innerWidth));
     const y = Math.min(Math.max(0, p.y * innerHeight), innerHeight - 40);

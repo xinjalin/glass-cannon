@@ -72,7 +72,9 @@ your theme. It follows the game window, hides when you switch away, never takes 
 from the game, and lets the mouse through except over the meter and the world timers.
 
 **Arrange** (on the launcher, or in the settings) moves widgets and resizes them by their
-corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Its
+corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Widgets
+that grow with what they show (the target frame, cooldowns, party cooldowns) are outlined
+at the most they'll take, so they can be placed clear of each other. Its
 floating menu (drag it by its title) turns each widget on or off, resets the layout, and
 finishes. The widgets:
 
