@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/meter-core", "crates/packet-lab", "crates/glass-cannon"]
 
 [workspace.package]
-version = "0.10.3"
+version = "0.10.4"
 edition = "2021"
 license = "MIT"
 authors = ["Xinjalin"]
