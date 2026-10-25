@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -304,6 +304,14 @@ enum Cmd {
         #[arg(long, default_value_t = 256)]
         len: usize,
     },
+    /// Write every message of recordings (session or flow folders) as JSON lines: the
+    /// session, flow, time (us), opcode and payload in hex, for analysis elsewhere
+    Export {
+        /// Session folders (all their game connections) or flow folders
+        paths: Vec<PathBuf>,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -426,7 +434,48 @@ fn run(cli: Cli) -> Result<()> {
             limit,
         } => messages_cmd(&path, &opcode, side, limit),
         Cmd::Dump { flow, side, pos, len } => dump(&flow, side, pos, len),
+        Cmd::Export { paths, out } => export(&paths, &out),
     }
+}
+
+/// A session's game connections (flows that decode into game messages), or the one flow.
+fn game_flows(path: &Path) -> Result<Vec<PathBuf>> {
+    if path.join("index.jsonl").is_file() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+    let mut flows = Vec::new();
+    for entry in std::fs::read_dir(path.join("flows")).with_context(|| format!("{} has no flows folder", path.display()))? {
+        let dir = entry?.path();
+        if !dir.file_name().is_some_and(|n| n.to_string_lossy().contains("-tcp-")) {
+            continue;
+        }
+        if session::read_messages(&dir, Side::In).is_ok_and(|m| m.messages.len() >= 20 && m.resyncs * 10 < m.messages.len() as u64) {
+            flows.push(dir);
+        }
+    }
+    flows.sort();
+    Ok(flows)
+}
+
+fn export(paths: &[PathBuf], out: &Path) -> Result<()> {
+    let mut w = std::io::BufWriter::new(File::create(out)?);
+    let mut total = 0usize;
+    for path in paths {
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        for flow in game_flows(path)? {
+            let flow_name = flow.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let m = session::read_messages(&flow, Side::In)?;
+            for msg in &m.messages {
+                let hex: String = msg.payload.iter().map(|b| format!("{b:02x}")).collect();
+                writeln!(w, "{}", serde_json::json!({ "s": name, "f": flow_name, "t": msg.ts_us, "o": msg.opcode, "p": hex }))?;
+            }
+            total += m.messages.len();
+            eprintln!("{name} / {flow_name}: {} messages", m.messages.len());
+        }
+    }
+    w.flush()?;
+    println!("done: {total} messages written to {}", out.display());
+    Ok(())
 }
 
 fn load_messages(path: &Path, side: SideArg) -> Result<(PathBuf, FlowMessages)> {
