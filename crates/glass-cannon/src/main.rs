@@ -517,6 +517,11 @@ fn skill_icon(app: State<'_, Arc<AppState>>, skill: u32) -> Option<String> {
 }
 
 #[tauri::command]
+fn pet_icon(app: State<'_, Arc<AppState>>, pet: u32) -> Option<String> {
+    lock(&app.data).pet_icon(pet)
+}
+
+#[tauri::command]
 fn class_icon(app: State<'_, Arc<AppState>>, code: u32) -> Option<String> {
     lock(&app.data).class_icon(code)
 }
@@ -837,6 +842,7 @@ fn main() {
             set_scope,
             skill_icon,
             class_icon,
+            pet_icon,
             rename_skill,
             rename_npc,
             history_list,

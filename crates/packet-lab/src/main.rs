@@ -31,6 +31,7 @@ mod skill_details;
 mod dungeons;
 mod npc_names;
 mod pets;
+mod pet_icons;
 mod pet_spawns;
 mod item_icons;
 mod theostones;
@@ -259,6 +260,14 @@ enum Cmd {
         #[arg(long)]
         commit: String,
     },
+    /// Download each pet's portrait (for the pet tracker) from NCSOFT's asset server into
+    /// gamedata as pet_<id>.png, by the icon names in a scraped pet database
+    PetIcons {
+        /// The scrape's pets: a JSON object by pet ID, each with its icon file name
+        pets: PathBuf,
+        #[arg(long, default_value = "gamedata")]
+        dir: PathBuf,
+    },
     /// Download icons for consumables' buffs (scrolls, potions, food) from NCSOFT's asset
     /// server into gamedata, matched to skills by name through a scraped item database
     ItemIcons {
@@ -420,6 +429,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
+        Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {

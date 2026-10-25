@@ -537,11 +537,33 @@ new ResizeObserver(fitWindow).observe($("columns"));
 refresh();
 setInterval(refresh, 2000);
 
-// ---- The pet tracker's picker: search your pets (or the areas they're found in) and
-// track the ones you're working on.
+// ---- The pet tracker's picker: every pet (search one, or an area it's found in), to track
+// the ones you're working on.
 let petData = null;
-let petNeededOnly = true;
-const PET_PICK_SHOWN = 40;
+let petNeededOnly = false;
+
+// Portraits, by pet (asked for once each).
+const petPortraits = new Map();
+function petPortrait(p) {
+  if (!petPortraits.has(p.id)) {
+    petPortraits.set(p.id, null);
+    invoke("pet_icon", { pet: p.id })
+      .then((url) => {
+        petPortraits.set(p.id, url);
+        const img = document.querySelector(`#pet-pick [data-pet="${p.id}"]`);
+        if (url && img) img.replaceWith(petPortrait(p));
+      })
+      .catch(() => {});
+  }
+  const url = petPortraits.get(p.id);
+  const img = url ? el("img", "pp-icon") : el("span", "pp-icon blank", p.name[0]);
+  if (url) {
+    img.src = url;
+    img.alt = "";
+  }
+  img.dataset.pet = p.id;
+  return img;
+}
 
 function drawPetPick() {
   const list = $("pet-pick");
@@ -553,11 +575,13 @@ function drawPetPick() {
     .filter((p) => match(p) && (!petNeededOnly || needed(p) || p.tracked))
     .sort((a, b) => b.tracked - a.tracked || a.name.localeCompare(b.name));
   list.replaceChildren(
-    ...pets.slice(0, PET_PICK_SHOWN).map((p) => {
+    ...pets.map((p) => {
       const li = el("li");
+      const text = el("span", "pp-text");
       const name = el("span", "pp-name", p.name);
-      name.title = p.found_in.length ? `Found in:\n${p.found_in.join("\n")}` : "";
       const level = p.level == null ? "Lv ?" : p.need == null ? "max" : `Lv ${p.level} · ${p.souls}/${p.need}`;
+      text.append(name, el("span", "pp-meta", [p.genus, level].filter(Boolean).join(" · ")));
+      if (p.found_in.length) text.title = `Found in:\n${p.found_in.join("\n")}`;
       const b = el("button", "", p.tracked ? "[tracked]" : "[track]");
       b.type = "button";
       b.setAttribute("aria-pressed", String(p.tracked));
@@ -565,16 +589,13 @@ function drawPetPick() {
         await invoke("set_pet_tracked", { id: p.id, on: !p.tracked }).catch((e) => say(String(e), "error"));
         loadPets();
       });
-      li.append(name, el("span", "pp-meta", `${p.genus || ""} · ${level}`), b);
+      li.append(petPortrait(p), text, b);
       return li;
     }),
   );
-  const more = pets.length - PET_PICK_SHOWN;
   $("pet-pick-hint").textContent = !petData.character
     ? "log in to a character to track its pets"
-    : more > 0
-      ? `${more} more: search to narrow it down`
-      : "track the pets you're working on: they show in the pet tracker widget";
+    : `${pets.length} of ${petData.pets.length} pets · tracked ones show in the pet tracker widget`;
 }
 
 async function loadPets() {

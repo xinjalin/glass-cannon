@@ -87,7 +87,7 @@ pub fn run(items: &Path, dir: &Path, fetched: &str) -> Result<()> {
 }
 
 /// Downloads one icon and saves it at [`SIZE`] pixels.
-fn fetch(agent: &ureq::Agent, icon: &str, out: &Path) -> Result<()> {
+pub(crate) fn fetch(agent: &ureq::Agent, icon: &str, out: &Path) -> Result<()> {
     let bytes = crate::gamedata::get_bytes(agent, &format!("{ASSETS}/{icon}.png"), MAX_ICON_BYTES)?;
     if !bytes.starts_with(b"\x89PNG") {
         bail!("not a PNG");

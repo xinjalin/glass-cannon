@@ -683,6 +683,11 @@ impl GameData {
     }
 
     /// A class icon (class_<code>.webp or .png) as a `data:` URL.
+    /// A pet's portrait (`pet_<id>.png`, from `packet-lab pet-icons`).
+    pub fn pet_icon(&self, pet: u32) -> Option<String> {
+        self.icon_data_url(&format!("pet_{pet}.png"))
+    }
+
     pub fn class_icon(&self, code: u32) -> Option<String> {
         ["webp", "png"]
             .iter()

@@ -103,12 +103,13 @@ finishes. The widgets:
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
 
-- **pet tracker**: the pets you track (settings → pet tracker: search one, or an area, and
-  click [track]) with their level, souls toward the next one and where they're found; a
-  pet whose mobs are in view turns green with how many, and how far and which way while
-  the meter knows where you are (for a minute after you log in, teleport or change zone).
-  **[nearest]** lists every pet you still need instead, those in view first. Which mobs
-  give which souls is from Aion DPS Meter's data; a few mobs aren't in it.
+- **pet tracker**: the pets you track (settings → pet tracker lists every pet with its
+  portrait: search one, or an area, and click [track]) with their level, souls toward the
+  next one and every area they're found in; a pet whose mobs are in view turns green with
+  how many, and how far and which way while the meter knows where you are (for a minute
+  after you log in, teleport or change zone). **[nearest]** shows only the tracked pets
+  that still need souls, those in view first. Which mobs give which souls is from Aion
+  DPS Meter's data; a few mobs aren't in it.
 
 **Hide on the world map** (settings, on by default): the overlay steps aside while the
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's

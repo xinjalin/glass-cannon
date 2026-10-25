@@ -31,7 +31,8 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   pets are found in), from its `Client/assets/aion2/pets/` files. Its licence:
   `gamedata/LICENSE-MIT-AionDPSMeter.txt` (Copyright (c) 2026 SkeeveTV).
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
-  scrolls, potions and food, shrunk to 64 px) for their buffs. NCSOFT's artwork, like the
+  scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits
+  (`pet_<id>.png`, 64 px) for the pet tracker. NCSOFT's artwork, like the
   rest of the game data; removed on request.
 
 The NOIA2 and RATmeter files are a separate work alongside the meter (aggregation) and

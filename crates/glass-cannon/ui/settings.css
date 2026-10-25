@@ -328,7 +328,11 @@ kbd {
 
 /* The settings' pet picker. */
 .pet-pick-list { max-height: 16em; overflow-y: auto; margin: 0.3em 0 0; padding: 0; list-style: none; }
-.pet-pick-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.6em; align-items: baseline; padding: 0.1em 0.2em; }
+.pet-pick-list { max-height: 24em; }
+.pet-pick-list li { display: grid; grid-template-columns: 1.8em minmax(0, 1fr) auto; gap: 0.6em; align-items: center; padding: 0.15em 0.2em; }
+.pet-pick-list .pp-icon { width: 1.8em; height: 1.8em; border-radius: 0.25em; object-fit: cover; }
+.pet-pick-list .pp-icon.blank { display: grid; place-items: center; background: var(--line-faint); color: var(--muted); }
+.pet-pick-list .pp-text { display: flex; flex-direction: column; min-width: 0; }
 .pet-pick-list .pp-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pet-pick-list .pp-meta { color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
 .pet-pick-list button { color: var(--accent); }

@@ -1,12 +1,33 @@
-// The pet tracker: the pets you track (settings → pet tracker), or with [nearest] every pet
-// you still need, with their level and souls toward the next one, where they're found, and
-// their mobs in view now (how far and which way while the meter knows where you are: for a
-// minute after you log in, teleport or change zone).
+// The pet tracker: the pets you track (settings → pet tracker), with their level and souls
+// toward the next one, where they're found, and their mobs in view now (how far and which
+// way while the meter knows where you are: for a minute after you log in, teleport or
+// change zone). With [nearest], the tracked pets that still need souls, those whose mobs
+// are in view first, nearest first.
 
 const POLL_MS = 1000;
-// Rows shown with [nearest] (the list is every pet you still need).
-const NEAREST_SHOWN = 12;
 let state = null;
+
+// Portraits, by pet (asked for once each).
+const portraits = new Map();
+function portrait(p) {
+  if (!portraits.has(p.id)) {
+    portraits.set(p.id, null);
+    invoke("pet_icon", { pet: p.id })
+      .then((url) => {
+        portraits.set(p.id, url);
+        if (url) draw();
+      })
+      .catch(() => {});
+  }
+  const url = portraits.get(p.id);
+  if (url) {
+    const img = el("img", "pet-icon");
+    img.src = url;
+    img.alt = "";
+    return img;
+  }
+  return el("span", "pet-icon blank", p.name[0]);
+}
 
 // Three pips, one per level reached.
 function pips(level) {
@@ -18,35 +39,34 @@ function pips(level) {
 
 const needs = (p) => p.level == null || p.need != null;
 
-function where(p) {
-  if (p.in_view) {
-    const box = el("span", "pet-near");
-    if (p.bearing != null) {
-      const arrow = el("span", "pet-arrow", "➤");
-      // The arrow points east at 0°; bearings turn clockwise from north.
-      arrow.style.transform = `rotate(${p.bearing - 90}deg)`;
-      box.append(arrow, el("span", "", ` ${p.distance_m} m`));
-    }
-    box.append(el("span", "pet-count", p.bearing != null ? ` ×${p.in_view}` : `${p.in_view} in view`));
-    box.title = p.bearing != null
-      ? `${p.in_view} of its mobs in view; the nearest ${p.distance_m} m away (the arrow: north is up)`
-      : `${p.in_view} of its mobs in view (how far isn't known: the meter knows where you are for a minute after you log in, teleport or change zone)`;
-    return box;
+// Its mobs in view: how many, and how far and which way when known.
+function near(p) {
+  const box = el("span", "pet-near");
+  if (p.bearing != null) {
+    const arrow = el("span", "pet-arrow", "➤");
+    // The arrow points east at 0°; bearings turn clockwise from north.
+    arrow.style.transform = `rotate(${p.bearing - 90}deg)`;
+    box.append(arrow, el("span", "", ` ${p.distance_m} m ×${p.in_view}`));
+    box.title = `${p.in_view} of its mobs in view; the nearest ${p.distance_m} m away (the arrow: north is up)`;
+  } else {
+    box.append(el("span", "", `×${p.in_view}`));
+    box.title = `${p.in_view} of its mobs in view (how far isn't known: the meter knows where you are for a minute after you log in, teleport or change zone)`;
   }
-  const box = el("span", "pet-where", p.found_in[0] || "");
-  box.title = p.found_in.length ? `Found in:\n${p.found_in.join("\n")}` : "Where it's found isn't known (an item, an event, or a dungeon)";
   return box;
 }
 
 function row(p) {
   const li = el("li", "pet" + (p.in_view ? " here" : "") + (needs(p) ? "" : " done"));
-  const main = el("div", "pet-main");
+  const top = el("div", "pet-top");
   const name = el("span", "pet-name", p.name);
   if (p.genus) name.title = p.genus;
   const progress = el("span", "pet-souls", p.level == null ? "?" : p.need == null ? "max" : `${p.souls}/${p.need}`);
   progress.title = p.level == null ? "Your pets come when you log in or enter a dungeon" : p.need == null ? "Top level" : `Souls toward level ${p.level + 1}`;
-  main.append(name, pips(p.level), progress);
-  li.append(main, where(p));
+  top.append(name, pips(p.level), progress);
+  if (p.in_view) top.append(near(p));
+  // Where it's found, in full on a line of its own.
+  const where = el("div", "pet-where", p.found_in.length ? p.found_in.join(" · ") : "from an item, an event or a dungeon");
+  li.append(portrait(p), top, where);
   return li;
 }
 
@@ -55,25 +75,19 @@ function draw() {
   const nearest = state.nearest;
   $("nearest").setAttribute("aria-pressed", String(nearest));
   $("pets-sync").textContent = state.synced ? "" : "· levels after login";
-  let shown;
-  if (nearest) {
-    const dist = (p) => (p.distance_m != null ? p.distance_m : Infinity);
-    shown = state.pets
-      .filter((p) => needs(p) && (p.in_view || p.found_in.length))
-      .sort((a, b) => (b.in_view > 0) - (a.in_view > 0) || dist(a) - dist(b) || b.in_view - a.in_view || a.name.localeCompare(b.name))
-      .slice(0, NEAREST_SHOWN);
-  } else {
-    shown = state.pets.filter((p) => p.tracked).sort((a, b) => needs(b) - needs(a) || (b.in_view > 0) - (a.in_view > 0) || a.name.localeCompare(b.name));
-  }
-  const list = $("list");
-  list.replaceChildren(...shown.map(row));
+  const tracked = state.pets.filter((p) => p.tracked);
+  const dist = (p) => (p.distance_m != null ? p.distance_m : Infinity);
+  const shown = nearest
+    ? tracked.filter(needs).sort((a, b) => (b.in_view > 0) - (a.in_view > 0) || dist(a) - dist(b) || b.in_view - a.in_view || a.name.localeCompare(b.name))
+    : tracked.sort((a, b) => needs(b) - needs(a) || (b.in_view > 0) - (a.in_view > 0) || a.name.localeCompare(b.name));
+  $("list").replaceChildren(...shown.map(row));
   const empty = $("empty");
   empty.hidden = shown.length > 0;
-  empty.textContent = nearest
-    ? "every pet you can farm is maxed ✓"
-    : state.character
-      ? "pick pets to track in settings → pet tracker, or [nearest] for all you still need"
-      : "log in to a character to track its pets";
+  empty.textContent = !state.character
+    ? "log in to a character to track its pets"
+    : !tracked.length
+      ? "pick pets to track in settings → pet tracker"
+      : "every pet you track is maxed ✓";
 }
 
 async function refresh() {
