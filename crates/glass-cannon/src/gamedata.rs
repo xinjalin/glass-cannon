@@ -7,6 +7,7 @@
 //! <folder>\
 //!   skills.json    { "skills": { "18010340": { "name": "…", "icon": "1801.png" } } }
 //!   npcs.json      { "npcs":   { "2400009":  { "name": "…", "boss": true } } }
+//!   npc-names.json { "npcs":   { "2950865": "Elvida" } }   NPCs the mob lists don't name
 //!   1801.png …     skill icons
 //!   class_18.webp  class icons, by class code
 //!   skill-details.json  { "skills": { "18010000": { "cooldown_s": 15, "specs": […] } } }
@@ -32,6 +33,7 @@ const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
+const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// Player skills have 8-digit IDs; mobs' are shorter.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
@@ -88,6 +90,14 @@ struct TheostoneFile {
 struct ItemIconFile {
     #[serde(default)]
     icons: BTreeMap<u32, String>,
+}
+
+/// NPCs' names (quest givers, merchants…) by type, for those the mob lists don't name
+/// (optional).
+#[derive(Debug, Default, Deserialize)]
+struct NpcNameFile {
+    #[serde(default)]
+    npcs: BTreeMap<u32, String>,
 }
 
 /// Pets' names, by the ID their souls come with (optional).
@@ -245,6 +255,15 @@ impl GameData {
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
+                    // NPCs' names fill in the types the mob lists don't name (your own names
+                    // still go on top, below).
+                    let npc_names = read_json::<NpcNameFile>(&dir.join(NPC_NAMES_FILE)).unwrap_or_default();
+                    for (id, name) in npc_names.npcs {
+                        let e = self.npcs.npcs.entry(id).or_default();
+                        if e.name.is_empty() {
+                            e.name = name;
+                        }
+                    }
                     // Consumables' icons fill in skills that have none.
                     let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
                     for (id, file) in items.icons {
@@ -686,6 +705,19 @@ mod tests {
         assert_eq!(base64(b"f"), "Zg==");
         assert_eq!(base64(b"fo"), "Zm8=");
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn npc_names_fill_in_what_the_mob_lists_dont_name() {
+        let dir = temp_dir("npc-names");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "11100000": { "name": "Ruinous Blow" } } }"#).unwrap();
+        fs::write(dir.join(NPCS_FILE), r#"{ "npcs": { "2400009": { "name": "Hardened Drana", "boss": true } } }"#).unwrap();
+        fs::write(dir.join(NPC_NAMES_FILE), r#"{ "npcs": { "2950865": "Elvida", "2400009": "Not this" } }"#).unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        assert_eq!(d.npc(2_950_865), Some(("Elvida".to_string(), false)));
+        // A mob's own name stays, and it's still a boss.
+        assert_eq!(d.npc(2_400_009), Some(("Hardened Drana".to_string(), true)));
+        fs::remove_dir_all(dir).ok();
     }
 
     #[test]

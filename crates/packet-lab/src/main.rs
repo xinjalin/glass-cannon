@@ -29,6 +29,7 @@ use meter_core::{damage, decode, protocol};
 mod gamedata;
 mod skill_details;
 mod dungeons;
+mod npc_names;
 mod pets;
 mod item_icons;
 mod theostones;
@@ -222,6 +223,17 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Build gamedata/npc-names.json (NPCs' names by type ID: quest givers, merchants and
+    /// the like, which the mob lists don't have) from a scraped NPC database
+    NpcNames {
+        /// The scrape's NPCs: a JSON object by NPC ID
+        npcs: PathBuf,
+        #[arg(long, default_value = "gamedata/npc-names.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Build gamedata/pets.json (pet names and genus by ID, for the pet soul ticker) from a
     /// scraped pet database
     Pets {
@@ -385,6 +397,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::ItemIcons { items, dir, fetched } => item_icons::run(&items, &dir, &fetched),
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
+        Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
             process,

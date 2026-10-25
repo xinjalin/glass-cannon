@@ -92,7 +92,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
             },
             n => Check {
                 level: "ok",
-                text: format!("{} skills · {} mobs", thousands(n), thousands(d.named_npc_count())),
+                text: format!("{} skills · {} mobs & NPCs", thousands(n), thousands(d.named_npc_count())),
             },
         };
         // Cooldowns, descriptions and specialties for the analysis tooltips: the meter
