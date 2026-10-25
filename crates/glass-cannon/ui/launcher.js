@@ -169,6 +169,7 @@ function drawBar(s) {
 async function refresh() {
   try {
     state = await invoke("launcher_state");
+    drawPin(state.on_top);
     drawList(state);
     drawCover(state);
     drawBar(state);
@@ -191,11 +192,16 @@ $("arrange").addEventListener("click", async () => {
 $("settings").addEventListener("click", () => invoke("toggle_settings").catch(() => {}));
 $("close").addEventListener("click", () => win.close());
 $("min").addEventListener("click", () => win.minimize());
-$("pin").addEventListener("click", async () => {
-  const on = $("pin").getAttribute("aria-pressed") !== "true";
-  await win.setAlwaysOnTop(on).catch(() => {});
+// The green light: keep the launcher on top (remembered for next time).
+function drawPin(on) {
   $("pin").setAttribute("aria-pressed", String(on));
   $("pin").title = on ? "Kept on top · click to let other windows cover it" : "Keep on top";
+}
+$("pin").addEventListener("click", async () => {
+  const on = !(state && state.on_top);
+  await invoke("set_launcher_on_top", { on }).catch(() => {});
+  if (state) state.on_top = on;
+  drawPin(on);
 });
 
 refresh();
