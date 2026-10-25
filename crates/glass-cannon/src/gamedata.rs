@@ -35,6 +35,26 @@ const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
+/// What a mob or NPC the data has no name for is called on screen. The meter's core labels
+/// it "Mob <type>" (or "#<entity>" when it came into view before the meter started); the
+/// number means nothing there, so it's only in the tooltips (to name it by).
+pub const UNNAMED: &str = "Unknown";
+
+/// Whether a label is the core's stand-in for a missing name ("Mob 2965923", "#18366").
+pub fn is_stand_in(label: &str) -> bool {
+    label
+        .strip_prefix("Mob ")
+        .or_else(|| label.strip_prefix('#'))
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// A stand-in label becomes [`UNNAMED`].
+fn tidy(label: &mut String) {
+    if is_stand_in(label) {
+        *label = UNNAMED.to_string();
+    }
+}
+
 /// Player skills have 8-digit IDs; mobs' are shorter.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
 const FIELD_BOSSES_FILE: &str = "field-bosses.json";
@@ -377,6 +397,7 @@ impl GameData {
                 t.name = name;
                 t.boss = boss;
             }
+            tidy(&mut t.name);
             // A mob's cast: most mob skills are only "Attack" in the data, which says nothing.
             if let Some(c) = t.cast.as_mut() {
                 c.skill_name = self.boss_skill_name(c.skill);
@@ -471,6 +492,9 @@ impl GameData {
             }
             enc.target_boss = e.boss;
         }
+        if let Some(t) = enc.target.as_mut() {
+            tidy(t);
+        }
         // Death recaps: skills and mobs by name.
         let skill_name = |id: u32| self.resolve_skill(id).map(|(_, e)| e.name.clone()).filter(|n| !n.is_empty());
         let mob_name = |t: Option<u32>| t.and_then(|t| self.npc(t)).map(|(name, _)| name);
@@ -479,6 +503,7 @@ impl GameData {
             if let Some(name) = mob_name(c.boss_type) {
                 c.boss = name;
             }
+            tidy(&mut c.boss);
         }
         if let Some(c) = enc.boss_cast.as_mut() {
             c.skill_name = self.boss_skill_name(c.skill);
@@ -488,11 +513,18 @@ impl GameData {
             if let Some(name) = mob_name(d.killer_type) {
                 d.killer = Some(name);
             }
+            if let Some(k) = d.killer.as_mut() {
+                tidy(k);
+            }
             for h in d.hits.iter_mut().chain(d.last_heal.as_mut()) {
                 h.skill_name = skill_name(h.skill);
                 if let Some(name) = mob_name(h.from_type) {
                     h.from = name;
                 }
+            }
+            // The hits came from mobs (the last heal, from a player, keeps its label).
+            for h in &mut d.hits {
+                tidy(&mut h.from);
             }
         }
     }
@@ -705,6 +737,20 @@ mod tests {
         assert_eq!(base64(b"f"), "Zg==");
         assert_eq!(base64(b"fo"), "Zm8=");
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn unnamed_mobs_show_as_unknown_not_numbers() {
+        assert!(is_stand_in("Mob 2965923") && is_stand_in("#18366"));
+        assert!(!is_stand_in("Mob") && !is_stand_in("#") && !is_stand_in("Mob Boss") && !is_stand_in("Elvida"));
+        let dir = temp_dir("unnamed");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "11100000": { "name": "Ruinous Blow" } } }"#).unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // A type no list names: "Unknown", its type still in the view for the tooltip.
+        let mut v = view_with(Some(2_965_923), &[]);
+        d.annotate_view(&mut v);
+        assert_eq!((v.target.as_deref(), v.target_type), (Some(UNNAMED), Some(2_965_923)));
+        fs::remove_dir_all(dir).ok();
     }
 
     #[test]
