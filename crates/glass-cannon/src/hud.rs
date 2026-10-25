@@ -111,8 +111,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut tracker = Tracker::new(&app.args.process);
             let (mut shown, mut placed, mut ignoring): (bool, Option<Rect>, Option<bool>) = (false, None, None);
             let mut show_wanted = false;
-            // Hidden for the world map: checked as often as while shown, to come back promptly.
-            let mut map = false;
+            // What the page was last told about the world map.
+            let mut map_sent: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
             loop {
@@ -122,8 +122,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
-                    map = !editing && on_world_map(&app);
-                    show_wanted = on && !map && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
+                    show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
                             let _ = w.set_position(PhysicalPosition::new(g.client.left, g.client.top));
@@ -134,25 +133,39 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 }
                 tick = tick.wrapping_add(1);
                 if show_wanted != shown {
+                    // The page hides its widgets before the window goes, and shows them all at
+                    // once a moment after it's back ("hud-visible").
+                    if !show_wanted {
+                        let _ = handle.emit_to(HUD, "hud-visible", false);
+                    }
                     let ok = if show_wanted { w.show() } else { w.hide() };
                     if ok.is_ok() {
                         shown = show_wanted;
                         app.hud_shown.store(shown, Ordering::SeqCst);
                         if shown {
                             let _ = w.set_always_on_top(true);
+                            let _ = handle.emit_to(HUD, "hud-visible", true);
                         }
                     }
                 }
+                // The world map: the widgets step aside in place, and their plates with them.
+                // The window stays up, so they all come back at once (a window shown again
+                // redraws each widget in its own time).
+                let map = shown && !editing && on_world_map(&app);
+                if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
+                    map_sent = Some(map);
+                }
                 let frosted = lock(&app.settings).appearance.backdrop == "frosted";
-                let wanted: Vec<HitRect> = if shown && frosted { lock(&app.hud_panels).clone() } else { Vec::new() };
+                let wanted: Vec<HitRect> = if shown && frosted && !map { lock(&app.hud_panels).clone() } else { Vec::new() };
                 plates.update(&handle, &w, &wanted);
                 if shown {
-                    let ignore = !editing && !pointer_on_widget(&handle, &w, &app);
+                    // The map takes every click while it's open.
+                    let ignore = !editing && (map || !pointer_on_widget(&handle, &w, &app));
                     if ignoring != Some(ignore) && w.set_ignore_cursor_events(ignore).is_ok() {
                         ignoring = Some(ignore);
                     }
                 }
-                thread::sleep(if shown || map { WATCH } else { WATCH_HIDDEN });
+                thread::sleep(if shown { WATCH } else { WATCH_HIDDEN });
             }
         })
         .expect("starting the HUD thread");
