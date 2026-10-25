@@ -111,6 +111,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut tracker = Tracker::new(&app.args.process);
             let (mut shown, mut placed, mut ignoring): (bool, Option<Rect>, Option<bool>) = (false, None, None);
             let mut show_wanted = false;
+            // Hidden for the world map: checked as often as while shown, to come back promptly.
+            let mut map = false;
             let mut plates = Plates::default();
             let mut tick = 0u32;
             loop {
@@ -120,7 +122,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
-                    let map = !editing && on_world_map(&app);
+                    map = !editing && on_world_map(&app);
                     show_wanted = on && !map && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
@@ -150,14 +152,14 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                         ignoring = Some(ignore);
                     }
                 }
-                thread::sleep(if shown { WATCH } else { WATCH_HIDDEN });
+                thread::sleep(if shown || map { WATCH } else { WATCH_HIDDEN });
             }
         })
         .expect("starting the HUD thread");
 }
 
 /// The world map is open and the overlay steps aside for it (settings → hide on the world
-/// map): back about 2 s after it's closed, as the game stops asking for its contents.
+/// map): back within about 1.5 s of closing it, as the game stops asking for its contents.
 pub fn on_world_map(app: &AppState) -> bool {
     // The setting first, on its own: the snapshot holds the meter while it reads the
     // settings, so holding both here the other way round could deadlock.

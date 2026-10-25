@@ -49,9 +49,10 @@ const PINGS_KEPT: usize = 6;
 /// Damage over this long sets how fast a target is going down (its time to kill).
 const KILL_RATE_US: u64 = 10_000_000;
 
-/// The world map counts as closed this long after the game's last request for its contents
-/// (it asks about every 1.2 s while it's open).
-pub const WORLD_MAP_GONE_US: u64 = 2_000_000;
+/// The world map counts as closed this long after the game's last request for its contents.
+/// It asks every 1.14-1.25 s while it's open (186 gaps in our captures, 99% within
+/// 1.25 s), so this is a quarter second past the longest.
+pub const WORLD_MAP_GONE_US: u64 = 1_500_000;
 
 /// No activity in your fight for this long ends the encounter.
 pub const DEFAULT_IDLE_TIMEOUT_US: u64 = 15_000_000;
