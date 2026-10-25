@@ -110,6 +110,24 @@ pub struct Settings {
     /// The launcher kept on top of other windows (its green light).
     #[serde(default)]
     pub launcher_on_top: bool,
+    /// Dummy mode: hitting a training dummy times a run of `dummy_run_s` seconds.
+    #[serde(default = "default_true")]
+    pub dummy_mode: bool,
+    #[serde(default = "default_dummy_run_s")]
+    pub dummy_run_s: u32,
+    /// The label new dummy runs get.
+    #[serde(default)]
+    pub dummy_label: String,
+    /// The pets each character tracks (the pet tracker widget).
+    #[serde(default)]
+    pub tracked_pets: BTreeMap<String, Vec<u32>>,
+    /// The pet tracker lists every pet you still need, those in view first.
+    #[serde(default)]
+    pub pet_tracker_nearest: bool,
+}
+
+fn default_dummy_run_s() -> u32 {
+    crate::dummy::DEFAULT_RUN_S
 }
 
 fn default_alert_lead() -> u32 {

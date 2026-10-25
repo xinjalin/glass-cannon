@@ -24,6 +24,7 @@ pub mod npcap;
 pub mod pcapfile;
 pub mod pets;
 pub mod pipeline;
+pub mod positions;
 pub mod protocol;
 pub mod pvp;
 pub mod state;

@@ -22,6 +22,20 @@ function every_text(e) {
   return days;
 }
 
+// How long it's on, when every start lasts as long ("10 min"); windows of their own
+// (Arena of Tactics) say so in the hover instead.
+const lengthText = (e) => (Array.isArray(e.minutes) ? "" : e.minutes ? `${e.minutes} min` : "");
+
+// The hover: its next starts in your time, and how long each is on.
+const UPCOMING_SHOWN = 3;
+function upcomingText(name, e, timeZone, now) {
+  const lines = nextStarts(e, timeZone, now, UPCOMING_SHOWN).map((s) => {
+    const until = s.minutes ? `-${new Date(s.start + s.minutes * 60_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
+    return `  ${dayAndTime(s.start)}${until}`;
+  });
+  return `${name}, next:\n${lines.join("\n")}`;
+}
+
 function drawRegions() {
   const nav = $("regions");
   nav.replaceChildren();
@@ -113,20 +127,20 @@ function draw() {
   list.replaceChildren();
   const events = upcoming(region, now, Infinity).filter((x) => shown(x.id));
   $("favourites-empty").hidden = !favouritesOnly || favourites.size > 0;
-  for (const { id, name, e, start } of events) {
+  for (const { id, name, e, start, minutes, timeZone } of events) {
     const on = start <= now;
-    const left = on ? start + e.minutes * 60_000 - now : start - now;
-    const how = [every_text(e), e.minutes ? `${e.minutes} min` : ""].filter(Boolean).join(" · ");
-    list.append(
-      row(
-        name,
-        `${on ? "started" : dayAndTime(start)} · ${how}`,
-        on ? `on · ${clock(left / 1000)}` : clock(left / 1000),
-        on ? "on" : left <= SOON_MS ? "soon" : "",
-        id,
-        on ? "Time left" : `Starts ${new Date(start).toLocaleString()}`,
-      ),
+    const left = on ? start + minutes * 60_000 - now : start - now;
+    const how = [every_text(e), lengthText(e)].filter(Boolean).join(" · ");
+    const li = row(
+      name,
+      `${on ? "started" : dayAndTime(start)} · ${how}`,
+      on ? `on · ${clock(left / 1000)}` : clock(left / 1000),
+      on ? "on" : left <= SOON_MS ? "soon" : "",
+      id,
+      on ? "Time left" : `Starts ${new Date(start).toLocaleString()}`,
     );
+    li.querySelector(".timer-text").title = upcomingText(name, e, timeZone, now);
+    list.append(li);
   }
   drawBosses(now);
 }

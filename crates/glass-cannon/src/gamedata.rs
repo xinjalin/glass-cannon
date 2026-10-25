@@ -33,6 +33,7 @@ const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
+const PET_SPAWNS_FILE: &str = "pet-spawns.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
@@ -130,6 +131,32 @@ struct PetFile {
 #[derive(Debug, Deserialize)]
 struct PetEntry {
     name: String,
+    #[serde(default)]
+    genus: Option<String>,
+}
+
+/// Which mob types give which pet's souls, and where each pet is found (optional; from
+/// SkeeveAN's Aion DPS Meter, MIT).
+#[derive(Debug, Default, Deserialize)]
+struct PetSpawnFile {
+    #[serde(default)]
+    monsters: BTreeMap<u32, u32>,
+    #[serde(default)]
+    found_in: BTreeMap<u32, Vec<String>>,
+}
+
+/// A training dummy (the Training Scarecrow).
+fn dummy_entry(e: &Entry) -> bool {
+    e.dummy || e.name.contains("Training Scarecrow")
+}
+
+/// A pet in the data: its ID, name and genus.
+pub struct PetInfo<'a> {
+    pub id: u32,
+    pub name: &'a str,
+    pub genus: Option<&'a str>,
+    /// Where it's found ("Altamia Canyon · Verteron").
+    pub found_in: &'a [String],
 }
 
 /// Which dungeon (and mode) each dungeon mob type is in.
@@ -226,6 +253,7 @@ pub struct GameData {
     field_bosses: FieldBossFile,
     /// Pets' names (optional).
     pets: PetFile,
+    pet_spawns: PetSpawnFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -247,6 +275,7 @@ impl GameData {
             dungeons: DungeonFile::default(),
             field_bosses: FieldBossFile::default(),
             pets: PetFile::default(),
+            pet_spawns: PetSpawnFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -275,6 +304,7 @@ impl GameData {
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
+                    self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
                     let npc_names = read_json::<NpcNameFile>(&dir.join(NPC_NAMES_FILE)).unwrap_or_default();
@@ -460,15 +490,21 @@ impl GameData {
         self.npcs
             .npcs
             .iter()
-            .filter(|(_, e)| e.boss && !e.name.contains("Training Scarecrow"))
+            .filter(|(_, e)| e.boss && !dummy_entry(e))
             .map(|(id, _)| *id)
             .collect()
     }
 
-    /// A mob type's name and boss flag.
+    /// A training dummy (the Training Scarecrow): dummy mode's target.
+    pub fn is_dummy(&self, type_id: u32) -> bool {
+        self.npcs.npcs.get(&type_id).is_some_and(dummy_entry)
+    }
+
+    /// A mob type's name and boss flag (training dummies are marked as bosses in the data,
+    /// but aren't).
     pub fn npc(&self, type_id: u32) -> Option<(String, bool)> {
         let e = self.npcs.npcs.get(&type_id)?;
-        (!e.name.is_empty()).then(|| (e.name.clone(), e.boss))
+        (!e.name.is_empty()).then(|| (e.name.clone(), e.boss && !dummy_entry(e)))
     }
 
     pub fn annotate_view(&self, enc: &mut EncounterView) {
@@ -490,7 +526,7 @@ impl GameData {
             if !e.name.is_empty() {
                 enc.target = Some(e.name.clone());
             }
-            enc.target_boss = e.boss;
+            enc.target_boss = e.boss && !dummy_entry(e);
         }
         if let Some(t) = enc.target.as_mut() {
             tidy(t);
@@ -532,6 +568,21 @@ impl GameData {
     /// A pet's name, by the ID its souls come with.
     pub fn pet_name(&self, pet: u32) -> Option<String> {
         self.pets.pets.get(&pet).map(|p| p.name.clone())
+    }
+
+    /// Every pet in the data, by ID.
+    pub fn all_pets(&self) -> impl Iterator<Item = PetInfo<'_>> {
+        self.pets.pets.iter().map(|(id, p)| PetInfo {
+            id: *id,
+            name: &p.name,
+            genus: p.genus.as_deref(),
+            found_in: self.pet_spawns.found_in.get(id).map_or(&[][..], |v| &v[..]),
+        })
+    }
+
+    /// The pet whose souls a mob type gives.
+    pub fn pet_of_mob(&self, mob_type: u32) -> Option<u32> {
+        self.pet_spawns.monsters.get(&mob_type).copied()
     }
 
     /// A boss skill's name: the data names most mob skills only "Attack", which says
@@ -638,6 +689,11 @@ impl GameData {
     }
 
     /// A class icon (class_<code>.webp or .png) as a `data:` URL.
+    /// A pet's portrait (`pet_<id>.png`, from `packet-lab pet-icons`).
+    pub fn pet_icon(&self, pet: u32) -> Option<String> {
+        self.icon_data_url(&format!("pet_{pet}.png"))
+    }
+
     pub fn class_icon(&self, code: u32) -> Option<String> {
         ["webp", "png"]
             .iter()

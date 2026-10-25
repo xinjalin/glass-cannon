@@ -196,7 +196,7 @@ fn parse_object_spawn(p: &[u8]) -> Option<(u64, u32, [f32; 3])> {
 
 /// Your position in your `0x3633`: varint entity, 5 bytes, u8 length, your name, then
 /// [`SELF_POS_AFTER_NAME`] bytes on, after its flags.
-fn parse_self_position(p: &[u8]) -> Option<[f32; 3]> {
+pub(crate) fn parse_self_position(p: &[u8]) -> Option<[f32; 3]> {
     let mut i = 0;
     read_varint(p, &mut i)?;
     let name_end = i + 6 + usize::from(*p.get(i + 5)?);

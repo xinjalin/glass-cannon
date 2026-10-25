@@ -134,6 +134,9 @@
             <button type="button" class="opt" data-widget="timers" aria-pressed="false" title="When the world events and field bosses start, with alerts">
               <span class="key">world timers</span><span class="state">[off]</span>
             </button>
+            <button type="button" class="opt" data-widget="pets" aria-pressed="false" title="The pets you track: level, souls toward the next one, where they're found, and their mobs in view">
+              <span class="key">pet tracker</span><span class="state">[off]</span>
+            </button>
             <button id="arrange-overlay" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
               <span class="key">arrange</span><span class="state">[ arrange ]</span>
             </button>
@@ -198,6 +201,16 @@
               <span class="key">record fights</span><span class="state">[off]</span>
             </button>
             <p class="hint" id="record-hint">save packets to the captures folder</p>
+          </fieldset>
+
+          <fieldset class="box">
+            <legend>pet tracker</legend>
+            <div class="pet-pick-row">
+              <input id="pet-search" class="menu-filter" type="search" placeholder="search a pet or an area" autocomplete="off" spellcheck="false">
+              <button id="pet-needed" type="button" aria-pressed="true" title="Only the pets you still need">[still needed]</button>
+            </div>
+            <ul id="pet-pick" class="pet-pick-list"></ul>
+            <p class="hint" id="pet-pick-hint">track the pets you're working on: they show in the pet tracker widget</p>
           </fieldset>
 
           <fieldset class="box">
