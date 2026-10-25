@@ -1,12 +1,17 @@
 // The game's recurring events on a fixed schedule in each region's time, shared by the
 // timers window and the meter's alerts. The schedule follows Questlog's list (2026-10);
-// times are minutes after midnight in the region's time zone, days 0 = Sunday.
+// times are minutes after midnight in the region's time zone, days 0 = Sunday. `minutes`
+// is how long it's on: one length for every start, or one per start.
+
+// Arena of Tactics (10v10) opens 11:00-14:00 and 19:00-21:00 in the region's time (as
+// LOXIN's timers have it, 2026-10); its Asian times aren't known.
+const ARENA = { "arena-tactics": { times: [11 * 60, 19 * 60], minutes: [180, 120] } };
 
 const REGIONS = {
   as: { label: "Asia", schedule: "global", timeZone: "Asia/Tokyo" },
-  naw: { label: "NA", schedule: "global", timeZone: "America/Los_Angeles" },
-  eu: { label: "EU", schedule: "global", timeZone: "Europe/Berlin" },
-  la: { label: "LA", schedule: "global", timeZone: "America/Sao_Paulo" },
+  naw: { label: "NA", schedule: "global", timeZone: "America/Los_Angeles", extra: ARENA },
+  eu: { label: "EU", schedule: "global", timeZone: "Europe/Berlin", extra: ARENA },
+  la: { label: "LA", schedule: "global", timeZone: "America/Sao_Paulo", extra: ARENA },
   kr: { label: "Korea", schedule: "kr", timeZone: "Asia/Seoul" },
   tw: { label: "Taiwan", schedule: "tw", timeZone: "Asia/Taipei" },
 };
@@ -33,6 +38,7 @@ const EVENTS = {
   "artifact-siege": "Artifact Siege",
   "siege-bosses": "Siege Bosses",
   "guardian-lord-nahma": "Guardian Lord Nahma",
+  "arena-tactics": "Arena of Tactics (10v10)",
   "daily-reset": "Daily reset",
   "weekly-reset": "Weekly reset",
 };
@@ -107,28 +113,50 @@ function zoned(now, timeZone) {
   };
 }
 
-// The next start of an event (or the one going on), as ms since 1970.
-function next(event, timeZone, now) {
+// How long an event's `i`th start of the day is on (minutes).
+const lastsMin = (event, i) => (Array.isArray(event.minutes) ? event.minutes[i] : event.minutes) || 0;
+
+// An event's starts from today on for a week, as { start (ms since 1970), minutes }, in order.
+function starts(event, timeZone, now) {
   const z = zoned(now, timeZone);
-  const lasts = (event.minutes || 0) * 60_000;
-  let best = null;
+  const out = [];
   for (let k = 0; k <= 7; k++) {
     if (event.days && !event.days.includes((z.weekday + k) % 7)) continue;
-    for (const t of event.times) {
-      const start = Date.UTC(z.y, z.m, z.d + k) + t * 60_000 - z.offsetMin * 60_000;
-      if (start + lasts <= now) continue;
-      if (best == null || start < best) best = start;
-    }
-    if (best != null) break;
+    event.times.forEach((t, i) => {
+      out.push({ start: Date.UTC(z.y, z.m, z.d + k) + t * 60_000 - z.offsetMin * 60_000, minutes: lastsMin(event, i) });
+    });
   }
-  return best;
+  return out.sort((a, b) => a.start - b.start);
 }
 
-// Upcoming starts in a region within `withinMs`: [{ id, name, start }], soonest first.
-function upcoming(regionKey, now, withinMs) {
+// The next start of an event (or the one going on): { start, minutes }, or null.
+function next(event, timeZone, now) {
+  return starts(event, timeZone, now).find((s) => s.start + s.minutes * 60_000 > now) || null;
+}
+
+// The next `n` starts after now (not the one going on), for the timers' hover.
+function nextStarts(event, timeZone, now, n) {
+  return starts(event, timeZone, now)
+    .filter((s) => s.start > now)
+    .slice(0, n);
+}
+
+// A region's events: its schedule and its own extras.
+function regionEvents(regionKey) {
   const r = REGIONS[regionKey] || REGIONS.as;
-  return Object.entries(SCHEDULES[r.schedule])
-    .map(([id, e]) => ({ id, name: EVENTS[id] || id, e, start: next(e, e.timeZone || r.timeZone, now) }))
+  return { r, events: { ...SCHEDULES[r.schedule], ...(r.extra || {}) } };
+}
+
+// Upcoming starts in a region within `withinMs`: [{ id, name, e, start, minutes, timeZone }],
+// soonest first.
+function upcoming(regionKey, now, withinMs) {
+  const { r, events } = regionEvents(regionKey);
+  return Object.entries(events)
+    .map(([id, e]) => {
+      const timeZone = e.timeZone || r.timeZone;
+      const n = next(e, timeZone, now);
+      return { id, name: EVENTS[id] || id, e, timeZone, start: n && n.start, minutes: n ? n.minutes : 0 };
+    })
     .filter((x) => x.start != null && x.start - now <= withinMs)
     .sort((a, b) => a.start - b.start);
 }

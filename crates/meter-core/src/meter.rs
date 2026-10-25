@@ -827,6 +827,8 @@ pub struct Meter {
     cubes: crate::cubes::Cubes,
     /// Your pets' souls.
     pets: crate::pets::Pets,
+    /// Where the mobs and players in view are, and you.
+    positions: crate::positions::Positions,
     /// Bosses' casts, oldest first (kept [`BOSS_LOG_US`]): a fight takes its bosses' from
     /// their pull, so the casts before your first hit are in it too.
     boss_log: VecDeque<BossCast>,
@@ -876,6 +878,7 @@ impl Meter {
             casting: HashMap::new(),
             cubes: crate::cubes::Cubes::default(),
             pets: crate::pets::Pets::default(),
+            positions: crate::positions::Positions::default(),
             boss_log: VecDeque::new(),
             pulls: HashMap::new(),
             latest_us: 0,
@@ -944,6 +947,11 @@ impl Meter {
         self.cubes.view(now_us)
     }
 
+    /// Where the mobs and players in view are, and you.
+    pub fn positions(&self) -> &crate::positions::Positions {
+        &self.positions
+    }
+
     /// Your skills (base ids), once the game has sent their list.
     pub fn your_skills(&self) -> &[u32] {
         self.cooldowns.known()
@@ -1003,6 +1011,7 @@ impl Meter {
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         self.cubes.feed(ts_us, opcode, payload);
         self.pets.feed(opcode, payload);
+        self.positions.feed(ts_us, opcode, payload);
         if opcode == OPCODE_CAST {
             if let Some(c) = parse_cast(payload) {
                 // The cast went off, so its cast time is over.
@@ -1250,6 +1259,7 @@ impl Meter {
                 self.pulls.clear();
                 self.cubes.clear();
                 self.pets.clear();
+                self.positions.clear();
                 self.pvp.end();
             }
             return;

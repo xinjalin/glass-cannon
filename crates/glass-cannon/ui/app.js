@@ -610,6 +610,38 @@ function drawTotals(enc) {
   const sum = `total ${fmtRate(total / Math.max(1, enc.duration_s))}/s · ${fmt(total)}${view === "damage" ? "" : ` ${VIEW_UNITS[view]}`}`;
   target.title = [target.title, sum].filter(Boolean).join("\n");
   drawBossBar(enc);
+  drawDummy();
+}
+
+// Dummy mode (on a training dummy): the run's time against its length, and your pace
+// against your best clean run of that length (or how it went, once it's over).
+const pctText = (x) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
+function drawDummy() {
+  const d = mode === "live" && lastView ? lastView.dummy : null;
+  const bar = $("dummy-bar");
+  bar.hidden = !d;
+  if (!d) return;
+  bar.className = d.cancelled ? "cancelled" : d.done ? "done" : "";
+  $("dm-fill").style.width = `${Math.min(1, d.elapsed_s / d.run_s) * 100}%`;
+  $("dm-time").textContent = d.cancelled ? "stopped" : d.done ? `done ${clock(d.run_s)}` : `${clock(d.elapsed_s)} / ${clock(d.run_s)}`;
+  const pace = $("dm-pace");
+  const label = d.label ? ` · ${d.label}` : "";
+  if (d.vs_best != null) {
+    pace.textContent = `${pctText(d.vs_best)} vs best${label}`;
+    pace.className = d.vs_best >= 0 ? "ahead" : "behind";
+  } else {
+    pace.textContent = `dummy run${label}`;
+    pace.className = "";
+  }
+  pace.title = [
+    `Dummy mode: your damage over a ${d.run_s} s run from your first hit (history → [dummy] to change it)`,
+    `${fmt(d.dps)} DPS so far`,
+    d.best_dps != null ? `best clean run: ${fmt(d.best_dps)} DPS` : "no clean run of this length yet",
+    d.vs_last != null ? `${pctText(d.vs_last)} against your last run` : "",
+    d.cancelled ? "Stopped before the time was up: not saved" : d.done ? "Saved to the history's [dummy] tab when the fight ends" : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // A live boss fight's HP and enrage (settings → boss hp).
@@ -881,6 +913,7 @@ function redraw() {
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
+    $("dummy-bar").hidden = true;
     drawParty(party);
     $("empty").hidden = party.length > 0;
     $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
@@ -891,6 +924,7 @@ function redraw() {
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
+    $("dummy-bar").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;

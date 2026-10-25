@@ -1,6 +1,6 @@
 // The fight history in its own window: dungeon runs (open one for its fights), single
-// fights, bosses only, or PvP sessions. Clicking a fight shows it on the meter;
-// right-clicking opens its analysis.
+// fights, bosses only, PvP sessions, or training dummy runs. Clicking a fight shows it on
+// the meter; right-clicking opens its analysis. Dummy runs: click two to compare them.
 
 const POLL_MS = 2000;
 
@@ -137,10 +137,148 @@ function pvpItem(s, live) {
 
 let data = null;
 
+// ---- Dummy runs: dummy mode's settings, each label's average, the runs, and two of them
+// compared (click two; the older is the baseline).
+let picked = [];
+
+function dummyControls(d) {
+  const li = el("li", "dummy-controls");
+  const mode = el("button", "", d.on ? "[dummy mode: on]" : "[dummy mode: off]");
+  mode.type = "button";
+  mode.title = "Hitting a Training Scarecrow times a run and shows your pace against your best (the meter shows your damage only)";
+  mode.addEventListener("click", () => invoke("set_dummy_mode", { on: !d.on }).then(load).catch(() => {}));
+  const lengths = el("span", "dummy-lengths");
+  lengths.append(el("span", "note", "run"));
+  for (const s of d.lengths) {
+    const b = el("button", "", `[${s < 60 ? `${s}s` : `${s / 60}m`}]`);
+    b.type = "button";
+    b.setAttribute("aria-selected", String(s === d.run_s));
+    b.title = `Runs of ${s} seconds from your first hit`;
+    b.addEventListener("click", () => invoke("set_dummy_run_length", { seconds: s }).then(load).catch(() => {}));
+    lengths.append(b);
+  }
+  const label = el("button", "", d.label ? `[label: ${d.label}]` : "[label: none]");
+  label.type = "button";
+  label.title = "The label new runs get (a gear set, a rotation…), to compare runs by label";
+  label.addEventListener("click", () => {
+    const given = window.prompt("Label for your next dummy runs (empty for none):", d.label || "");
+    if (given != null) invoke("set_dummy_label", { label: given }).then(load).catch(() => {});
+  });
+  li.append(mode, lengths, label);
+  return li;
+}
+
+// Each label's average DPS, over the clean runs of the length chosen.
+function dummyLabels(d) {
+  const by = new Map();
+  for (const r of d.runs.filter((r) => r.run_s === d.run_s && r.clean)) {
+    const k = r.label || "no label";
+    const v = by.get(k) || { n: 0, sum: 0, best: 0 };
+    v.n++;
+    v.sum += r.dps;
+    v.best = Math.max(v.best, r.dps);
+    by.set(k, v);
+  }
+  if (by.size < 2) return null;
+  const li = el("li", "dummy-labels");
+  for (const [k, v] of [...by].sort((a, b) => b[1].sum / b[1].n - a[1].sum / a[1].n)) {
+    const tag = el("span", "dummy-label-avg", `${k} ${fmt(v.sum / v.n)}`);
+    tag.title = `${v.n} clean ${v.n === 1 ? "run" : "runs"} of ${d.run_s} s · best ${fmt(v.best)}`;
+    li.append(tag);
+  }
+  return li;
+}
+
+const signed = (x) => `${x >= 0 ? "+" : ""}${x.toFixed(1)}%`;
+
+function dummyComparison(c, a, b) {
+  const li = el("li", "dummy-compare");
+  const head = el("div", "dc-head");
+  head.append(
+    el("span", "", `${b.label || dayAndTime(b.ended_ms)} vs ${a.label || dayAndTime(a.ended_ms)}: `),
+    el("span", c.dps_pct >= 0 ? "dc-up" : "dc-down", `${signed(c.dps_pct)} DPS`),
+    el("span", "fight-meta", ` · ${signed(c.luck_free_pct)} at the same crit rate · `),
+    el("span", "dc-verdict", c.verdict),
+  );
+  head.title = `Crit rate ${(c.crit_rate_a * 100).toFixed(1)}% then ${(c.crit_rate_b * 100).toFixed(1)}%. The second figure takes the difference in crits out: what's left is real.`;
+  li.append(head);
+  if (!a.clean || !b.clean) li.append(el("div", "fight-meta dc-warn", "One of them isn't clean (someone buffed you or debuffed the dummy): it doesn't compare fairly."));
+  const table = el("div", "dc-skills");
+  c.skills.slice(0, 8).forEach(([skill, x, y], i) => {
+    const name = c.skill_names[i] || `#${skill}`;
+    const diff = x ? (y / x - 1) * 100 : null;
+    table.append(
+      el("span", "dc-skill", name),
+      el("span", "fight-meta", fmt(x)),
+      el("span", "fight-meta", fmt(y)),
+      el("span", diff == null ? "fight-meta" : diff >= 0 ? "dc-up" : "dc-down", diff == null ? "new" : signed(diff)),
+    );
+  });
+  li.append(table);
+  return li;
+}
+
+function dummyItem(r, i) {
+  const on = picked.includes(r.ended_ms);
+  const item = el("li", "fight-item" + (on ? " selected" : ""));
+  const what = el("span", "fight-what");
+  if (r.label) what.append(el("span", "run-tag", r.label));
+  const helpers = r.helpers.slice(0, 2).join(", ") + (r.helpers.length > 2 ? "…" : "");
+  what.append(el("span", r.clean ? "clean-tag" : "buffed-tag", r.clean ? "clean" : `buffed by ${helpers}`));
+  const crit = r.hits ? Math.round((r.crits / r.hits) * 100) : 0;
+  const back = r.hits ? Math.round((r.back / r.hits) * 100) : 0;
+  const meta = el("span", "fight-meta", `${dayAndTime(r.ended_ms)} · ${r.run_s} s · crit ${crit}% · back ${back}% · ${r.casts} casts`);
+  const text = el("span", "fight-text");
+  text.append(what, meta);
+  const dps = el("span", "fight-dps", fmt(r.dps));
+  dps.title = `${fmt(r.damage)} damage in ${r.run_s} s`;
+  item.append(el("span", "fight-no", `${i + 1}.`), text, dps);
+  item.title = "Click two runs to compare them · double-click to label it · right-click to delete it";
+  item.addEventListener("click", () => {
+    picked = on ? picked.filter((x) => x !== r.ended_ms) : [...picked, r.ended_ms].slice(-2);
+    draw(true);
+  });
+  item.addEventListener("dblclick", () => {
+    const given = window.prompt("Label for this run (empty for none):", r.label || "");
+    if (given != null) invoke("label_dummy_run", { id: r.ended_ms, label: given }).then(load).catch(() => {});
+  });
+  item.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    if (window.confirm(`Delete the run of ${dayAndTime(r.ended_ms)} (${fmt(r.dps)} DPS)?`)) {
+      picked = picked.filter((x) => x !== r.ended_ms);
+      invoke("delete_dummy_run", { id: r.ended_ms }).then(load).catch(() => {});
+    }
+  });
+  return item;
+}
+
+let comparing = null;
+function drawDummy(list) {
+  const d = data.dummy;
+  picked = picked.filter((id) => d.runs.some((r) => r.ended_ms === id));
+  list.append(dummyControls(d));
+  const labels = dummyLabels(d);
+  if (labels) list.append(labels);
+  if (picked.length === 2) {
+    const [a, b] = picked.map((id) => d.runs.find((r) => r.ended_ms === id)).sort((x, y) => x.ended_ms - y.ended_ms);
+    const key = `${a.ended_ms}|${b.ended_ms}`;
+    if (comparing && comparing.key === key) list.append(dummyComparison(comparing.c, a, b));
+    else
+      invoke("compare_dummy_runs", { a: a.ended_ms, b: b.ended_ms })
+        .then((c) => {
+          comparing = { key, c };
+          draw(true);
+        })
+        .catch(() => {});
+  }
+  d.runs.forEach((r, i) => list.append(dummyItem(r, i)));
+  return d.runs.length;
+}
+
 async function load() {
   try {
-    const [h, p] = await Promise.all([invoke("history_list"), invoke("pvp_list")]);
-    data = { fights: h.fights, runs: h.runs, pvp: p };
+    const [h, p, d] = await Promise.all([invoke("history_list"), invoke("pvp_list"), invoke("dummy_runs")]);
+    data = { fights: h.fights, runs: h.runs, pvp: p, dummy: d };
   } catch {
     return;
   }
@@ -149,7 +287,7 @@ async function load() {
 
 function draw(force) {
   if (!data) return;
-  const key = JSON.stringify([tab, data.fights.length, data.runs.length, data.pvp.sessions.length, data.pvp.current, selected, [...openRuns], [...openPvp]]);
+  const key = JSON.stringify([tab, data.fights.length, data.runs.length, data.pvp.sessions.length, data.pvp.current, selected, [...openRuns], [...openPvp], data.dummy, picked]);
   if (!force && key === lastKey) return;
   lastKey = key;
   for (const b of document.querySelectorAll("#tabs [data-tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
@@ -162,7 +300,10 @@ function draw(force) {
   const list = $("list");
   list.replaceChildren();
   let shown = 0;
-  if (tab === "pvp") {
+  if (tab === "dummy") {
+    shown = drawDummy(list);
+    $("count").textContent = data.dummy.runs.length ? `[${data.dummy.runs.length}]` : "";
+  } else if (tab === "pvp") {
     if (pvp.current) list.append(...pvpItem(pvp.current, true));
     for (const s of pvp.sessions) list.append(...pvpItem(s, false));
     shown = pvp.sessions.length + (pvp.current ? 1 : 0);
@@ -193,7 +334,13 @@ function draw(force) {
     });
     $("count").textContent = fights.length ? `[${fights.length}]` : "";
   }
-  const empty = { all: "no finished fights yet", runs: "no dungeon runs yet", bosses: "no boss fights yet", pvp: "no PvP yet: fights with players outside your party show here" };
+  const empty = {
+    all: "no finished fights yet",
+    runs: "no dungeon runs yet",
+    bosses: "no boss fights yet",
+    pvp: "no PvP yet: fights with players outside your party show here",
+    dummy: "no dummy runs yet: hit a Training Scarecrow for a whole run",
+  };
   $("empty").hidden = shown > 0;
   $("empty").textContent = empty[tab];
 }

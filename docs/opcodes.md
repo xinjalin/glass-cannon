@@ -10,8 +10,8 @@ Every message type (opcode) in our captures: 428 opcodes, 5,337,612 messages, fr
 | --- | ---: | ---: |
 | Decoded and used by the meter | 52 | 2,948,335 |
 | Understood, not used yet | 49 | 1,707,170 |
-| Named elsewhere only | 109 | 668,467 |
-| Unknown | 218 | 13,640 |
+| Named elsewhere only | 111 | 668,521 |
+| Unknown | 216 | 13,586 |
 | Named elsewhere, never seen | 17 | 0 |
 
 ## Decoded and used by the meter
@@ -209,6 +209,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0xe28c` | 39 | 6 | 1135.4 |  |  | Aion DPS Meter: hotbar contents |
 | `0xe30b` | 39 | 6 | 25.0 |  | MonolithList_NT |  |
 | `0xe33b` | 39 | 6 | 190.0 |  |  | Aion DPS Meter: membership benefits and ticket times |
+| `0xffa5` | 39 | 6 | 16.0 |  |  | ours: the same two u64 as `0xffa6` at login and zone changes (the last value of that day: 829 after a session's last `0xffa6` said 829) |
 | `0x922f` | 38 | 4 | 4.0 |  | MapEventLeave_NT | Aion2Flow: map |
 | `0x8d33` | 35 | 4 | 25.0 |  | GatherSourceCompleted_NT |  |
 | `0x3611` | 34 | 4 | 276.0 |  |  | a2_protocol-research: server RSA handshake |
@@ -226,6 +227,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x8d8f` | 16 | 2 | 218.0 |  |  | Aion DPS Meter: conversion counters |
 | `0x3817` | 15 | 4 | 3.7 | yes |  | a2kit: fall |
 | `0x8c07` | 15 | 3 | 23.0 |  |  | Aion DPS Meter: coin shop purchase counters |
+| `0xffa6` | 15 | 3 | 16.0 |  |  | LOXIN: daily kinah (its parser's label); ours: u64 that rises after kills (+6 to +290), then u64 server time (ms) |
 | `0x8d91` | 9 | 1 | 6.0 | yes | BroadcastLevelUpdate_NT |  |
 | `0xe335` | 9 | 2 | 46.0 |  | CutsceneComplete_RS |  |
 | `0x8d2f` | 8 | 4 | 646.0 |  |  | a2_protocol-research: notice |
@@ -321,7 +323,6 @@ No name anywhere. Sorted by count; the busy ones are the most worth a look.
 | `0xe33d` | 39 | 6 | 4.0 |  | `00 00 00 00` |
 | `0xe342` | 39 | 6 | 63.6 |  | `09 f7 ae 15 00 00 c8 00 00 76` |
 | `0xe349` | 39 | 6 | 11.0 |  | `00 00 80 d9 86 4f a1 01 00 00` |
-| `0xffa5` | 39 | 6 | 16.0 |  | `3d 03 00 00 00 00 00 00 11 91` |
 | `0xffac` | 39 | 6 | 24.0 |  | `03 01 02 00 00 00 02 17 00 00` |
 | `0x8d23` | 38 | 2 | 2.0 |  | `00 00` |
 | `0x971f` | 38 | 4 | 58.1 |  | `1e 03 58 de 03 00 00 00 c7 09` |
@@ -357,7 +358,6 @@ No name anywhere. Sorted by count; the busy ones are the most worth a look.
 | `0x3840` | 15 | 2 | 6.0 |  | `00 00 90 b1 17 01` |
 | `0x5621` | 15 | 4 | 11.0 |  | `00 00 b0 51 00 00 bd 98 17 01` |
 | `0x562a` | 15 | 1 | 51.0 |  | `00 00 08 5f 14 00 00 94 00 00` |
-| `0xffa6` | 15 | 3 | 16.0 |  | `78 00 00 00 00 00 00 00 8d ab` |
 | `0x5643` | 14 | 3 | 97.1 |  | `00 04 00 00 00 00 05 76 b0 05` |
 | `0x9319` | 14 | 4 | 0.0 |  | `` |
 | `0x9409` | 14 | 2 | 40.6 |  | `1c b0 00 00 8f 12 00 00 02 8f` |
@@ -512,6 +512,7 @@ Only names and descriptions were taken from these, as leads to check against our
 | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN | MIT | `docs/protocol/` (German): movement frames, targets, chain skills, skill acknowledgements, world objects, loot, login lists. It writes opcodes with the two bytes the other way round (its `0x2937` is our `0x3729`) |
 | [a2kit](https://github.com/nuriland/a2kit) by nuriland | MIT | its opcode table (`game/opcode.go`): sit, fall, gear score |
 | [AionMeter](https://github.com/cyberbadger6969/aion2-dps-meter) by cyberbadger6969 | GPL-3.0 | its opcode list (`Opcodes.cs`): teleport |
+| LOXIN (loxin.gg's desktop meter) | proprietary | its installer unpacked, not run (2026-10-25): the opcodes it reads (23 in its built-in profile, about 15 more compared in its code; all in our captures) and its parser's labels. Names as leads only |
 | [NOIA2](https://github.com/ZDYoung0519/NOIA2) by ZDYoung0519 | GPL-3.0 | combat power and field boss timers (already in [protocol.md](protocol.md)) |
 
 Searched 2026-10-23 and 2026-10-25 (SearXNG and GitHub search). The other meters found (Aletheia, AionCore, aion2t) publish no parser source; [aion2-protocol-research](https://github.com/lunixxx37/aion2-protocol-research) (MIT) repeats a2_protocol-research's names.

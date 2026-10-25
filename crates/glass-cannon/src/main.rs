@@ -31,6 +31,7 @@ use meter_core::recorder::Side;
 use meter_core::session;
 
 mod analysis;
+mod dummy;
 mod fonts;
 mod game_window;
 mod gamedata;
@@ -166,6 +167,11 @@ pub struct AppState {
     history_placed: AtomicBool,
     /// Where every window was last (saved as they move, at most once a second).
     placements: Mutex<placement::Placements>,
+    /// Your training dummy runs, and dummy mode's state on the meter.
+    dummy: Mutex<dummy::DummyBook>,
+    dummy_tracker: Mutex<dummy::DummyTracker>,
+    /// The meter showed a fight on a dummy last time: it counts your damage only.
+    dummy_active: AtomicBool,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -210,6 +216,8 @@ struct View {
     cubes: Vec<meter_core::cubes::CubeView>,
     /// Pet souls gained since the last snapshot, with each pet's progress.
     souls: Vec<meter_core::pets::SoulGain>,
+    /// Dummy mode, while the fight shown is on a training dummy.
+    dummy: Option<dummy::DummyLive>,
 }
 
 /// A boss's next cast, as it came the last time you fought it.
@@ -316,7 +324,11 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let known = remember_players(&app, &mut meter);
         // Whose damage counts follows your party, unless chosen by hand: the party now, or
         // the one in the fight shown (it still shows them after the party breaks up).
-        let scope = lock(&app.settings).scope_for(party_size(&meter));
+        // A fight on a training dummy counts your damage only (dummy mode).
+        let mut scope = lock(&app.settings).scope_for(party_size(&meter));
+        if auto_scope && app.dummy_active.load(Ordering::SeqCst) {
+            scope = meter_core::meter::Scope::Mine;
+        }
         if meter.scope() != scope {
             meter.set_scope(scope);
         }
@@ -368,6 +380,12 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let ended_ms = view.end_us / 1000;
         if let Some(analysis) = &f.analysis {
             app.details.save(ended_ms, analysis);
+            let s = lock(&app.settings);
+            if s.dummy_mode && view.target_type.is_some_and(|t| data.is_dummy(t)) {
+                if let Some(run) = dummy::DummyRun::from_fight(analysis, s.dummy_run_s, ended_ms, self_name.clone(), &s.dummy_label) {
+                    lock(&app.dummy).add(run);
+                }
+            }
         }
         lock(&app.bests).record(&view, ended_ms, self_name.as_deref());
         history.push(Fight { ended_ms, self_name, view });
@@ -402,6 +420,15 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
+    let dummy = snap
+        .encounter
+        .as_ref()
+        .filter(|e| settings.dummy_mode && e.target_type.is_some_and(|t| data.is_dummy(t)))
+        .and_then(|e| {
+            let book = lock(&app.dummy);
+            lock(&app.dummy_tracker).view(e, now, settings.dummy_run_s, &book, profile.name.as_deref(), &settings.dummy_label)
+        });
+    app.dummy_active.store(dummy.is_some() && snap.encounter.as_ref().is_some_and(|e| e.active), Ordering::SeqCst);
     // The target frame shows the boss's HP, enrage and cast (and your best): the meter
     // leaves them out while it's on.
     let target_frame = settings.widgets.iter().any(|w| w == "target");
@@ -429,6 +456,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         alert_sound: settings.alert_sound,
         cubes,
         souls,
+        dummy,
     }
 }
 
@@ -793,6 +821,9 @@ fn main() {
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
         placements: Mutex::new(placements),
+        dummy: Mutex::new(dummy::DummyBook::load(&config_dir_for_pvp)),
+        dummy_tracker: Mutex::new(dummy::DummyTracker::default()),
+        dummy_active: AtomicBool::new(false),
     });
 
     tauri::Builder::default()
@@ -847,6 +878,16 @@ fn main() {
             widgets::set_boss_hp,
             widgets::set_boss_casts,
             widgets::set_pet_souls,
+            widgets::dummy_runs,
+            widgets::pet_tracker,
+            widgets::set_pet_tracked,
+            widgets::set_pet_tracker_nearest,
+            widgets::compare_dummy_runs,
+            widgets::label_dummy_run,
+            widgets::delete_dummy_run,
+            widgets::set_dummy_mode,
+            widgets::set_dummy_run_length,
+            widgets::set_dummy_label,
             widgets::set_boss_skill_alert,
             widgets::boss_skill_alerts,
             widgets::set_alert_sound,

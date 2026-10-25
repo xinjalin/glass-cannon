@@ -18,6 +18,7 @@ const DEFAULTS = {
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
+  pets: { x: 0.79, y: 0.5, w: 320, h: 230 },
 };
 
 // The side widgets: their page, label, whether they take the mouse (the world timers have
@@ -28,6 +29,7 @@ const SIDE_WIDGETS = {
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true },
   timers: { page: "timers.html", label: "world timers", passive: false, fades: false },
+  pets: { page: "pets.html", label: "pet tracker", passive: false, fades: false },
 };
 // Every widget's name in the arrange menu, in the settings' order.
 const LABELS = [
@@ -39,6 +41,7 @@ const LABELS = [
   ["cooldowns", "cooldowns"],
   ["party-cooldowns", "party cooldowns"],
   ["timers", "world timers"],
+  ["pets", "pet tracker"],
 ];
 // The grids widgets can snap to while arranging (CSS pixels; 0: none), and the default.
 const GRIDS = [0, 8, 16, 32, 64];

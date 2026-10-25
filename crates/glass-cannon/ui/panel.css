@@ -167,6 +167,37 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .best-tag { color: var(--warn); }
 .fight-item.in-run { margin-left: 1.2em; border-left: 1px solid var(--line-faint); border-radius: 0 0.3em 0.3em 0; }
 .fight-item.opponent { cursor: default; }
+/* The pet tracker widget. */
+.pets-head { display: flex; align-items: baseline; gap: 0.5em; padding: 0 0.2em 0.3em; }
+.pets-head b { color: var(--text); }
+.pets-head #nearest { margin-left: auto; color: var(--accent); }
+.pets-head #nearest[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); }
+.pet { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.6em; padding: 0.15em 0.3em; }
+.pet-main { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.pet-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
+.pet.done .pet-name, .pet.done .pet-souls { color: var(--faint); }
+.pet-pips { display: inline-flex; gap: 0.15em; flex: none; }
+.pip { width: 0.45em; height: 0.45em; border-radius: 50%; border: 1px solid var(--muted); }
+.pip.on { background: var(--accent); border-color: var(--accent); }
+.pet-souls { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pet-where { color: var(--faint); font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 12em; }
+.pet-near { color: var(--ok); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pet-arrow { display: inline-block; }
+.pet.here .pet-name { color: var(--ok); }
+/* Dummy runs: settings, label averages, a comparison of two runs. */
+.dummy-controls, .dummy-labels { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4em 0.8em; padding: 0.2em 0.3em 0.4em; }
+.dummy-controls button { color: var(--accent); }
+.dummy-lengths button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); }
+.dummy-label-avg { color: var(--muted); font-variant-numeric: tabular-nums; }
+.clean-tag { color: var(--ok); font-size: 0.85em; }
+.buffed-tag { color: var(--warn); font-size: 0.85em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dummy-compare { padding: 0.4em 0.5em; margin-bottom: 0.4em; border: 1px solid var(--line-faint); border-radius: 0.3em; }
+.dc-up { color: var(--ok); font-variant-numeric: tabular-nums; }
+.dc-down { color: var(--bad); font-variant-numeric: tabular-nums; }
+.dc-verdict { color: var(--accent-2); }
+.dc-warn { color: var(--warn); }
+.dc-skills { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 0.1em 0.8em; margin-top: 0.3em; }
+.dc-skill { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .boss {
   flex: none;
   padding: 0 0.35em;

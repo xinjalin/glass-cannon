@@ -95,12 +95,20 @@ finishes. The widgets:
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used).
-- **world timers**: rifts, invasions, sieges, resets and field bosses (open the world map
-  in game to read them) in your time; star (☆) the ones you want and **[★ only]** shows just
-  those, and ring the 🔔 for an alert on the meter before one starts. Also who holds the
+- **world timers**: rifts, invasions, sieges, Arena of Tactics (NA, EU and LA), resets and
+  field bosses (open the world map in game to read them) in your time; hover an event for
+  its next three starts. Star (☆) the ones you want and **[★ only]** shows just those, and
+  ring the 🔔 for an alert on the meter before one starts. Also who holds the
   Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
+
+- **pet tracker**: the pets you track (settings → pet tracker: search one, or an area, and
+  click [track]) with their level, souls toward the next one and where they're found; a
+  pet whose mobs are in view turns green with how many, and how far and which way while
+  the meter knows where you are (for a minute after you log in, teleport or change zone).
+  **[nearest]** lists every pet you still need instead, those in view first. Which mobs
+  give which souls is from Aion DPS Meter's data; a few mobs aren't in it.
 
 **Hide on the world map** (settings, on by default): the overlay steps aside while the
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
@@ -166,6 +174,16 @@ you're in at the time keeps grouping its next fights as a run.
 fight on the meter's boss line, or the target frame while it shows (green while you're
 beating it), and as ★ tags on the fights in the history that set them. They're kept per
 character, count every kill you were in, and [clear] resets them.
+
+**Dummy mode** (history → [dummy]; on by default): hit a Training Scarecrow and the meter
+counts your damage only and times a run (30 s to 5 min, 1 min by default) from your first
+hit. A line under the target shows the run's time and your pace against your best clean
+run of that length. A run you keep up to the end is saved when the fight ends; one you
+stop early isn't. A run is *clean* when no other player buffed you or debuffed the dummy,
+so it compares fairly. The [dummy] tab lists your runs (double-click one to label it, with
+a gear set or a rotation; right-click to delete it), each label's average, and compares any
+two you click: the DPS difference, the difference at the same crit rate (what's left once
+crit luck is taken out), and each skill's damage. Give new runs a label with [label].
 
 **Pet souls** (settings → pet souls): a kill that gives a pet's soul shows on the meter with
 how many it has toward the pet's next level (5 to summon it, then 25 and 75), e.g. "Red

@@ -325,3 +325,15 @@ kbd {
 ::-webkit-scrollbar { width: 0.4em; height: 0; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 0.2em; }
+
+/* The settings' pet picker. */
+.pet-pick-list { max-height: 16em; overflow-y: auto; margin: 0.3em 0 0; padding: 0; list-style: none; }
+.pet-pick-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.6em; align-items: baseline; padding: 0.1em 0.2em; }
+.pet-pick-list .pp-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pet-pick-list .pp-meta { color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.pet-pick-list button { color: var(--accent); }
+.pet-pick-list button[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); }
+.pet-pick-row { display: flex; gap: 0.6em; align-items: baseline; }
+.pet-pick-row input { flex: 1; min-width: 0; }
+#pet-needed { flex: none; color: var(--accent); }
+#pet-needed[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); }

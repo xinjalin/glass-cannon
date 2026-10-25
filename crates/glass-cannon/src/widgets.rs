@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 8] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "cooldowns", "party-cooldowns", "timers"];
+pub const WIDGETS: [&str; 9] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "cooldowns", "party-cooldowns", "timers", "pets"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
@@ -459,4 +459,200 @@ pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
 #[tauri::command]
 pub fn rename_ticket(app: State<'_, Arc<AppState>>, id: u32, name: String) {
     lock(&app.contents).rename_ticket(id, &name);
+}
+
+/// A dummy run for the history window, its skills named.
+#[derive(Serialize)]
+pub struct DummyRunRow {
+    #[serde(flatten)]
+    run: crate::dummy::DummyRun,
+    skill_names: Vec<Option<String>>,
+}
+
+/// Your training dummy runs (newest first), and dummy mode's settings.
+#[derive(Serialize)]
+pub struct DummyRuns {
+    runs: Vec<DummyRunRow>,
+    on: bool,
+    run_s: u32,
+    lengths: &'static [u32],
+    label: String,
+}
+
+#[tauri::command]
+pub fn dummy_runs(app: State<'_, Arc<AppState>>) -> DummyRuns {
+    let data = lock(&app.data);
+    let runs = lock(&app.dummy)
+        .runs()
+        .iter()
+        .map(|r| DummyRunRow { skill_names: r.skills.iter().map(|s| data.skill_meta(s.skill).0).collect(), run: r.clone() })
+        .collect();
+    let s = lock(&app.settings);
+    DummyRuns { runs, on: s.dummy_mode, run_s: s.dummy_run_s, lengths: &crate::dummy::RUN_LENGTHS, label: s.dummy_label.clone() }
+}
+
+/// Two runs compared (`a` the earlier), with skill names.
+#[derive(Serialize)]
+pub struct DummyComparison {
+    #[serde(flatten)]
+    comparison: crate::dummy::Comparison,
+    skill_names: Vec<Option<String>>,
+}
+
+#[tauri::command]
+pub fn compare_dummy_runs(app: State<'_, Arc<AppState>>, a: u64, b: u64) -> Result<DummyComparison, String> {
+    let book = lock(&app.dummy);
+    let find = |id: u64| book.runs().iter().find(|r| r.ended_ms == id).ok_or("no such run");
+    let (mut x, mut y) = (find(a)?, find(b)?);
+    if x.ended_ms > y.ended_ms {
+        std::mem::swap(&mut x, &mut y);
+    }
+    let comparison = crate::dummy::compare(x, y);
+    let data = lock(&app.data);
+    let skill_names = comparison.skills.iter().map(|(s, _, _)| data.skill_meta(*s).0).collect();
+    Ok(DummyComparison { comparison, skill_names })
+}
+
+#[tauri::command]
+pub fn label_dummy_run(app: State<'_, Arc<AppState>>, id: u64, label: String) -> bool {
+    lock(&app.dummy).label(id, &label)
+}
+
+#[tauri::command]
+pub fn delete_dummy_run(app: State<'_, Arc<AppState>>, id: u64) {
+    lock(&app.dummy).remove(id);
+}
+
+#[tauri::command]
+pub fn set_dummy_mode(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.dummy_mode = on;
+    s.save(&app.config_dir);
+}
+
+#[tauri::command]
+pub fn set_dummy_run_length(app: State<'_, Arc<AppState>>, seconds: u32) -> Result<(), String> {
+    if !crate::dummy::RUN_LENGTHS.contains(&seconds) {
+        return Err(format!("{seconds} s isn't one of the run lengths"));
+    }
+    let mut s = lock(&app.settings);
+    s.dummy_run_s = seconds;
+    s.save(&app.config_dir);
+    Ok(())
+}
+
+/// The label new dummy runs get (empty: none).
+#[tauri::command]
+pub fn set_dummy_label(app: State<'_, Arc<AppState>>, label: String) {
+    let mut s = lock(&app.settings);
+    s.dummy_label = label.trim().chars().take(40).collect();
+    s.save(&app.config_dir);
+}
+
+/// A pet for the pet tracker: its progress, where it's found, and its mobs in view.
+#[derive(Serialize)]
+pub struct PetRow {
+    id: u32,
+    name: String,
+    genus: Option<String>,
+    /// 0: not summoned yet; None until the game has sent your pets.
+    level: Option<u32>,
+    /// Toward its next level.
+    souls: Option<u32>,
+    /// Souls its next level takes (None at the top level).
+    need: Option<u32>,
+    found_in: Vec<String>,
+    tracked: bool,
+    /// Its mobs in view now, and the nearest one's distance and compass bearing while your
+    /// position is known.
+    in_view: u32,
+    distance_m: Option<u32>,
+    bearing: Option<u16>,
+}
+
+#[derive(Serialize)]
+pub struct PetTracker {
+    /// The game has sent this character's pets (at login, or saved from before).
+    synced: bool,
+    character: Option<String>,
+    nearest: bool,
+    pets: Vec<PetRow>,
+}
+
+#[tauri::command]
+pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
+    let now = app.engine.now();
+    // Each pet's mobs in view: how many, and the nearest (metres, bearing).
+    let (state, mobs) = {
+        let mut meter = app.engine.meter();
+        let state = meter.pets().state();
+        let positions = meter.positions();
+        let me = positions.me(now);
+        // Mobs in view (the registry keeps those that left, to name past fights), wild ones
+        // only: players' summons give no souls.
+        let registry = meter.registry();
+        let mobs: Vec<(u32, Option<(u32, u16)>)> = registry
+            .mobs()
+            .filter(|(id, _)| registry.owner_of(*id).is_none())
+            .filter_map(|(id, kind)| positions.of(id).map(|at| (kind, me.map(|m| meter_core::positions::distance_and_bearing(m, at)))))
+            .collect();
+        (state, mobs)
+    };
+    let data = lock(&app.data);
+    let mut near: std::collections::HashMap<u32, (u32, Option<(u32, u16)>)> = std::collections::HashMap::new();
+    for (kind, at) in mobs {
+        let Some(pet) = data.pet_of_mob(kind) else { continue };
+        let e = near.entry(pet).or_insert((0, None));
+        e.0 += 1;
+        if at.is_some_and(|(d, _)| e.1.is_none_or(|(best, _)| d < best)) {
+            e.1 = at;
+        }
+    }
+    let character = lock(&app.profile).name.clone();
+    let s = lock(&app.settings);
+    let tracked = character.as_ref().and_then(|c| s.tracked_pets.get(c)).cloned().unwrap_or_default();
+    let pets = data
+        .all_pets()
+        .map(|p| {
+            let level = state.as_ref().map(|st| st.levels.get(&p.id).copied().unwrap_or(0));
+            let souls = state.as_ref().map(|st| st.souls.get(&p.id).copied().unwrap_or(0));
+            let need = level.and_then(|l| meter_core::pets::SOULS_PER_LEVEL.get(l as usize).copied());
+            let (in_view, at) = near.get(&p.id).copied().unwrap_or((0, None));
+            PetRow {
+                id: p.id,
+                name: p.name.to_string(),
+                genus: p.genus.map(str::to_string),
+                level,
+                souls,
+                need,
+                found_in: p.found_in.to_vec(),
+                tracked: tracked.contains(&p.id),
+                in_view,
+                distance_m: at.map(|(d, _)| d),
+                bearing: at.map(|(_, b)| b),
+            }
+        })
+        .collect();
+    PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, pets }
+}
+
+/// Tracks a pet for your character, or stops.
+#[tauri::command]
+pub fn set_pet_tracked(app: State<'_, Arc<AppState>>, id: u32, on: bool) -> Result<(), String> {
+    let character = lock(&app.profile).name.clone().ok_or("log in to a character first")?;
+    let mut s = lock(&app.settings);
+    let list = s.tracked_pets.entry(character).or_default();
+    list.retain(|p| *p != id);
+    if on {
+        list.push(id);
+    }
+    s.save(&app.config_dir);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_pet_tracker_nearest(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.pet_tracker_nearest = on;
+    s.save(&app.config_dir);
 }
