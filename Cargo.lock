@@ -2322,6 +2322,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "packet-lab-gui"
+version = "0.10.5"
+dependencies = [
+ "anyhow",
+ "meter-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+]
+
+[[package]]
 name = "pango"
 version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

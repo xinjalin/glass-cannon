@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Packet Lab</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- Packet Lab: the game's message stream, live or from a recording, against what
+       docs/opcodes.md says each opcode is. Opcodes down the left (by family, with how well
+       each is understood), the stream in the middle, one message's bytes underneath with a
+       reader for the value at any byte. In Glass Cannon's launcher colours. -->
+  <header id="title" data-tauri-drag-region>
+    <span class="brand" data-tauri-drag-region>PACKET LAB</span>
+    <span id="source" class="source" data-tauri-drag-region></span>
+    <span id="message" class="dim" data-tauri-drag-region></span>
+    <span class="grow" data-tauri-drag-region></span>
+    <span class="lights">
+      <button id="min" type="button" class="light yellow" title="Minimise" aria-label="Minimise"></button>
+      <button id="max" type="button" class="light green" title="Maximise" aria-label="Maximise"></button>
+      <button id="close" type="button" class="light red" title="Close" aria-label="Close"></button>
+    </span>
+  </header>
+
+  <nav id="toolbar">
+    <span class="group">
+      <input id="process" type="text" value="AION2" spellcheck="false" title="The game's process name" aria-label="Process name">
+      <button id="live" type="button" class="primary" title="Capture the game's traffic live">● live</button>
+    </span>
+    <span class="group">
+      <input id="path" type="text" placeholder="a recording: session or flow folder" spellcheck="false" aria-label="Recording folder">
+      <select id="speed" title="Load it all at once, or play it at a speed" aria-label="Speed">
+        <option value="0">at once</option>
+        <option value="1">1×</option>
+        <option value="4">4×</option>
+        <option value="16">16×</option>
+      </select>
+      <button id="open" type="button" title="Open the recording">open</button>
+    </span>
+    <span class="group">
+      <button id="stop" type="button" title="Stop the source (what's in already stays)">■ stop</button>
+      <button id="clear" type="button" title="Forget the messages so far">clear</button>
+    </span>
+    <span class="grow"></span>
+    <span class="group">
+      <input id="find" type="text" placeholder="find: 1234, 0x4d2 or d2 04" spellcheck="false" title="A number (as varint, u16, u32, u64) or bytes in hex" aria-label="Find">
+      <label class="toggle" title="Keep showing the newest messages"><input id="follow" type="checkbox" checked> follow</label>
+      <label class="toggle" title="Stop updating the stream (the source keeps going)"><input id="freeze" type="checkbox"> freeze</label>
+    </span>
+  </nav>
+
+  <main id="body">
+    <aside id="side">
+      <div class="chips" role="radiogroup" aria-label="Status">
+        <button type="button" data-status="all" aria-pressed="true">all</button>
+        <button type="button" data-status="decoded" class="s-decoded">decoded</button>
+        <button type="button" data-status="understood" class="s-understood">understood</button>
+        <button type="button" data-status="named" class="s-named">named</button>
+        <button type="button" data-status="unknown" class="s-unknown">unknown</button>
+      </div>
+      <input id="search" type="text" placeholder="opcode or name" spellcheck="false" aria-label="Search opcodes">
+      <div id="filter-line" class="dim"></div>
+      <div id="opcodes"></div>
+    </aside>
+
+    <section id="center">
+      <div id="stream">
+        <button id="older" type="button" class="link" hidden>load older</button>
+        <table>
+          <thead>
+            <tr><th class="n">#</th><th class="n">time</th><th>opcode</th><th>name</th><th>family</th><th class="n">bytes</th><th>payload</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p id="empty" class="dim">No messages yet. Start a live capture, or open a recording.</p>
+      </div>
+
+      <div id="detail">
+        <div id="detail-head"><span class="dim">Click a message to see its bytes.</span></div>
+        <div id="detail-body" hidden>
+          <div id="hex"></div>
+          <div id="reader">
+            <div class="reader-title">at byte <span id="offset">0</span></div>
+            <table id="values"></table>
+            <button id="copy" type="button" class="link" title="Copy the payload as hex">copy hex</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="foot">
+    <span id="counts"></span>
+    <span class="grow"></span>
+    <span class="dim">server to client · what the game sends is encrypted</span>
+  </footer>
+  <script src="app.js"></script>
+</body>
+</html>

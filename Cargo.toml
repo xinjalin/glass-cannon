@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/meter-core", "crates/packet-lab", "crates/glass-cannon"]
+members = ["crates/meter-core", "crates/packet-lab", "crates/glass-cannon", "crates/packet-lab-gui"]
 
 [workspace.package]
 version = "0.10.5"
