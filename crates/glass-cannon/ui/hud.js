@@ -346,7 +346,8 @@ function drawWarnings(elapsed) {
   $("warning-time").textContent = show.time;
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
-    if (boss.sound) chime();
+    // Only with the warning to see: not while the boss warnings widget is turned off.
+    if (boss.sound && !box.closest(".widget").hidden) chime();
   }
 }
 
