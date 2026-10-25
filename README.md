@@ -191,8 +191,8 @@ show as `#ID` too. You're recognised on your first hit on a real mob.
 
 ## Game data
 
-The `gamedata` folder holds skill, mob and class names, icons, skill details, Theostone
-effects and dungeon mobs. It isn't under the MIT licence: see
+The `gamedata` folder holds skill, mob, NPC and class names, icons, skill details,
+Theostone effects, dungeon mobs and pets. It isn't under the MIT licence: see
 [gamedata/README.md](gamedata/README.md) for sources and how to update it.
 
 If skills show as numbers, check `meter.log` in `%APPDATA%\io.github.xinjalin.glass-cannon`.

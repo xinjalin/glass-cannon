@@ -23,6 +23,9 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 - The same bundle's monsters and dungeons, **no licence**: `dungeons.json` (which dungeon
   and mode each of 1,536 dungeon mobs is in, for the history's dungeon runs). Only those
   entries are used; same terms.
+- The same bundle's pets and NPCs, **no licence**: `pets.json` (208 pets' names and genus,
+  for the pet soul ticker) and `npc-names.json` (3,719 NPCs' names, for the quest givers,
+  merchants and the like that the mob lists don't name). Only names are kept; same terms.
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
   scrolls, potions and food, shrunk to 64 px) for their buffs. NCSOFT's artwork, like the
   rest of the game data; removed on request.
