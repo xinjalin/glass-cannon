@@ -107,6 +107,9 @@ pub struct Settings {
     /// The overlay steps aside while the world map is open.
     #[serde(default = "default_true")]
     pub hide_on_world_map: bool,
+    /// The launcher kept on top of other windows (its green light).
+    #[serde(default)]
+    pub launcher_on_top: bool,
 }
 
 fn default_alert_lead() -> u32 {

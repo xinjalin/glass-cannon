@@ -856,6 +856,7 @@ fn main() {
             widgets::set_timer_favourites_only,
             widgets::party_cooldowns,
             launcher::launcher_state,
+            launcher::set_launcher_on_top,
             hud::hud_rects,
             hud::hud_edit,
             hud::set_overlay,

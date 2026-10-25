@@ -473,6 +473,8 @@ function sendBoss(view) {
     ? {
         cast: enc.boss_cast || null,
         castKey: enc.boss_cast ? enc.boss_cast.started_us : 0,
+        // For casts with no name: whose they are.
+        name: enc.target || "",
         ahead: view.boss_ahead,
         sound: view.alert_sound,
       }

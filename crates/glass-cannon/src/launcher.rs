@@ -26,6 +26,8 @@ pub struct LauncherState {
     arranging: bool,
     /// The overlay is stepping aside for the world map.
     world_map: bool,
+    /// The launcher is kept on top (its green light).
+    on_top: bool,
     /// How many of its widgets show.
     widgets: usize,
     /// The fight going on, else the last one.
@@ -92,6 +94,7 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
     };
     let settings = lock(&app.settings);
     LauncherState {
+        on_top: settings.launcher_on_top,
         version: env!("CARGO_PKG_VERSION"),
         status: lock(&app.engine.status).clone(),
         ping_ms,
@@ -106,10 +109,24 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
     }
 }
 
-/// Shows the launcher where you left it, else in the middle of the main screen.
+/// Keeps the launcher on top of other windows, or not; saved for next time.
+#[tauri::command]
+pub fn set_launcher_on_top(handle: AppHandle, app: State<'_, Arc<AppState>>, on: bool) -> Result<(), String> {
+    let w = handle.get_webview_window(LAUNCHER).ok_or("no launcher")?;
+    w.set_always_on_top(on).map_err(|e| e.to_string())?;
+    let mut s = lock(&app.settings);
+    s.launcher_on_top = on;
+    s.save(&app.config_dir);
+    Ok(())
+}
+
+/// Shows the launcher where you left it, else in the middle of the main screen, on top of
+/// other windows if you left it so.
 pub fn show(handle: &AppHandle) -> tauri::Result<()> {
     let Some(w) = handle.get_webview_window(LAUNCHER) else { return Ok(()) };
     crate::style::launcher(&w);
+    let on_top = lock(&handle.state::<Arc<AppState>>().settings).launcher_on_top;
+    w.set_always_on_top(on_top)?;
     let saved = lock(&handle.state::<Arc<AppState>>().placements).get(LAUNCHER);
     if !saved.is_some_and(|p| crate::placement::restore(&w, p, false)) {
         w.center()?;
