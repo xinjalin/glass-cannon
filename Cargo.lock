@@ -2323,7 +2323,7 @@ dependencies = [
 
 [[package]]
 name = "packet-lab-gui"
-version = "0.10.5"
+version = "0.10.6"
 dependencies = [
  "anyhow",
  "meter-core",
