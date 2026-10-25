@@ -102,6 +102,10 @@ finishes. The widgets:
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
 
+**Hide on the world map** (settings, on by default): the overlay steps aside while the
+world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
+contents about every 1.2 s while it's open, and that's how the meter knows.
+
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
 background, Windows blurs the game behind each widget; **frost** sets how milky that glass

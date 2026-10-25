@@ -155,6 +155,7 @@ async function refresh() {
     setToggle("boss-casts", state.boss_casts);
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
+    setToggle("hide-on-world-map", state.hide_on_world_map);
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
     for (const b of document.querySelectorAll("[data-widget]")) {
@@ -339,6 +340,11 @@ for (const b of document.querySelectorAll("[data-widget]")) {
 // Arrange the overlay; again (or [ done ] on the overlay) saves the layout and stops.
 $("arrange-overlay").addEventListener("click", async () => {
   await invoke("hud_edit", { on: !(state && state.arranging) }).catch((e) => say(String(e), "error"));
+  refresh();
+});
+
+$("hide-on-world-map").addEventListener("click", async () => {
+  await invoke("set_hide_on_world_map", { on: !(state && state.hide_on_world_map) });
   refresh();
 });
 

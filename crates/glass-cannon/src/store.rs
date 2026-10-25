@@ -104,6 +104,9 @@ pub struct Settings {
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
+    /// The overlay steps aside while the world map is open.
+    #[serde(default = "default_true")]
+    pub hide_on_world_map: bool,
 }
 
 fn default_alert_lead() -> u32 {

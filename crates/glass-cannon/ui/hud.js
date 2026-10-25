@@ -246,6 +246,10 @@ function showWidgets(names) {
 
 tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
 
+// The world map is open (settings → hide on the world map): every widget steps aside at
+// once, and comes back at once.
+tauri.event.listen("hud-map", (e) => document.documentElement.classList.toggle("map-hidden", !!e.payload));
+
 $("edit-done").addEventListener("click", () => invoke("hud_edit", { on: false }));
 $("edit-reset").addEventListener("click", () => {
   layout = { _grid: layout._grid };

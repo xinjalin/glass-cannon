@@ -60,6 +60,7 @@ pub struct SettingsStatus {
     widgets: Vec<String>,
     arranging: bool,
     alert_sound: bool,
+    hide_on_world_map: bool,
     hide_after_s: u32,
 }
 
@@ -134,6 +135,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         widgets: s.widgets,
         arranging: app.hud_editing.load(Ordering::SeqCst),
         alert_sound: s.alert_sound,
+        hide_on_world_map: s.hide_on_world_map,
         hide_after_s: s.hide_after_s,
     }
 }

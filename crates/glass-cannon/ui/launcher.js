@@ -80,6 +80,7 @@ function drawRows(rows) {
 function overlayText(s) {
   if (s.arranging) return ["arranging", "accent"];
   if (!s.overlay_on) return ["off", ""];
+  if (s.world_map) return ["hidden for the world map", ""];
   return s.overlay_showing ? ["over the game", "accent"] : ["on", ""];
 }
 

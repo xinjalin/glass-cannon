@@ -111,6 +111,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut tracker = Tracker::new(&app.args.process);
             let (mut shown, mut placed, mut ignoring): (bool, Option<Rect>, Option<bool>) = (false, None, None);
             let mut show_wanted = false;
+            // What the page was last told about the world map.
+            let mut map_sent: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
             loop {
@@ -140,11 +142,19 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                         }
                     }
                 }
+                // The world map: the widgets step aside in place, and their plates with them.
+                // The window stays up, so they all come back at once (a window shown again
+                // redraws each widget in its own time).
+                let map = shown && !editing && on_world_map(&app);
+                if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
+                    map_sent = Some(map);
+                }
                 let frosted = lock(&app.settings).appearance.backdrop == "frosted";
-                let wanted: Vec<HitRect> = if shown && frosted { lock(&app.hud_panels).clone() } else { Vec::new() };
+                let wanted: Vec<HitRect> = if shown && frosted && !map { lock(&app.hud_panels).clone() } else { Vec::new() };
                 plates.update(&handle, &w, &wanted);
                 if shown {
-                    let ignore = !editing && !pointer_on_widget(&handle, &w, &app);
+                    // The map takes every click while it's open.
+                    let ignore = !editing && (map || !pointer_on_widget(&handle, &w, &app));
                     if ignoring != Some(ignore) && w.set_ignore_cursor_events(ignore).is_ok() {
                         ignoring = Some(ignore);
                     }
@@ -153,6 +163,15 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             }
         })
         .expect("starting the HUD thread");
+}
+
+/// The world map is open and the overlay steps aside for it (settings → hide on the world
+/// map): back within about 1.5 s of closing it, as the game stops asking for its contents.
+pub fn on_world_map(app: &AppState) -> bool {
+    // The setting first, on its own: the snapshot holds the meter while it reads the
+    // settings, so holding both here the other way round could deadlock.
+    let hide = lock(&app.settings).hide_on_world_map;
+    hide && app.engine.meter().world_map_open(app.engine.now())
 }
 
 /// Replaying: the launcher's screen stands in for the game's picture.
@@ -169,15 +188,22 @@ fn replay_screen<R: Runtime>(handle: &AppHandle<R>) -> Option<GameWindow> {
 /// letting the mouse through. The widget's own tint is then lighter, as the windows' was.
 struct Plates<R: Runtime> {
     windows: Vec<WebviewWindow<R>>,
-    /// Where each is (physical pixels), None while hidden.
+    /// Where each is (physical pixels), None while parked.
     at: Vec<Option<(i32, i32, u32, u32)>>,
+    /// Shown once already (from then on they're only moved).
+    shown: Vec<bool>,
 }
 
 impl<R: Runtime> Default for Plates<R> {
     fn default() -> Self {
-        Self { windows: Vec::new(), at: Vec::new() }
+        Self { windows: Vec::new(), at: Vec::new(), shown: Vec::new() }
     }
 }
+
+/// Where a plate waits while it isn't wanted (the map open, the game out of front): off
+/// every screen. Moved there rather than hidden, because a hidden plate shown again has
+/// Windows build its blur anew, which flashes.
+const PARKED: PhysicalPosition<i32> = PhysicalPosition { x: -20_000, y: -20_000 };
 
 impl<R: Runtime> Plates<R> {
     fn update(&mut self, handle: &AppHandle<R>, hud: &WebviewWindow<R>, wanted: &[HitRect]) {
@@ -200,6 +226,7 @@ impl<R: Runtime> Plates<R> {
             let _ = w.set_ignore_cursor_events(true);
             self.windows.push(w);
             self.at.push(None);
+            self.shown.push(false);
         }
         for (i, w) in self.windows.iter().enumerate() {
             let want = origin.and_then(|o| wanted.get(i).map(|r| (o.x + r.x as i32, o.y + r.y as i32, r.width as u32, r.height as u32)));
@@ -210,13 +237,13 @@ impl<R: Runtime> Plates<R> {
                 Some((x, y, width, height)) if width > 0 && height > 0 => {
                     let _ = w.set_position(PhysicalPosition::new(x, y));
                     let _ = w.set_size(PhysicalSize::new(width, height));
-                    if self.at[i].is_none() {
-                        let _ = w.show();
+                    if !self.shown[i] {
+                        self.shown[i] = w.show().is_ok();
                     }
                     below(w, hud);
                 }
                 _ => {
-                    let _ = w.hide();
+                    let _ = w.set_position(PARKED);
                 }
             }
             self.at[i] = want;

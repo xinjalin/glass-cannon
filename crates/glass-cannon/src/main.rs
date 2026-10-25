@@ -850,6 +850,7 @@ fn main() {
             widgets::set_boss_skill_alert,
             widgets::boss_skill_alerts,
             widgets::set_alert_sound,
+            widgets::set_hide_on_world_map,
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::set_timer_favourites_only,

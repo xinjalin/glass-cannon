@@ -49,6 +49,11 @@ const PINGS_KEPT: usize = 6;
 /// Damage over this long sets how fast a target is going down (its time to kill).
 const KILL_RATE_US: u64 = 10_000_000;
 
+/// The world map counts as closed this long after the game's last request for its contents.
+/// It asks every 1.14-1.25 s while it's open (186 gaps in our captures, 99% within
+/// 1.25 s), so this is a quarter second past the longest.
+pub const WORLD_MAP_GONE_US: u64 = 1_500_000;
+
 /// No activity in your fight for this long ends the encounter.
 pub const DEFAULT_IDLE_TIMEOUT_US: u64 = 15_000_000;
 /// Hits by others are remembered this long, so joining a fight late still shows
@@ -811,6 +816,9 @@ pub struct Meter {
     stagger: HashMap<u64, Stagger>,
     /// Field bosses read from a world map since the last [`Meter::take_field_bosses`].
     field_bosses: Vec<FieldBoss>,
+    /// When the game last asked for the world map's contents (it does every ~1.2 s while
+    /// the map is open).
+    world_map_us: Option<u64>,
     /// Tickets and Abyss artifacts read since the last [`Meter::take_contents`].
     contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
@@ -863,6 +871,7 @@ impl Meter {
             aggro: HashMap::new(),
             stagger: HashMap::new(),
             field_bosses: Vec::new(),
+            world_map_us: None,
             contents: Contents::default(),
             casting: HashMap::new(),
             cubes: crate::cubes::Cubes::default(),
@@ -920,6 +929,14 @@ impl Meter {
     /// Your pets' levels and souls, for keeping between runs.
     pub fn pets(&mut self) -> &mut crate::pets::Pets {
         &mut self.pets
+    }
+
+    /// Whether the world map is open: the game asks for its contents (`0x9101`) about
+    /// every 1.2 s while it is, and stops when it's closed (checked on our captures: runs
+    /// of 2 to 40 s, one message per 1.2 s). So it's open until [`WORLD_MAP_GONE_US`]
+    /// passes without one.
+    pub fn world_map_open(&self, now_us: u64) -> bool {
+        self.world_map_us.is_some_and(|t| now_us.saturating_sub(t) < WORLD_MAP_GONE_US)
     }
 
     /// Hidden cubes in view, and how far and which way while your position is known.
@@ -1120,6 +1137,7 @@ impl Meter {
                     }
                 }
                 OPCODE_WORLD_MAP => {
+                    self.world_map_us = Some(ts_us);
                     if let Some(bosses) = parse_world_map(payload) {
                         self.field_bosses.extend(bosses);
                     }
@@ -2157,6 +2175,20 @@ mod tests {
     const S: u64 = 1_000_000;
     const ME: u64 = 3199;
     const DUMMY: u64 = 38937;
+
+    #[test]
+    fn the_world_map_is_open_while_the_game_keeps_asking_for_it() {
+        let mut m = Meter::default();
+        assert!(!m.world_map_open(10 * S));
+        // Asked for every 1.2 s while open (any payload counts, even one we can't read).
+        for i in 0..5u64 {
+            m.feed(10 * S + i * 1_200_000, OPCODE_WORLD_MAP, &[]);
+        }
+        let last = 10 * S + 4 * 1_200_000;
+        assert!(m.world_map_open(last + 1_200_000), "between two requests");
+        assert!(m.world_map_open(last + WORLD_MAP_GONE_US - 1));
+        assert!(!m.world_map_open(last + WORLD_MAP_GONE_US), "closed: the requests stopped");
+    }
 
     /// A minimal 0x3804 payload with a damage value (flags 0x04).
     fn hit(target: u64, attacker: u64, skill: u32, dmg: u64) -> Vec<u8> {
