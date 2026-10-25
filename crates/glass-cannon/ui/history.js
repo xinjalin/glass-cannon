@@ -291,6 +291,9 @@ function draw(force) {
   if (!force && key === lastKey) return;
   lastKey = key;
   for (const b of document.querySelectorAll("#tabs [data-tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+  // Dummy runs have their own clicks, and [clear] doesn't touch them.
+  $("hint").textContent = tab === "dummy" ? "click two to compare · double-click: label · right-click: delete" : "click: show on the meter · right-click: analysis";
+  if ($("clear-ask").hidden) $("clear").hidden = tab === "dummy";
   const { fights, runs, pvp } = data;
   if (!runsSeen && runs.length) {
     runsSeen = true;

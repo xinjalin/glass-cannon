@@ -145,6 +145,11 @@ struct PetSpawnFile {
     found_in: BTreeMap<u32, Vec<String>>,
 }
 
+/// A training dummy (the Training Scarecrow).
+fn dummy_entry(e: &Entry) -> bool {
+    e.dummy || e.name.contains("Training Scarecrow")
+}
+
 /// A pet in the data: its ID, name and genus.
 pub struct PetInfo<'a> {
     pub id: u32,
@@ -485,20 +490,21 @@ impl GameData {
         self.npcs
             .npcs
             .iter()
-            .filter(|(_, e)| e.boss && !e.name.contains("Training Scarecrow"))
+            .filter(|(_, e)| e.boss && !dummy_entry(e))
             .map(|(id, _)| *id)
             .collect()
     }
 
     /// A training dummy (the Training Scarecrow): dummy mode's target.
     pub fn is_dummy(&self, type_id: u32) -> bool {
-        self.npcs.npcs.get(&type_id).is_some_and(|e| e.dummy || e.name.contains("Training Scarecrow"))
+        self.npcs.npcs.get(&type_id).is_some_and(dummy_entry)
     }
 
-    /// A mob type's name and boss flag.
+    /// A mob type's name and boss flag (training dummies are marked as bosses in the data,
+    /// but aren't).
     pub fn npc(&self, type_id: u32) -> Option<(String, bool)> {
         let e = self.npcs.npcs.get(&type_id)?;
-        (!e.name.is_empty()).then(|| (e.name.clone(), e.boss))
+        (!e.name.is_empty()).then(|| (e.name.clone(), e.boss && !dummy_entry(e)))
     }
 
     pub fn annotate_view(&self, enc: &mut EncounterView) {
@@ -520,7 +526,7 @@ impl GameData {
             if !e.name.is_empty() {
                 enc.target = Some(e.name.clone());
             }
-            enc.target_boss = e.boss;
+            enc.target_boss = e.boss && !dummy_entry(e);
         }
         if let Some(t) = enc.target.as_mut() {
             tidy(t);

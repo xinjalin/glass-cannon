@@ -18,6 +18,12 @@ memory. No admin rights, no auto-updates, and it never goes online.
 | --- | --- |
 | ![Dungeon runs with stage splits and personal bests in the fight history](docs/screenshots/history.png) | ![Settings: appearance, the overlay's widgets, status, meter and tools](docs/screenshots/settings.png) |
 
+| Dummy mode | Pet tracker |
+| --- | --- |
+| ![The meter on a training dummy: a 30 s run's time and its label](docs/screenshots/dummy.png) | ![The pet tracker: pets you still need whose mobs are in view, with their souls and where they're found](docs/screenshots/pets.png) |
+
+![Two dummy runs compared in the history's [dummy] tab: the DPS difference, with crit luck taken out, and each skill's damage](docs/screenshots/dummy-history.png)
+
 ![Fight analysis: overview](docs/screenshots/analysis-overview.png)
 
 ![Skills with each player's specialties](docs/screenshots/analysis-skills.png)
