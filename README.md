@@ -235,6 +235,24 @@ target/release/packet-lab messages captures/<session> 8d00
 target/release/packet-lab find captures/<session> 2674
 ```
 
+### Packet Lab (GUI)
+
+`target/release/packet-lab-gui` (`cargo build --release -p packet-lab-gui`) shows the
+message stream as it comes in, live from the game or from a recording (a session or flow
+folder, all at once or played at 1×, 4× or 16×):
+
+- **opcodes** by family, each marked by how well it's understood (decoded, understood,
+  named elsewhere, unknown, or not in the notes at all), with counts and rates; click one
+  (or a family) to show only it, ctrl-click to add more;
+- **the stream** through that filter, following the newest (scroll up to stop), or frozen;
+- **one message**: its bytes, and every reading of the value at the byte you click (u8 to
+  u64, f32, varint, zigzag, a length-first string, a timestamp);
+- **find** a number (as varint, u16, u32 or u64) or bytes in hex, across the stream and
+  marked in the message.
+
+What each opcode is comes from [docs/opcodes.md](docs/opcodes.md), built in. The window
+uses Glass Cannon's launcher colours.
+
 The app replays a recording with `glass-cannon.exe --replay <session> --speed 10` (the
 overlay then covers the launcher's screen); `--hidden` starts it without the launcher, for
 scripted checks.
