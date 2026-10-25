@@ -240,7 +240,9 @@ const ROUTINE_CASTS: usize = 8;
 const UPCOMING: usize = 5;
 const UPCOMING_S: f64 = 60.0;
 /// A cast this long (or one that marks the ground) is dangerous, unless you say otherwise.
-const DANGER_CAST_MS: u32 = 2000;
+/// 2.5 s: at 2 s, bosses' short casts of 2.0-2.2 s chimed every few seconds in a fight.
+/// (analysis.js's `looksDangerous` says the same for the [boss] tab.)
+const DANGER_CAST_MS: u32 = 2500;
 
 /// Whether a boss skill gets a warning: as you marked it (the analysis window's [boss]
 /// tab), else when it marks the ground or takes [`DANGER_CAST_MS`] or more to cast.
@@ -984,3 +986,24 @@ fn write_startup_log(config_dir: &Path, data: &GameData) {
     let _ = std::fs::write(config_dir.join("meter.log"), log);
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_boss_cast_warns_when_long_or_marking_the_ground_unless_marked() {
+        let none = std::collections::BTreeMap::new();
+        // Short casts (the 2.0-2.2 s ones that chimed all fight) don't; 2.5 s and more do.
+        assert!(!dangerous(&none, 1, 2000, 0));
+        assert!(!dangerous(&none, 1, 2167, 0));
+        assert!(dangerous(&none, 1, 2500, 0));
+        assert!(dangerous(&none, 1, 4500, 0));
+        // Marking the ground does, however short.
+        assert!(dangerous(&none, 1, 700, 2150));
+        // What you marked in the [boss] tab wins.
+        let marks = std::collections::BTreeMap::from([(1, true), (2, false)]);
+        assert!(dangerous(&marks, 1, 500, 0));
+        assert!(!dangerous(&marks, 2, 4500, 1000));
+    }
+}

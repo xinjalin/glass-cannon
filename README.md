@@ -79,7 +79,7 @@ finishes. The widgets:
 - **meter**: the players, below.
 - **boss warnings**: a dangerous cast big in the middle of the screen, its time left, then
   when it lands, with a chime; a heads-up 5 s before one is due. A cast is dangerous when
-  it marks the ground or takes 2 s or more; in the analysis window's [boss] tab, click a
+  it marks the ground or takes 2.5 s or more; in the analysis window's [boss] tab, click a
   skill's alert to make it always or never warn.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down.

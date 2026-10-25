@@ -1612,9 +1612,10 @@ function nameBossSkill(cell, c) {
 }
 
 // Which boss skills warn in the overlay: as they look (a cast that marks the ground or
-// takes 2 s or more), always, or never. Click the alert cell to go round them.
+// takes 2.5 s or more), always, or never. Click the alert cell to go round them.
 let alertMarks = {};
-const looksDangerous = (c) => c.lands_ms > 0 || c.cast_ms >= 2000;
+// As the app's rule (main.rs, DANGER_CAST_MS).
+const looksDangerous = (c) => c.lands_ms > 0 || c.cast_ms >= 2500;
 
 async function loadAlertMarks() {
   alertMarks = (await invoke("boss_skill_alerts").catch(() => null)) || {};
