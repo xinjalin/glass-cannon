@@ -188,8 +188,10 @@ analysis windows stay tinted enough to read).
 ### Names
 
 Players are named when they come into view, after a zone change, or when they start a
-fight; until then they show as `#ID`. Mobs that were already there when the meter started
-show as `#ID` too. You're recognised on your first hit on a real mob.
+fight; until then they show as `#ID`. Mobs and NPCs are named from the game data; the few
+it doesn't have (and mobs already there when the meter started) show as **Unknown**, with
+their type in the tooltip: double-click the target on the meter to name one. You're
+recognised on your first hit on a real mob.
 
 ## Game data
 

@@ -239,6 +239,15 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: O
             }
         }
     }
+    // Mobs and NPCs with no name show as "Unknown", not a number; players not named yet
+    // keep their "#ID", so they stay apart.
+    let players: std::collections::HashSet<u64> =
+        a.view.players.iter().chain(&a.view.healing).chain(&a.view.taken).map(|p| p.id).collect();
+    for (id, name) in a.names.iter_mut() {
+        if !players.contains(id) && crate::gamedata::is_stand_in(name) {
+            *name = crate::gamedata::UNNAMED.to_string();
+        }
+    }
     let place = a.view.target_type.and_then(|t| data.dungeon(t)).as_ref().map(crate::runs::Place::from);
     let ids = a
         .hits

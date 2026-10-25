@@ -594,7 +594,8 @@ function drawTotals(enc) {
   const end = !enc.active && endTag(enc.end, (enc.deaths || []).length);
   if (end) target.append(end);
   target.title = enc.target_type ? `mob type ${enc.target_type} · double-click to name it` : "";
-  const current = enc.target && !enc.target.startsWith("Mob ") && !enc.target.startsWith("#") ? enc.target : "";
+  // An unnamed target ("Unknown") has no name to start the rename from.
+  const current = enc.target && enc.target !== "Unknown" ? enc.target : "";
   target.ondblclick = enc.target_type
     ? () =>
         startRename(name, `mob ${enc.target_type}`, current, (value) =>

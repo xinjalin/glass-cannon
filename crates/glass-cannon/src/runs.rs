@@ -185,6 +185,14 @@ pub fn history_list(mut fights: Vec<FightSummary>, data: &GameData, instances: &
         let place = f.target_type.and_then(|t| data.dungeon(t));
         ids.push(place.as_ref().map(|p| p.id));
         f.dungeon = place.as_ref().map(Place::from);
+        // Named again from today's data (fights saved before a name was known kept
+        // "Mob <type>"), and "Unknown" rather than a number when there's still none.
+        if let Some((name, _)) = f.target_type.and_then(|t| data.npc(t)) {
+            f.target = Some(name);
+        }
+        if let Some(t) = f.target.as_mut().filter(|t| crate::gamedata::is_stand_in(t)) {
+            *t = crate::gamedata::UNNAMED.to_string();
+        }
     }
     // Grouping goes oldest first.
     let legs: Vec<Leg> = fights
