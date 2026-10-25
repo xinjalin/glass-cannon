@@ -470,7 +470,7 @@ The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Te
 ### Other messages (from NOIA2, not yet used)
 
 - `0x3656`: your combat power (u32 after the opcode).
-- `0x9101`: field boss timers.
+- `0x9101`: field boss timers. Sent about every 1.2 s while the world map is open, and not once it's closed (runs of 2 to 40 s in our captures), so it also says when the map is open (checked 2026-10-25).
 - `0x3822`: about 14.5 s after each Recuperation cast; probably "skill ready again".
 
 ### Permanent character ID (guess)

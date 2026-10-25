@@ -120,7 +120,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
-                    show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
+                    let map = !editing && on_world_map(&app);
+                    show_wanted = on && !map && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
                             let _ = w.set_position(PhysicalPosition::new(g.client.left, g.client.top));
@@ -153,6 +154,15 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             }
         })
         .expect("starting the HUD thread");
+}
+
+/// The world map is open and the overlay steps aside for it (settings → hide on the world
+/// map): back about 2 s after it's closed, as the game stops asking for its contents.
+pub fn on_world_map(app: &AppState) -> bool {
+    // The setting first, on its own: the snapshot holds the meter while it reads the
+    // settings, so holding both here the other way round could deadlock.
+    let hide = lock(&app.settings).hide_on_world_map;
+    hide && app.engine.meter().world_map_open(app.engine.now())
 }
 
 /// Replaying: the launcher's screen stands in for the game's picture.
