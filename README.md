@@ -83,11 +83,10 @@ finishes. The widgets:
   skill's alert to make it always or never warn.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down.
-- **hidden cubes**: each cube in view (gold or red) with a compass lying on the ground that
-  points at it, how far, and how far up or down; opened cubes show briefly as taken. The
-  game only says where you are when you log in, teleport or change zone (it never sends
-  your own moves, and what your game sends is encrypted), so the compass points from
-  there, north up, for a minute after you arrive; it can't follow you as you walk.
+- **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
+  sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
+  way the cube is: the game never sends your own position as you move (and what your game
+  sends is encrypted).
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   boss HP, enrage and cast lines, so nothing is shown twice.
