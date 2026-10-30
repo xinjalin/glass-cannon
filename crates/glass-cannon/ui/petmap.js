@@ -35,10 +35,11 @@ function portrait(id, name) {
     portraits.set(id, null);
     invoke("pet_icon", { pet: id })
       .then((url) => {
+        if (!url) return portraits.delete(id);
         portraits.set(id, url);
-        if (url) drawList();
+        drawList();
       })
-      .catch(() => {});
+      .catch(() => portraits.delete(id));
   }
   const url = portraits.get(id);
   if (url) {

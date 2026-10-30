@@ -7,17 +7,18 @@
 const POLL_MS = 1000;
 let state = null;
 
-// Portraits, by pet (asked for once each).
+// Portraits, by pet (asked for once each; asked again at the next update if that failed).
 const portraits = new Map();
 function portrait(p) {
   if (!portraits.has(p.id)) {
     portraits.set(p.id, null);
     invoke("pet_icon", { pet: p.id })
       .then((url) => {
+        if (!url) return portraits.delete(p.id);
         portraits.set(p.id, url);
-        if (url) draw();
+        draw();
       })
-      .catch(() => {});
+      .catch(() => portraits.delete(p.id));
   }
   const url = portraits.get(p.id);
   if (url) {
@@ -46,8 +47,8 @@ function near(p) {
   return box;
 }
 
-// What a row shows (a row is only redrawn when that changes).
-const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view, needs(p)].join("|");
+// What a row shows (a row is only redrawn when that changes), its portrait having come in too.
+const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view, needs(p), !!portraits.get(p.id)].join("|");
 
 function row(p) {
   const li = el("li", "pet" + (p.in_view ? " here" : "") + (needs(p) ? "" : " done"));
