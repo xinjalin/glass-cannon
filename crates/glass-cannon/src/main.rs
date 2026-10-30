@@ -152,6 +152,12 @@ pub struct AppState {
     hud_editing: AtomicBool,
     /// A hotkey is being picked in the settings: none go off meanwhile.
     hotkeys_paused: AtomicBool,
+    /// Where each hotkey stands (registered, taken by another app…), for the settings.
+    hotkey_states: Mutex<std::collections::BTreeMap<&'static str, &'static str>>,
+    /// When Alt (the game's cursor key) was last pressed, ms since 1970: the menu check.
+    last_alt_ms: std::sync::atomic::AtomicU64,
+    /// The overlay's widgets are hidden for now by the hotkey (not saved).
+    hud_hidden: AtomicBool,
     /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
     game_found: AtomicBool,
     hud_shown: AtomicBool,
@@ -827,6 +833,9 @@ fn main() {
         hud_panels: Mutex::new(Vec::new()),
         hud_editing: AtomicBool::new(false),
         hotkeys_paused: AtomicBool::new(false),
+        hotkey_states: Mutex::new(std::collections::BTreeMap::new()),
+        last_alt_ms: std::sync::atomic::AtomicU64::new(0),
+        hud_hidden: AtomicBool::new(false),
         game_found: AtomicBool::new(false),
         hud_shown: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),
@@ -915,7 +924,9 @@ fn main() {
             widgets::set_hide_for_menus,
             widgets::pet_map,
             widgets::pet_map_me,
+            widgets::pet_map_image,
             settings::open_pet_map,
+            settings::fit_pet_map,
             settings::set_hotkey,
             settings::pause_hotkeys,
             widgets::self_bars,

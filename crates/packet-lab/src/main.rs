@@ -270,6 +270,13 @@ enum Cmd {
         /// Which mob types give which pet (made by pet-spawns)
         #[arg(long, default_value = "gamedata/pet-spawns.json")]
         pet_spawns: PathBuf,
+        /// Questlog's map.getRegions (zone outlines), for each map's zones
+        #[arg(long)]
+        regions: Option<PathBuf>,
+        /// A folder with Questlog's map images (<key>.webp, or tiles <key>_<x>_<y>.webp),
+        /// for each map's picture (saved next to the output as petmap_<key>.jpg)
+        #[arg(long)]
+        images: Option<PathBuf>,
         #[arg(long, default_value = "gamedata/pet-map.json")]
         out: PathBuf,
         /// The upstream commit the file is from (recorded in the file)
@@ -456,7 +463,9 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
-        Cmd::PetMap { spawns, pet_spawns, out, commit } => pet_map::run(&spawns, &pet_spawns, &out, &commit),
+        Cmd::PetMap { spawns, pet_spawns, regions, images, out, commit } => {
+            pet_map::run(&spawns, &pet_spawns, regions.as_deref(), images.as_deref(), &out, &commit)
+        }
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),

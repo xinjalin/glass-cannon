@@ -65,6 +65,8 @@ pub fn hud_edit<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>,
 /// The overlay on or off (the launcher's button); saved for next time.
 #[tauri::command]
 pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>, on: bool) {
+    // Starting or stopping it from the launcher brings back widgets the hotkey hid.
+    app.hud_hidden.store(false, Ordering::SeqCst);
     let mut s = lock(&app.settings);
     s.overlay_on = on;
     s.save(&app.config_dir);
@@ -72,6 +74,22 @@ pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState
     if !on {
         hud_edit(handle, app, false);
     }
+}
+
+/// The show/hide hotkey: hides the widgets for now, or brings them back; with the
+/// overlay off, turns it on (so the hotkey never leaves you without them). Never saved:
+/// the next start shows them again.
+pub fn show_hide(handle: &AppHandle, app: &AppState) {
+    let on = lock(&app.settings).overlay_on;
+    if !on {
+        set_overlay(handle.clone(), handle.state::<Arc<AppState>>(), true);
+        return;
+    }
+    let hidden = !app.hud_hidden.load(Ordering::SeqCst);
+    if hidden && app.hud_editing.load(Ordering::SeqCst) {
+        return;
+    }
+    app.hud_hidden.store(hidden, Ordering::SeqCst);
 }
 
 /// The widgets' places and sizes, as the HUD saved them (`hud.json`; empty at first).
@@ -118,7 +136,6 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             // The game itself in front (not one of our windows), for the menu check.
             let mut game_in_front = false;
             let mut menus = crate::menus::MenuDetector::default();
-            let started = std::time::Instant::now();
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
                 let on = lock(&app.settings).overlay_on;
@@ -155,9 +172,12 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 let menu = menu_check && {
                     let cursor = crate::menus::cursor_showing();
                     let key = cursor && crate::menus::any_key_held();
-                    menus.update(started.elapsed().as_millis() as u64, cursor, key)
+                    let alt = app.last_alt_ms.load(Ordering::SeqCst);
+                    menus.update(crate::hotkeys::now_ms(), cursor, key, (alt > 0).then_some(alt))
                 };
-                let map = shown && !editing && (on_world_map(&app) || menu);
+                // Hidden by the hotkey: as the map, until it's pressed again.
+                let hidden = app.hud_hidden.load(Ordering::SeqCst);
+                let map = shown && !editing && (on_world_map(&app) || menu || hidden);
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);
                 }

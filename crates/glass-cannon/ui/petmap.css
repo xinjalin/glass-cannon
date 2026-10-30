@@ -14,7 +14,17 @@
 }
 .map-wrap.dragging { cursor: grabbing; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.map-key { position: absolute; left: 0.6em; bottom: 0.3em; margin: 0; pointer-events: none; }
+.map-key {
+  position: absolute;
+  left: 0.5em;
+  bottom: 0.4em;
+  margin: 0;
+  padding: 0.1em 0.45em;
+  border-radius: 0.3em;
+  background: var(--tint-strong);
+  color: var(--muted);
+  pointer-events: none;
+}
 .map-tip {
   position: absolute;
   max-width: 18em;
@@ -28,11 +38,12 @@
 }
 .map-tip .dim { color: var(--muted); }
 
-.pet-side { flex: none; width: 16em; display: flex; flex-direction: column; min-height: 0; gap: 0.35em; }
-.side-head { display: flex; gap: 0.3em; align-items: center; }
+.pet-side { flex: none; width: 17em; display: flex; flex-direction: column; min-height: 0; gap: 0.35em; }
+/* The search box keeps room for its placeholder; the toggle goes under it if need be. */
+.side-head { display: flex; flex-wrap: wrap; gap: 0.3em; align-items: center; }
 .side-search {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 15ch;
+  min-width: 15ch;
   font: inherit;
   color: var(--text);
   background: transparent;

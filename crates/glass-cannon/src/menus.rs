@@ -5,6 +5,10 @@
 //! With the classic controls the cursor always shows, so this does nothing useful there:
 //! the setting is off by default and says so.
 //!
+//! Alt is the game's cursor key, and it can toggle the cursor on and leave it there with no
+//! key held: a cursor that comes up within a moment of Alt being pressed (or while Alt is
+//! pressed with it showing) is your cursor, not a menu, until it goes away.
+//!
 //! The idea is from SkeeveAN's Aion DPS Meter notes (`docs/plans/menu-detect-cursor.md`);
 //! this is our own code.
 
@@ -14,6 +18,8 @@ const MENU_AFTER_MS: u64 = 250;
 const MENU_KEPT_MS: u64 = 300;
 /// A key held longer than this is stuck, not a peek.
 const STUCK_KEY_MS: u64 = 20_000;
+/// The cursor coming up this soon after Alt is the game's cursor (Alt's doing).
+const ALT_CURSOR_MS: u64 = 600;
 
 /// Decides from the cursor and the keys, a few times a second, whether a menu is open.
 #[derive(Debug, Default)]
@@ -25,21 +31,28 @@ pub struct MenuDetector {
     /// The menu is open; and when the cursor last showed while it was.
     open: bool,
     last_seen: u64,
+    /// The cursor showing now is the game's cursor, from Alt.
+    alt_cursor: bool,
 }
 
 impl MenuDetector {
-    /// `now_ms`: any clock; `cursor`: the cursor shows; `key`: some key is held.
-    pub fn update(&mut self, now_ms: u64, cursor: bool, key: bool) -> bool {
+    /// `now_ms`: any clock; `cursor`: the cursor shows; `key`: some key is held; `alt_ms`:
+    /// when Alt was last pressed (the same clock).
+    pub fn update(&mut self, now_ms: u64, cursor: bool, key: bool, alt_ms: Option<u64>) -> bool {
         self.key_since = if key { Some(self.key_since.unwrap_or(now_ms)) } else { None };
         let peeking = self.key_since.is_some_and(|t| now_ms.saturating_sub(t) < STUCK_KEY_MS);
+        if cursor && alt_ms.is_some_and(|t| now_ms.saturating_sub(t) <= ALT_CURSOR_MS) {
+            self.alt_cursor = true;
+        }
         if !cursor {
+            self.alt_cursor = false;
             self.bare_since = None;
             if self.open && now_ms.saturating_sub(self.last_seen) > MENU_KEPT_MS {
                 self.open = false;
             }
             return self.open;
         }
-        if peeking {
+        if peeking || self.alt_cursor {
             self.bare_since = None;
             self.open = false;
             return false;
@@ -93,23 +106,37 @@ mod tests {
     #[test]
     fn a_menu_opens_and_closes() {
         let mut m = MenuDetector::default();
-        assert!(!m.update(0, false, false));
+        assert!(!m.update(0, false, false, None));
         // The cursor shows: a menu once it's stayed 250 ms.
-        assert!(!m.update(100, true, false));
-        assert!(m.update(400, true, false));
+        assert!(!m.update(100, true, false, None));
+        assert!(m.update(400, true, false, None));
         // It hides: still open for a moment, then closed.
-        assert!(m.update(500, false, false));
-        assert!(!m.update(800, false, false));
+        assert!(m.update(500, false, false, None));
+        assert!(!m.update(800, false, false, None));
     }
 
     #[test]
     fn holding_alt_is_a_peek() {
         let mut m = MenuDetector::default();
         for t in (0..2000).step_by(50) {
-            assert!(!m.update(t, true, true));
+            assert!(!m.update(t, true, true, None));
         }
         // A key stuck for 20 s no longer counts.
-        assert!(!m.update(20_000, true, true));
-        assert!(m.update(21_000, true, true));
+        assert!(!m.update(20_000, true, true, None));
+        assert!(m.update(21_000, true, true, None));
+    }
+
+    #[test]
+    fn alt_toggling_the_cursor_is_no_menu() {
+        let mut m = MenuDetector::default();
+        // Alt tapped at 1000: the cursor comes up and stays, no key held.
+        assert!(!m.update(1000, false, false, Some(1000)));
+        for t in (1050..10_000).step_by(50) {
+            assert!(!m.update(t, true, false, Some(1000)));
+        }
+        // Alt again: the cursor goes. Then a menu opens (no Alt): a menu.
+        assert!(!m.update(10_050, false, false, Some(10_000)));
+        assert!(!m.update(20_000, true, false, Some(10_000)));
+        assert!(m.update(20_300, true, false, Some(10_000)));
     }
 }

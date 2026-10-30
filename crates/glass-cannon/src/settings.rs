@@ -76,6 +76,8 @@ pub struct Hotkey {
     what: &'static str,
     keys: String,
     default: &'static str,
+    /// Registered, taken by another app, waiting for the game, or read from the keyboard.
+    state: &'static str,
 }
 
 #[tauri::command]
@@ -155,7 +157,13 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         hide_for_menus: s.hide_for_menus,
         hotkeys: crate::hotkeys::ACTIONS
             .iter()
-            .map(|&(action, what, default)| Hotkey { action, what, keys: s.hotkeys.get(action).into(), default })
+            .map(|&(action, what, default)| Hotkey {
+                action,
+                what,
+                keys: s.hotkeys.get(action).into(),
+                default,
+                state: crate::hotkeys::state_of(&app, action),
+            })
             .collect(),
     }
 }
@@ -306,6 +314,28 @@ pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
     place_settings(&handle, &s);
     s.show().map_err(|e| e.to_string())?;
     s.set_focus().map_err(|e| e.to_string())
+}
+
+/// Keeps the pet map at least as big as its content needs at the font size (its list and
+/// search box are sized in the font's units): sets its smallest size, and grows it if it's
+/// smaller, within the screen.
+#[tauri::command]
+pub fn fit_pet_map(handle: AppHandle, width: f64, height: f64) -> Result<(), String> {
+    let w = handle.get_webview_window(PET_MAP).ok_or("no pet map window")?;
+    let (width, height) = match w.current_monitor().ok().flatten() {
+        Some(m) => {
+            let area = m.work_area().size.to_logical::<f64>(m.scale_factor());
+            (width.min(area.width - 2.0 * SCREEN_MARGIN), height.min(area.height - 2.0 * SCREEN_MARGIN))
+        }
+        None => (width, height),
+    };
+    w.set_min_size(Some(LogicalSize::new(width, height))).map_err(|e| e.to_string())?;
+    let scale = w.scale_factor().map_err(|e| e.to_string())?;
+    let now = w.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+    if now.width < width || now.height < height {
+        w.set_size(LogicalSize::new(now.width.max(width), now.height.max(height))).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Sizes the settings window to its content. The page asks whenever the font size

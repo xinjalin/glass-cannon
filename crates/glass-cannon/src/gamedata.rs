@@ -79,6 +79,8 @@ struct FieldBossInfo {
     place: Option<String>,
 }
 const MAX_ICON_BYTES: u64 = 256 * 1024;
+/// The pet map's pictures are bigger (a world map is about 2 MB).
+const MAX_PICTURE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// Theostone (item) skills as the game sends them: 7 digits starting 30.
 const THEOSTONE_SKILLS: std::ops::RangeInclusive<u32> = 3_000_000..=3_099_999;
@@ -721,6 +723,11 @@ impl GameData {
         read_json(&self.dir.join(PET_MAP_FILE)).ok()
     }
 
+    /// A pet map picture (`petmap_<key>.jpg`), as a data URL.
+    pub fn pet_map_image(&self, file: &str) -> Option<String> {
+        file.starts_with("petmap_").then(|| self.data_url(file, MAX_PICTURE_BYTES)).flatten()
+    }
+
     pub fn pet_icon(&self, pet: u32) -> Option<String> {
         self.icon_data_url(&format!("pet_{pet}.png"))
     }
@@ -732,6 +739,10 @@ impl GameData {
     }
 
     fn icon_data_url(&self, file: &str) -> Option<String> {
+        self.data_url(file, MAX_ICON_BYTES)
+    }
+
+    fn data_url(&self, file: &str, max_bytes: u64) -> Option<String> {
         // Only plain file names inside the data folder.
         if file.contains(['/', '\\', ':']) || file.starts_with('.') {
             return None;
@@ -743,7 +754,7 @@ impl GameData {
             _ => return None,
         };
         let path = self.dir.join(file);
-        if fs::metadata(&path).ok()?.len() > MAX_ICON_BYTES {
+        if fs::metadata(&path).ok()?.len() > max_bytes {
             return None;
         }
         Some(format!("data:{mime};base64,{}", base64(&fs::read(path).ok()?)))

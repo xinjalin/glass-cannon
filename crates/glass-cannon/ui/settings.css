@@ -283,6 +283,7 @@ legend {
   font-size: 0.9em;
 }
 .hint.warn { color: var(--warn); }
+.opt.warn .state { color: var(--warn); }
 
 .message {
   min-height: 1.3em;

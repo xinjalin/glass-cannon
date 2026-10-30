@@ -664,6 +664,12 @@ pub fn pet_map(app: State<'_, Arc<AppState>>) -> Option<serde_json::Value> {
     lock(&app.data).pet_map()
 }
 
+/// A pet map's picture (its `image.file`), as a data URL.
+#[tauri::command]
+pub fn pet_map_image(app: State<'_, Arc<AppState>>, file: String) -> Option<String> {
+    lock(&app.data).pet_map_image(&file)
+}
+
 /// Where you are for the pet map: the map (the game's ID) and x, y in metres.
 #[derive(Serialize)]
 pub struct PetMapMe {

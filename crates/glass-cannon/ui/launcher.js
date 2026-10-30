@@ -76,6 +76,8 @@ function drawRows(rows) {
 function overlayText(s) {
   if (s.arranging) return ["arranging", "accent"];
   if (!s.overlay_on) return ["off", ""];
+  // Hidden by the hotkey: say which keys bring it back.
+  if (s.hidden) return [`hidden · ${s.hide_keys.replace(/Key(.)/, "$1").replace(/Digit(.)/, "$1")} shows it`, "accent"];
   if (s.world_map) return ["hidden for the world map", ""];
   return s.overlay_showing ? ["over the game", "accent"] : ["on", ""];
 }
@@ -138,8 +140,9 @@ function drawCover(s) {
 // The bar: buttons only (the fight is in the list above).
 function drawBar(s) {
   const toggle = $("toggle");
-  toggle.setAttribute("aria-pressed", String(s.overlay_on));
-  toggle.title = s.overlay_on ? "Stop the overlay" : "Start the overlay over the game";
+  // Hidden by the hotkey, the button brings the widgets back (as if off).
+  toggle.setAttribute("aria-pressed", String(s.overlay_on && !s.hidden));
+  toggle.title = s.hidden ? "Show the overlay's widgets again" : s.overlay_on ? "Stop the overlay" : "Start the overlay over the game";
   // Arrange: on while the overlay is over the game; again to save and finish.
   const arrange = $("arrange");
   arrange.disabled = !s.overlay_showing && !s.arranging;
@@ -165,7 +168,7 @@ async function refresh() {
 }
 
 $("toggle").addEventListener("click", async () => {
-  await invoke("set_overlay", { on: !(state && state.overlay_on) }).catch(() => {});
+  await invoke("set_overlay", { on: !(state && state.overlay_on && !state.hidden) }).catch(() => {});
   refresh();
 });
 $("cover").addEventListener("click", ACTIONS.analysis);

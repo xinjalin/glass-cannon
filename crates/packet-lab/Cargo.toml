@@ -13,7 +13,7 @@ serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
 ureq = "2"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "webp", "jpeg"] }
 
 [lints]
 workspace = true

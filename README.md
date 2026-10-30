@@ -125,12 +125,16 @@ finishes. The widgets:
   whose mobs are in view, tracked or not, nearest first. Which mobs give which souls is from Aion
   DPS Meter's data; a few mobs aren't in it.
 
-A tap of **Right Alt** shows or hides the overlay from in game (as the launcher's play
-button). Both hotkeys can be changed (settings → keybinds: click one, then press the keys):
-a key with Ctrl, Shift, Alt or Win, an F key, or one modifier alone, which counts when
-tapped (holding it to click something in game doesn't). They're read from the keyboard, so
-the game and other apps can't take them first. If they still don't work in game while the
-game runs as administrator, run Glass Cannon as administrator too.
+**Alt+E** hides the overlay's widgets from in game, and brings them back. That's for now
+only: the overlay stays on (and the next start shows them again), the launcher says
+they're hidden and which keys bring them back, and its play button brings them back too.
+With the overlay off, Alt+E turns it on. Both hotkeys can be changed (settings → keybinds:
+click one, then press the keys): a key with Ctrl, Shift, Alt or Win, or an F key. They go
+through Windows' hotkeys (as Questlog's overlay does with its own Alt+E), so Windows gets
+them before the game does. They're only held while the game is up, and if another app
+already has the same keys, the keybinds say so and it's tried again every few seconds.
+One modifier alone (a tap of Right Alt, say) works too, read from the keyboard, but the
+game gets it as well: Alt shows its cursor.
 **Close with the game** (settings → tools) closes Glass Cannon a few seconds after the game
 closes.
 
@@ -141,7 +145,7 @@ contents about every 1.2 s while it's open, and that's how the meter knows.
 **Hide for game menus** (settings, off by default): the overlay also steps aside while a
 game menu (inventory, character, skills…) is open. Menus send the server nothing, so it
 goes by the mouse cursor: with the game's action controls the cursor is hidden while you
-play and shows in a menu (holding Alt to click something doesn't count). With the classic
+play and shows in a menu (the cursor Alt brings up, held or toggled, doesn't count). With the classic
 controls the cursor always shows, so leave it off there.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
@@ -243,15 +247,17 @@ analysis windows stay tinted enough to read).
 
 ### Pet map
 
-The launcher's map button opens the **pet map**: on each world and Abyss map (Verteron,
-Altgard, Eltnen, Morheim, and the three levels of Reshanta), a dot wherever a mob that
-gives pet souls spawns. Together they trace the map's zones. The list beside it has the
+The launcher's map button opens the **pet map**: each world and Abyss map (Verteron,
+Altgard, Eltnen, Morheim, and the three levels of Reshanta) with its zones and their names
+(Questlog's map pictures and zones), and a dot wherever a mob that gives pet souls spawns.
+Zoom in for the smaller zones' names. The list beside it has the
 pets on that map (**[still needed]** leaves out the ones you've maxed; search one by name);
 pick a pet, or click a dot, to light up its spawn points and see the areas it's found in
-and how far along it is. The pets you track show in green. On Verteron, Altgard and Lower
-Reshanta you show as a ring, once the meter knows where you are. Scroll to zoom, drag to
-move, double-click for the whole map. The spawn points are from Aion DPS Meter's data
-(MIT); a recording in Altgard puts the game's mobs on them, 2.4 m off at the median.
+and how far along it is. The pets you track show in green. You show as a ring on the map
+you're on, once the meter knows where you are. Scroll to zoom, drag to move, double-click
+for the whole map. The spawn points are from Aion DPS Meter's data (MIT); a recording in
+Altgard puts the game's mobs on them, 2.4 m off at the median. Only the map showing is
+kept in memory, drawn as Questlog draws its own: in levels of detail, a piece at a time.
 
 ### Names
 

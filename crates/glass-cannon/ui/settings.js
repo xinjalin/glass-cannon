@@ -369,8 +369,9 @@ function drawHotkeys() {
     const b = el("button", "opt");
     b.type = "button";
     b.setAttribute("aria-pressed", String(bindingAction === h.action));
-    b.title = `Click, then press new keys (default: ${prettyKeys(h.default)})`;
-    b.append(el("span", "key", h.what), el("span", "state", bindingAction === h.action ? "[press keys…]" : `[${prettyKeys(h.keys)}]`));
+    b.title = `Click, then press new keys (default: ${prettyKeys(h.default)}) · now: ${h.state}`;
+    if (h.state.startsWith("taken")) b.classList.add("warn");
+    b.append(el("span", "key", h.what), el("span", "state", bindingAction === h.action ? "[press keys…]" : `[${prettyKeys(h.keys)}]${h.state.startsWith("taken") ? " taken" : ""}`));
     b.addEventListener("click", () => (bindingAction === h.action ? stopPicking() : startPicking(h.action)));
     return b;
   });

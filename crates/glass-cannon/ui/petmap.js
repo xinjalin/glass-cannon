@@ -1,7 +1,8 @@
-// The pet map: on each world and Abyss map, where the mobs that give each pet's souls
-// spawn (from Aion DPS Meter's data), as dots: together they trace the map's zones. Pick
-// a pet (in the list, or by clicking a dot) to light up its spawns and see the areas it's
-// found in; you show as a ring on the map you're on, once the meter knows where you are.
+// The pet map: each world and Abyss map's picture with its zones (from Questlog's map),
+// and where the mobs that give each pet's souls spawn (from Aion DPS Meter's data), as
+// dots. Pick a pet (in the list, or by clicking a dot) to light up its spawns and see the
+// areas it's found in; you show as a ring on the map you're on, once the meter knows
+// where you are.
 
 const ME_POLL_MS = 1000;
 const PETS_POLL_MS = 5000;
@@ -74,15 +75,136 @@ function petName(id) {
 
 // --- The map ---------------------------------------------------------------
 
+// The picture of the map showing, as Questlog draws its big ones: the image is decoded
+// once into levels (full size, half, quarter… down to 512 px), each cut into chunks of
+// 2048 px, and only the chunks in view are drawn, from the level nearest the zoom. Only
+// the map showing is kept; another map's picture is let go.
+const CHUNK_PX = 2048;
+const SMALLEST_LEVEL_PX = 512;
+let picture = null; // { key, levels: [{ width, chunks: [{ bitmap, u0, v0, u1, v1 }] }] }
+let pictureLoading = null;
+
+function dropPicture() {
+  if (picture) for (const l of picture.levels) for (const c of l.chunks) c.bitmap.close();
+  picture = null;
+}
+
+async function loadPicture(m) {
+  if (!m || !m.image || (picture && picture.key === m.key) || pictureLoading === m.key) return;
+  pictureLoading = m.key;
+  dropPicture();
+  draw();
+  try {
+    const url = await invoke("pet_map_image", { file: m.image.file });
+    if (!url || current() !== m) return;
+    // Through an image (the page may load data URLs as images, not fetch them).
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const full = await createImageBitmap(img);
+    const levels = [];
+    for (let k = 1; ; k *= 2) {
+      const w = Math.ceil(full.width / k);
+      const h = Math.ceil(full.height / k);
+      const chunks = [];
+      const step = CHUNK_PX * k;
+      for (let y = 0; y < full.height; y += step) {
+        for (let x = 0; x < full.width; x += step) {
+          const cw = Math.min(step, full.width - x);
+          const ch = Math.min(step, full.height - y);
+          const bitmap = await createImageBitmap(full, x, y, cw, ch, {
+            resizeWidth: Math.max(1, Math.round(cw / k)),
+            resizeHeight: Math.max(1, Math.round(ch / k)),
+            resizeQuality: "high",
+          });
+          chunks.push({ bitmap, u0: x / full.width, v0: y / full.height, u1: (x + cw) / full.width, v1: (y + ch) / full.height });
+        }
+      }
+      levels.push({ width: w, chunks });
+      if (Math.max(w, h) <= SMALLEST_LEVEL_PX) break;
+    }
+    full.close();
+    if (current() !== m) {
+      for (const l of levels) for (const c of l.chunks) c.bitmap.close();
+      return;
+    }
+    picture = { key: m.key, levels };
+    draw();
+  } catch {
+    // No picture: the dots and zones still show.
+  } finally {
+    if (pictureLoading === m.key) pictureLoading = null;
+  }
+}
+
+function drawPicture(m, w, h) {
+  if (!picture || picture.key !== m.key || !m.image) return;
+  const { x, y, w: mw, h: mh } = m.image;
+  const dpr = window.devicePixelRatio || 1;
+  // The level whose pixels are nearest the screen's.
+  const perScreenPx = picture.levels[0].width / mw / (view.scale * dpr);
+  const k = Math.min(Math.max(Math.floor(Math.log2(perScreenPx)), 0), picture.levels.length - 1);
+  ctx.globalAlpha = 0.9;
+  for (const c of picture.levels[k].chunks) {
+    const [x0, y0] = toPx(x + c.u0 * mw, y + c.v0 * mh);
+    const [x1, y1] = toPx(x + c.u1 * mw, y + c.v1 * mh);
+    if (x1 < 0 || y1 < 0 || x0 > w || y0 > h) continue;
+    ctx.drawImage(c.bitmap, Math.round(x0), Math.round(y0), Math.round(x1) - Math.round(x0), Math.round(y1) - Math.round(y0));
+  }
+  ctx.globalAlpha = 1;
+}
+
+// The zones: their borders, and (below) their names: the big ones always, the small ones
+// once zoomed in.
+const SMALL_NAMES_FROM = 0.12; // px per metre
+function drawZones(m, c) {
+  if (!m.zones) return;
+  ctx.lineJoin = "round";
+  for (const z of m.zones) {
+    ctx.strokeStyle = z.rank === 1 ? "rgba(60, 40, 20, 0.55)" : "rgba(60, 40, 20, 0.3)";
+    ctx.lineWidth = z.rank === 1 ? 1.4 : 1;
+    ctx.beginPath();
+    for (const poly of z.polygons) {
+      poly.forEach(([x, y], i) => {
+        const [px, py] = toPx(x, y);
+        if (i) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+      });
+      ctx.closePath();
+    }
+    ctx.stroke();
+  }
+}
+
+// Their names, over the dots.
+function drawZoneNames(m) {
+  if (!m.zones) return;
+  const fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 13;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const z of m.zones) {
+    if (!z.label || (z.rank !== 1 && view.scale < SMALL_NAMES_FROM)) continue;
+    const [px, py] = toPx(z.label[0], z.label[1]);
+    ctx.font = `${z.rank === 1 ? 600 : 400} ${Math.round(fs * (z.rank === 1 ? 0.95 : 0.8))}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(240, 228, 205, 0.85)";
+    ctx.strokeText(z.name, px, py);
+    ctx.fillStyle = "rgba(45, 30, 15, 0.95)";
+    ctx.fillText(z.name, px, py);
+  }
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+}
+
 function bounds(m) {
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (const pts of Object.values(m.pets)) {
-    for (const [x, y] of pts) {
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-      if (y < y0) y0 = y;
-      if (y > y1) y1 = y;
-    }
+  // The zones when there are some (the whole map), else the spawn points.
+  const all = m.zones && m.zones.length ? m.zones.flatMap((z) => z.polygons.flat()) : Object.values(m.pets).flat();
+  for (const [x, y] of all) {
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
   }
   return [x0, y0, x1, y1];
 }
@@ -120,6 +242,8 @@ function draw() {
   ctx.clearRect(0, 0, w, h);
   if (!m || !view) return;
   const c = colours();
+  drawPicture(m, w, h);
+  drawZones(m, c);
   const shown = shownPets();
   const dot = (x, y, r) => {
     const [px, py] = toPx(x, y);
@@ -127,36 +251,42 @@ function draw() {
     ctx.moveTo(px + r, py);
     ctx.arc(px, py, r, 0, Math.PI * 2);
   };
-  // Every other pet's spawns, faint, then the tracked ones, then the one picked on top.
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = c.muted;
-  ctx.beginPath();
-  for (const [id, pts] of shown) if (id !== selected && !(pets.get(id) || {}).tracked) for (const [x, y] of pts) dot(x, y, 1.6);
-  ctx.fill();
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = c.ok;
-  ctx.beginPath();
-  for (const [id, pts] of shown) if (id !== selected && (pets.get(id) || {}).tracked) for (const [x, y] of pts) dot(x, y, 2.2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  if (selected != null && m.pets[selected]) {
-    ctx.fillStyle = c.accent;
+  // Dots with a dark rim, to read on the map's parchment: every other pet's spawns, then
+  // the tracked ones, then the one picked on top.
+  const layer = (filter, r, fill, alpha) => {
     ctx.beginPath();
-    for (const [x, y] of m.pets[selected]) dot(x, y, 3.5);
+    for (const [id, pts] of shown) if (filter(id)) for (const [x, y] of pts) dot(x, y, r);
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(20, 14, 8, 0.8)";
+    ctx.stroke();
+    ctx.fillStyle = fill;
     ctx.fill();
-  }
+    ctx.globalAlpha = 1;
+  };
+  const tracked = (id) => (pets.get(id) || {}).tracked;
+  layer((id) => id !== selected && !tracked(id), 1.8, "rgba(235, 225, 205, 0.9)", 0.75);
+  layer((id) => id !== selected && tracked(id), 2.4, c.ok, 0.95);
+  layer((id) => id === selected, 3.8, c.accent, 1);
+  drawZoneNames(m);
   // You.
   if (onMap(m) && me.at) {
     const [px, py] = toPx(me.at[0], me.at[1]);
-    ctx.strokeStyle = c.text;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = me.exact ? 1 : 0.6;
+    ctx.globalAlpha = me.exact ? 1 : 0.65;
     ctx.beginPath();
     ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(20, 14, 8, 0.85)";
     ctx.stroke();
-    ctx.font = `${getComputedStyle(document.documentElement).fontSize} ${getComputedStyle(document.body).fontFamily}`;
-    ctx.fillStyle = c.text;
-    ctx.fillText(me.exact ? "you" : "you ≈", px + 9, py + 4);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.font = `600 ${getComputedStyle(document.documentElement).fontSize} ${getComputedStyle(document.body).fontFamily}`;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(20, 14, 8, 0.85)";
+    ctx.strokeText(me.exact ? "you" : "you ≈", px + 10, py + 4);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(me.exact ? "you" : "you ≈", px + 10, py + 4);
     ctx.globalAlpha = 1;
   }
 }
@@ -294,6 +424,7 @@ function drawTabs() {
       if (onMap(m)) b.title = "You're here";
       b.addEventListener("click", () => {
         mapIndex = i;
+        loadPicture(current());
         fitView();
         drawTabs();
         drawList();
@@ -317,6 +448,17 @@ $("needed").addEventListener("click", () => {
   drawList();
   draw();
 });
+
+// The window grows to what the list and the map need at the font size.
+function fitWindow() {
+  requestAnimationFrame(() => {
+    const fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 13;
+    const side = document.querySelector(".pet-side").offsetWidth;
+    invoke("fit_pet_map", { width: Math.ceil(side + 22 * fs), height: Math.ceil(26 * fs) }).catch(() => {});
+  });
+}
+fitWindow();
+tauri.event.listen("appearance", fitWindow);
 
 // --- Data ------------------------------------------------------------------
 
@@ -357,6 +499,7 @@ async function loadMe() {
   // Start on the map you're on, if it's one of these.
   const here = data.maps.findIndex(onMap);
   if (here >= 0) mapIndex = here;
+  loadPicture(current());
   fitView();
   drawTabs();
   drawList();

@@ -2,17 +2,15 @@
 //!
 //! - arrange the overlay's widgets (again to save and finish), as the launcher's arrange
 //!   button; only while the overlay is over the game. Ctrl+Shift+F10 unless changed.
-//! - show or hide the overlay, as the launcher's play button. Right Alt unless changed.
+//! - show or hide the overlay's widgets for now (not saved: the overlay itself stays on,
+//!   and turns on if it was off). Alt+E unless changed.
 //!
 //! Each is set in the settings (keybinds) as keys joined by "+": modifiers (Ctrl, Shift,
 //! Alt, Win) then a key named as the browser names it (`KeyboardEvent.code`: "F10", "KeyH",
 //! "Digit1"…), or one modifier key alone ("AltRight"), which counts when tapped: pressed
 //! and let go quickly with nothing else pressed meanwhile (holding Alt to click something
-//! in game isn't a tap).
-//!
-//! The keys are read from the keyboard's state a hundred times a second, on a thread of
-//! their own: unlike `RegisterHotKey`, nothing else (another app, the game) can take them
-//! first, and a lone modifier works.
+//! in game isn't a tap). A lone modifier is the game's too (Alt shows its cursor), so the
+//! default is a combination, as Questlog's overlay has.
 
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -26,7 +24,7 @@ use crate::{hud, lock, AppState};
 
 /// The actions: (id, what it does, its default keys).
 pub const ACTIONS: [(&str, &str, &str); 2] =
-    [("arrange", "arrange the overlay", "Ctrl+Shift+F10"), ("show_hide", "show or hide the overlay", "AltRight")];
+    [("arrange", "arrange the overlay", "Ctrl+Shift+F10"), ("show_hide", "show or hide the overlay", "Alt+KeyE")];
 
 /// The keys for each action, as set in the settings (missing or unreadable: the default).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -268,12 +266,92 @@ impl Watch {
     }
 }
 
+#[repr(C)]
+struct Msg {
+    hwnd: isize,
+    message: u32,
+    wparam: usize,
+    lparam: isize,
+    time: u32,
+    pt: [i32; 2],
+    private: u32,
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn RegisterHotKey(hwnd: isize, id: i32, modifiers: u32, vk: u32) -> i32;
+    fn UnregisterHotKey(hwnd: isize, id: i32) -> i32;
+    fn PeekMessageW(msg: *mut Msg, hwnd: isize, min: u32, max: u32, remove: u32) -> i32;
+}
+
+const WM_HOTKEY: u32 = 0x0312;
+const PM_REMOVE: u32 = 1;
+const MOD_ALT: u32 = 0x1;
+const MOD_CONTROL: u32 = 0x2;
+const MOD_SHIFT: u32 = 0x4;
+const MOD_WIN: u32 = 0x8;
+const MOD_NOREPEAT: u32 = 0x4000;
+/// A hotkey another app holds is tried again this often.
+const RETRY: Duration = Duration::from_secs(5);
+
+/// `RegisterHotKey`'s modifiers for ours.
+fn win_mods(mods: u8) -> u32 {
+    let mut m = MOD_NOREPEAT;
+    for (ours, theirs) in [(CTRL, MOD_CONTROL), (SHIFT, MOD_SHIFT), (ALT, MOD_ALT), (WIN, MOD_WIN)] {
+        if mods & ours != 0 {
+            m |= theirs;
+        }
+    }
+    m
+}
+
+/// Where each hotkey stands, for the settings.
+pub fn state_of(app: &AppState, action: &str) -> &'static str {
+    lock(&app.hotkey_states).get(action).copied().unwrap_or("waiting for the game")
+}
+
+/// Milliseconds since 1970, the clock the menu check shares with the Alt watch.
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
+/// What a hotkey does.
+fn act(handle: &AppHandle, app: &AppState, action: &str) {
+    match action {
+        "arrange" => {
+            let editing = app.hud_editing.load(Ordering::SeqCst);
+            if editing || app.hud_shown.load(Ordering::SeqCst) {
+                hud::hud_edit(handle.clone(), handle.state::<Arc<AppState>>(), !editing);
+            }
+        }
+        _ => hud::show_hide(handle, app),
+    }
+}
+
+/// Key combinations go through Windows' `RegisterHotKey` (as Questlog's overlay does
+/// with its Alt+E): Windows sees them before the game does, whatever the game does with
+/// its input. They're held only while the game is up (so they don't take the keys from
+/// other apps the rest of the time), and let go while new keys are being picked in the
+/// settings (so the settings see them). One that another app holds is tried again every
+/// few seconds. A lone modifier can't be registered: it's read from the keyboard's state
+/// instead, a hundred times a second.
 pub fn start(handle: AppHandle, app: Arc<AppState>) {
     let _ = thread::Builder::new().name("hotkeys".into()).spawn(move || {
         let mut watches: [Watch; 2] = Default::default();
         let mut paused_since: Option<Instant> = None;
+        // What each action has registered now (its keys), and when a refused one was tried.
+        let mut held: [Option<Keys>; 2] = [None; 2];
+        let mut refused: [Option<(Keys, Instant)>; 2] = [None; 2];
+        let mut alt_was = false;
+        let mut msg = Msg { hwnd: 0, message: 0, wparam: 0, lparam: 0, time: 0, pt: [0; 2], private: 0 };
         loop {
             thread::sleep(POLL);
+            // The game's cursor key: when it was last pressed, for the menu check.
+            let alt = down(VK_MENU);
+            if alt && !alt_was {
+                app.last_alt_ms.store(now_ms(), Ordering::SeqCst);
+            }
+            alt_was = alt;
             let bindings = lock(&app.settings).hotkeys.clone();
             // While a new key is being picked in the settings, nothing goes off (for a while
             // at most, should the settings close in the middle).
@@ -282,21 +360,46 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
             if paused_since.is_some_and(|t| t.elapsed() > PAUSED_AT_MOST) {
                 app.hotkeys_paused.store(false, Ordering::SeqCst);
             }
-            for (w, (action, _, _)) in watches.iter_mut().zip(ACTIONS) {
-                let Some(keys) = parse(bindings.get(action)) else { continue };
-                if !w.fired(keys, Instant::now(), &down) || paused {
-                    continue;
-                }
-                match action {
-                    "arrange" => {
-                        let editing = app.hud_editing.load(Ordering::SeqCst);
-                        if editing || app.hud_shown.load(Ordering::SeqCst) {
-                            hud::hud_edit(handle.clone(), handle.state::<Arc<AppState>>(), !editing);
+            let game = app.game_found.load(Ordering::SeqCst);
+            for (k, (action, _, _)) in ACTIONS.iter().enumerate() {
+                let keys = parse(bindings.get(action));
+                let id = k as i32 + 1;
+                let want = keys.filter(|k| !k.tap && game && !paused);
+                if held[k] != want {
+                    if held[k].take().is_some() {
+                        // SAFETY: our own thread's hotkey.
+                        unsafe { UnregisterHotKey(0, id) };
+                    }
+                    if let Some(w) = want {
+                        let retry_due = refused[k].is_none_or(|(r, at)| r != w || at.elapsed() >= RETRY);
+                        // SAFETY: a thread hotkey (no window); this thread's queue gets it.
+                        if retry_due && unsafe { RegisterHotKey(0, id, win_mods(w.mods), u32::from(w.vk)) } != 0 {
+                            held[k] = Some(w);
+                            refused[k] = None;
+                        } else if retry_due {
+                            refused[k] = Some((w, Instant::now()));
                         }
                     }
-                    _ => {
-                        let on = lock(&app.settings).overlay_on;
-                        hud::set_overlay(handle.clone(), handle.state::<Arc<AppState>>(), !on);
+                }
+                let state = match keys {
+                    Some(k) if k.tap => "read from the keyboard",
+                    Some(_) if held[k].is_some() => "ready",
+                    Some(_) if refused[k].is_some() => "taken by another app (trying again)",
+                    _ => "waiting for the game",
+                };
+                lock(&app.hotkey_states).insert(action, state);
+                // A lone modifier, tapped.
+                if let Some(t) = keys.filter(|k| k.tap) {
+                    if watches[k].fired(t, Instant::now(), &down) && !paused {
+                        act(&handle, &app, action);
+                    }
+                }
+            }
+            // SAFETY: a plain look at this thread's own message queue.
+            while unsafe { PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) } != 0 {
+                if msg.message == WM_HOTKEY && !paused {
+                    if let Some((action, _, _)) = ACTIONS.get(msg.wparam.wrapping_sub(1)) {
+                        act(&handle, &app, action);
                     }
                 }
             }
@@ -388,14 +491,14 @@ mod tests {
     #[test]
     fn bindings_default_and_refuse_clashes() {
         let mut b = Bindings::default();
-        assert_eq!(b.get("show_hide"), "AltRight");
+        assert_eq!(b.get("show_hide"), "Alt+KeyE");
         assert_eq!(b.get("arrange"), "Ctrl+Shift+F10");
         assert!(b.set("show_hide", "Ctrl+Shift+F10").is_err());
         assert!(b.set("show_hide", "KeyQ").is_err());
         b.set("show_hide", "Ctrl+Shift+F12").unwrap();
         assert_eq!(b.get("show_hide"), "Ctrl+Shift+F12");
         b.set("show_hide", "").unwrap();
-        assert_eq!(b.get("show_hide"), "AltRight");
+        assert_eq!(b.get("show_hide"), "Alt+KeyE");
         // A hand-edited file with keys that can't be used: the default.
         b.arrange = "nonsense".into();
         assert_eq!(b.get("arrange"), "Ctrl+Shift+F10");
