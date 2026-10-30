@@ -151,7 +151,6 @@ async function refresh() {
     setToggle("alert-sound", state.alert_sound);
     setToggle("hide-on-world-map", state.hide_on_world_map);
     setToggle("close-with-game", state.close_with_game);
-    setToggle("hide-for-menus", state.hide_for_menus);
     drawHotkeys();
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
@@ -336,11 +335,6 @@ $("arrange-overlay").addEventListener("click", async () => {
 
 $("hide-on-world-map").addEventListener("click", async () => {
   await invoke("set_hide_on_world_map", { on: !(state && state.hide_on_world_map) });
-  refresh();
-});
-
-$("hide-for-menus").addEventListener("click", async () => {
-  await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
   refresh();
 });
 

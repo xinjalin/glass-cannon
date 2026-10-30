@@ -133,9 +133,6 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut map_sent: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
-            // The game itself in front (not one of our windows), for the menu check.
-            let mut game_in_front = false;
-            let mut menus = crate::menus::MenuDetector::default();
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
                 let on = lock(&app.settings).overlay_on;
@@ -143,7 +140,6 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
-                    game_in_front = game.is_some_and(|g| g.front == crate::game_window::Front::Game);
                     show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
@@ -167,18 +163,14 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // The world map: the widgets step aside in place, and their plates with them.
                 // The window stays up, so they all come back at once (a window shown again
                 // redraws each widget in its own time).
-                // A game menu (settings → hide for game menus): as the map, from the cursor.
-                let menu_check = shown && !editing && game_in_front && app.args.replay.is_none() && lock(&app.settings).hide_for_menus;
-                let menu = menu_check && menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing());
                 // Hidden by the hotkey: as the map, until it's pressed again.
                 let hidden = app.hud_hidden.load(Ordering::SeqCst);
                 let world_map = on_world_map(&app);
-                let map = shown && !editing && (world_map || menu || hidden);
+                let map = shown && !editing && (world_map || hidden);
                 *lock(&app.step_aside) = match () {
                     _ if !map => "",
                     _ if hidden => "hotkey",
-                    _ if world_map => "map",
-                    _ => "menu",
+                    _ => "map",
                 };
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);

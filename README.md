@@ -144,15 +144,6 @@ events, boss skills you marked, the overlay's layout and the history stay.
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
 contents about every 1.2 s while it's open, and that's how the meter knows.
 
-**Hide for game menus** (settings, off by default): the overlay also steps aside while a
-game menu (inventory, character, skills…) is open. Menus send the server nothing, so it
-goes by the mouse cursor: with the game's action controls the cursor is hidden while you
-play and shows in a menu. Alt (the game's cursor key) shows it too, and from outside the
-game the two look the same, so the widgets step aside once the cursor has stayed for 2
-seconds: a quick Alt doesn't hide them, holding Alt longer does, and a menu hides them
-2 seconds after it opens. With the classic controls the cursor always shows, so leave it
-off there.
-
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
 background, Windows lightly blurs the game behind each widget.

@@ -64,7 +64,6 @@ pub struct SettingsStatus {
     hide_on_world_map: bool,
     hide_after_s: u32,
     close_with_game: bool,
-    hide_for_menus: bool,
     /// The global hotkeys.
     hotkeys: Vec<Hotkey>,
 }
@@ -154,7 +153,6 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         hide_on_world_map: s.hide_on_world_map,
         hide_after_s: s.hide_after_s,
         close_with_game: s.close_with_game,
-        hide_for_menus: s.hide_for_menus,
         hotkeys: crate::hotkeys::ACTIONS
             .iter()
             .map(|&(action, what, default)| Hotkey {

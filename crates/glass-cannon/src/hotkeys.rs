@@ -310,11 +310,6 @@ pub fn state_of(app: &AppState, action: &str) -> &'static str {
     lock(&app.hotkey_states).get(action).copied().unwrap_or("waiting for the game")
 }
 
-/// Milliseconds since 1970, for the menu check.
-pub fn now_ms() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
-}
-
 /// What a hotkey does.
 fn act(handle: &AppHandle, app: &AppState, action: &str) {
     match action {
