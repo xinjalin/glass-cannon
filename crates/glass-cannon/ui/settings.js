@@ -376,11 +376,6 @@ function drawHotkeys() {
     return b;
   });
   $("hotkeys").replaceChildren(...rows);
-  // What sees your keys in game: raw input, the keyboard hook, the keyboard state (some
-  // games keep their keys from it); and anywhere.
-  const k = state.keys_seen || {};
-  const off = (on, n) => (on ? `${n}` : "off");
-  $("keys-seen").textContent = `keys seen in game: raw input ${off(k.raw_on, k.raw || 0)} · hook ${off(k.hook_on, k.hook || 0)} · keyboard state ${k.state || 0} (anywhere: ${k.raw_any || 0} · ${k.hook_any || 0})`;
 }
 
 function startPicking(action) {

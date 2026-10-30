@@ -190,18 +190,10 @@ extern "system" {
     fn GetAsyncKeyState(vk: i32) -> i16;
 }
 
-/// Whether a key is held now: as raw input says, or the keyboard state (either can miss
-/// keys a game keeps to itself; see `rawkeys`).
-pub fn down(vk: u8) -> bool {
-    if crate::rawkeys::down(vk) {
-        return true;
-    }
+/// Whether a key is held now, from the keyboard.
+fn down(vk: u8) -> bool {
     // SAFETY: a plain query of the keyboard's state.
-    let state = unsafe { GetAsyncKeyState(i32::from(vk)) < 0 };
-    if state {
-        crate::rawkeys::note_state_key();
-    }
-    state
+    unsafe { GetAsyncKeyState(i32::from(vk)) < 0 }
 }
 
 /// The modifiers held now.
@@ -318,7 +310,7 @@ pub fn state_of(app: &AppState, action: &str) -> &'static str {
     lock(&app.hotkey_states).get(action).copied().unwrap_or("waiting for the game")
 }
 
-/// Milliseconds since 1970, the clock the menu check shares with the Alt watch.
+/// Milliseconds since 1970, for the menu check.
 pub fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
@@ -341,8 +333,8 @@ fn act(handle: &AppHandle, app: &AppState, action: &str) {
 /// its input. They're held only while the game is up (so they don't take the keys from
 /// other apps the rest of the time), and let go while new keys are being picked in the
 /// settings (so the settings see them). One that another app holds is tried again every
-/// few seconds. A lone modifier can't be registered: it's read from the keyboard instead
-/// (raw input and the keyboard state), a hundred times a second.
+/// few seconds. A lone modifier can't be registered: it's read from the keyboard's state
+/// instead, a hundred times a second.
 pub fn start(handle: AppHandle, app: Arc<AppState>) {
     let _ = thread::Builder::new().name("hotkeys".into()).spawn(move || {
         let mut watches: [Watch; 2] = Default::default();
@@ -350,17 +342,9 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
         // What each action has registered now (its keys), and when a refused one was tried.
         let mut held: [Option<Keys>; 2] = [None; 2];
         let mut refused: [Option<(Keys, Instant)>; 2] = [None; 2];
-        let mut alt_was = false;
         let mut msg = Msg { hwnd: 0, message: 0, wparam: 0, lparam: 0, time: 0, pt: [0; 2], private: 0 };
-        crate::rawkeys::start();
         loop {
             thread::sleep(POLL);
-            // The game's cursor key: when it was last pressed or let go, for the menu check.
-            let alt = down(VK_MENU);
-            if alt != alt_was {
-                app.last_alt_ms.store(now_ms(), Ordering::SeqCst);
-            }
-            alt_was = alt;
             let bindings = lock(&app.settings).hotkeys.clone();
             // While a new key is being picked in the settings, nothing goes off (for a while
             // at most, should the settings close in the middle).

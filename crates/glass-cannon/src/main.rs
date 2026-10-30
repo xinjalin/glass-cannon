@@ -39,7 +39,6 @@ mod hotkeys;
 mod hud;
 mod launcher;
 mod menus;
-mod rawkeys;
 mod layout;
 mod ping;
 mod placement;
@@ -155,8 +154,6 @@ pub struct AppState {
     hotkeys_paused: AtomicBool,
     /// Where each hotkey stands (registered, taken by another app…), for the settings.
     hotkey_states: Mutex<std::collections::BTreeMap<&'static str, &'static str>>,
-    /// When Alt (the game's cursor key) was last pressed, ms since 1970: the menu check.
-    last_alt_ms: std::sync::atomic::AtomicU64,
     /// The overlay's widgets are hidden for now by the hotkey (not saved).
     hud_hidden: AtomicBool,
     /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
@@ -837,7 +834,6 @@ fn main() {
         hud_editing: AtomicBool::new(false),
         hotkeys_paused: AtomicBool::new(false),
         hotkey_states: Mutex::new(std::collections::BTreeMap::new()),
-        last_alt_ms: std::sync::atomic::AtomicU64::new(0),
         hud_hidden: AtomicBool::new(false),
         step_aside: Mutex::new(""),
         game_found: AtomicBool::new(false),

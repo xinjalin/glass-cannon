@@ -144,7 +144,6 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
                     game_in_front = game.is_some_and(|g| g.front == crate::game_window::Front::Game);
-                    crate::rawkeys::set_game_front(game_in_front);
                     show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
@@ -169,20 +168,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // The window stays up, so they all come back at once (a window shown again
                 // redraws each widget in its own time).
                 // A game menu (settings → hide for game menus): as the map, from the cursor.
-                // Only once a key has been seen in game: until then Alt (the game's cursor)
-                // can't be told from a menu, and Alt must never hide the widgets.
-                let menu_check = shown
-                    && !editing
-                    && game_in_front
-                    && app.args.replay.is_none()
-                    && lock(&app.settings).hide_for_menus
-                    && crate::rawkeys::keys_seen_in_game();
-                let menu = menu_check && {
-                    let cursor = crate::menus::cursor_showing();
-                    let key = cursor && crate::menus::any_key_held();
-                    let alt = app.last_alt_ms.load(Ordering::SeqCst);
-                    menus.update(crate::hotkeys::now_ms(), cursor, key, (alt > 0).then_some(alt))
-                };
+                let menu_check = shown && !editing && game_in_front && app.args.replay.is_none() && lock(&app.settings).hide_for_menus;
+                let menu = menu_check && menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing());
                 // Hidden by the hotkey: as the map, until it's pressed again.
                 let hidden = app.hud_hidden.load(Ordering::SeqCst);
                 let world_map = on_world_map(&app);

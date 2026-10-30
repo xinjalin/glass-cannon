@@ -67,8 +67,6 @@ pub struct SettingsStatus {
     hide_for_menus: bool,
     /// The global hotkeys.
     hotkeys: Vec<Hotkey>,
-    /// Key presses seen in game, and anywhere, by each way of reading the keyboard.
-    keys_seen: crate::rawkeys::Counts,
 }
 
 /// A hotkey: what it does and the keys it uses ("Ctrl+Shift+F10", "AltRight").
@@ -167,7 +165,6 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
                 state: crate::hotkeys::state_of(&app, action),
             })
             .collect(),
-        keys_seen: crate::rawkeys::counts(),
     }
 }
 

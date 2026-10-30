@@ -147,12 +147,8 @@ contents about every 1.2 s while it's open, and that's how the meter knows.
 **Hide for game menus** (settings, off by default): the overlay also steps aside while a
 game menu (inventory, character, skills…) is open. Menus send the server nothing, so it
 goes by the mouse cursor: with the game's action controls the cursor is hidden while you
-play and shows in a menu (the cursor Alt brings up, held or toggled, doesn't count: keys
-are read three ways, Windows' raw input, a keyboard hook and the keyboard state, as a game
-may keep them from some; settings → keybinds counts the key presses each has seen in game,
-and until one has seen a key in game, menus aren't hidden at all). The launcher says when
-the widgets are hidden for a menu. With the classic
-controls the cursor always shows, so leave it off there.
+play and shows in a menu. Anything that shows the cursor counts, Alt (the game's cursor
+key) too. With the classic controls the cursor always shows, so leave it off there.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
