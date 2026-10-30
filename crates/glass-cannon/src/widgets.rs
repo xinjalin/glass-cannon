@@ -582,11 +582,8 @@ pub struct PetRow {
     need: Option<u32>,
     found_in: Vec<String>,
     tracked: bool,
-    /// Its mobs in view now, and the nearest one's distance and compass bearing while your
-    /// position is known.
+    /// Its mobs in view now.
     in_view: u32,
-    distance_m: Option<u32>,
-    bearing: Option<u16>,
 }
 
 #[derive(Serialize)]
@@ -595,39 +592,28 @@ pub struct PetTracker {
     synced: bool,
     character: Option<String>,
     nearest: bool,
-    /// Where you are: known exactly (you appeared or were hit), roughly (you hit a mob
-    /// there), or not known (None).
-    me_exact: Option<bool>,
     pets: Vec<PetRow>,
 }
 
 #[tauri::command]
 pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
-    let now = app.engine.now();
-    // Each pet's mobs in view: how many, and the nearest (metres, bearing).
-    let (state, mobs, me_exact) = {
+    // Each pet's mobs in view: how many.
+    let (state, mobs) = {
         let mut meter = app.engine.meter();
         let state = meter.pets().state();
         let positions = meter.positions();
-        let me = positions.me(now);
         // Mobs in view (the registry keeps those that left, to name past fights), wild ones
         // only: players' summons give no souls.
         let registry = meter.registry();
-        let mobs: Vec<(u32, Option<(u32, u16)>)> = registry
-            .mobs()
-            .filter(|(id, _)| registry.owner_of(*id).is_none())
-            .filter_map(|(id, kind)| positions.of(id).map(|at| (kind, me.map(|m| meter_core::positions::distance_and_bearing(m.pos, at)))))
-            .collect();
-        (state, mobs, me.map(|m| m.exact))
+        let mobs: Vec<u32> =
+            registry.mobs().filter(|(id, _)| registry.owner_of(*id).is_none() && positions.of(*id).is_some()).map(|(_, kind)| kind).collect();
+        (state, mobs)
     };
     let data = lock(&app.data);
-    let mut near: std::collections::HashMap<u32, (u32, Option<(u32, u16)>)> = std::collections::HashMap::new();
-    for (kind, at) in mobs {
-        let Some(pet) = data.pet_of_mob(kind) else { continue };
-        let e = near.entry(pet).or_insert((0, None));
-        e.0 += 1;
-        if at.is_some_and(|(d, _)| e.1.is_none_or(|(best, _)| d < best)) {
-            e.1 = at;
+    let mut near: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+    for kind in mobs {
+        if let Some(pet) = data.pet_of_mob(kind) {
+            *near.entry(pet).or_insert(0) += 1;
         }
     }
     let character = lock(&app.profile).name.clone();
@@ -639,7 +625,7 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
             let level = state.as_ref().map(|st| st.levels.get(&p.id).copied().unwrap_or(0));
             let souls = state.as_ref().map(|st| st.souls.get(&p.id).copied().unwrap_or(0));
             let need = level.and_then(|l| meter_core::pets::SOULS_PER_LEVEL.get(l as usize).copied());
-            let (in_view, at) = near.get(&p.id).copied().unwrap_or((0, None));
+            let in_view = near.get(&p.id).copied().unwrap_or(0);
             PetRow {
                 id: p.id,
                 name: p.name.to_string(),
@@ -650,12 +636,10 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
                 found_in: p.found_in.to_vec(),
                 tracked: tracked.contains(&p.id),
                 in_view,
-                distance_m: at.map(|(d, _)| d),
-                bearing: at.map(|(_, b)| b),
             }
         })
         .collect();
-    PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, me_exact, pets }
+    PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, pets }
 }
 
 /// The pet map window's data: where each pet's mobs spawn, per map (`pet-map.json`).

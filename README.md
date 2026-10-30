@@ -118,12 +118,10 @@ finishes. The widgets:
 
 - **pet tracker**: the pets you track (the pet map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every
-  area they're found in; a pet whose mobs are in view turns green with
-  how many, and how far and which way to the nearest, live as they move, once the meter
-  knows where you are (from when you log in, teleport, change zone or are hit; "≈" when
-  it's from a mob you hit, or a minute old). **[nearest]** shows every pet you still need
-  whose mobs are in view, tracked or not, nearest first. Which mobs give which souls is from Aion
-  DPS Meter's data; a few mobs aren't in it.
+  area they're found in; a pet whose mobs are in view turns green with how many.
+  **[nearest]** shows every pet you still need whose mobs are in view, tracked or not, the
+  most first. Which mobs give which souls is from Aion DPS Meter's data; a few mobs aren't
+  in it.
 
 **Alt+E** hides the overlay's widgets from in game, and brings them back. That's for now
 only: the overlay stays on (and the next start shows them again), the launcher says

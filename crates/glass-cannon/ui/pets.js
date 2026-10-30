@@ -1,12 +1,10 @@
 // The pet tracker: the pets you track (pet map → track; where each is found shows
-// there), with their level and souls toward the next one, and their mobs in view now: how
-// far and which way to the nearest, once the meter knows where you are (from when you log
-// in, teleport, change zone or are hit; "about" when it's from a mob you hit, or a minute
-// old). With [nearest], every pet you still need whose mobs are in view, nearest first.
+// there), with their level and souls toward the next one, and how many of their mobs are
+// in view now. With [nearest], every pet you still need whose mobs are in view, the most
+// first.
 
-// Mobs move in small steps about ten times a second: this keeps the arrow live. Rows are
-// updated in place, so a tooltip being read stays put.
-const POLL_MS = 150;
+// Rows are updated in place, so a tooltip being read stays put.
+const POLL_MS = 1000;
 let state = null;
 
 // Portraits, by pet (asked for once each).
@@ -41,27 +39,15 @@ function pips(level) {
 
 const needs = (p) => p.level == null || p.need != null;
 
-// Its mobs in view: how many, and how far and which way when known.
+// Its mobs in view: how many.
 function near(p) {
-  const box = el("span", "pet-near");
-  if (p.bearing != null) {
-    const arrow = el("span", "pet-arrow", "➤");
-    // The arrow points east at 0°; bearings turn clockwise from north.
-    arrow.style.transform = `rotate(${p.bearing - 90}deg)`;
-    const rough = state.me_exact === false;
-    box.append(arrow, el("span", "", ` ${rough ? "≈" : ""}${p.distance_m} m ×${p.in_view}`));
-    box.title =
-      `${p.in_view} of its mobs in view; the nearest ${p.distance_m} m away (the arrow: north is up)` +
-      (rough ? "\nAbout: from the last mob you hit, or where you were a while ago (being hit, or a teleport, makes it exact)" : "");
-  } else {
-    box.append(el("span", "", `×${p.in_view}`));
-    box.title = `${p.in_view} of its mobs in view (which way shows once the meter knows where you are: when you log in, teleport, change zone, are hit or hit a mob)`;
-  }
+  const box = el("span", "pet-near", `×${p.in_view}`);
+  box.title = `${p.in_view} of its mobs in view`;
   return box;
 }
 
-// What a row shows, apart from where its mobs are (that changes in place).
-const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view > 0, needs(p)].join("|");
+// What a row shows (a row is only redrawn when that changes).
+const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view, needs(p)].join("|");
 
 function row(p) {
   const li = el("li", "pet" + (p.in_view ? " here" : "") + (needs(p) ? "" : " done"));
@@ -82,9 +68,8 @@ function draw() {
   $("nearest").setAttribute("aria-pressed", String(nearest));
   $("pets-sync").textContent = state.synced ? "" : "· levels after login";
   const tracked = state.pets.filter((p) => p.tracked);
-  const dist = (p) => (p.distance_m != null ? p.distance_m : Infinity);
   const shown = nearest
-    ? state.pets.filter((p) => needs(p) && p.in_view).sort((a, b) => dist(a) - dist(b) || b.in_view - a.in_view || a.name.localeCompare(b.name))
+    ? state.pets.filter((p) => needs(p) && p.in_view).sort((a, b) => b.in_view - a.in_view || a.name.localeCompare(b.name))
     : tracked.sort((a, b) => needs(b) - needs(a) || (b.in_view > 0) - (a.in_view > 0) || a.name.localeCompare(b.name));
   const list = $("list");
   const old = new Map([...list.children].map((li) => [li.dataset.key, li]));
@@ -92,16 +77,6 @@ function draw() {
     const key = rowKey(p);
     const li = old.get(key) || row(p);
     li.dataset.key = key;
-    const was = li.querySelector(".pet-near");
-    if (p.in_view && was) {
-      const now = near(p);
-      if (now.textContent !== was.textContent || now.title !== was.title) {
-        was.replaceChildren(...now.childNodes);
-        was.title = now.title;
-      }
-      const arrow = was.querySelector(".pet-arrow");
-      if (arrow) arrow.style.transform = `rotate(${p.bearing - 90}deg)`;
-    }
     return li;
   });
   // Only re-order when the list changed (moving a row would drop its tooltip).

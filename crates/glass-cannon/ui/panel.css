@@ -186,7 +186,6 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .pip.on { background: var(--accent); border-color: var(--accent); }
 .pet-souls { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pet-near { color: var(--ok); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pet-arrow { display: inline-block; }
 .pet.here .pet-name { color: var(--ok); }
 /* Dummy runs: settings, label averages, a comparison of two runs. */
 .dummy-controls, .dummy-labels { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4em 0.8em; padding: 0.2em 0.3em 0.4em; }

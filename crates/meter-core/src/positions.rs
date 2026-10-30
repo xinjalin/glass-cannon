@@ -159,14 +159,6 @@ impl Positions {
     }
 }
 
-/// Metres on the ground and the compass bearing (degrees clockwise from north, which is
-/// -y) from `from` to `to`.
-pub fn distance_and_bearing(from: [f32; 3], to: [f32; 3]) -> (u32, u16) {
-    let (dx, dy) = (f64::from(to[0] - from[0]), f64::from(to[1] - from[1]));
-    let bearing = dx.atan2(-dy).to_degrees().rem_euclid(360.0);
-    ((dx.hypot(dy) / 100.0).round() as u32, bearing.round() as u16 % 360)
-}
-
 /// Three finite, world-sized floats.
 fn f32s(p: &[u8], i: usize) -> Option<[f32; 3]> {
     let f = |k: usize| p.get(k..k + 4).and_then(|b| b.try_into().ok()).map(f32::from_le_bytes);
@@ -233,11 +225,5 @@ mod tests {
         assert_eq!(ps.me(3 * S), Some(Me { pos: [1200.0, 500.0, 100.0], exact: true }));
         // A minute on: still the best there is, but rough.
         assert_eq!(ps.me(70 * S), Some(Me { pos: [1200.0, 500.0, 100.0], exact: false }));
-    }
-
-    #[test]
-    fn distance_and_compass_bearing() {
-        // 30 m east and 40 m north (north is -y): 50 m, bearing 37°.
-        assert_eq!(distance_and_bearing([0.0, 0.0, 0.0], [3000.0, -4000.0, 0.0]), (50, 37));
     }
 }
