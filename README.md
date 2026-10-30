@@ -133,9 +133,8 @@ looks.
   *mine* is only your damage, *all* everyone's nearby.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
-  gear score, and a ✓ for who's readied up in the party finder. The party shows by itself
-  when someone joins, leaves or readies up between fights, and a line under the meter
-  says who.
+  gear score, and a ✓ for who's readied up in the party finder. A line under the meter says
+  who joins, leaves or readies up.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live

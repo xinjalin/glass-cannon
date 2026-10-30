@@ -991,6 +991,11 @@ impl Meter {
     }
 
     /// The map you're on now, if the game has said.
+    /// The dungeon you're in's clock (its time limit, or the time after its last boss).
+    pub fn dungeon_clock(&self) -> Option<crate::dungeon::DungeonClock> {
+        self.maps.clock()
+    }
+
     pub fn instance(&self) -> Option<&Instance> {
         self.maps.current()
     }
@@ -1011,7 +1016,7 @@ impl Meter {
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         self.cubes.feed(ts_us, opcode, payload);
         self.pets.feed(opcode, payload);
-        self.positions.feed(ts_us, opcode, payload);
+        self.positions.feed(ts_us, opcode, payload, self.registry.self_id());
         if opcode == OPCODE_CAST {
             if let Some(c) = parse_cast(payload) {
                 // The cast went off, so its cast time is over.

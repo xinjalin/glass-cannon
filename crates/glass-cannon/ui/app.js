@@ -733,7 +733,7 @@ const meterView = () => (lastView && lastView.meter_view) || "damage";
 const rowView = () => (meterView() === "party" ? "damage" : meterView());
 
 function drawViewSwitch() {
-  const view = partyPeek && mode === "live" ? "party" : meterView();
+  const view = meterView();
   const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
   const b = $("view");
   b.textContent = VIEW_LABELS[view];
@@ -909,7 +909,7 @@ function redraw() {
   if (lastView) drawStatus(lastView);
 
   const party = (lastView && lastView.meter.party) || [];
-  if (live && (meterView() === "party" || partyPeek)) {
+  if (live && meterView() === "party") {
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
@@ -950,8 +950,6 @@ function redraw() {
 // isn't rebuilt.
 let lastKey = "";
 let drawnMode = "";
-// Showing the party for a while (after someone joins or leaves), whatever the view.
-let partyPeek = false;
 
 async function refresh() {
   if (editing) return;
@@ -968,13 +966,10 @@ async function refresh() {
     drawnMode = `${mode}/${fightIndex}`;
     lastView = view;
     if (same) return;
-    // A join or leave while you're not fighting shows the party until the next fight.
-    const party = view.meter.party || [];
-    const fighting = !!(view.meter.encounter && view.meter.encounter.active);
-    if (noticePartyChanges(party) && !fighting) partyPeek = true;
-    if (fighting) partyPeek = false;
-    // Before any fight, a party is more useful than "waiting for a fight".
-    if (!view.meter.encounter && party.length > 1) partyPeek = true;
+    // Joins, leaves and readies are said on the line under the meter; the rows stay as
+    // they are (switching to the party on its own was in the way when joining an
+    // expedition).
+    noticePartyChanges(view.meter.party || []);
     applyAppearance(lastView.appearance);
     fadeOutsideCombat(lastView);
     snapSizes();
@@ -1044,10 +1039,7 @@ $("history").addEventListener("click", () => invoke("open_history").catch(showEr
 
 // Damage → healing → taken → party.
 async function cycleView() {
-  // A peek at the party isn't a choice: the next click goes back to the rows.
-  const from = partyPeek ? "taken" : meterView();
-  partyPeek = false;
-  const next = VIEWS[(VIEWS.indexOf(from) + 1) % VIEWS.length];
+  const next = VIEWS[(VIEWS.indexOf(meterView()) + 1) % VIEWS.length];
   await invoke("set_meter_view", { view: next });
   if (lastView) lastView.meter_view = next;
   expanded.clear();

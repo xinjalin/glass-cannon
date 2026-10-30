@@ -391,6 +391,8 @@ pub struct ContentsView {
     pub tickets_ms: u64,
     pub abyss: Vec<ArtifactRow>,
     pub abyss_ms: u64,
+    /// The dungeon you're in: its time limit, or the time after its last boss.
+    pub dungeon: Option<meter_core::dungeon::DungeonClock>,
 }
 
 #[derive(Serialize)]
@@ -427,6 +429,7 @@ fn artifact_name(id: u32) -> &'static str {
 #[tauri::command]
 pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
     use meter_core::contents::{ASMODIANS, ELYOS, ODYLE_ENERGY};
+    let dungeon = app.engine.meter().dungeon_clock();
     let c = lock(&app.contents);
     let odyle = c.tickets.get(&ODYLE_ENERGY).map(|t| (t.count.unwrap_or(0), t.charged.unwrap_or(0)));
     let tickets = c
@@ -453,7 +456,7 @@ pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
             }
         })
         .collect();
-    ContentsView { odyle, tickets, tickets_ms: c.tickets_ms, abyss, abyss_ms: c.abyss_ms }
+    ContentsView { odyle, tickets, tickets_ms: c.tickets_ms, abyss, abyss_ms: c.abyss_ms, dungeon }
 }
 
 #[tauri::command]
@@ -576,6 +579,9 @@ pub struct PetTracker {
     synced: bool,
     character: Option<String>,
     nearest: bool,
+    /// Where you are: known exactly (you appeared or were hit), roughly (you hit a mob
+    /// there), or not known (None).
+    me_exact: Option<bool>,
     pets: Vec<PetRow>,
 }
 
@@ -583,7 +589,7 @@ pub struct PetTracker {
 pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
     let now = app.engine.now();
     // Each pet's mobs in view: how many, and the nearest (metres, bearing).
-    let (state, mobs) = {
+    let (state, mobs, me_exact) = {
         let mut meter = app.engine.meter();
         let state = meter.pets().state();
         let positions = meter.positions();
@@ -594,9 +600,9 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
         let mobs: Vec<(u32, Option<(u32, u16)>)> = registry
             .mobs()
             .filter(|(id, _)| registry.owner_of(*id).is_none())
-            .filter_map(|(id, kind)| positions.of(id).map(|at| (kind, me.map(|m| meter_core::positions::distance_and_bearing(m, at)))))
+            .filter_map(|(id, kind)| positions.of(id).map(|at| (kind, me.map(|m| meter_core::positions::distance_and_bearing(m.pos, at)))))
             .collect();
-        (state, mobs)
+        (state, mobs, me.map(|m| m.exact))
     };
     let data = lock(&app.data);
     let mut near: std::collections::HashMap<u32, (u32, Option<(u32, u16)>)> = std::collections::HashMap::new();
@@ -633,7 +639,7 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
             }
         })
         .collect();
-    PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, pets }
+    PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, me_exact, pets }
 }
 
 /// Tracks a pet for your character, or stops.

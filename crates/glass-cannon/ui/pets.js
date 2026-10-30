@@ -1,10 +1,12 @@
-// The pet tracker: the pets you track (settings → pet tracker), with their level and souls
-// toward the next one, where they're found, and their mobs in view now (how far and which
-// way while the meter knows where you are: for a minute after you log in, teleport or
-// change zone). With [nearest], every pet you still need whose mobs are in view, tracked
-// or not, nearest first.
+// The pet tracker: the pets you track (settings → pet tracker; where each is found shows
+// there), with their level and souls toward the next one, and their mobs in view now: how
+// far and which way while the meter knows where you are (for a minute after you log in,
+// teleport, change zone, are hit, or hit a mob, which is then "about" where you are). With
+// [nearest], every pet you still need whose mobs are in view, tracked or not, nearest first.
 
-const POLL_MS = 1000;
+// Mobs' positions come once a second (and in small steps between): twice a second keeps the
+// arrow as fresh as they are.
+const POLL_MS = 500;
 let state = null;
 
 // Portraits, by pet (asked for once each).
@@ -46,11 +48,14 @@ function near(p) {
     const arrow = el("span", "pet-arrow", "➤");
     // The arrow points east at 0°; bearings turn clockwise from north.
     arrow.style.transform = `rotate(${p.bearing - 90}deg)`;
-    box.append(arrow, el("span", "", ` ${p.distance_m} m ×${p.in_view}`));
-    box.title = `${p.in_view} of its mobs in view; the nearest ${p.distance_m} m away (the arrow: north is up)`;
+    const rough = state.me_exact === false;
+    box.append(arrow, el("span", "", ` ${rough ? "≈" : ""}${p.distance_m} m ×${p.in_view}`));
+    box.title =
+      `${p.in_view} of its mobs in view; the nearest ${p.distance_m} m away (the arrow: north is up)` +
+      (rough ? "\nAbout: from where the last mob you hit was" : "");
   } else {
     box.append(el("span", "", `×${p.in_view}`));
-    box.title = `${p.in_view} of its mobs in view (how far isn't known: the meter knows where you are for a minute after you log in, teleport or change zone)`;
+    box.title = `${p.in_view} of its mobs in view (how far isn't known: the meter knows where you are for a minute after you log in, teleport, change zone, are hit or hit a mob)`;
   }
   return box;
 }
@@ -64,9 +69,7 @@ function row(p) {
   progress.title = p.level == null ? "Your pets come when you log in or enter a dungeon" : p.need == null ? "Top level" : `Souls toward level ${p.level + 1}`;
   top.append(name, pips(p.level), progress);
   if (p.in_view) top.append(near(p));
-  // Where it's found, in full on a line of its own.
-  const where = el("div", "pet-where", p.found_in.length ? p.found_in.join(" · ") : "from an item, an event or a dungeon");
-  li.append(portrait(p), top, where);
+  li.append(portrait(p), top);
   return li;
 }
 

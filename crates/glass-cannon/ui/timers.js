@@ -121,8 +121,23 @@ function row(name, meta, when, cls, id, title) {
   return li;
 }
 
+// The dungeon you're in, by its clock: the countdown to its start, its time limit, the
+// time after its last boss, then the few seconds before you're sent out.
+const DUNGEON_PHASES = { 1: ["starts in", "The countdown before the dungeon starts"], 2: ["time left", "The dungeon's time limit"], 3: ["after the last boss", "Time left after its last boss, before you're sent out"], 4: ["closing", "You're about to be sent out"] };
+function drawDungeon(now) {
+  const box = $("dungeon");
+  box.replaceChildren();
+  const d = contents && contents.dungeon;
+  if (!d || d.end_ms <= now) return;
+  const [what, title] = DUNGEON_PHASES[d.phase] || ["time left", "The dungeon's clock"];
+  const left = (d.end_ms - now) / 1000;
+  const li = plainRow("This dungeon", what, clock(left), left < 300 ? "soon" : "on", title);
+  box.append(li);
+}
+
 function draw() {
   const now = Date.now();
+  drawDungeon(now);
   const list = $("list");
   list.replaceChildren();
   const events = upcoming(region, now, Infinity).filter((x) => shown(x.id));
