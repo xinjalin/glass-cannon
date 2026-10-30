@@ -127,6 +127,9 @@ pub struct Settings {
     /// Close the app a few seconds after the game closes.
     #[serde(default)]
     pub close_with_game: bool,
+    /// The overlay steps aside while a game menu is open (from the cursor: action controls).
+    #[serde(default)]
+    pub hide_for_menus: bool,
     /// The hotkeys' keys (settings → keybinds).
     #[serde(default)]
     pub hotkeys: crate::hotkeys::Bindings,

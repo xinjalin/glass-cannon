@@ -26,7 +26,7 @@ pub struct LauncherState {
     arranging: bool,
     /// The overlay is stepping aside for the world map.
     world_map: bool,
-    /// Why the widgets are stepping aside now: "", "map" or "hotkey".
+    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
     step_aside: &'static str,
     /// Its widgets are hidden by the hotkey, and the hotkey's keys.
     hidden: bool,

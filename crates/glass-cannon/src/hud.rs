@@ -133,6 +133,9 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut map_sent: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
+            // The game itself in front (not one of our windows), for the menu check.
+            let mut game_in_front = false;
+            let mut menus = crate::menus::MenuDetector::default();
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
                 let on = lock(&app.settings).overlay_on;
@@ -140,6 +143,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
+                    game_in_front = game.is_some_and(|g| g.front == crate::game_window::Front::Game);
                     show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
@@ -163,14 +167,34 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // The world map: the widgets step aside in place, and their plates with them.
                 // The window stays up, so they all come back at once (a window shown again
                 // redraws each widget in its own time).
+                // A game menu (settings → hide for game menus): as the map, from the cursor
+                // coming up with most of the game's picture changing (see `menus`).
+                let menu_check = shown && !editing && game_in_front && app.args.replay.is_none() && lock(&app.settings).hide_for_menus;
+                let menu = match placed.filter(|_| menu_check) {
+                    Some(area) => {
+                        let widgets = lock(&app.hud_rects).clone();
+                        let mut read = || read_game_points(area, &widgets);
+                        let (open, decided) = menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing(), &mut read);
+                        if let Some(share) = decided {
+                            let mut checks = lock(&app.menu_checks);
+                            checks.push_back((share * 100.0).round() as u8);
+                            while checks.len() > 6 {
+                                checks.pop_front();
+                            }
+                        }
+                        open
+                    }
+                    None => false,
+                };
                 // Hidden by the hotkey: as the map, until it's pressed again.
                 let hidden = app.hud_hidden.load(Ordering::SeqCst);
                 let world_map = on_world_map(&app);
-                let map = shown && !editing && (world_map || hidden);
+                let map = shown && !editing && (world_map || menu || hidden);
                 *lock(&app.step_aside) = match () {
                     _ if !map => "",
                     _ if hidden => "hotkey",
-                    _ => "map",
+                    _ if world_map => "map",
+                    _ => "menu",
                 };
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);
@@ -292,6 +316,29 @@ fn below<R: Runtime>(plate: &WebviewWindow<R>, hud: &WebviewWindow<R>) {
         // SAFETY: both are our own windows' handles.
         unsafe { SetWindowPos(p.0 as isize, h.0 as isize, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE) };
     }
+}
+
+/// The menu check's points of the game's picture (`menus::read_points`): inside the game,
+/// a little in from its edges, leaving out any point on or near one of our widgets (they
+/// change on their own).
+fn read_game_points(area: Rect, widgets: &[HitRect]) -> crate::menus::Reading {
+    use crate::menus::{COLS, ROWS};
+    let (w, h) = (f64::from(area.width()), f64::from(area.height()));
+    let (inset_x, inset_y) = (w * 0.06, h * 0.06);
+    let (iw, ih) = (w - 2.0 * inset_x, h - 2.0 * inset_y);
+    let (cell_w, cell_h) = (iw / COLS as f64, ih / ROWS as f64);
+    const MARGIN: f64 = 24.0;
+    let near = |x: f64, y: f64| {
+        widgets
+            .iter()
+            .any(|r| x >= r.x - MARGIN && x <= r.x + r.width + MARGIN && y >= r.y - MARGIN && y <= r.y + r.height + MARGIN)
+    };
+    // Where Windows takes each point from: its cell's corner or middle, so both are kept clear.
+    let skip = |col: usize, row: usize| {
+        let (x0, y0) = (inset_x + col as f64 * cell_w, inset_y + row as f64 * cell_h);
+        near(x0, y0) || near(x0 + cell_w / 2.0, y0 + cell_h / 2.0)
+    };
+    crate::menus::read_points((area.left + inset_x as i32, area.top + inset_y as i32, iw as i32, ih as i32), &skip)
 }
 
 fn pointer_on_widget<R: Runtime>(handle: &AppHandle<R>, w: &tauri::WebviewWindow<R>, app: &AppState) -> bool {

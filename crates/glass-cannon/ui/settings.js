@@ -151,6 +151,15 @@ async function refresh() {
     setToggle("alert-sound", state.alert_sound);
     setToggle("hide-on-world-map", state.hide_on_world_map);
     setToggle("close-with-game", state.close_with_game);
+    setToggle("hide-for-menus", state.hide_for_menus);
+    // The last checks, on hover: how much of the picture changed as the cursor came up.
+    const menuBtn = $("hide-for-menus");
+    if (!menuBtn.dataset.text) menuBtn.dataset.text = menuBtn.title;
+    menuBtn.title =
+      menuBtn.dataset.text +
+      (state.menu_checks && state.menu_checks.length
+        ? `\n\nLast checks (a menu from ${state.menu_share}%): ${state.menu_checks.map((c) => `${c}%`).join(" · ")}`
+        : "");
     drawHotkeys();
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
@@ -335,6 +344,11 @@ $("arrange-overlay").addEventListener("click", async () => {
 
 $("hide-on-world-map").addEventListener("click", async () => {
   await invoke("set_hide_on_world_map", { on: !(state && state.hide_on_world_map) });
+  refresh();
+});
+
+$("hide-for-menus").addEventListener("click", async () => {
+  await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
   refresh();
 });
 

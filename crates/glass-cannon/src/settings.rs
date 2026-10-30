@@ -64,6 +64,10 @@ pub struct SettingsStatus {
     hide_on_world_map: bool,
     hide_after_s: u32,
     close_with_game: bool,
+    hide_for_menus: bool,
+    /// The menu check's last results (percent of points changed) and its bar.
+    menu_checks: Vec<u8>,
+    menu_share: u8,
     /// The global hotkeys.
     hotkeys: Vec<Hotkey>,
 }
@@ -153,6 +157,9 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         hide_on_world_map: s.hide_on_world_map,
         hide_after_s: s.hide_after_s,
         close_with_game: s.close_with_game,
+        hide_for_menus: s.hide_for_menus,
+        menu_checks: lock(&app.menu_checks).iter().copied().collect(),
+        menu_share: (crate::menus::MENU_SHARE * 100.0) as u8,
         hotkeys: crate::hotkeys::ACTIONS
             .iter()
             .map(|&(action, what, default)| Hotkey {

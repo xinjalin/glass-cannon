@@ -38,6 +38,7 @@ mod gamedata;
 mod hotkeys;
 mod hud;
 mod launcher;
+mod menus;
 mod layout;
 mod ping;
 mod placement;
@@ -155,8 +156,11 @@ pub struct AppState {
     hotkey_states: Mutex<std::collections::BTreeMap<&'static str, &'static str>>,
     /// The overlay's widgets are hidden for now by the hotkey (not saved).
     hud_hidden: AtomicBool,
-    /// Why the widgets are stepping aside now: "", "map" or "hotkey".
+    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
     step_aside: Mutex<&'static str>,
+    /// The menu check's last results: the share of points that changed as the cursor came
+    /// up, in percent (for the setting's tooltip).
+    menu_checks: Mutex<std::collections::VecDeque<u8>>,
     /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
     game_found: AtomicBool,
     hud_shown: AtomicBool,
@@ -835,6 +839,7 @@ fn main() {
         hotkey_states: Mutex::new(std::collections::BTreeMap::new()),
         hud_hidden: AtomicBool::new(false),
         step_aside: Mutex::new(""),
+        menu_checks: Mutex::new(std::collections::VecDeque::new()),
         game_found: AtomicBool::new(false),
         hud_shown: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),
@@ -920,6 +925,7 @@ fn main() {
             widgets::set_alert_sound,
             widgets::set_hide_on_world_map,
             widgets::set_close_with_game,
+            widgets::set_hide_for_menus,
             widgets::pet_map,
             widgets::pet_map_me,
             widgets::pet_map_image,
