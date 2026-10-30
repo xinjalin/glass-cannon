@@ -152,13 +152,13 @@ async function refresh() {
     setToggle("hide-on-world-map", state.hide_on_world_map);
     setToggle("close-with-game", state.close_with_game);
     setToggle("hide-for-menus", state.hide_for_menus);
-    // The last checks, on hover: how much of the picture changed as the cursor came up.
+    // The last checks, on hover: how X-like the top-right corner was with the cursor up.
     const menuBtn = $("hide-for-menus");
     if (!menuBtn.dataset.text) menuBtn.dataset.text = menuBtn.title;
     menuBtn.title =
       menuBtn.dataset.text +
       (state.menu_checks && state.menu_checks.length
-        ? `\n\nLast checks (a menu from ${state.menu_share}%): ${state.menu_checks.map((c) => `${c}%`).join(" · ")}`
+        ? `\n\nLast checks (a menu's X from ${state.menu_share}): ${state.menu_checks.join(" · ")}`
         : "");
     drawHotkeys();
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";

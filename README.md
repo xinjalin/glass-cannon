@@ -145,15 +145,16 @@ world map is open and comes back within about 1.5 s of closing it. The game asks
 contents about every 1.2 s while it's open, and that's how the meter knows.
 
 **Hide for game menus** (settings, off by default): the overlay also steps aside while a
-full-screen game menu is open. Menus send the server nothing and the game keeps its keys
-from other apps, and the cursor a menu brings up is the same as the one Alt does, so the
-cursor alone never hides the widgets. When it comes up, the meter reads 24 single points
-of the game's picture (its own widgets left out; one read of the points every half
-second while the cursor is hidden, to compare with) and steps aside only if most of them
-changed, as a menu covering the screen does. Those few brightness numbers are only
-compared and replaced by the next ones: no picture is made, saved or sent, and nothing is
-read while the setting is off or the game isn't in front. The setting's tooltip shows the
-last checks. With the classic controls the cursor always shows, so leave it off there.
+full-screen game menu is open. Menus send the server nothing, the game keeps its keys from
+other apps, and the cursor a menu brings up is the same as the one Alt does, so the
+cursor alone never hides the widgets. Every full-screen menu (the inventory, the main
+menu…) has a close X at the top right, on the corner's diagonal whatever the UI scale:
+while the cursor shows, the meter looks at a small square there (7% of the game's height
+a side) for that X, and steps aside only when it's there. The square is only looked at:
+it's never saved or sent, and nothing is read while the cursor is hidden, the setting is
+off or the game isn't in front. Keep widgets off that corner (one there hides the X). The
+setting's tooltip shows the last checks. With the classic controls the cursor always
+shows, so leave it off there.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
