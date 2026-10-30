@@ -239,6 +239,14 @@ pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Whether the overlay steps aside for game menus (from the cursor).
+#[tauri::command]
+pub fn set_hide_for_menus(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.hide_for_menus = on;
+    s.save(&app.config_dir);
+}
+
 /// Whether the app closes when the game does.
 #[tauri::command]
 pub fn set_close_with_game(app: State<'_, Arc<AppState>>, on: bool) {

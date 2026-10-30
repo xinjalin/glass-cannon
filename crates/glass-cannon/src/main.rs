@@ -38,6 +38,7 @@ mod gamedata;
 mod hotkeys;
 mod hud;
 mod launcher;
+mod menus;
 mod layout;
 mod ping;
 mod placement;
@@ -905,6 +906,7 @@ fn main() {
             widgets::set_alert_sound,
             widgets::set_hide_on_world_map,
             widgets::set_close_with_game,
+            widgets::set_hide_for_menus,
             widgets::self_bars,
             widgets::party_frames,
             widgets::party_gear,
