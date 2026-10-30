@@ -31,6 +31,7 @@ mod skill_details;
 mod dungeons;
 mod npc_names;
 mod pets;
+mod gear;
 mod pet_icons;
 mod pet_spawns;
 mod item_icons;
@@ -260,6 +261,17 @@ enum Cmd {
         #[arg(long)]
         commit: String,
     },
+    /// Build gamedata/gear.json (weapon, armour and accessory names, grades and item levels,
+    /// for the gear players wear) from a scraped item database
+    Gear {
+        /// The scrape's items: a JSON object by item ID
+        items: PathBuf,
+        #[arg(long, default_value = "gamedata/gear.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Download each pet's portrait (for the pet tracker) from NCSOFT's asset server into
     /// gamedata as pet_<id>.png, by the icon names in a scraped pet database
     PetIcons {
@@ -430,6 +442,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
+        Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {

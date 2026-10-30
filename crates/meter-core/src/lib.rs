@@ -15,6 +15,7 @@ pub mod dungeon;
 pub mod entities;
 pub mod fieldboss;
 pub mod game;
+pub mod gear;
 pub mod hp;
 pub mod join;
 pub mod decode;

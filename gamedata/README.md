@@ -14,6 +14,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `theostones.json` (Theostone grades, effects, cooldowns) | a scraped item database collected from public fan databases (the bundle names no sites) | none: used without a licence |
 | `dungeons.json` (each dungeon mob's dungeon and mode) | the same bundle's monsters and dungeons | none: used without a licence |
 | `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
+| `gear.json` (weapon, armour and accessory names, grades and item levels, for the gear players wear) | the same bundle's items | none: used without a licence |
 | `npc-names.json` (NPCs' names: quest givers, merchants and the like, which the mob lists don't have) | the same bundle's NPCs | none: used without a licence |
 | `pet-spawns.json` (which mob types give which pet's souls, and where each pet is found, for the pet tracker) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Client/assets/aion2/pets/`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `field-bosses.json` (world-map field boss IDs to map and mob type) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) (`field_boss_timer.rs`) | GPL-3.0 |
@@ -45,6 +46,7 @@ sources aren't named; they're here on the same terms and will be removed on requ
 - Pets: `packet-lab pets <pets.json> --scraped <date>` from the same kind of scrape.
 - NPC names: `packet-lab npc-names <npcs.json> --scraped <date>` from the same kind of
   scrape. They only name types the mob lists in `npcs.json` don't.
+- Gear: `packet-lab gear <items.json> --scraped <date>` from the same kind of scrape.
 - Pet portraits: `packet-lab pet-icons <pets.json>` from the same kind of scrape (its pets'
   icon names), downloaded from NCSOFT's asset server at 64 px.
 - Pet spawns: `packet-lab pet-spawns <pets.json> <regions.json> --commit <sha>` from Aion DPS

@@ -686,3 +686,31 @@ pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::Sel
 pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<meter_core::meter::PartyFrame> {
     app.engine.meter().party_frames()
 }
+
+/// A piece of a player's gear, named.
+#[derive(Serialize)]
+pub struct GearRow {
+    slot: u8,
+    enhance: u8,
+    item: u32,
+    #[serde(flatten)]
+    info: Option<crate::gamedata::GearEntry>,
+}
+
+/// Your party's members' gear, by name (those who've been in view; the party view's
+/// tooltips).
+#[tauri::command]
+pub fn party_gear(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<String, Vec<GearRow>> {
+    let meter = app.engine.meter();
+    let data = lock(&app.data);
+    meter
+        .registry()
+        .party()
+        .iter()
+        .filter_map(|m| {
+            let gear = meter.gear_of(&m.name)?;
+            let rows = gear.iter().map(|g| GearRow { slot: g.slot, enhance: g.enhance, item: g.item, info: data.gear(g.item).cloned() }).collect();
+            Some((m.name.clone(), rows))
+        })
+        .collect()
+}

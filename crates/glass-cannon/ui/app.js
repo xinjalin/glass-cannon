@@ -353,14 +353,40 @@ function toggleRow(id) {
 
 // The party as rows: slot, class, name, combat power as a bar against the strongest, and
 // gear score. Members' stats arrive a moment after they join; until then they show "–".
+// Party members' gear (those who've been in view), for the party rows' tooltips: asked
+// for every few seconds while the party shows.
+const GEAR_POLL_MS = 3000;
+const SLOTS = { 1: "weapon", 2: "helm", 3: "pauldrons", 4: "chest", 5: "legs", 6: "gloves", 7: "boots", 8: "cloak", 9: "necklace", 10: "earring", 11: "earring" };
+let partyGear = {};
+let partyGearAt = 0;
+function gearText(name) {
+  const g = partyGear[name];
+  if (!g || !g.length) return "gear: not seen yet (they need to have been in view)";
+  return g
+    .map((p) => `${(SLOTS[p.slot] || `slot ${p.slot}`).padEnd(10)}${p.enhance ? `+${p.enhance} ` : ""}${p.name || `item ${p.item}`}${p.level ? ` (iLv ${p.level})` : ""}`)
+    .join("\n");
+}
+function loadPartyGear() {
+  if (performance.now() - partyGearAt < GEAR_POLL_MS) return;
+  partyGearAt = performance.now();
+  invoke("party_gear")
+    .then((g) => {
+      const changed = JSON.stringify(g) !== JSON.stringify(partyGear);
+      partyGear = g;
+      if (changed) redraw();
+    })
+    .catch(() => {});
+}
+
 function drawParty(party) {
+  loadPartyGear();
   const list = $("rows");
   list.replaceChildren();
   rowCache.clear();
   const top = Math.max(1, ...party.map((m) => m.combat_power || 0));
   party.forEach((m, i) => {
     const row = el("li", "row party-row" + (m.is_self ? " self" : "") + (m.class_code ? ` c${m.class_code}` : ""));
-    row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ");
+    row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ") + "\n\n" + gearText(m.name);
     const line = el("div", "line");
     const meter = el("span", "meter");
     const lit = m.combat_power ? Math.max(1, Math.round((m.combat_power / top) * SEGMENTS)) : 0;
@@ -611,6 +637,24 @@ function drawTotals(enc) {
   target.title = [target.title, sum].filter(Boolean).join("\n");
   drawBossBar(enc);
   drawDummy();
+  drawPvp();
+}
+
+// World PvP: while a PvP session is going on (players outside your party, as in the
+// Abyss), its kills and deaths and the damage dealt and taken; the opponents on hover.
+function drawPvp() {
+  const p = mode === "live" && lastView ? lastView.pvp : null;
+  $("pvp-bar").hidden = !p;
+  if (!p) return;
+  $("pvp-kd").textContent = `PvP ${p.kills} / ${p.deaths}`;
+  $("pvp-dmg").textContent = `dealt ${fmt(p.dealt)} · taken ${fmt(p.taken)}`;
+  $("pvp-bar").title = [
+    "World PvP: kills / deaths, and damage with players outside your party (history → [pvp])",
+    ...p.opponents.slice(0, 6).map((o) => `${o.name}: dealt ${fmt(o.dealt)} · taken ${fmt(o.taken)}${o.deaths ? ` · ☠${o.deaths}` : ""}`),
+    p.last_killer ? `last killed by ${p.last_killer}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // Dummy mode (on a training dummy): the run's time against its length, and your pace
@@ -914,6 +958,7 @@ function redraw() {
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
     $("dummy-bar").hidden = true;
+    $("pvp-bar").hidden = true;
     drawParty(party);
     $("empty").hidden = party.length > 0;
     $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
@@ -925,6 +970,7 @@ function redraw() {
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
     $("dummy-bar").hidden = true;
+    $("pvp-bar").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;

@@ -141,7 +141,9 @@ glass, up to 50% a light blur, then a heavier frosted one that turns solid at 10
 
 - **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
   party: your party's fight while you're in a party or expedition, yours on your own.
-  *mine* is only your damage, *all* everyone's nearby.
+  *mine* is only your damage, *all* everyone's nearby. In the *party* view (also an
+  expedition you're waiting to start), hover a member for their gear, once they've been
+  in view: each slot's piece, its enhancement and item level.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
   gear score, and a ✓ for who's readied up in the party finder. A line under the meter says
@@ -191,6 +193,10 @@ you're in at the time keeps grouping its next fights as a run.
 fight on the meter's boss line, or the target frame while it shows (green while you're
 beating it), and as ★ tags on the fights in the history that set them. They're kept per
 character, count every kill you were in, and [clear] resets them.
+
+**World PvP**: while you fight players outside your party (as in the Abyss), a line under
+the target shows your kills and deaths and the damage dealt and taken; hover it for the
+opponents. The history's [pvp] tab keeps each session.
 
 **Dummy mode** (history → [dummy]; on by default): hit a Training Scarecrow and the meter
 counts your damage only and times a run (30 s to 5 min, 1 min by default) from your first

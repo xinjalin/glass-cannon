@@ -849,6 +849,8 @@ pub struct Meter {
     casting: HashMap<u64, (u32, u64, u32)>,
     /// Your MP: now, max (when sent), and the highest seen.
     self_mp: (Option<u32>, Option<u32>, u32),
+    /// Other players' gear, from their spawns.
+    gear: crate::gear::GearBook,
     /// Party members' HP and MP (`0x921b`), and when each was sent.
     party_vitals: HashMap<u64, (hp::Vitals, u64)>,
     /// Hidden cubes in view.
@@ -906,6 +908,7 @@ impl Meter {
             casting: HashMap::new(),
             self_mp: (None, None, 0),
             party_vitals: HashMap::new(),
+            gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
             pets: crate::pets::Pets::default(),
             positions: crate::positions::Positions::default(),
@@ -993,6 +996,11 @@ impl Meter {
         self.cubes.view(now_us)
     }
 
+    /// A player's gear, as last seen (they've been in view).
+    pub fn gear_of(&self, name: &str) -> Option<&[crate::gear::GearPiece]> {
+        self.gear.of(name)
+    }
+
     /// Where the mobs and players in view are, and you.
     pub fn positions(&self) -> &crate::positions::Positions {
         &self.positions
@@ -1063,6 +1071,7 @@ impl Meter {
         self.cubes.feed(ts_us, opcode, payload);
         self.pets.feed(opcode, payload);
         self.positions.feed(ts_us, opcode, payload, self.registry.self_id());
+        self.gear.feed(opcode, payload);
         if opcode == OPCODE_CAST {
             if let Some(c) = parse_cast(payload) {
                 // The cast went off, so its cast time is over.

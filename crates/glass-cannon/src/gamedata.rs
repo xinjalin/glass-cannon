@@ -34,6 +34,7 @@ const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
+const GEAR_FILE: &str = "gear.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
@@ -150,6 +151,22 @@ fn dummy_entry(e: &Entry) -> bool {
     e.dummy || e.name.contains("Training Scarecrow")
 }
 
+/// Equipment names, grades and item levels (optional).
+#[derive(Debug, Default, Deserialize)]
+struct GearFile {
+    #[serde(default)]
+    gear: BTreeMap<u32, GearEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+pub struct GearEntry {
+    pub name: String,
+    #[serde(default)]
+    pub grade: Option<String>,
+    #[serde(default)]
+    pub level: Option<u32>,
+}
+
 /// A pet in the data: its ID, name and genus.
 pub struct PetInfo<'a> {
     pub id: u32,
@@ -254,6 +271,7 @@ pub struct GameData {
     /// Pets' names (optional).
     pets: PetFile,
     pet_spawns: PetSpawnFile,
+    gear: GearFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -276,6 +294,7 @@ impl GameData {
             field_bosses: FieldBossFile::default(),
             pets: PetFile::default(),
             pet_spawns: PetSpawnFile::default(),
+            gear: GearFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -305,6 +324,7 @@ impl GameData {
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
+                    self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
                     let npc_names = read_json::<NpcNameFile>(&dir.join(NPC_NAMES_FILE)).unwrap_or_default();
@@ -578,6 +598,11 @@ impl GameData {
             genus: p.genus.as_deref(),
             found_in: self.pet_spawns.found_in.get(id).map_or(&[][..], |v| &v[..]),
         })
+    }
+
+    /// A piece of gear's name, grade and item level.
+    pub fn gear(&self, item: u32) -> Option<&GearEntry> {
+        self.gear.gear.get(&item)
     }
 
     /// The pet whose souls a mob type gives.

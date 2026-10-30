@@ -219,6 +219,8 @@ struct View {
     souls: Vec<meter_core::pets::SoulGain>,
     /// Dummy mode, while the fight shown is on a training dummy.
     dummy: Option<dummy::DummyLive>,
+    /// World PvP: the PvP session going on (fights with players outside your party).
+    pvp: Option<meter_core::pvp::PvpSession>,
 }
 
 /// A boss's next cast, as it came the last time you fought it.
@@ -319,7 +321,7 @@ fn boss_casts_to_show(
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, mut souls) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, souls) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -342,8 +344,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             lock(&app.pets).sync(&name, meter.pets());
         }
         let souls = meter.take_soul_gains();
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, souls)
+        let pvp_now = meter.pvp();
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, (souls, pvp_now))
     };
+    let (mut souls, pvp_now) = souls;
     lock(&app.field_bosses).update(field_bosses);
     lock(&app.contents).update(contents);
     if !pvp.is_empty() {
@@ -458,6 +462,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         cubes,
         souls,
         dummy,
+        pvp: pvp_now,
     }
 }
 
@@ -902,6 +907,7 @@ fn main() {
             widgets::set_close_with_game,
             widgets::self_bars,
             widgets::party_frames,
+            widgets::party_gear,
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::set_timer_favourites_only,
