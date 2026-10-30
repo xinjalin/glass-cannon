@@ -142,7 +142,7 @@ events, boss skills you marked, the overlay's layout and the history stay.
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
 contents about every 1.2 s while it's open, and that's how the meter knows.
 
-**Hide for game menus** (settings, off by default): the overlay also steps aside while a
+**Hide for game menus** (settings, on by default): the overlay also steps aside while a
 full-screen game menu is open. Menus send the server nothing, the game keeps its keys from
 other apps, and the cursor a menu brings up is the same as the one Alt does, so the
 cursor alone never hides the widgets. Every full-screen menu (the inventory, the main
@@ -153,8 +153,8 @@ arrow, and steps aside only when one is there. Once seen, they stay aside until 
 goes (a pop-up over a menu dims its X past seeing; closing the menu hides the cursor). The square is only looked at:
 it's never saved or sent, and nothing is read while the cursor is hidden, the setting is
 off or the game isn't in front. Keep widgets off that corner (one there hides the X). The
-setting's tooltip shows the last checks. With the classic controls the cursor always
-shows, so leave it off there.
+setting's tooltip shows the last checks. With the classic controls, where the cursor
+always shows, the corner is simply looked at every half second.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**

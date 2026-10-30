@@ -14,7 +14,7 @@
 //! head and tail, dark all round). The square's pixels are kept only for that look: nothing
 //! is saved or sent (the app never goes online), and nothing is read while the cursor is
 //! hidden, the setting off or the game not in front. With the classic controls the cursor
-//! always shows, so leave the setting off there.
+//! always shows: the corner is then looked at every half second, and the mark decides.
 //!
 //! Measured on screenshots at two UI scales, of the inventory and the main menu: the X
 //! scores 163-201; 880 squares elsewhere on them (the world, text, icons) at most 129. The
