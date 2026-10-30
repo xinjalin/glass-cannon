@@ -290,11 +290,14 @@ window.addEventListener("message", (e) => {
 const PRE_WARN_S = 5;
 const TIMER_SPAN_S = 30;
 // A cast's name; most boss skills have none in any data we have (name one in the analysis
-// window's [boss] tab), so then the boss's name and how long it takes to cast.
-function castName(c) {
+// window's [boss] tab), so then the boss's name. With `long`, how long it takes to cast
+// too (the timers' bars; the warnings count it down instead).
+function castName(c, long = true) {
   if (c.skill_name) return c.skill_name;
+  const who = boss && boss.name ? boss.name : "the boss";
+  if (!long) return who;
   const what = c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s cast` : "a cast";
-  return boss && boss.name ? `${boss.name} · ${what}` : what;
+  return `${who} · ${what}`;
 }
 
 // A short two-note chime, once per warning (settings → alert sound).
@@ -335,7 +338,10 @@ function fitLine(el, width) {
   }
 }
 
+// A warning stays this long once it's over, dimmed, so it can be read to the end.
+const WARNING_HOLD_MS = 1500;
 let warnedFor = "";
+let lastShown = null;
 function drawWarnings(elapsed) {
   const box = $("warning");
   const live = boss && boss.cast;
@@ -343,17 +349,26 @@ function drawWarnings(elapsed) {
   if (live && boss.ahead.cast_danger) {
     const castLeft = live.cast_left_ms - elapsed;
     const landsLeft = live.lands_left_ms - elapsed;
-    if (castLeft > 0) show = { cls: "now", title: castName(live), time: (castLeft / 1000).toFixed(1), key: `cast:${live.skill}:${boss.castKey}` };
-    else if (landsLeft > 0) show = { cls: "now lands", title: castName(live), time: (landsLeft / 1000).toFixed(1), key: `cast:${live.skill}:${boss.castKey}` };
+    const key = `cast:${live.skill}:${boss.castKey}`;
+    if (castLeft > 0) show = { cls: "now", what: "casting", title: castName(live, false), time: `${(castLeft / 1000).toFixed(1)} s`, key };
+    else if (landsLeft > 0) show = { cls: "now lands", what: "lands · move", title: castName(live, false), time: `${(landsLeft / 1000).toFixed(1)} s`, key };
   }
   if (!show && boss) {
     const next = boss.ahead.upcoming.find((c) => c.danger);
     const left = next && next.in_s - elapsed / 1000;
-    if (next && left > 0 && left <= PRE_WARN_S) show = { cls: "soon", title: castName(next), time: `in ${Math.ceil(left)}`, key: "" };
+    if (next && left > 0 && left <= PRE_WARN_S) show = { cls: "soon", what: "coming", title: castName(next, false), time: `in ${Math.ceil(left)} s`, key: "" };
+  }
+  const now = performance.now();
+  if (show) {
+    lastShown = { ...show, at: now };
+  } else if (lastShown && now - lastShown.at < WARNING_HOLD_MS && lastShown.cls !== "soon") {
+    // Just over: the same card, dimmed, a moment longer.
+    show = { ...lastShown, cls: `${lastShown.cls} over`, time: lastShown.cls.includes("lands") ? "landed" : "now", key: "" };
   }
   box.hidden = !show;
   if (!show) return;
   box.className = show.cls;
+  $("warning-what").textContent = show.what;
   const nameEl = $("warning-name");
   if (nameEl.textContent !== show.title || nameEl.dataset.cls !== show.cls) {
     nameEl.textContent = show.title;

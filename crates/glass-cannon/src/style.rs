@@ -24,6 +24,7 @@ const NO_BORDER: u32 = 0xFFFF_FFFE;
 const WM_NCACTIVATE: u32 = 0x0086;
 const WCA_ACCENT_POLICY: u32 = 0x13;
 const ACCENT_DISABLED: u32 = 0;
+const ACCENT_ENABLE_BLURBEHIND: u32 = 3;
 const ACCENT_ENABLE_ACRYLICBLURBEHIND: u32 = 4;
 
 #[repr(C)]
@@ -76,6 +77,12 @@ unsafe extern "system" fn always_active(
 
 /// The undocumented accent API; looked up at runtime because user32.lib doesn't export it.
 fn set_accent(hwnd: isize, state: u32) {
+    // Acrylic needs a non-zero tint alpha to show; the page draws the real tint.
+    set_accent_tinted(hwnd, state, 0x0100_0000);
+}
+
+/// The accent API with its tint (0xAABBGGRR).
+fn set_accent_tinted(hwnd: isize, state: u32, gradient: u32) {
     // SAFETY: both names are NUL-terminated, and the function's signature is stable since
     // Windows 7. The policy outlives the call.
     unsafe {
@@ -85,8 +92,7 @@ fn set_accent(hwnd: isize, state: u32) {
             return;
         }
         let f: SetWindowCompositionAttribute = std::mem::transmute(f);
-        // Acrylic needs a non-zero tint alpha to show; the page draws the real tint.
-        let mut policy = AccentPolicy { state, flags: 0, gradient: 0x0100_0000, animation: 0 };
+        let mut policy = AccentPolicy { state, flags: 0, gradient, animation: 0 };
         let mut data = CompositionData {
             attribute: WCA_ACCENT_POLICY,
             data: &mut policy as *mut AccentPolicy as *mut c_void,
@@ -172,6 +178,43 @@ pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
     frame(window, true, DWMWCP_ROUNDSMALL, NO_BORDER);
 }
 
+/// The frost setting on a plate: 0 none (no plate at all, see [`frosted`]); up to
+/// [`ACRYLIC_FROM`] Windows' light blur; above, its acrylic, whose tint goes from clear to
+/// solid at 100. Through the accent API, whose blur kind and tint can be set (the newer
+/// system backdrop has neither); one dark tint, so the colour never changes.
+pub fn set_plate_frost<R: Runtime>(window: &WebviewWindow<R>, frost: u8) {
+    let Ok(hwnd) = window.hwnd() else { return };
+    let hwnd = hwnd.0 as isize;
+    let (state, gradient) = frost_accent(frost);
+    let _ = window.run_on_main_thread(move || {
+        // SAFETY: a DWM call on our own window with a 4-byte value.
+        unsafe {
+            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &DWMSBT_NONE, 4);
+        }
+        set_accent_tinted(hwnd, state, gradient);
+    });
+}
+
+/// Whether the frost setting wants plates at all.
+pub fn frosted(frost: u8) -> bool {
+    frost > 0
+}
+
+/// Where the light blur gives way to acrylic.
+pub const ACRYLIC_FROM: u8 = 51;
+/// The acrylic's tint colour (0xBBGGRR): the theme's dark.
+const FROST_TINT: u32 = 0x1c1816;
+
+/// (accent state, gradient 0xAABBGGRR) for a frost setting.
+fn frost_accent(frost: u8) -> (u32, u32) {
+    if frost < ACRYLIC_FROM {
+        return (ACCENT_ENABLE_BLURBEHIND, 0);
+    }
+    // 51 -> a hint of tint (acrylic needs some), 100 -> solid.
+    let alpha = 8 + (u32::from(frost - ACRYLIC_FROM) * (255 - 8)) / u32::from(100 - ACRYLIC_FROM);
+    (ACCENT_ENABLE_ACRYLICBLURBEHIND, alpha.min(255) << 24 | FROST_TINT)
+}
+
 /// The launcher keeps its own look whatever the theme: solid, small corners, a quiet
 /// border (its page has the colours).
 pub fn launcher<R: Runtime>(window: &WebviewWindow<R>) {
@@ -223,5 +266,13 @@ mod tests {
         assert_eq!(border_rgb("#f2a8a4"), 0xc98b88);
         assert_eq!(border_rgb("rose"), 0xc98a86);
         assert_eq!(border_rgb("night"), 0x2c2f37);
+    }
+
+    #[test]
+    fn frost_goes_from_light_blur_to_solid() {
+        assert!(!frosted(0));
+        assert_eq!(frost_accent(30), (ACCENT_ENABLE_BLURBEHIND, 0));
+        assert_eq!(frost_accent(51), (ACCENT_ENABLE_ACRYLICBLURBEHIND, 0x0800_0000 | FROST_TINT));
+        assert_eq!(frost_accent(100).1 >> 24, 255);
     }
 }

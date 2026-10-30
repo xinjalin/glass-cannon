@@ -581,7 +581,8 @@ function drawPetPick() {
       const name = el("span", "pp-name", p.name);
       const level = p.level == null ? "Lv ?" : p.need == null ? "max" : `Lv ${p.level} · ${p.souls}/${p.need}`;
       text.append(name, el("span", "pp-meta", [p.genus, level].filter(Boolean).join(" · ")));
-      if (p.found_in.length) text.title = `Found in:\n${p.found_in.join("\n")}`;
+      // Where it's found, on hover over the pet.
+      li.title = p.found_in.length ? `${p.name}, found in:\n${p.found_in.join("\n")}` : `${p.name}: from an item, an event or a dungeon`;
       const b = el("button", "", p.tracked ? "[tracked]" : "[track]");
       b.type = "button";
       b.setAttribute("aria-pressed", String(p.tracked));
@@ -598,14 +599,25 @@ function drawPetPick() {
     : `${pets.length} of ${petData.pets.length} pets · tracked ones show in the pet tracker widget`;
 }
 
+// The list follows your pets as the game sends them (at login, entering a dungeon, a soul):
+// asked for again every few seconds while the settings are open, and redrawn only when that
+// changed something.
+const PET_POLL_MS = 3000;
+let petKey = "";
 async function loadPets() {
   try {
     petData = await invoke("pet_tracker");
   } catch {
     return;
   }
+  const key = JSON.stringify([petData.character, petData.synced, petData.pets.map((p) => [p.id, p.level, p.souls, p.tracked])]);
+  if (key === petKey) return;
+  petKey = key;
   drawPetPick();
 }
+setInterval(() => {
+  if (!document.hidden) loadPets();
+}, PET_POLL_MS);
 
 $("pet-search").addEventListener("input", drawPetPick);
 $("pet-needed").addEventListener("click", () => {

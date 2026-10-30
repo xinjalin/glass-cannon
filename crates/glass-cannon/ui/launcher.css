@@ -149,11 +149,9 @@ svg .solid { fill: currentColor; stroke: none; }
 #rows .bad { color: var(--red); }
 #rows .accent { color: var(--accent); }
 
-/* ---------------------------------------------------------------- bottom: progress and controls */
+/* ---------------------------------------------------------------- bottom: the buttons */
 
-#bar { grid-column: 1 / -1; background: var(--bar); }
-#progress { height: 3px; background: var(--track); }
-#progress-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.6s ease; }
+#bar { grid-column: 1 / -1; background: var(--bar); border-top: 1px solid var(--track); }
 .controls {
   display: flex;
   align-items: center;
@@ -168,13 +166,7 @@ svg .solid { fill: currentColor; stroke: none; }
 #toggle .pause,
 #toggle[aria-pressed="true"] .play { display: none; }
 #toggle[aria-pressed="true"] .pause { display: block; }
-.now {
-  flex: 1;
-  min-width: 0;
-  margin-left: 8px;
-  font-weight: 700;
-  white-space: nowrap;
-}
+.spacer { flex: 1; align-self: stretch; }
 
 /* Text too long for its place slides to its end and back, like a player's title, rather
    than being cut off (launcher.js sets --shift and the class). */
@@ -187,5 +179,4 @@ svg .solid { fill: currentColor; stroke: none; }
   100% { transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) { .scroll.long > span { animation: none; } .scroll { text-overflow: ellipsis; } }
-.time { flex: none; margin-right: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dim { color: var(--dim); font-weight: 400; }

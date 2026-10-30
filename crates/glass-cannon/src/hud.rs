@@ -149,9 +149,14 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);
                 }
-                let frosted = lock(&app.settings).appearance.backdrop == "frosted";
-                let wanted: Vec<HitRect> = if shown && frosted && !map { lock(&app.hud_panels).clone() } else { Vec::new() };
-                plates.update(&handle, &w, &wanted);
+                let (frosted, frost) = {
+                    let a = &lock(&app.settings).appearance;
+                    (a.backdrop == "frosted", a.frost)
+                };
+                // No frost at all: clear glass, no blur to put behind the widgets.
+                let wanted: Vec<HitRect> =
+                    if shown && frosted && !map && crate::style::frosted(frost) { lock(&app.hud_panels).clone() } else { Vec::new() };
+                plates.update(&handle, &w, &wanted, frost);
                 if shown {
                     // The map takes every click while it's open.
                     let ignore = !editing && (map || !pointer_on_widget(&handle, &w, &app));
@@ -192,11 +197,13 @@ struct Plates<R: Runtime> {
     at: Vec<Option<(i32, i32, u32, u32)>>,
     /// Shown once already (from then on they're only moved).
     shown: Vec<bool>,
+    /// The frost setting each one was last given.
+    frost: Vec<Option<u8>>,
 }
 
 impl<R: Runtime> Default for Plates<R> {
     fn default() -> Self {
-        Self { windows: Vec::new(), at: Vec::new(), shown: Vec::new() }
+        Self { windows: Vec::new(), at: Vec::new(), shown: Vec::new(), frost: Vec::new() }
     }
 }
 
@@ -206,7 +213,8 @@ impl<R: Runtime> Default for Plates<R> {
 const PARKED: PhysicalPosition<i32> = PhysicalPosition { x: -20_000, y: -20_000 };
 
 impl<R: Runtime> Plates<R> {
-    fn update(&mut self, handle: &AppHandle<R>, hud: &WebviewWindow<R>, wanted: &[HitRect]) {
+    /// `frost`: the frost setting (the kind of blur and its tint).
+    fn update(&mut self, handle: &AppHandle<R>, hud: &WebviewWindow<R>, wanted: &[HitRect], frost: u8) {
         let origin = hud.inner_position().ok();
         while self.windows.len() < wanted.len() {
             let label = format!("plate-{}", self.windows.len());
@@ -227,8 +235,15 @@ impl<R: Runtime> Plates<R> {
             self.windows.push(w);
             self.at.push(None);
             self.shown.push(false);
+            self.frost.push(None);
         }
         for (i, w) in self.windows.iter().enumerate() {
+            if self.frost[i] != Some(frost) {
+                crate::style::set_plate_frost(w, frost);
+                self.frost[i] = Some(frost);
+                // A new kind of blur can bring the plate to the front: back under the HUD.
+                below(w, hud);
+            }
             let want = origin.and_then(|o| wanted.get(i).map(|r| (o.x + r.x as i32, o.y + r.y as i32, r.width as u32, r.height as u32)));
             if want == self.at[i] {
                 continue;

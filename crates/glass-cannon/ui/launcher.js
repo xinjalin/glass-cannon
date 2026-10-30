@@ -26,11 +26,6 @@ function fmt(n) {
   return Math.round(n).toLocaleString("en-US");
 }
 
-function clock(s) {
-  const t = Math.floor(s);
-  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
-}
-
 function el(tag, className, text) {
   const e = document.createElement(tag);
   if (className) e.className = className;
@@ -139,10 +134,8 @@ function drawCover(s) {
   $("cover-status").textContent = `v${s.version}`;
 }
 
+// The bar: buttons only (the fight is in the list above).
 function drawBar(s) {
-  const f = s.fight;
-  $("progress-fill").style.width = `${f && f.progress != null ? f.progress * 100 : 0}%`;
-  $("progress").title = f && f.progress != null ? `The boss's HP: ${Math.round(f.progress * 100)}% gone` : "";
   const toggle = $("toggle");
   toggle.setAttribute("aria-pressed", String(s.overlay_on));
   toggle.title = s.overlay_on ? "Stop the overlay" : "Start the overlay over the game";
@@ -155,15 +148,6 @@ function drawBar(s) {
     : s.overlay_showing
       ? "Arrange the overlay's widgets"
       : "Arrange the overlay's widgets (the game must be in front)";
-  // What's playing: the fight's target (the cover already says it's Glass Cannon).
-  const now = f ? (f.boss ? "★ " : "") + (f.target || "unknown target") : "";
-  if ($("now-text").textContent !== now) {
-    $("now-text").textContent = now;
-    fitScroll($("now"));
-  }
-  // Like a player's elapsed / length: the fight's time, and when the boss goes berserk.
-  $("clock").textContent = f ? clock(f.duration_s) : "--:--";
-  $("sub").textContent = f && f.enrage_s ? `/ ${clock(f.enrage_s)}` : "";
 }
 
 async function refresh() {
@@ -174,7 +158,8 @@ async function refresh() {
     drawCover(state);
     drawBar(state);
   } catch (e) {
-    $("now-text").textContent = `GLASS CANNON - ${e}`;
+    $("cover-status").textContent = "error";
+    $("cover-status").title = String(e);
   }
 }
 

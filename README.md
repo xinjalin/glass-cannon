@@ -63,9 +63,8 @@ colours whatever the theme:
 - **the list**: the status (capturing, waiting…) and the game's ping, whether the game is
   running, the overlay, how the fight is going or how it ended, your DPS and share, the
   party's, and the history;
-- **the bar**: the fight's target and time against the boss's enrage, the boss's HP as its
-  progress line, and buttons for the analysis, the overlay's start/stop, the history,
-  arranging the overlay (again to save and finish) and the settings;
+- **the bar**: buttons for the analysis, the overlay's start/stop, the history, arranging
+  the overlay (again to save and finish) and the settings;
 - **the lights** at the top right: minimise, keep on top, and close (which closes the
   app).
 
@@ -85,8 +84,9 @@ floating menu (drag it by its title) turns each widget on or off, resets the lay
 finishes. The widgets:
 
 - **meter**: the players, below.
-- **boss warnings**: a dangerous cast big in the middle of the screen, its time left, then
-  when it lands, with a chime; a heads-up 5 s before one is due. A cast is dangerous when
+- **boss warnings**: a dangerous cast in the middle of the screen, as a card like the other
+  alerts: casting, then landing (move), the skill's name, and its time left, with a chime;
+  a heads-up 5 s before one is due. Once over, it stays dimmed for 1.5 s. A cast is dangerous when
   it marks the ground or takes 2.5 s or more; in the analysis window's [boss] tab, click a
   skill's alert to make it always or never warn.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
@@ -123,8 +123,8 @@ contents about every 1.2 s while it's open, and that's how the meter knows.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
-background, Windows blurs the game behind each widget; **frost** sets how milky that glass
-looks.
+background, Windows blurs the game behind each widget; **frost** sets how much: 0% is clear
+glass, up to 50% a light blur, then a heavier frosted one that turns solid at 100%.
 
 ### The meter
 

@@ -18,10 +18,12 @@
       <iframe src="index.html" title="Meter"></iframe>
     </section>
 
-    <!-- A boss's dangerous cast, big in the middle: its name and the time left, then how
-         long until it lands; a few seconds before one is due, a heads-up. -->
+    <!-- A boss's dangerous cast in the middle, as a card like the other alerts: what's
+         happening (casting, landing, coming), the skill's name, and the time left. A few
+         seconds before one is due, a heads-up; once over, it stays a moment, dimmed. -->
     <section class="widget passive" data-widget="boss-warnings" data-label="boss warnings" hidden>
       <div id="warning" hidden>
+        <div id="warning-what"></div>
         <div id="warning-name"></div>
         <div id="warning-time"></div>
       </div>

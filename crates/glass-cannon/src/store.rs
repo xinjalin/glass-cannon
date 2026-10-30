@@ -221,8 +221,8 @@ pub struct Appearance {
     /// "frosted": blurred glass; "tinted": see-through tint, no blur; "clear": nothing at all.
     #[serde(default = "default_backdrop")]
     pub backdrop: String,
-    /// How frosted the overlay's frosted glass looks, in percent: 50 as it was, less is
-    /// clearer (less tint over the blur), more is milkier. Windows' blur itself is fixed.
+    /// How frosted the overlay's frosted glass is, in percent: 0 clear glass (no blur), up
+    /// to 50 Windows' light blur, then its acrylic with a tint thickening to solid at 100.
     #[serde(default = "default_frost")]
     pub frost: u8,
     /// A thin strip at the top with the local time.
