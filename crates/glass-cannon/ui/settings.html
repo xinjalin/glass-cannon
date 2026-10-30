@@ -204,19 +204,11 @@
             <p class="hint" id="record-hint">save packets to the captures folder</p>
           </fieldset>
 
-          <fieldset class="box">
-            <legend>pet tracker</legend>
-            <div class="pet-pick-row">
-              <input id="pet-search" class="menu-filter" type="search" placeholder="search a pet or an area" autocomplete="off" spellcheck="false">
-              <button id="pet-needed" type="button" aria-pressed="true" title="Only the pets you still need">[still needed]</button>
-            </div>
-            <ul id="pet-pick" class="pet-pick-list"></ul>
-            <p class="hint" id="pet-pick-hint">track the pets you're working on: they show in the pet tracker widget</p>
-          </fieldset>
 
           <fieldset class="box">
             <legend>keybinds</legend>
             <div id="hotkeys"></div>
+            <p class="hint" id="keys-seen" title="Key presses the meter has seen while the game was in front: all through Windows' raw input, and how many of them the keyboard state other apps read showed too. Some games keep their keys from the keyboard state"></p>
             <p class="hint" id="hotkeys-hint">work while the game is up · click one, then press the keys: with Ctrl, Shift, Alt or Win, or an F key (one modifier alone, tapped, also works, but the game gets it too: Alt shows its cursor)</p>
           </fieldset>
 
@@ -230,6 +222,9 @@
             </button>
             <button id="reset" type="button" class="opt" title="Theme, font, colours and background back to the defaults (the overlay's layout resets while arranging it)">
               <span class="key">reset appearance</span><span class="state">[ reset ]</span>
+            </button>
+            <button id="reset-all" type="button" class="opt" title="Every setting and keybind back to the defaults, the appearance too. Kept: the pets you track, starred and alerted events, boss skills you marked, the dummy label, and whether the overlay is on. The overlay's layout and the history stay">
+              <span class="key">reset settings &amp; keybinds</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
 

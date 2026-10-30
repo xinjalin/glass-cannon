@@ -190,10 +190,11 @@ extern "system" {
     fn GetAsyncKeyState(vk: i32) -> i16;
 }
 
-/// Whether a key is held now, from the keyboard.
-fn down(vk: u8) -> bool {
+/// Whether a key is held now: as raw input says, or the keyboard state (either can miss
+/// keys a game keeps to itself; see `rawkeys`).
+pub fn down(vk: u8) -> bool {
     // SAFETY: a plain query of the keyboard's state.
-    unsafe { GetAsyncKeyState(i32::from(vk)) < 0 }
+    crate::rawkeys::down(vk) || unsafe { GetAsyncKeyState(i32::from(vk)) < 0 }
 }
 
 /// The modifiers held now.
@@ -282,6 +283,7 @@ extern "system" {
     fn RegisterHotKey(hwnd: isize, id: i32, modifiers: u32, vk: u32) -> i32;
     fn UnregisterHotKey(hwnd: isize, id: i32) -> i32;
     fn PeekMessageW(msg: *mut Msg, hwnd: isize, min: u32, max: u32, remove: u32) -> i32;
+    fn DispatchMessageW(msg: *const Msg) -> isize;
 }
 
 const WM_HOTKEY: u32 = 0x0312;
@@ -333,8 +335,8 @@ fn act(handle: &AppHandle, app: &AppState, action: &str) {
 /// its input. They're held only while the game is up (so they don't take the keys from
 /// other apps the rest of the time), and let go while new keys are being picked in the
 /// settings (so the settings see them). One that another app holds is tried again every
-/// few seconds. A lone modifier can't be registered: it's read from the keyboard's state
-/// instead, a hundred times a second.
+/// few seconds. A lone modifier can't be registered: it's read from the keyboard instead
+/// (raw input and the keyboard state), a hundred times a second.
 pub fn start(handle: AppHandle, app: Arc<AppState>) {
     let _ = thread::Builder::new().name("hotkeys".into()).spawn(move || {
         let mut watches: [Watch; 2] = Default::default();
@@ -344,11 +346,12 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
         let mut refused: [Option<(Keys, Instant)>; 2] = [None; 2];
         let mut alt_was = false;
         let mut msg = Msg { hwnd: 0, message: 0, wparam: 0, lparam: 0, time: 0, pt: [0; 2], private: 0 };
+        crate::rawkeys::start();
         loop {
             thread::sleep(POLL);
-            // The game's cursor key: when it was last pressed, for the menu check.
+            // The game's cursor key: when it was last pressed or let go, for the menu check.
             let alt = down(VK_MENU);
-            if alt && !alt_was {
+            if alt != alt_was {
                 app.last_alt_ms.store(now_ms(), Ordering::SeqCst);
             }
             alt_was = alt;
@@ -395,12 +398,18 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
                     }
                 }
             }
+            // This thread's messages: the hotkeys, and raw input for its hidden window.
             // SAFETY: a plain look at this thread's own message queue.
             while unsafe { PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) } != 0 {
-                if msg.message == WM_HOTKEY && !paused {
-                    if let Some((action, _, _)) = ACTIONS.get(msg.wparam.wrapping_sub(1)) {
-                        act(&handle, &app, action);
+                if msg.message == WM_HOTKEY {
+                    if !paused {
+                        if let Some((action, _, _)) = ACTIONS.get(msg.wparam.wrapping_sub(1)) {
+                            act(&handle, &app, action);
+                        }
                     }
+                } else {
+                    // SAFETY: handing our own window its message.
+                    unsafe { DispatchMessageW(&msg) };
                 }
             }
         }

@@ -39,6 +39,7 @@ mod hotkeys;
 mod hud;
 mod launcher;
 mod menus;
+mod rawkeys;
 mod layout;
 mod ping;
 mod placement;
@@ -927,6 +928,7 @@ fn main() {
             widgets::pet_map_image,
             settings::open_pet_map,
             settings::fit_pet_map,
+            settings::reset_settings,
             settings::set_hotkey,
             settings::pause_hotkeys,
             widgets::self_bars,

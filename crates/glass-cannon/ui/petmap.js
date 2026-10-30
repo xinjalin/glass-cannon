@@ -1,7 +1,9 @@
 // The pet map: each world and Abyss map's picture with its zones (from Questlog's map),
 // and where the mobs that give each pet's souls spawn (from Aion DPS Meter's data), as
-// dots. Pick a pet (in the list, or by clicking a dot) to light up its spawns and see the
-// areas it's found in; you show as a ring on the map you're on, once the meter knows
+// dots in their genus' colour. Pick a pet (in the list, or by clicking a dot) to light up
+// its spawns and see the areas it's found in; [+] tracks it (the pet tracker widget shows
+// the ones you track). The list has this map's pets; a search looks through every pet,
+// by name, genus or area. You show as a ring on the map you're on, once the meter knows
 // where you are.
 
 const ME_POLL_MS = 1000;
@@ -54,6 +56,8 @@ function pips(level) {
   return box;
 }
 
+const matches = (p, q) => p && (p.name.toLowerCase().includes(q) || (p.genus || "").toLowerCase().includes(q) || p.found_in.some((a) => a.toLowerCase().includes(q)));
+
 // The pets on this map that the filters let through: [id, points].
 function shownPets() {
   const m = current();
@@ -64,9 +68,24 @@ function shownPets() {
     .filter(([id]) => {
       const p = pets.get(id);
       if (onlyNeeded && !needs(p) && id !== selected) return false;
-      return !q || (p && p.name.toLowerCase().includes(q));
+      return !q || matches(p, q);
     });
 }
+
+// The list's pets: this map's, or with a search, every pet that matches (those on this
+// map first): [id, points here].
+function listedPets() {
+  const q = search.trim().toLowerCase();
+  if (!q) return shownPets();
+  const m = current();
+  return [...pets.values()]
+    .filter((p) => matches(p, q) && (!onlyNeeded || needs(p) || p.id === selected))
+    .map((p) => [p.id, (m && m.pets[p.id]) || []]);
+}
+
+// The dots' colours, by genus (as Questlog's map has them).
+const GENUS = { Fera: "#e5484d", Natura: "#46a758", Cogni: "#3e8ee8", Varian: "#9b6ef3", Special: "#f5b62e" };
+const genusColour = (id) => GENUS[(pets.get(id) || {}).genus] || "#ebe1cd";
 
 function petName(id) {
   const p = pets.get(id);
@@ -182,10 +201,17 @@ function drawZoneNames(m) {
   const fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 13;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  for (const z of m.zones) {
+  // Big zones first; a name that would overlap one already drawn is left out.
+  const drawn = [];
+  const order = [...m.zones].sort((a, b) => a.rank - b.rank);
+  for (const z of order) {
     if (!z.label || (z.rank !== 1 && view.scale < SMALL_NAMES_FROM)) continue;
     const [px, py] = toPx(z.label[0], z.label[1]);
     ctx.font = `${z.rank === 1 ? 600 : 400} ${Math.round(fs * (z.rank === 1 ? 0.95 : 0.8))}px ${getComputedStyle(document.body).fontFamily}`;
+    const half = ctx.measureText(z.name).width / 2 + 3;
+    const box = [px - half, py - fs * 0.6, px + half, py + fs * 0.6];
+    if (drawn.some((d) => box[0] < d[2] && box[2] > d[0] && box[1] < d[3] && box[3] > d[1])) continue;
+    drawn.push(box);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(240, 228, 205, 0.85)";
     ctx.strokeText(z.name, px, py);
@@ -264,10 +290,19 @@ function draw() {
     ctx.fill();
     ctx.globalAlpha = 1;
   };
+  // By genus; a picked pet stands out (the others fade back).
   const tracked = (id) => (pets.get(id) || {}).tracked;
-  layer((id) => id !== selected && !tracked(id), 1.8, "rgba(235, 225, 205, 0.9)", 0.75);
-  layer((id) => id !== selected && tracked(id), 2.4, c.ok, 0.95);
-  layer((id) => id === selected, 3.8, c.accent, 1);
+  const faded = selected != null ? 0.45 : 0.85;
+  for (const g of [...Object.keys(GENUS), null]) {
+    const ofGenus = (id) => ((pets.get(id) || {}).genus in GENUS ? (pets.get(id) || {}).genus : null) === g;
+    const fill = g ? GENUS[g] : "#ebe1cd";
+    layer((id) => id !== selected && !tracked(id) && ofGenus(id), 1.9, fill, faded);
+    layer((id) => id !== selected && tracked(id) && ofGenus(id), 2.6, fill, Math.min(1, faded + 0.15));
+  }
+  if (selected != null) {
+    layer((id) => id === selected, 5, "#fff", 1);
+    layer((id) => id === selected, 3.6, genusColour(selected), 1);
+  }
   drawZoneNames(m);
   // You.
   if (onMap(m) && me.at) {
@@ -386,24 +421,50 @@ function select(id) {
   draw();
 }
 
+async function setTracked(id, on) {
+  try {
+    await invoke("set_pet_tracked", { id, on });
+  } catch (e) {
+    $("areas").hidden = false;
+    $("areas").textContent = String(e);
+    return;
+  }
+  await loadPets();
+}
+
 function drawList() {
   const m = current();
-  const rows = shownPets()
+  const rows = listedPets()
     .map(([id, pts]) => [id, pts, pets.get(id)])
     .sort(([a, , pa], [b, , pb]) => needs(pb) - needs(pa) || petName(a).localeCompare(petName(b)));
   $("pets").replaceChildren(
     ...rows.map(([id, pts, p]) => {
       const li = el("li", "map-pet" + (needs(p) ? "" : " done") + (p && p.tracked ? " tracked" : ""));
       li.setAttribute("aria-selected", String(id === selected));
+      // Track it (the pet tracker widget shows the ones you track).
+      const track = el("button", "map-track", p && p.tracked ? "✓" : "+");
+      track.type = "button";
+      track.setAttribute("aria-pressed", String(!!(p && p.tracked)));
+      track.title = p && p.tracked ? "Tracked (the pet tracker widget shows it) · click to stop" : "Track it in the pet tracker widget";
+      track.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setTracked(id, !(p && p.tracked));
+      });
       const line = el("span", "pet-line");
-      line.append(el("span", "pet-name", petName(id)), pips(p ? p.level : null));
-      li.append(portrait(id, p && p.name), line, el("span", "map-count", `×${pts.length}`));
-      li.title = `${petName(id)}${p && p.genus ? ` (${p.genus})` : ""}: ${pts.length} spawn points on this map` + (p && p.tracked ? " · tracked" : "");
+      const swatch = el("span", "genus-dot");
+      swatch.style.background = genusColour(id);
+      line.append(swatch, el("span", "pet-name", petName(id)), pips(p ? p.level : null));
+      li.append(track, portrait(id, p && p.name), line, el("span", "map-count", pts.length ? `×${pts.length}` : "elsewhere"));
+      li.title =
+        `${petName(id)}${p && p.genus ? ` (${p.genus})` : ""}: ` +
+        (pts.length ? `${pts.length} spawn points on this map` : "not on this map") +
+        (p && p.found_in.length ? `\nfound in ${p.found_in.join(", ")}` : "") +
+        (p && p.tracked ? "\ntracked" : "");
       li.addEventListener("click", () => select(id));
       return li;
     }),
   );
-  if (!rows.length) $("pets").append(el("li", "empty", m ? "no pets you still need here" : "no map data"));
+  if (!rows.length) $("pets").append(el("li", "empty", search.trim() ? "no pet matches" : m ? "no pets you still need here" : "no map data"));
   const areas = $("areas");
   const p = selected != null ? pets.get(selected) : null;
   areas.hidden = !p;

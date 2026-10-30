@@ -18,8 +18,8 @@ const MENU_AFTER_MS: u64 = 250;
 const MENU_KEPT_MS: u64 = 300;
 /// A key held longer than this is stuck, not a peek.
 const STUCK_KEY_MS: u64 = 20_000;
-/// The cursor coming up this soon after Alt is the game's cursor (Alt's doing).
-const ALT_CURSOR_MS: u64 = 600;
+/// The cursor coming up this soon after Alt is pressed or let go is the game's cursor.
+const ALT_CURSOR_MS: u64 = 1000;
 
 /// Decides from the cursor and the keys, a few times a second, whether a menu is open.
 #[derive(Debug, Default)]
@@ -88,15 +88,11 @@ pub fn cursor_showing() -> bool {
     ok && info.flags & CURSOR_SHOWING != 0 && info.cursor != 0
 }
 
-/// Some key (or mouse button) is held, the lock keys left out.
+/// Some key (or mouse button) is held, the lock keys left out (raw input or the keyboard
+/// state: see `rawkeys`).
 pub fn any_key_held() -> bool {
-    #[link(name = "user32")]
-    extern "system" {
-        fn GetAsyncKeyState(vk: i32) -> i16;
-    }
-    const LOCKS: [i32; 3] = [0x14, 0x90, 0x91];
-    // SAFETY: a plain query of the keyboard's state.
-    (1..=254).filter(|vk| !LOCKS.contains(vk)).any(|vk| unsafe { GetAsyncKeyState(vk) } < 0)
+    const LOCKS: [u8; 3] = [0x14, 0x90, 0x91];
+    (1..=254u8).filter(|vk| !LOCKS.contains(vk)).any(crate::hotkeys::down)
 }
 
 #[cfg(test)]

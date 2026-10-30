@@ -144,6 +144,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
                     game_in_front = game.is_some_and(|g| g.front == crate::game_window::Front::Game);
+                    crate::rawkeys::set_game_front(game_in_front);
                     show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {

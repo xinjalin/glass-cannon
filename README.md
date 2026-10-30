@@ -116,9 +116,9 @@ finishes. The widgets:
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
 
-- **pet tracker**: the pets you track (settings → pet tracker lists every pet with its
-  portrait: search one, or an area, and click [track]) with their level, souls toward the
-  next one and every area they're found in; a pet whose mobs are in view turns green with
+- **pet tracker**: the pets you track (the pet map's **[+]** beside each pet; search one
+  there by name, genus or area) with their level, souls toward the next one and every
+  area they're found in; a pet whose mobs are in view turns green with
   how many, and how far and which way to the nearest, live as they move, once the meter
   knows where you are (from when you log in, teleport, change zone or are hit; "≈" when
   it's from a mob you hit, or a minute old). **[nearest]** shows every pet you still need
@@ -136,7 +136,9 @@ already has the same keys, the keybinds say so and it's tried again every few se
 One modifier alone (a tap of Right Alt, say) works too, read from the keyboard, but the
 game gets it as well: Alt shows its cursor.
 **Close with the game** (settings → tools) closes Glass Cannon a few seconds after the game
-closes.
+closes. **Reset settings & keybinds** (settings → tools, click twice) puts every setting,
+keybind and the appearance back to the defaults; the pets you track, starred and alerted
+events, boss skills you marked, the overlay's layout and the history stay.
 
 **Hide on the world map** (settings, on by default): the overlay steps aside while the
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
@@ -145,7 +147,9 @@ contents about every 1.2 s while it's open, and that's how the meter knows.
 **Hide for game menus** (settings, off by default): the overlay also steps aside while a
 game menu (inventory, character, skills…) is open. Menus send the server nothing, so it
 goes by the mouse cursor: with the game's action controls the cursor is hidden while you
-play and shows in a menu (the cursor Alt brings up, held or toggled, doesn't count). With the classic
+play and shows in a menu (the cursor Alt brings up, held or toggled, doesn't count: keys
+are read through Windows' raw input, which sees them even where a game keeps them from
+other apps; settings → keybinds counts the key presses seen in game). With the classic
 controls the cursor always shows, so leave it off there.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
@@ -249,9 +253,12 @@ analysis windows stay tinted enough to read).
 
 The launcher's map button opens the **pet map**: each world and Abyss map (Verteron,
 Altgard, Eltnen, Morheim, and the three levels of Reshanta) with its zones and their names
-(Questlog's map pictures and zones), and a dot wherever a mob that gives pet souls spawns.
-Zoom in for the smaller zones' names. The list beside it has the
-pets on that map (**[still needed]** leaves out the ones you've maxed; search one by name);
+(Questlog's map pictures and zones), and a dot wherever a mob that gives pet souls spawns,
+in its genus' colour (Fera red, Natura green, Cogni blue, Varian purple, Special gold).
+Zoom in for the smaller zones' names. **[+]** beside a pet tracks it for the pet tracker
+widget. The list beside it has the
+pets on that map (**[still needed]** leaves out the ones you've maxed); a search looks
+through every pet, by name, genus or area;
 pick a pet, or click a dot, to light up its spawn points and see the areas it's found in
 and how far along it is. The pets you track show in green. You show as a ring on the map
 you're on, once the meter knows where you are. Scroll to zoom, drag to move, double-click

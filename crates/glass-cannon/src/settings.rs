@@ -67,6 +67,8 @@ pub struct SettingsStatus {
     hide_for_menus: bool,
     /// The global hotkeys.
     hotkeys: Vec<Hotkey>,
+    /// Key presses seen in game through raw input, and how many the keyboard state saw too.
+    keys_in_game: (u64, u64),
 }
 
 /// A hotkey: what it does and the keys it uses ("Ctrl+Shift+F10", "AltRight").
@@ -165,6 +167,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
                 state: crate::hotkeys::state_of(&app, action),
             })
             .collect(),
+        keys_in_game: crate::rawkeys::counts(),
     }
 }
 
@@ -214,6 +217,27 @@ pub fn reset_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>) -> App
     s.save(&app.config_dir);
     restyle_windows(&handle, &s.appearance);
     s.appearance.clone()
+}
+
+/// Every setting and keybind back to its default, the appearance too. Kept: what you've
+/// picked rather than set (the pets each character tracks, starred and alerted events,
+/// boss skills you marked, the dummy label), and whether the overlay and the launcher's
+/// keep-on-top are on. The overlay's layout and the history aren't settings.
+#[tauri::command]
+pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
+    let mut s = lock(&app.settings);
+    let old = std::mem::take(&mut *s);
+    s.tracked_pets = old.tracked_pets;
+    s.timer_favourites = old.timer_favourites;
+    s.alerts = old.alerts;
+    s.boss_skill_alerts = old.boss_skill_alerts;
+    s.dummy_label = old.dummy_label;
+    s.overlay_on = old.overlay_on;
+    s.launcher_on_top = old.launcher_on_top;
+    s.save(&app.config_dir);
+    restyle_windows(&handle, &s.appearance);
+    drop(s);
+    app.hud_hidden.store(false, Ordering::SeqCst);
 }
 
 /// Installed font families for the font picker.

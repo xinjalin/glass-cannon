@@ -1,4 +1,4 @@
-// The pet tracker: the pets you track (settings → pet tracker; where each is found shows
+// The pet tracker: the pets you track (pet map → track; where each is found shows
 // there), with their level and souls toward the next one, and their mobs in view now: how
 // far and which way to the nearest, once the meter knows where you are (from when you log
 // in, teleport, change zone or are hit; "about" when it's from a mob you hit, or a minute
@@ -113,7 +113,7 @@ function draw() {
     : !state.character
       ? "log in to a character to track its pets"
       : !tracked.length
-        ? "pick pets to track in settings → pet tracker, or [nearest] for the pets around you"
+        ? "pick pets to track in the pet map (launcher), or [nearest] for the pets around you"
         : "every pet you track is maxed ✓";
 }
 
