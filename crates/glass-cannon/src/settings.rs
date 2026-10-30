@@ -62,6 +62,9 @@ pub struct SettingsStatus {
     alert_sound: bool,
     hide_on_world_map: bool,
     hide_after_s: u32,
+    close_with_game: bool,
+    /// The global hotkeys: (keys, what they do).
+    hotkeys: &'static [(&'static str, &'static str)],
 }
 
 #[tauri::command]
@@ -137,6 +140,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         alert_sound: s.alert_sound,
         hide_on_world_map: s.hide_on_world_map,
         hide_after_s: s.hide_after_s,
+        close_with_game: s.close_with_game,
+        hotkeys: &crate::hotkeys::LIST,
     }
 }
 

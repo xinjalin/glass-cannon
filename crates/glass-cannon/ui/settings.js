@@ -156,6 +156,8 @@ async function refresh() {
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
     setToggle("hide-on-world-map", state.hide_on_world_map);
+    setToggle("close-with-game", state.close_with_game);
+    $("hotkeys").textContent = `hotkeys: ${state.hotkeys.map(([k, what]) => `${k} ${what}`).join(" · ")}`;
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
     for (const b of document.querySelectorAll("[data-widget]")) {
@@ -345,6 +347,11 @@ $("arrange-overlay").addEventListener("click", async () => {
 
 $("hide-on-world-map").addEventListener("click", async () => {
   await invoke("set_hide_on_world_map", { on: !(state && state.hide_on_world_map) });
+  refresh();
+});
+
+$("close-with-game").addEventListener("click", async () => {
+  await invoke("set_close_with_game", { on: !(state && state.close_with_game) });
   refresh();
 });
 

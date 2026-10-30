@@ -239,6 +239,14 @@ pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Whether the app closes when the game does.
+#[tauri::command]
+pub fn set_close_with_game(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.close_with_game = on;
+    s.save(&app.config_dir);
+}
+
 /// Whether the overlay steps aside while the world map is open.
 #[tauri::command]
 pub fn set_hide_on_world_map(app: State<'_, Arc<AppState>>, on: bool) {

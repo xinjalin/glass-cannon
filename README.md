@@ -76,7 +76,8 @@ One transparent layer over the game's picture holding the meter and the other wi
 your theme. It follows the game window, hides when you switch away, never takes the focus
 from the game, and lets the mouse through except over the meter and the world timers.
 
-**Arrange** (on the launcher, or in the settings) moves widgets and resizes them by their
+**Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
+moves widgets and resizes them by their
 corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Widgets
 that grow with what they show (the target frame, cooldowns, party cooldowns) are outlined
 at the most they'll take, so they can be placed clear of each other. Its
@@ -117,6 +118,10 @@ finishes. The widgets:
   whose mobs are in view, tracked or not, nearest first. Which mobs give which souls is from Aion
   DPS Meter's data; a few mobs aren't in it.
 
+**Ctrl+Shift+F12** shows or hides the overlay from in game (as the launcher's play button).
+**Close with the game** (settings → tools) closes Glass Cannon a few seconds after the game
+closes.
+
 **Hide on the world map** (settings, on by default): the overlay steps aside while the
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
 contents about every 1.2 s while it's open, and that's how the meter knows.
@@ -140,7 +145,7 @@ glass, up to 50% a light blur, then a heavier frosted one that turns solid at 10
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live
   boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
-  analysis, end the fight, history, and **≡** for the settings: theme (*night*, the
+  analysis, end the fight, arrange the overlay, history, and **≡** for the settings: theme (*night*, the
   default, or rose, lavender, mint, sky, amber, mono, or any colour), font, background,
   frost, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
   combat, recording and status checks.

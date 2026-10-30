@@ -124,6 +124,9 @@ pub struct Settings {
     /// The pet tracker lists every pet you still need, those in view first.
     #[serde(default)]
     pub pet_tracker_nearest: bool,
+    /// Close the app a few seconds after the game closes.
+    #[serde(default)]
+    pub close_with_game: bool,
 }
 
 fn default_dummy_run_s() -> u32 {

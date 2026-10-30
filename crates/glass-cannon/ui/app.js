@@ -1036,6 +1036,8 @@ $("analysis").addEventListener("click", () => openAnalysis(null));
 
 // The history has its own window.
 $("history").addEventListener("click", () => invoke("open_history").catch(showError));
+// Arrange the overlay (its menu there saves and finishes).
+$("arrange").addEventListener("click", () => invoke("hud_edit", { on: true }).catch(showError));
 
 // Damage → healing → taken → party.
 async function cycleView() {

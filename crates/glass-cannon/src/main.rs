@@ -35,6 +35,7 @@ mod dummy;
 mod fonts;
 mod game_window;
 mod gamedata;
+mod hotkeys;
 mod hud;
 mod launcher;
 mod layout;
@@ -898,6 +899,7 @@ fn main() {
             widgets::boss_skill_alerts,
             widgets::set_alert_sound,
             widgets::set_hide_on_world_map,
+            widgets::set_close_with_game,
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::set_timer_favourites_only,
@@ -922,6 +924,8 @@ fn main() {
                 let _ = h.set_focusable(false);
             }
             hud::watch(app.handle().clone(), Arc::clone(&state));
+            hotkeys::start(app.handle().clone(), Arc::clone(&state));
+            hotkeys::close_with_game(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
             save_placements(Arc::clone(&state));
             Ok(())
