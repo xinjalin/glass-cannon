@@ -148,9 +148,10 @@ contents about every 1.2 s while it's open, and that's how the meter knows.
 full-screen game menu is open. Menus send the server nothing, the game keeps its keys from
 other apps, and the cursor a menu brings up is the same as the one Alt does, so the
 cursor alone never hides the widgets. Every full-screen menu (the inventory, the main
-menu…) has a close X at the top right, on the corner's diagonal whatever the UI scale:
-while the cursor shows, the meter looks at a small square there (7% of the game's height
-a side) for that X, and steps aside only when it's there. The square is only looked at:
+menu…) has a close X at the top right, on the corner's diagonal whatever the UI scale (a
+few windows, like the Season Mission, a back arrow instead): while the cursor shows, the
+meter looks at a small square there (8.5% of the game's height a side) for that X or
+arrow, and steps aside only when one is there. The square is only looked at:
 it's never saved or sent, and nothing is read while the cursor is hidden, the setting is
 off or the game isn't in front. Keep widgets off that corner (one there hides the X). The
 setting's tooltip shows the last checks. With the classic controls the cursor always

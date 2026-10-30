@@ -65,9 +65,9 @@ pub struct SettingsStatus {
     hide_after_s: u32,
     close_with_game: bool,
     hide_for_menus: bool,
-    /// The menu check's last results (how X-like the corner was) and its bar.
-    menu_checks: Vec<u8>,
-    menu_share: u8,
+    /// The menu check's last results (how X-like and arrow-like the corner was) and their bars.
+    menu_checks: Vec<(u8, u8)>,
+    menu_share: (u8, u8),
     /// The global hotkeys.
     hotkeys: Vec<Hotkey>,
 }
@@ -159,7 +159,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         close_with_game: s.close_with_game,
         hide_for_menus: s.hide_for_menus,
         menu_checks: lock(&app.menu_checks).iter().copied().collect(),
-        menu_share: crate::menus::X_SCORE as u8,
+        menu_share: (crate::menus::X_SCORE as u8, crate::menus::ARROW_SCORE as u8),
         hotkeys: crate::hotkeys::ACTIONS
             .iter()
             .map(|&(action, what, default)| Hotkey {

@@ -168,20 +168,22 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // The window stays up, so they all come back at once (a window shown again
                 // redraws each widget in its own time).
                 // A game menu (settings → hide for game menus): as the map, from the cursor
-                // with a menu's close X at the top right (see `menus`).
+                // with a menu's close X, or a window's back arrow, at the top right (see `menus`).
                 let menu_check = shown && !editing && game_in_front && app.args.replay.is_none() && lock(&app.settings).hide_for_menus;
                 let menu = match placed.filter(|_| menu_check) {
                     Some(area) => {
                         let mut look = || {
                             let Some(corner) = crate::menus::read_corner((area.left, area.top, area.width(), area.height())) else { return false };
                             let height = f64::from(area.height());
-                            let (score, _) = corner.x_score(height);
+                            let byte = |v: f32| v.clamp(0.0, 255.0).round() as u8;
+                            let (x, _) = corner.x_score(height);
+                            let arrow = corner.arrow_score(height);
                             let mut checks = lock(&app.menu_checks);
-                            checks.push_back(score.clamp(0.0, 255.0).round() as u8);
+                            checks.push_back((byte(x), byte(arrow)));
                             while checks.len() > 6 {
                                 checks.pop_front();
                             }
-                            corner.has_close_x(height)
+                            corner.has_menu_mark(height)
                         };
                         menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing(), &mut look)
                     }

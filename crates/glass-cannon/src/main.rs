@@ -158,9 +158,9 @@ pub struct AppState {
     hud_hidden: AtomicBool,
     /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
     step_aside: Mutex<&'static str>,
-    /// The menu check's last results: how X-like the top-right corner was (for the
-    /// setting's tooltip).
-    menu_checks: Mutex<std::collections::VecDeque<u8>>,
+    /// The menu check's last results: how X-like and how arrow-like the top-right corner
+    /// was (for the setting's tooltip).
+    menu_checks: Mutex<std::collections::VecDeque<(u8, u8)>>,
     /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
     game_found: AtomicBool,
     hud_shown: AtomicBool,

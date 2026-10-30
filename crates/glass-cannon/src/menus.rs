@@ -5,23 +5,26 @@
 //! its keys from other apps. What tells them apart: every full-screen menu has a close X
 //! at the top right, on the screen's corner diagonal (as far in from the right as down
 //! from the top: 2.8 to 4.4 % of the screen's height, by UI scale, the inventory's a
-//! little in from the others'). Alt shows no X.
+//! little in from the others'); a few windows (Season Mission) have a back arrow there
+//! instead, pointing left. Alt shows neither.
 //!
 //! So while the cursor shows (and only then), a small square at the top-right corner of
-//! the game's picture (7 % of its height a side) is read and looked over for that X: thin,
-//! bright strokes along both diagonals with darker gaps between them. The square's pixels
-//! are kept only for that look: nothing is saved or sent (the app never goes online), and
-//! nothing is read while the cursor is hidden, the setting off or the game not in front.
-//! With the classic controls the cursor always shows, so leave the setting off there.
+//! the game's picture (8.5 % of its height a side) is read and looked over for the X (thin,
+//! bright strokes along both diagonals with darker gaps between them) or the arrow (a solid
+//! head and tail, dark all round). The square's pixels are kept only for that look: nothing
+//! is saved or sent (the app never goes online), and nothing is read while the cursor is
+//! hidden, the setting off or the game not in front. With the classic controls the cursor
+//! always shows, so leave the setting off there.
 //!
 //! Measured on screenshots at two UI scales, of the inventory and the main menu: the X
-//! scores 163-201; 880 squares elsewhere on them (the world, text, icons) at most 129.
+//! scores 163-201; 880 squares elsewhere on them (the world, text, icons) at most 129. The
+//! Season Mission's arrow 149; 1,000 squares elsewhere at most 68.
 //!
 //! The cursor idea is from SkeeveAN's Aion DPS Meter notes (`docs/plans/menu-detect-cursor.md`);
 //! this is our own code.
 
 /// The corner square's side, as a share of the game's height.
-const CORNER: f64 = 0.07;
+const CORNER: f64 = 0.085;
 /// Where the X's middle can be, in from the right and down from the top (the same), as a
 /// share of the game's height; and its arms' half-length as a share of that.
 const X_FROM: f64 = 0.022;
@@ -31,6 +34,32 @@ const ARM_TO: f64 = 0.45;
 /// An X: the strokes this much brighter than the brightest gap, and this bright (of 255).
 pub const X_SCORE: f32 = 150.0;
 const X_BRIGHT: f32 = 160.0;
+/// Where the back arrow's tip can be (in from the right, down from the top) and its head's
+/// half-height, as shares of the game's height.
+const TIP_IN: (f64, f64) = (0.035, 0.075);
+const TIP_DOWN: (f64, f64) = (0.02, 0.055);
+const HEAD: (f64, f64) = (0.008, 0.017);
+/// Points of the arrow, from its tip in head half-heights (x right, y down): inside its
+/// head and tail, and just outside it all round.
+const ARROW_ON: [(f64, f64); 8] = [(0.4, -0.1), (0.9, -0.3), (1.2, -0.75), (0.9, 0.3), (1.2, 0.75), (1.3, 0.0), (2.3, -0.2), (2.7, -0.15)];
+const ARROW_OFF: [(f64, f64); 13] = [
+    (0.3, -0.8),
+    (0.3, 0.8),
+    (-0.6, 0.0),
+    (-0.4, -0.6),
+    (-0.4, 0.6),
+    (2.6, -0.9),
+    (2.6, 0.9),
+    (1.9, -0.9),
+    (3.4, 0.0),
+    (1.6, -1.25),
+    (1.6, 1.25),
+    (0.8, -1.1),
+    (0.8, 1.1),
+];
+/// An arrow: its dimmest point this much brighter than the brightest point around it.
+pub const ARROW_SCORE: f32 = 110.0;
+
 /// The corner is first read this long after the cursor comes up (a menu opening fades in),
 /// then this often while it shows (a menu opened or closed with the cursor up).
 const READ_AFTER_MS: u64 = 250;
@@ -91,6 +120,35 @@ impl Corner {
     pub fn has_close_x(&self, height: f64) -> bool {
         let (score, on) = self.x_score(height);
         score >= X_SCORE && on >= X_BRIGHT
+    }
+
+    /// How arrow-like the best spot is: its dimmest point minus the brightest around it.
+    pub fn arrow_score(&self, height: f64) -> f32 {
+        let side = self.side as f64;
+        let mut best = f32::MIN;
+        let (a_from, a_to) = (((HEAD.0 * height).floor() as i32).max(5), (HEAD.1 * height).ceil() as i32);
+        let (y_from, y_to) = ((TIP_DOWN.0 * height).floor() as i32, (TIP_DOWN.1 * height).ceil() as i32);
+        let (x_from, x_to) = ((side - TIP_IN.1 * height).floor() as i32, (side - TIP_IN.0 * height).ceil() as i32);
+        for a in a_from..=a_to {
+            let a = f64::from(a);
+            for ty in y_from..=y_to {
+                for tx in x_from..=x_to {
+                    let (tx, ty) = (f64::from(tx), f64::from(ty));
+                    let on = ARROW_ON.iter().map(|(u, v)| self.at(tx + u * a, ty + v * a)).fold(f32::MAX, f32::min);
+                    if on - best <= 0.0 {
+                        continue;
+                    }
+                    let off = ARROW_OFF.iter().map(|(u, v)| self.at(tx + u * a, ty + v * a)).fold(0.0, f32::max);
+                    best = best.max(on - off);
+                }
+            }
+        }
+        best
+    }
+
+    /// A menu's mark in the corner: its close X, or a window's back arrow.
+    pub fn has_menu_mark(&self, height: f64) -> bool {
+        self.has_close_x(height) || self.arrow_score(height) >= ARROW_SCORE
     }
 }
 
@@ -278,10 +336,31 @@ mod tests {
     }
 
     #[test]
+    fn a_back_arrow() {
+        // As in the Season Mission at 1440 high: tip 64 px in, 47 down, head 16 px each way.
+        let mut c = corner(None);
+        let (tx, ty, a) = (c.side as f64 - 64.0, 47.0, 16.0);
+        for y in 0..c.side {
+            for x in 0..c.side {
+                let (u, v) = ((x as f64 - tx) / a, (y as f64 - ty) / a);
+                let head = (0.0..=1.3).contains(&u) && v.abs() <= u * 0.8;
+                let tail = (1.3..=2.85).contains(&u) && (-0.35..=0.15).contains(&v);
+                if head || tail {
+                    c.luma[y * c.side + x] = 210;
+                }
+            }
+        }
+        assert!(c.arrow_score(1440.0) >= ARROW_SCORE, "{}", c.arrow_score(1440.0));
+        assert!(c.has_menu_mark(1440.0));
+        assert!(corner(None).arrow_score(1440.0) < ARROW_SCORE);
+    }
+
+    #[test]
     fn a_bright_patch_is_no_x() {
         let mut c = corner(None);
         c.luma.iter_mut().for_each(|v| *v = 240);
         assert!(!c.has_close_x(1440.0));
+        assert!(!c.has_menu_mark(1440.0));
     }
 
     #[test]
@@ -298,4 +377,5 @@ mod tests {
         assert!(!m.update(1300, false, &mut || unreachable!()));
     }
 }
+
 
