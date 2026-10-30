@@ -128,6 +128,25 @@ mod win32 {
         1 // keep enumerating
     }
 
+    /// What's in front: any window of the game's processes is the game (it has hidden
+    /// windows of its own, a browser for its menus among them, that can take the focus, as
+    /// when Alt brings up its cursor), and no window at all (a moment between two) is
+    /// taken as the game too, so neither makes the overlay step away.
+    fn front_of(is_game_window: bool, none: bool, fg_pid: u32, pids: &HashSet<u32>) -> Front {
+        if is_game_window || none || pids.contains(&fg_pid) {
+            Front::Game
+        } else if fg_pid == std::process::id() {
+            Front::Ours
+        } else {
+            Front::Other
+        }
+    }
+
+    #[cfg(test)]
+    pub fn front_for_test(is_game_window: bool, none: bool, fg_pid: u32, pids: &HashSet<u32>) -> Front {
+        front_of(is_game_window, none, fg_pid, pids)
+    }
+
     /// The largest visible top-level window owned by any of `pids`, with its picture's
     /// place on screen and what's in front.
     pub fn game_window(pids: &HashSet<u32>) -> Option<GameWindow> {
@@ -146,14 +165,10 @@ mod win32 {
             ClientToScreen(hwnd, &mut origin);
             let fg = GetForegroundWindow();
             let mut fg_pid = 0u32;
-            GetWindowThreadProcessId(fg, &mut fg_pid);
-            let front = if fg == hwnd {
-                Front::Game
-            } else if fg_pid == std::process::id() {
-                Front::Ours
-            } else {
-                Front::Other
-            };
+            if fg != 0 {
+                GetWindowThreadProcessId(fg, &mut fg_pid);
+            }
+            let front = front_of(fg == hwnd, fg == 0, fg_pid, pids);
             (IsIconic(hwnd) != 0, front)
         };
         let client = Rect {
@@ -184,5 +199,16 @@ mod tests {
         assert!(!game(Front::Other, false, 2560, 1440).shows_overlay());
         assert!(!game(Front::Game, true, 2560, 1440).shows_overlay());
         assert!(!game(Front::Game, false, 300, 200).shows_overlay());
+    }
+
+    #[test]
+    fn any_game_window_in_front_is_the_game() {
+        let pids: HashSet<u32> = [4242, 4343].into_iter().collect();
+        // Its main window; another of its windows; no window for a moment.
+        assert_eq!(win32::front_for_test(true, false, 4242, &pids), Front::Game);
+        assert_eq!(win32::front_for_test(false, false, 4343, &pids), Front::Game);
+        assert_eq!(win32::front_for_test(false, true, 0, &pids), Front::Game);
+        // Some other app.
+        assert_eq!(win32::front_for_test(false, false, 1, &pids), Front::Other);
     }
 }
