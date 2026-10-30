@@ -159,6 +159,8 @@ pub struct AppState {
     last_alt_ms: std::sync::atomic::AtomicU64,
     /// The overlay's widgets are hidden for now by the hotkey (not saved).
     hud_hidden: AtomicBool,
+    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
+    step_aside: Mutex<&'static str>,
     /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
     game_found: AtomicBool,
     hud_shown: AtomicBool,
@@ -837,6 +839,7 @@ fn main() {
         hotkey_states: Mutex::new(std::collections::BTreeMap::new()),
         last_alt_ms: std::sync::atomic::AtomicU64::new(0),
         hud_hidden: AtomicBool::new(false),
+        step_aside: Mutex::new(""),
         game_found: AtomicBool::new(false),
         hud_shown: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),

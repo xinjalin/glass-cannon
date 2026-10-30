@@ -376,12 +376,11 @@ function drawHotkeys() {
     return b;
   });
   $("hotkeys").replaceChildren(...rows);
-  // What sees your keys in game: raw input, the keyboard state (some games keep their keys
-  // from it), both or neither yet.
-  const [seen, state_saw] = state.keys_in_game || [0, 0];
-  $("keys-seen").textContent = seen
-    ? `keys pressed in game: ${seen} seen · the keyboard state saw ${state_saw}`
-    : "keys pressed in game: none seen yet";
+  // What sees your keys in game: raw input, the keyboard hook, the keyboard state (some
+  // games keep their keys from it); and anywhere.
+  const k = state.keys_seen || {};
+  const off = (on, n) => (on ? `${n}` : "off");
+  $("keys-seen").textContent = `keys seen in game: raw input ${off(k.raw_on, k.raw || 0)} · hook ${off(k.hook_on, k.hook || 0)} · keyboard state ${k.state || 0} (anywhere: ${k.raw_any || 0} · ${k.hook_any || 0})`;
 }
 
 function startPicking(action) {

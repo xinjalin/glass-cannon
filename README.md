@@ -148,8 +148,10 @@ contents about every 1.2 s while it's open, and that's how the meter knows.
 game menu (inventory, character, skills…) is open. Menus send the server nothing, so it
 goes by the mouse cursor: with the game's action controls the cursor is hidden while you
 play and shows in a menu (the cursor Alt brings up, held or toggled, doesn't count: keys
-are read through Windows' raw input, which sees them even where a game keeps them from
-other apps; settings → keybinds counts the key presses seen in game). With the classic
+are read three ways, Windows' raw input, a keyboard hook and the keyboard state, as a game
+may keep them from some; settings → keybinds counts the key presses each has seen in game,
+and until one has seen a key in game, menus aren't hidden at all). The launcher says when
+the widgets are hidden for a menu. With the classic
 controls the cursor always shows, so leave it off there.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;

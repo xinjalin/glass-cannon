@@ -193,8 +193,15 @@ extern "system" {
 /// Whether a key is held now: as raw input says, or the keyboard state (either can miss
 /// keys a game keeps to itself; see `rawkeys`).
 pub fn down(vk: u8) -> bool {
+    if crate::rawkeys::down(vk) {
+        return true;
+    }
     // SAFETY: a plain query of the keyboard's state.
-    crate::rawkeys::down(vk) || unsafe { GetAsyncKeyState(i32::from(vk)) < 0 }
+    let state = unsafe { GetAsyncKeyState(i32::from(vk)) < 0 };
+    if state {
+        crate::rawkeys::note_state_key();
+    }
+    state
 }
 
 /// The modifiers held now.
@@ -283,7 +290,6 @@ extern "system" {
     fn RegisterHotKey(hwnd: isize, id: i32, modifiers: u32, vk: u32) -> i32;
     fn UnregisterHotKey(hwnd: isize, id: i32) -> i32;
     fn PeekMessageW(msg: *mut Msg, hwnd: isize, min: u32, max: u32, remove: u32) -> i32;
-    fn DispatchMessageW(msg: *const Msg) -> isize;
 }
 
 const WM_HOTKEY: u32 = 0x0312;
@@ -398,18 +404,12 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
                     }
                 }
             }
-            // This thread's messages: the hotkeys, and raw input for its hidden window.
             // SAFETY: a plain look at this thread's own message queue.
             while unsafe { PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) } != 0 {
-                if msg.message == WM_HOTKEY {
-                    if !paused {
-                        if let Some((action, _, _)) = ACTIONS.get(msg.wparam.wrapping_sub(1)) {
-                            act(&handle, &app, action);
-                        }
+                if msg.message == WM_HOTKEY && !paused {
+                    if let Some((action, _, _)) = ACTIONS.get(msg.wparam.wrapping_sub(1)) {
+                        act(&handle, &app, action);
                     }
-                } else {
-                    // SAFETY: handing our own window its message.
-                    unsafe { DispatchMessageW(&msg) };
                 }
             }
         }

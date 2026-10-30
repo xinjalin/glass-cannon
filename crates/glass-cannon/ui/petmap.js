@@ -384,7 +384,10 @@ wrap.addEventListener("pointerup", (e) => {
   if (!was || was.moved) return;
   const r = canvas.getBoundingClientRect();
   const under = petsAt(e.clientX - r.left, e.clientY - r.top);
-  if (under.length) select(under[0] === selected && under.length > 1 ? under[1] : under[0]);
+  // A dot picks its pet (the next one under it, if that one's picked already) and shows
+  // it in the list; the map itself, away from the dots, lets go of the pet picked.
+  if (under.length) pick(under[0] === selected && under.length > 1 ? under[1] : under[0]);
+  else if (selected != null) select(null);
 });
 wrap.addEventListener("pointerleave", () => ($("tip").hidden = true));
 wrap.addEventListener(
@@ -415,10 +418,20 @@ new ResizeObserver(() => {
 
 // --- The list --------------------------------------------------------------
 
+// The list's row: picks the pet, or lets go of it.
 function select(id) {
   selected = selected === id ? null : id;
   drawList();
   draw();
+}
+
+// From the map: picks the pet and scrolls the list to it.
+function pick(id) {
+  selected = id;
+  drawList();
+  draw();
+  const row = $("pets").querySelector(`[data-pet="${id}"]`);
+  if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 async function setTracked(id, on) {
@@ -441,6 +454,7 @@ function drawList() {
     ...rows.map(([id, pts, p]) => {
       const li = el("li", "map-pet" + (needs(p) ? "" : " done") + (p && p.tracked ? " tracked" : ""));
       li.setAttribute("aria-selected", String(id === selected));
+      li.dataset.pet = id;
       // Track it (the pet tracker widget shows the ones you track).
       const track = el("button", "map-track", p && p.tracked ? "✓" : "+");
       track.type = "button";
