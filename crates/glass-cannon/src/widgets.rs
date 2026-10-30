@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 9] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "cooldowns", "party-cooldowns", "timers", "pets"];
+pub const WIDGETS: [&str; 11] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "party", "cooldowns", "party-cooldowns", "timers", "pets"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
@@ -239,6 +239,22 @@ pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Whether the overlay steps aside for game menus (from the cursor).
+#[tauri::command]
+pub fn set_hide_for_menus(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.hide_for_menus = on;
+    s.save(&app.config_dir);
+}
+
+/// Whether the app closes when the game does.
+#[tauri::command]
+pub fn set_close_with_game(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.close_with_game = on;
+    s.save(&app.config_dir);
+}
+
 /// Whether the overlay steps aside while the world map is open.
 #[tauri::command]
 pub fn set_hide_on_world_map(app: State<'_, Arc<AppState>>, on: bool) {
@@ -391,6 +407,8 @@ pub struct ContentsView {
     pub tickets_ms: u64,
     pub abyss: Vec<ArtifactRow>,
     pub abyss_ms: u64,
+    /// The dungeon you're in: its time limit, or the time after its last boss.
+    pub dungeon: Option<meter_core::dungeon::DungeonClock>,
 }
 
 #[derive(Serialize)]
@@ -427,6 +445,7 @@ fn artifact_name(id: u32) -> &'static str {
 #[tauri::command]
 pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
     use meter_core::contents::{ASMODIANS, ELYOS, ODYLE_ENERGY};
+    let dungeon = app.engine.meter().dungeon_clock();
     let c = lock(&app.contents);
     let odyle = c.tickets.get(&ODYLE_ENERGY).map(|t| (t.count.unwrap_or(0), t.charged.unwrap_or(0)));
     let tickets = c
@@ -453,7 +472,7 @@ pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
             }
         })
         .collect();
-    ContentsView { odyle, tickets, tickets_ms: c.tickets_ms, abyss, abyss_ms: c.abyss_ms }
+    ContentsView { odyle, tickets, tickets_ms: c.tickets_ms, abyss, abyss_ms: c.abyss_ms, dungeon }
 }
 
 #[tauri::command]
@@ -563,11 +582,8 @@ pub struct PetRow {
     need: Option<u32>,
     found_in: Vec<String>,
     tracked: bool,
-    /// Its mobs in view now, and the nearest one's distance and compass bearing while your
-    /// position is known.
+    /// Its mobs in view now.
     in_view: u32,
-    distance_m: Option<u32>,
-    bearing: Option<u16>,
 }
 
 #[derive(Serialize)]
@@ -581,31 +597,23 @@ pub struct PetTracker {
 
 #[tauri::command]
 pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
-    let now = app.engine.now();
-    // Each pet's mobs in view: how many, and the nearest (metres, bearing).
+    // Each pet's mobs in view: how many.
     let (state, mobs) = {
         let mut meter = app.engine.meter();
         let state = meter.pets().state();
         let positions = meter.positions();
-        let me = positions.me(now);
         // Mobs in view (the registry keeps those that left, to name past fights), wild ones
         // only: players' summons give no souls.
         let registry = meter.registry();
-        let mobs: Vec<(u32, Option<(u32, u16)>)> = registry
-            .mobs()
-            .filter(|(id, _)| registry.owner_of(*id).is_none())
-            .filter_map(|(id, kind)| positions.of(id).map(|at| (kind, me.map(|m| meter_core::positions::distance_and_bearing(m, at)))))
-            .collect();
+        let mobs: Vec<u32> =
+            registry.mobs().filter(|(id, _)| registry.owner_of(*id).is_none() && positions.of(*id).is_some()).map(|(_, kind)| kind).collect();
         (state, mobs)
     };
     let data = lock(&app.data);
-    let mut near: std::collections::HashMap<u32, (u32, Option<(u32, u16)>)> = std::collections::HashMap::new();
-    for (kind, at) in mobs {
-        let Some(pet) = data.pet_of_mob(kind) else { continue };
-        let e = near.entry(pet).or_insert((0, None));
-        e.0 += 1;
-        if at.is_some_and(|(d, _)| e.1.is_none_or(|(best, _)| d < best)) {
-            e.1 = at;
+    let mut near: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+    for kind in mobs {
+        if let Some(pet) = data.pet_of_mob(kind) {
+            *near.entry(pet).or_insert(0) += 1;
         }
     }
     let character = lock(&app.profile).name.clone();
@@ -617,7 +625,7 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
             let level = state.as_ref().map(|st| st.levels.get(&p.id).copied().unwrap_or(0));
             let souls = state.as_ref().map(|st| st.souls.get(&p.id).copied().unwrap_or(0));
             let need = level.and_then(|l| meter_core::pets::SOULS_PER_LEVEL.get(l as usize).copied());
-            let (in_view, at) = near.get(&p.id).copied().unwrap_or((0, None));
+            let in_view = near.get(&p.id).copied().unwrap_or(0);
             PetRow {
                 id: p.id,
                 name: p.name.to_string(),
@@ -628,12 +636,43 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
                 found_in: p.found_in.to_vec(),
                 tracked: tracked.contains(&p.id),
                 in_view,
-                distance_m: at.map(|(d, _)| d),
-                bearing: at.map(|(_, b)| b),
             }
         })
         .collect();
     PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, pets }
+}
+
+/// The pet map window's data: where each pet's mobs spawn, per map (`pet-map.json`).
+#[tauri::command]
+pub fn pet_map(app: State<'_, Arc<AppState>>) -> Option<serde_json::Value> {
+    lock(&app.data).pet_map()
+}
+
+/// A pet map's picture (its `image.file`), as a data URL.
+#[tauri::command]
+pub fn pet_map_image(app: State<'_, Arc<AppState>>, file: String) -> Option<String> {
+    lock(&app.data).pet_map_image(&file)
+}
+
+/// Where you are for the pet map: the map (the game's ID) and x, y in metres.
+#[derive(Serialize)]
+pub struct PetMapMe {
+    map: Option<u32>,
+    at: Option<[f32; 2]>,
+    exact: bool,
+}
+
+#[tauri::command]
+pub fn pet_map_me(app: State<'_, Arc<AppState>>) -> PetMapMe {
+    let now = app.engine.now();
+    let meter = app.engine.meter();
+    let positions = meter.positions();
+    let me = positions.me(now);
+    PetMapMe {
+        map: positions.map(),
+        at: me.map(|m| [m.pos[0] / 100.0, m.pos[1] / 100.0]),
+        exact: me.is_some_and(|m| m.exact),
+    }
 }
 
 /// Tracks a pet for your character, or stops.
@@ -655,4 +694,48 @@ pub fn set_pet_tracker_nearest(app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
     s.pet_tracker_nearest = on;
     s.save(&app.config_dir);
+}
+
+/// Your HP, MP and cast now (the player bars widget), the cast's skill named.
+#[tauri::command]
+pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::SelfBars> {
+    let mut bars = app.engine.meter().self_bars()?;
+    if let Some(c) = bars.cast.as_mut() {
+        c.skill_name = lock(&app.data).skill_meta(c.skill).0;
+    }
+    Some(bars)
+}
+
+/// Your party as frames (the party frames widget).
+#[tauri::command]
+pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<meter_core::meter::PartyFrame> {
+    app.engine.meter().party_frames()
+}
+
+/// A piece of a player's gear, named.
+#[derive(Serialize)]
+pub struct GearRow {
+    slot: u8,
+    enhance: u8,
+    item: u32,
+    #[serde(flatten)]
+    info: Option<crate::gamedata::GearEntry>,
+}
+
+/// Your party's members' gear, by name (those who've been in view; the party view's
+/// tooltips).
+#[tauri::command]
+pub fn party_gear(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<String, Vec<GearRow>> {
+    let meter = app.engine.meter();
+    let data = lock(&app.data);
+    meter
+        .registry()
+        .party()
+        .iter()
+        .filter_map(|m| {
+            let gear = meter.gear_of(&m.name)?;
+            let rows = gear.iter().map(|g| GearRow { slot: g.slot, enhance: g.enhance, item: g.item, info: data.gear(g.item).cloned() }).collect();
+            Some((m.name.clone(), rows))
+        })
+        .collect()
 }

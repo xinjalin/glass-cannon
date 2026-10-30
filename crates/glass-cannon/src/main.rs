@@ -35,8 +35,10 @@ mod dummy;
 mod fonts;
 mod game_window;
 mod gamedata;
+mod hotkeys;
 mod hud;
 mod launcher;
+mod menus;
 mod layout;
 mod ping;
 mod placement;
@@ -54,6 +56,7 @@ const LAUNCHER: &str = "launcher";
 const SETTINGS: &str = "settings";
 const ANALYSIS: &str = "analysis";
 const HISTORY: &str = "history";
+const PET_MAP: &str = "petmap";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -147,6 +150,17 @@ pub struct AppState {
     hud_rects: Mutex<Vec<hud::HitRect>>,
     hud_panels: Mutex<Vec<hud::HitRect>>,
     hud_editing: AtomicBool,
+    /// A hotkey is being picked in the settings: none go off meanwhile.
+    hotkeys_paused: AtomicBool,
+    /// Where each hotkey stands (registered, taken by another app…), for the settings.
+    hotkey_states: Mutex<std::collections::BTreeMap<&'static str, &'static str>>,
+    /// The overlay's widgets are hidden for now by the hotkey (not saved).
+    hud_hidden: AtomicBool,
+    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
+    step_aside: Mutex<&'static str>,
+    /// The menu check's last results: how X-like and how arrow-like the top-right corner
+    /// was (for the setting's tooltip).
+    menu_checks: Mutex<std::collections::VecDeque<(u8, u8)>>,
     /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
     game_found: AtomicBool,
     hud_shown: AtomicBool,
@@ -165,6 +179,7 @@ pub struct AppState {
     contents: Mutex<store::KnownContents>,
     /// The history window has been placed once.
     history_placed: AtomicBool,
+    pet_map_placed: AtomicBool,
     /// Where every window was last (saved as they move, at most once a second).
     placements: Mutex<placement::Placements>,
     /// Your training dummy runs, and dummy mode's state on the meter.
@@ -218,6 +233,8 @@ struct View {
     souls: Vec<meter_core::pets::SoulGain>,
     /// Dummy mode, while the fight shown is on a training dummy.
     dummy: Option<dummy::DummyLive>,
+    /// World PvP: the PvP session going on (fights with players outside your party).
+    pvp: Option<meter_core::pvp::PvpSession>,
 }
 
 /// A boss's next cast, as it came the last time you fought it.
@@ -318,7 +335,7 @@ fn boss_casts_to_show(
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, mut souls) = {
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, souls) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -341,8 +358,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             lock(&app.pets).sync(&name, meter.pets());
         }
         let souls = meter.take_soul_gains();
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, souls)
+        let pvp_now = meter.pvp();
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, (souls, pvp_now))
     };
+    let (mut souls, pvp_now) = souls;
     lock(&app.field_bosses).update(field_bosses);
     lock(&app.contents).update(contents);
     if !pvp.is_empty() {
@@ -457,6 +476,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         cubes,
         souls,
         dummy,
+        pvp: pvp_now,
     }
 }
 
@@ -815,6 +835,11 @@ fn main() {
         hud_rects: Mutex::new(Vec::new()),
         hud_panels: Mutex::new(Vec::new()),
         hud_editing: AtomicBool::new(false),
+        hotkeys_paused: AtomicBool::new(false),
+        hotkey_states: Mutex::new(std::collections::BTreeMap::new()),
+        hud_hidden: AtomicBool::new(false),
+        step_aside: Mutex::new(""),
+        menu_checks: Mutex::new(std::collections::VecDeque::new()),
         game_found: AtomicBool::new(false),
         hud_shown: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),
@@ -825,6 +850,7 @@ fn main() {
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
+        pet_map_placed: AtomicBool::new(false),
         placements: Mutex::new(placements),
         dummy: Mutex::new(dummy::DummyBook::load(&config_dir_for_pvp)),
         dummy_tracker: Mutex::new(dummy::DummyTracker::default()),
@@ -898,6 +924,19 @@ fn main() {
             widgets::boss_skill_alerts,
             widgets::set_alert_sound,
             widgets::set_hide_on_world_map,
+            widgets::set_close_with_game,
+            widgets::set_hide_for_menus,
+            widgets::pet_map,
+            widgets::pet_map_me,
+            widgets::pet_map_image,
+            settings::open_pet_map,
+            settings::fit_pet_map,
+            settings::reset_settings,
+            settings::set_hotkey,
+            settings::pause_hotkeys,
+            widgets::self_bars,
+            widgets::party_frames,
+            widgets::party_gear,
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::set_timer_favourites_only,
@@ -922,6 +961,8 @@ fn main() {
                 let _ = h.set_focusable(false);
             }
             hud::watch(app.handle().clone(), Arc::clone(&state));
+            hotkeys::start(app.handle().clone(), Arc::clone(&state));
+            hotkeys::close_with_game(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
             save_placements(Arc::clone(&state));
             Ok(())
@@ -979,7 +1020,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP] {
         if Some(label) == skip {
             continue;
         }

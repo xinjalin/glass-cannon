@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, HISTORY, LAUNCHER, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -26,6 +26,7 @@ const SCREEN_MARGIN: f64 = 16.0;
 const MIN_SETTINGS: (f64, f64) = (420.0, 320.0);
 /// The same for the history window.
 const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
+const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
@@ -62,6 +63,24 @@ pub struct SettingsStatus {
     alert_sound: bool,
     hide_on_world_map: bool,
     hide_after_s: u32,
+    close_with_game: bool,
+    hide_for_menus: bool,
+    /// The menu check's last results (how X-like and arrow-like the corner was) and their bars.
+    menu_checks: Vec<(u8, u8)>,
+    menu_share: (u8, u8),
+    /// The global hotkeys.
+    hotkeys: Vec<Hotkey>,
+}
+
+/// A hotkey: what it does and the keys it uses ("Ctrl+Shift+F10", "AltRight").
+#[derive(Serialize)]
+pub struct Hotkey {
+    action: &'static str,
+    what: &'static str,
+    keys: String,
+    default: &'static str,
+    /// Registered, taken by another app, waiting for the game, or read from the keyboard.
+    state: &'static str,
 }
 
 #[tauri::command]
@@ -137,7 +156,36 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         alert_sound: s.alert_sound,
         hide_on_world_map: s.hide_on_world_map,
         hide_after_s: s.hide_after_s,
+        close_with_game: s.close_with_game,
+        hide_for_menus: s.hide_for_menus,
+        menu_checks: lock(&app.menu_checks).iter().copied().collect(),
+        menu_share: (crate::menus::X_SCORE as u8, crate::menus::ARROW_SCORE as u8),
+        hotkeys: crate::hotkeys::ACTIONS
+            .iter()
+            .map(|&(action, what, default)| Hotkey {
+                action,
+                what,
+                keys: s.hotkeys.get(action).into(),
+                default,
+                state: crate::hotkeys::state_of(&app, action),
+            })
+            .collect(),
     }
+}
+
+/// Sets a hotkey's keys ("" for its default); saved for next time.
+#[tauri::command]
+pub fn set_hotkey(app: State<'_, Arc<AppState>>, action: String, keys: String) -> Result<(), String> {
+    let mut s = lock(&app.settings);
+    s.hotkeys.set(&action, &keys)?;
+    s.save(&app.config_dir);
+    Ok(())
+}
+
+/// While a hotkey is being picked in the settings, none go off.
+#[tauri::command]
+pub fn pause_hotkeys(app: State<'_, Arc<AppState>>, on: bool) {
+    app.hotkeys_paused.store(on, Ordering::SeqCst);
 }
 
 /// Changes how the windows look; saved for next time. Missing values stay as they are.
@@ -171,6 +219,27 @@ pub fn reset_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>) -> App
     s.save(&app.config_dir);
     restyle_windows(&handle, &s.appearance);
     s.appearance.clone()
+}
+
+/// Every setting and keybind back to its default, the appearance too. Kept: what you've
+/// picked rather than set (the pets each character tracks, starred and alerted events,
+/// boss skills you marked, the dummy label), and whether the overlay and the launcher's
+/// keep-on-top are on. The overlay's layout and the history aren't settings.
+#[tauri::command]
+pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
+    let mut s = lock(&app.settings);
+    let old = std::mem::take(&mut *s);
+    s.tracked_pets = old.tracked_pets;
+    s.timer_favourites = old.timer_favourites;
+    s.alerts = old.alerts;
+    s.boss_skill_alerts = old.boss_skill_alerts;
+    s.dummy_label = old.dummy_label;
+    s.overlay_on = old.overlay_on;
+    s.launcher_on_top = old.launcher_on_top;
+    s.save(&app.config_dir);
+    restyle_windows(&handle, &s.appearance);
+    drop(s);
+    app.hud_hidden.store(false, Ordering::SeqCst);
 }
 
 /// Installed font families for the font picker.
@@ -242,6 +311,25 @@ pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<
     w.set_focus().map_err(|e| e.to_string())
 }
 
+/// Shows the pet map, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_pet_map(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let w = handle.get_webview_window(PET_MAP).ok_or("no pet map window")?;
+    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
+        return w.hide().map_err(|e| e.to_string());
+    }
+    let first = !app.pet_map_placed.swap(true, Ordering::SeqCst);
+    let restored = first && lock(&app.placements).get(PET_MAP).is_some_and(|p| crate::placement::restore(&w, p, true));
+    if (first && !restored) || !fully_on_screen(&w) {
+        if let Ok(size) = w.outer_size() {
+            place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_PET_MAP, &SIDES);
+        }
+    }
+    w.show().map_err(|e| e.to_string())?;
+    let _ = w.unminimize();
+    w.set_focus().map_err(|e| e.to_string())
+}
+
 /// Shows the settings beside the launcher, or hides them if they're already open.
 #[tauri::command]
 pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
@@ -252,6 +340,28 @@ pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
     place_settings(&handle, &s);
     s.show().map_err(|e| e.to_string())?;
     s.set_focus().map_err(|e| e.to_string())
+}
+
+/// Keeps the pet map at least as big as its content needs at the font size (its list and
+/// search box are sized in the font's units): sets its smallest size, and grows it if it's
+/// smaller, within the screen.
+#[tauri::command]
+pub fn fit_pet_map(handle: AppHandle, width: f64, height: f64) -> Result<(), String> {
+    let w = handle.get_webview_window(PET_MAP).ok_or("no pet map window")?;
+    let (width, height) = match w.current_monitor().ok().flatten() {
+        Some(m) => {
+            let area = m.work_area().size.to_logical::<f64>(m.scale_factor());
+            (width.min(area.width - 2.0 * SCREEN_MARGIN), height.min(area.height - 2.0 * SCREEN_MARGIN))
+        }
+        None => (width, height),
+    };
+    w.set_min_size(Some(LogicalSize::new(width, height))).map_err(|e| e.to_string())?;
+    let scale = w.scale_factor().map_err(|e| e.to_string())?;
+    let now = w.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+    if now.width < width || now.height < height {
+        w.set_size(LogicalSize::new(now.width.max(width), now.height.max(height))).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Sizes the settings window to its content. The page asks whenever the font size

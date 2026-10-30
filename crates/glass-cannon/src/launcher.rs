@@ -26,6 +26,11 @@ pub struct LauncherState {
     arranging: bool,
     /// The overlay is stepping aside for the world map.
     world_map: bool,
+    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
+    step_aside: &'static str,
+    /// Its widgets are hidden by the hotkey, and the hotkey's keys.
+    hidden: bool,
+    hide_keys: String,
     /// The launcher is kept on top (its green light).
     on_top: bool,
     /// How many of its widgets show.
@@ -103,6 +108,9 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
         overlay_showing: app.hud_shown.load(Ordering::SeqCst),
         arranging: app.hud_editing.load(Ordering::SeqCst),
         world_map,
+        step_aside: *lock(&app.step_aside),
+        hidden: app.hud_hidden.load(Ordering::SeqCst),
+        hide_keys: settings.hotkeys.get("show_hide").to_string(),
         widgets: settings.widgets.len(),
         fight,
         fights: history.len(),

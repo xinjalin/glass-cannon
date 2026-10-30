@@ -225,6 +225,12 @@ It's sent when a player **comes into view**, and for **everyone nearby right aft
 change**. Players already nearby when the capture starts stay unnamed until one of those
 happens.
 
+Their gear is in it too (checked 2026-10-30, 7,150 of 8,000 sampled spawns parse to a
+full 11-piece set, 86,553 of 86,575 items known to the item data): entries of a byte
+(`0x0e`, `0x0f` for the weapon), the item ID (u32), its enhancement (u8) and its slot (u8:
+1 weapon, 2 helm, 3 pauldrons, 4 chest, 5 legs, 6 gloves, 7 boots, 8 cloak, 9 necklace,
+10 and 11 earrings), slots in order (`meter-core/src/gear.rs`).
+
 ### Mob / NPC appears: opcode `0x3641` (likely)
 
 ```text
@@ -602,7 +608,8 @@ NOIA2's notes call this "remaining HP of an entity". Worked out again from our c
 ```text
 varint  entity
 u8      mask
-[0x01]  u8 n, n × (u8 stat, u32 value)     stats 1, 3, 4, 6, 8, 10–13 seen; unknown
+[0x01]  u8 n, n × (u8 stat, u32 value)     on you: 1 MP, 8 max MP, 3 flight energy (2026-10-30);
+                                           4, 6, 10–13 unknown
 [0x02]  u8 n, n × (u8 stat, u64 value)     stat 0 = current HP; stat 7 unknown
 ```
 

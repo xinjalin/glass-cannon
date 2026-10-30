@@ -65,6 +65,8 @@ pub fn hud_edit<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>,
 /// The overlay on or off (the launcher's button); saved for next time.
 #[tauri::command]
 pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>, on: bool) {
+    // Starting or stopping it from the launcher brings back widgets the hotkey hid.
+    app.hud_hidden.store(false, Ordering::SeqCst);
     let mut s = lock(&app.settings);
     s.overlay_on = on;
     s.save(&app.config_dir);
@@ -72,6 +74,22 @@ pub fn set_overlay<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState
     if !on {
         hud_edit(handle, app, false);
     }
+}
+
+/// The show/hide hotkey: hides the widgets for now, or brings them back; with the
+/// overlay off, turns it on (so the hotkey never leaves you without them). Never saved:
+/// the next start shows them again.
+pub fn show_hide(handle: &AppHandle, app: &AppState) {
+    let on = lock(&app.settings).overlay_on;
+    if !on {
+        set_overlay(handle.clone(), handle.state::<Arc<AppState>>(), true);
+        return;
+    }
+    let hidden = !app.hud_hidden.load(Ordering::SeqCst);
+    if hidden && app.hud_editing.load(Ordering::SeqCst) {
+        return;
+    }
+    app.hud_hidden.store(hidden, Ordering::SeqCst);
 }
 
 /// The widgets' places and sizes, as the HUD saved them (`hud.json`; empty at first).
@@ -115,6 +133,9 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut map_sent: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
+            // The game itself in front (not one of our windows), for the menu check.
+            let mut game_in_front = false;
+            let mut menus = crate::menus::MenuDetector::default();
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
                 let on = lock(&app.settings).overlay_on;
@@ -122,6 +143,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if tick.is_multiple_of(FIND_EVERY) || !shown {
                     let game = if app.args.replay.is_some() { replay_screen(&handle) } else { tracker.find() };
                     app.game_found.store(game.is_some(), Ordering::SeqCst);
+                    game_in_front = game.is_some_and(|g| g.front == crate::game_window::Front::Game);
                     show_wanted = on && (game.is_some_and(|g| g.shows_overlay()) || (editing && shown));
                     if let Some(g) = game.filter(|_| show_wanted) {
                         if placed != Some(g.client) {
@@ -145,7 +167,38 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // The world map: the widgets step aside in place, and their plates with them.
                 // The window stays up, so they all come back at once (a window shown again
                 // redraws each widget in its own time).
-                let map = shown && !editing && on_world_map(&app);
+                // A game menu (settings → hide for game menus): as the map, from the cursor
+                // with a menu's close X, or a window's back arrow, at the top right (see `menus`).
+                let menu_check = shown && !editing && game_in_front && app.args.replay.is_none() && lock(&app.settings).hide_for_menus;
+                let menu = match placed.filter(|_| menu_check) {
+                    Some(area) => {
+                        let mut look = || {
+                            let Some(corner) = crate::menus::read_corner((area.left, area.top, area.width(), area.height())) else { return false };
+                            let height = f64::from(area.height());
+                            let byte = |v: f32| v.clamp(0.0, 255.0).round() as u8;
+                            let (x, _) = corner.x_score(height);
+                            let arrow = corner.arrow_score(height);
+                            let mut checks = lock(&app.menu_checks);
+                            checks.push_back((byte(x), byte(arrow)));
+                            while checks.len() > 6 {
+                                checks.pop_front();
+                            }
+                            corner.has_menu_mark(height)
+                        };
+                        menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing(), &mut look)
+                    }
+                    None => false,
+                };
+                // Hidden by the hotkey: as the map, until it's pressed again.
+                let hidden = app.hud_hidden.load(Ordering::SeqCst);
+                let world_map = on_world_map(&app);
+                let map = shown && !editing && (world_map || menu || hidden);
+                *lock(&app.step_aside) = match () {
+                    _ if !map => "",
+                    _ if hidden => "hotkey",
+                    _ if world_map => "map",
+                    _ => "menu",
+                };
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);
                 }
@@ -224,6 +277,8 @@ impl<R: Runtime> Plates<R> {
             let Ok(w) = built else { return };
             crate::style::plate(&w);
             let _ = w.set_ignore_cursor_events(true);
+            // Its blur can bring it to the front: under the HUD.
+            below(&w, hud);
             self.windows.push(w);
             self.at.push(None);
             self.shown.push(false);

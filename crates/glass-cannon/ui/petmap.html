@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon pet map</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="window.css">
+  <link rel="stylesheet" href="petmap.css">
+</head>
+<body data-panel="petmap">
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>pet map</span>
+      <span id="where" class="note" data-tauri-drag-region></span>
+      <span class="lights">
+        <button id="min" type="button" class="light yellow" title="Minimise" aria-label="Minimise"></button>
+        <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
+        <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
+      </span>
+    </header>
+    <nav id="tabs" class="tabs" role="tablist" aria-label="Map"></nav>
+    <div class="petmap-body">
+      <div id="map-wrap" class="map-wrap">
+        <canvas id="map" aria-label="Where the mobs that give pet souls spawn"></canvas>
+        <div id="tip" class="map-tip" hidden></div>
+        <p class="map-key note">scroll: zoom · drag: move · double-click: whole map · click a dot: its pet · click the map: none</p>
+      </div>
+      <aside class="pet-side">
+        <div class="side-head">
+          <input id="search" class="side-search" type="search" placeholder="search a pet" title="Any pet, by name, genus or area (not only this map's)" autocomplete="off" spellcheck="false">
+          <button id="needed" type="button" aria-pressed="true" title="Only the pets you still need">[still needed]</button>
+        </div>
+        <ul id="pets" class="scroll side-list"></ul>
+        <div id="areas" class="side-areas note" hidden></div>
+      </aside>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="window.js"></script>
+  <script src="panel.js"></script>
+  <script src="petmap.js"></script>
+</body>
+</html>

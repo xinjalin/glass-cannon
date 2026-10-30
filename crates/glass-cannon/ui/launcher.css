@@ -79,6 +79,12 @@ svg .solid { fill: currentColor; stroke: none; }
 .light.green { background: var(--green); opacity: 0.55; }
 .light.green[aria-pressed="true"] { opacity: 1; }
 .lights:hover .light { filter: brightness(1.08); }
+/* Small marks on the lights: minimise (a bar), keep on top (an arrow up to a bar), close
+   (a cross). */
+.lights .light { background-repeat: no-repeat; background-position: center; background-size: 7px 7px; }
+.lights .light.yellow { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.2 5h5.6' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.lights .light.green { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.5 2.2h5M5 8V4.2M3.2 5.8 5 4l1.8 1.8' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.lights .light.red { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.7 2.7l4.6 4.6M7.3 2.7l-4.6 4.6' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 
 #cover {
   position: relative;
@@ -149,11 +155,9 @@ svg .solid { fill: currentColor; stroke: none; }
 #rows .bad { color: var(--red); }
 #rows .accent { color: var(--accent); }
 
-/* ---------------------------------------------------------------- bottom: progress and controls */
+/* ---------------------------------------------------------------- bottom: the buttons */
 
-#bar { grid-column: 1 / -1; background: var(--bar); }
-#progress { height: 3px; background: var(--track); }
-#progress-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.6s ease; }
+#bar { grid-column: 1 / -1; background: var(--bar); border-top: 1px solid var(--track); }
 .controls {
   display: flex;
   align-items: center;
@@ -168,13 +172,7 @@ svg .solid { fill: currentColor; stroke: none; }
 #toggle .pause,
 #toggle[aria-pressed="true"] .play { display: none; }
 #toggle[aria-pressed="true"] .pause { display: block; }
-.now {
-  flex: 1;
-  min-width: 0;
-  margin-left: 8px;
-  font-weight: 700;
-  white-space: nowrap;
-}
+.spacer { flex: 1; align-self: stretch; }
 
 /* Text too long for its place slides to its end and back, like a player's title, rather
    than being cut off (launcher.js sets --shift and the class). */
@@ -187,5 +185,4 @@ svg .solid { fill: currentColor; stroke: none; }
   100% { transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) { .scroll.long > span { animation: none; } .scroll { text-overflow: ellipsis; } }
-.time { flex: none; margin-right: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dim { color: var(--dim); font-weight: 400; }

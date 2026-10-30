@@ -34,6 +34,8 @@ const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
+const PET_MAP_FILE: &str = "pet-map.json";
+const GEAR_FILE: &str = "gear.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
@@ -77,6 +79,8 @@ struct FieldBossInfo {
     place: Option<String>,
 }
 const MAX_ICON_BYTES: u64 = 256 * 1024;
+/// The pet map's pictures are bigger (a world map is about 2 MB).
+const MAX_PICTURE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 60;
 /// Theostone (item) skills as the game sends them: 7 digits starting 30.
 const THEOSTONE_SKILLS: std::ops::RangeInclusive<u32> = 3_000_000..=3_099_999;
@@ -148,6 +152,22 @@ struct PetSpawnFile {
 /// A training dummy (the Training Scarecrow).
 fn dummy_entry(e: &Entry) -> bool {
     e.dummy || e.name.contains("Training Scarecrow")
+}
+
+/// Equipment names, grades and item levels (optional).
+#[derive(Debug, Default, Deserialize)]
+struct GearFile {
+    #[serde(default)]
+    gear: BTreeMap<u32, GearEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+pub struct GearEntry {
+    pub name: String,
+    #[serde(default)]
+    pub grade: Option<String>,
+    #[serde(default)]
+    pub level: Option<u32>,
 }
 
 /// A pet in the data: its ID, name and genus.
@@ -254,6 +274,7 @@ pub struct GameData {
     /// Pets' names (optional).
     pets: PetFile,
     pet_spawns: PetSpawnFile,
+    gear: GearFile,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -276,6 +297,7 @@ impl GameData {
             field_bosses: FieldBossFile::default(),
             pets: PetFile::default(),
             pet_spawns: PetSpawnFile::default(),
+            gear: GearFile::default(),
             problem: None,
             last_attempt: None,
         };
@@ -305,6 +327,7 @@ impl GameData {
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
+                    self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
                     let npc_names = read_json::<NpcNameFile>(&dir.join(NPC_NAMES_FILE)).unwrap_or_default();
@@ -580,6 +603,11 @@ impl GameData {
         })
     }
 
+    /// A piece of gear's name, grade and item level.
+    pub fn gear(&self, item: u32) -> Option<&GearEntry> {
+        self.gear.gear.get(&item)
+    }
+
     /// The pet whose souls a mob type gives.
     pub fn pet_of_mob(&self, mob_type: u32) -> Option<u32> {
         self.pet_spawns.monsters.get(&mob_type).copied()
@@ -690,6 +718,16 @@ impl GameData {
 
     /// A class icon (class_<code>.webp or .png) as a `data:` URL.
     /// A pet's portrait (`pet_<id>.png`, from `packet-lab pet-icons`).
+    /// The pet map's data (`pet-map.json`): where each pet's mobs spawn, per map; as read.
+    pub fn pet_map(&self) -> Option<serde_json::Value> {
+        read_json(&self.dir.join(PET_MAP_FILE)).ok()
+    }
+
+    /// A pet map picture (`petmap_<key>.jpg`), as a data URL.
+    pub fn pet_map_image(&self, file: &str) -> Option<String> {
+        file.starts_with("petmap_").then(|| self.data_url(file, MAX_PICTURE_BYTES)).flatten()
+    }
+
     pub fn pet_icon(&self, pet: u32) -> Option<String> {
         self.icon_data_url(&format!("pet_{pet}.png"))
     }
@@ -701,6 +739,10 @@ impl GameData {
     }
 
     fn icon_data_url(&self, file: &str) -> Option<String> {
+        self.data_url(file, MAX_ICON_BYTES)
+    }
+
+    fn data_url(&self, file: &str, max_bytes: u64) -> Option<String> {
         // Only plain file names inside the data folder.
         if file.contains(['/', '\\', ':']) || file.starts_with('.') {
             return None;
@@ -712,7 +754,7 @@ impl GameData {
             _ => return None,
         };
         let path = self.dir.join(file);
-        if fs::metadata(&path).ok()?.len() > MAX_ICON_BYTES {
+        if fs::metadata(&path).ok()?.len() > max_bytes {
             return None;
         }
         Some(format!("data:{mime};base64,{}", base64(&fs::read(path).ok()?)))

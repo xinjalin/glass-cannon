@@ -353,14 +353,40 @@ function toggleRow(id) {
 
 // The party as rows: slot, class, name, combat power as a bar against the strongest, and
 // gear score. Members' stats arrive a moment after they join; until then they show "–".
+// Party members' gear (those who've been in view), for the party rows' tooltips: asked
+// for every few seconds while the party shows.
+const GEAR_POLL_MS = 3000;
+const SLOTS = { 1: "weapon", 2: "helm", 3: "pauldrons", 4: "chest", 5: "legs", 6: "gloves", 7: "boots", 8: "cloak", 9: "necklace", 10: "earring", 11: "earring" };
+let partyGear = {};
+let partyGearAt = 0;
+function gearText(name) {
+  const g = partyGear[name];
+  if (!g || !g.length) return "gear: not seen yet (they need to have been in view)";
+  return g
+    .map((p) => `${(SLOTS[p.slot] || `slot ${p.slot}`).padEnd(10)}${p.enhance ? `+${p.enhance} ` : ""}${p.name || `item ${p.item}`}${p.level ? ` (iLv ${p.level})` : ""}`)
+    .join("\n");
+}
+function loadPartyGear() {
+  if (performance.now() - partyGearAt < GEAR_POLL_MS) return;
+  partyGearAt = performance.now();
+  invoke("party_gear")
+    .then((g) => {
+      const changed = JSON.stringify(g) !== JSON.stringify(partyGear);
+      partyGear = g;
+      if (changed) redraw();
+    })
+    .catch(() => {});
+}
+
 function drawParty(party) {
+  loadPartyGear();
   const list = $("rows");
   list.replaceChildren();
   rowCache.clear();
   const top = Math.max(1, ...party.map((m) => m.combat_power || 0));
   party.forEach((m, i) => {
     const row = el("li", "row party-row" + (m.is_self ? " self" : "") + (m.class_code ? ` c${m.class_code}` : ""));
-    row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ");
+    row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ") + "\n\n" + gearText(m.name);
     const line = el("div", "line");
     const meter = el("span", "meter");
     const lit = m.combat_power ? Math.max(1, Math.round((m.combat_power / top) * SEGMENTS)) : 0;
@@ -611,6 +637,24 @@ function drawTotals(enc) {
   target.title = [target.title, sum].filter(Boolean).join("\n");
   drawBossBar(enc);
   drawDummy();
+  drawPvp();
+}
+
+// World PvP: while a PvP session is going on (players outside your party, as in the
+// Abyss), its kills and deaths and the damage dealt and taken; the opponents on hover.
+function drawPvp() {
+  const p = mode === "live" && lastView ? lastView.pvp : null;
+  $("pvp-bar").hidden = !p;
+  if (!p) return;
+  $("pvp-kd").textContent = `PvP ${p.kills} / ${p.deaths}`;
+  $("pvp-dmg").textContent = `dealt ${fmt(p.dealt)} · taken ${fmt(p.taken)}`;
+  $("pvp-bar").title = [
+    "World PvP: kills / deaths, and damage with players outside your party (history → [pvp])",
+    ...p.opponents.slice(0, 6).map((o) => `${o.name}: dealt ${fmt(o.dealt)} · taken ${fmt(o.taken)}${o.deaths ? ` · ☠${o.deaths}` : ""}`),
+    p.last_killer ? `last killed by ${p.last_killer}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // Dummy mode (on a training dummy): the run's time against its length, and your pace
@@ -733,7 +777,7 @@ const meterView = () => (lastView && lastView.meter_view) || "damage";
 const rowView = () => (meterView() === "party" ? "damage" : meterView());
 
 function drawViewSwitch() {
-  const view = partyPeek && mode === "live" ? "party" : meterView();
+  const view = meterView();
   const next = VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length];
   const b = $("view");
   b.textContent = VIEW_LABELS[view];
@@ -909,11 +953,12 @@ function redraw() {
   if (lastView) drawStatus(lastView);
 
   const party = (lastView && lastView.meter.party) || [];
-  if (live && (meterView() === "party" || partyPeek)) {
+  if (live && meterView() === "party") {
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
     $("dummy-bar").hidden = true;
+    $("pvp-bar").hidden = true;
     drawParty(party);
     $("empty").hidden = party.length > 0;
     $("empty").textContent = "not in a party: join one (or an expedition) to see who's in it";
@@ -925,6 +970,7 @@ function redraw() {
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;
     $("dummy-bar").hidden = true;
+    $("pvp-bar").hidden = true;
     $("rows").replaceChildren();
     rowCache.clear();
     $("empty").hidden = false;
@@ -950,8 +996,6 @@ function redraw() {
 // isn't rebuilt.
 let lastKey = "";
 let drawnMode = "";
-// Showing the party for a while (after someone joins or leaves), whatever the view.
-let partyPeek = false;
 
 async function refresh() {
   if (editing) return;
@@ -968,13 +1012,10 @@ async function refresh() {
     drawnMode = `${mode}/${fightIndex}`;
     lastView = view;
     if (same) return;
-    // A join or leave while you're not fighting shows the party until the next fight.
-    const party = view.meter.party || [];
-    const fighting = !!(view.meter.encounter && view.meter.encounter.active);
-    if (noticePartyChanges(party) && !fighting) partyPeek = true;
-    if (fighting) partyPeek = false;
-    // Before any fight, a party is more useful than "waiting for a fight".
-    if (!view.meter.encounter && party.length > 1) partyPeek = true;
+    // Joins, leaves and readies are said on the line under the meter; the rows stay as
+    // they are (switching to the party on its own was in the way when joining an
+    // expedition).
+    noticePartyChanges(view.meter.party || []);
     applyAppearance(lastView.appearance);
     fadeOutsideCombat(lastView);
     snapSizes();
@@ -1041,13 +1082,12 @@ $("analysis").addEventListener("click", () => openAnalysis(null));
 
 // The history has its own window.
 $("history").addEventListener("click", () => invoke("open_history").catch(showError));
+// Arrange the overlay (its menu there saves and finishes).
+$("arrange").addEventListener("click", () => invoke("hud_edit", { on: true }).catch(showError));
 
 // Damage → healing → taken → party.
 async function cycleView() {
-  // A peek at the party isn't a choice: the next click goes back to the rows.
-  const from = partyPeek ? "taken" : meterView();
-  partyPeek = false;
-  const next = VIEWS[(VIEWS.indexOf(from) + 1) % VIEWS.length];
+  const next = VIEWS[(VIEWS.indexOf(meterView()) + 1) % VIEWS.length];
   await invoke("set_meter_view", { view: next });
   if (lastView) lastView.meter_view = next;
   expanded.clear();

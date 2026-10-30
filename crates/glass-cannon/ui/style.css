@@ -223,6 +223,17 @@ svg {
 #dm-fill { display: block; height: 100%; width: 0; background: var(--accent); }
 #dm-time { text-align: right; white-space: nowrap; }
 #dummy-bar.done #dm-time { color: var(--ok); }
+#pvp-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  padding: 0 0.3em 0.35em;
+  margin-top: -0.15em;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+#pvp-kd { color: var(--bad); font-weight: 700; }
 #dummy-bar.cancelled #dm-time { color: var(--warn); }
 .target-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
 

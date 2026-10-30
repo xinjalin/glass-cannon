@@ -124,6 +124,16 @@ pub struct Settings {
     /// The pet tracker lists every pet you still need, those in view first.
     #[serde(default)]
     pub pet_tracker_nearest: bool,
+    /// Close the app a few seconds after the game closes.
+    #[serde(default)]
+    pub close_with_game: bool,
+    /// The overlay steps aside while a game menu is open (its close X or back arrow in the
+    /// corner while the cursor shows).
+    #[serde(default = "default_true")]
+    pub hide_for_menus: bool,
+    /// The hotkeys' keys (settings → keybinds).
+    #[serde(default)]
+    pub hotkeys: crate::hotkeys::Bindings,
 }
 
 fn default_dummy_run_s() -> u32 {
@@ -212,8 +222,9 @@ pub struct Appearance {
     /// Text size in pixels.
     #[serde(default = "default_font_size")]
     pub font_size: u8,
-    /// An installed font family; empty for the built-in monospace (Cascadia Mono).
-    #[serde(default)]
+    /// An installed font family (Calibri Light unless chosen); empty for the built-in
+    /// monospace (Cascadia Mono).
+    #[serde(default = "default_font")]
     pub font: String,
     /// How opaque the dark tint over the background is, in percent.
     #[serde(default = "default_opacity")]
@@ -221,10 +232,6 @@ pub struct Appearance {
     /// "frosted": blurred glass; "tinted": see-through tint, no blur; "clear": nothing at all.
     #[serde(default = "default_backdrop")]
     pub backdrop: String,
-    /// How frosted the overlay's frosted glass looks, in percent: 50 as it was, less is
-    /// clearer (less tint over the blur), more is milkier. Windows' blur itself is fixed.
-    #[serde(default = "default_frost")]
-    pub frost: u8,
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
@@ -245,13 +252,13 @@ fn default_highlight() -> String {
     "self".into()
 }
 fn default_font_size() -> u8 {
-    13
+    14
+}
+fn default_font() -> String {
+    "Calibri Light".into()
 }
 fn default_opacity() -> u8 {
     62
-}
-fn default_frost() -> u8 {
-    50
 }
 fn default_backdrop() -> String {
     "frosted".into()
@@ -265,10 +272,9 @@ impl Default for Appearance {
             class_colors: false,
             highlight: default_highlight(),
             font_size: default_font_size(),
-            font: String::new(),
+            font: default_font(),
             opacity: default_opacity(),
             backdrop: default_backdrop(),
-            frost: default_frost(),
             info_bar: false,
         }
     }
@@ -287,8 +293,6 @@ pub struct AppearanceChange {
     /// Any number: clamped to 0-100.
     pub opacity: Option<i64>,
     pub backdrop: Option<String>,
-    /// Any number: clamped to 0-100.
-    pub frost: Option<i64>,
     pub info_bar: Option<bool>,
 }
 
@@ -309,9 +313,6 @@ impl Appearance {
         }
         if let Some(f) = c.font_size {
             self.font_size = f.clamp(i64::from(*FONT_SIZES.start()), i64::from(*FONT_SIZES.end())) as u8;
-        }
-        if let Some(f) = c.frost {
-            self.frost = f.clamp(0, 100) as u8;
         }
         if let Some(o) = c.opacity {
             self.opacity = o.clamp(i64::from(*OPACITIES.start()), i64::from(*OPACITIES.end())) as u8;
@@ -347,9 +348,6 @@ impl Appearance {
         }
         if !OPACITIES.contains(&self.opacity) {
             self.opacity = fixed.opacity;
-        }
-        if self.frost > 100 {
-            self.frost = fixed.frost;
         }
         if !BACKDROPS.contains(&self.backdrop.as_str()) {
             self.backdrop = fixed.backdrop;
@@ -1246,7 +1244,6 @@ mod tests {
             font: Some("Consolas".into()),
             opacity: Some(0),
             backdrop: Some("clear".into()),
-            frost: Some(80),
             info_bar: Some(true),
         });
         s.save(&dir);
@@ -1366,7 +1363,8 @@ mod tests {
         assert_eq!(a.bar_color, "theme");
         assert_eq!(a.highlight, "self");
         assert_eq!(a.font_size, 18);
-        assert_eq!(a.font, "");
+        // An unusable font name is refused: the default stays.
+        assert_eq!(a.font, "Calibri Light");
         assert_eq!(a.opacity, 100);
         // A stepper that overshoots below zero (the old 62% default, minus 5s) clamps.
         a.update(AppearanceChange {

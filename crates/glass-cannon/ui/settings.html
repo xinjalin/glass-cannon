@@ -86,14 +86,6 @@
                 <button id="opacity-up" type="button" title="More solid">[+]</button>
               </span>
             </div>
-            <div class="line" title="How frosted the overlay's widgets look with the frosted background: less is clearer, more is milkier (Windows' blur itself is fixed)">
-              <span class="key">frost</span>
-              <span class="stepper">
-                <button id="frost-down" type="button" title="Clearer glass">[−]</button>
-                <span id="frost-value" class="step-value"></span>
-                <button id="frost-up" type="button" title="Milkier glass">[+]</button>
-              </span>
-            </div>
             <div class="line">
               <span class="key">highlight</span>
               <span class="choice" role="radiogroup" aria-label="Highlight">
@@ -125,6 +117,12 @@
             <button type="button" class="opt" data-widget="target" aria-pressed="false" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
               <span class="key">target frame</span><span class="state">[off]</span>
             </button>
+            <button type="button" class="opt" data-widget="player" aria-pressed="false" title="Your HP and MP as two thin bars, and a cast bar while you cast">
+              <span class="key">player bars</span><span class="state">[off]</span>
+            </button>
+            <button type="button" class="opt" data-widget="party" aria-pressed="false" title="Your party as a grid of tiles: each member's HP in their class's colour, and their MP">
+              <span class="key">party frames</span><span class="state">[off]</span>
+            </button>
             <button type="button" class="opt" data-widget="cooldowns" aria-pressed="false" title="Your skills' cooldowns">
               <span class="key">cooldowns</span><span class="state">[off]</span>
             </button>
@@ -142,6 +140,9 @@
             </button>
             <button id="hide-on-world-map" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
               <span class="key">hide on the world map</span><span class="state">[on]</span>
+            </button>
+            <button id="hide-for-menus" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), and steps aside only when it's there. The square is only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over that corner hides the X from it">
+              <span class="key">hide for game menus</span><span class="state">[off]</span>
             </button>
             <button id="alert-sound" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
               <span class="key">alert sound</span><span class="state">[on]</span>
@@ -203,23 +204,26 @@
             <p class="hint" id="record-hint">save packets to the captures folder</p>
           </fieldset>
 
+
           <fieldset class="box">
-            <legend>pet tracker</legend>
-            <div class="pet-pick-row">
-              <input id="pet-search" class="menu-filter" type="search" placeholder="search a pet or an area" autocomplete="off" spellcheck="false">
-              <button id="pet-needed" type="button" aria-pressed="true" title="Only the pets you still need">[still needed]</button>
-            </div>
-            <ul id="pet-pick" class="pet-pick-list"></ul>
-            <p class="hint" id="pet-pick-hint">track the pets you're working on: they show in the pet tracker widget</p>
+            <legend>keybinds</legend>
+            <div id="hotkeys"></div>
+            <p class="hint" id="hotkeys-hint" hidden></p>
           </fieldset>
 
           <fieldset class="box">
             <legend>tools</legend>
+            <button id="close-with-game" type="button" class="opt" aria-pressed="false" title="Close Glass Cannon a few seconds after the game closes">
+              <span class="key">close with the game</span><span class="state">[off]</span>
+            </button>
             <button id="shortcut" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
             </button>
             <button id="reset" type="button" class="opt" title="Theme, font, colours and background back to the defaults (the overlay's layout resets while arranging it)">
               <span class="key">reset appearance</span><span class="state">[ reset ]</span>
+            </button>
+            <button id="reset-all" type="button" class="opt" title="Every setting and keybind back to the defaults, the appearance too. Kept: the pets you track, starred and alerted events, boss skills you marked, the dummy label, and whether the overlay is on. The overlay's layout and the history stay">
+              <span class="key">reset settings &amp; keybinds</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
 

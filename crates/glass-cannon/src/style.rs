@@ -24,6 +24,7 @@ const NO_BORDER: u32 = 0xFFFF_FFFE;
 const WM_NCACTIVATE: u32 = 0x0086;
 const WCA_ACCENT_POLICY: u32 = 0x13;
 const ACCENT_DISABLED: u32 = 0;
+const ACCENT_ENABLE_BLURBEHIND: u32 = 3;
 const ACCENT_ENABLE_ACRYLICBLURBEHIND: u32 = 4;
 
 #[repr(C)]
@@ -76,6 +77,12 @@ unsafe extern "system" fn always_active(
 
 /// The undocumented accent API; looked up at runtime because user32.lib doesn't export it.
 fn set_accent(hwnd: isize, state: u32) {
+    // Acrylic needs a non-zero tint alpha to show; the page draws the real tint.
+    set_accent_tinted(hwnd, state, 0x0100_0000);
+}
+
+/// The accent API with its tint (0xAABBGGRR).
+fn set_accent_tinted(hwnd: isize, state: u32, gradient: u32) {
     // SAFETY: both names are NUL-terminated, and the function's signature is stable since
     // Windows 7. The policy outlives the call.
     unsafe {
@@ -85,8 +92,7 @@ fn set_accent(hwnd: isize, state: u32) {
             return;
         }
         let f: SetWindowCompositionAttribute = std::mem::transmute(f);
-        // Acrylic needs a non-zero tint alpha to show; the page draws the real tint.
-        let mut policy = AccentPolicy { state, flags: 0, gradient: 0x0100_0000, animation: 0 };
+        let mut policy = AccentPolicy { state, flags: 0, gradient, animation: 0 };
         let mut data = CompositionData {
             attribute: WCA_ACCENT_POLICY,
             data: &mut policy as *mut AccentPolicy as *mut c_void,
@@ -164,12 +170,15 @@ pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
     frame(window, a.backdrop == "frosted", DWMWCP_ROUNDSMALL, colorref(border_rgb(&a.theme)));
 }
 
-/// A blur plate under an overlay widget: Windows' frosted backdrop, small rounded corners
-/// (as the widgets'), no border,
-/// kept on while the window isn't active (it never is).
+/// A blur plate under an overlay widget: Windows' light blur (through the accent API; the
+/// newer system backdrop is a heavier frost), small rounded corners (as the widgets'), no
+/// border, kept on while the window isn't active (it never is).
 pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
     let _ = window.set_shadow(false);
-    frame(window, true, DWMWCP_ROUNDSMALL, NO_BORDER);
+    frame(window, false, DWMWCP_ROUNDSMALL, NO_BORDER);
+    let Ok(hwnd) = window.hwnd() else { return };
+    let hwnd = hwnd.0 as isize;
+    let _ = window.run_on_main_thread(move || set_accent_tinted(hwnd, ACCENT_ENABLE_BLURBEHIND, 0));
 }
 
 /// The launcher keeps its own look whatever the theme: solid, small corners, a quiet

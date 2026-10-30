@@ -63,9 +63,8 @@ colours whatever the theme:
 - **the list**: the status (capturing, waiting…) and the game's ping, whether the game is
   running, the overlay, how the fight is going or how it ended, your DPS and share, the
   party's, and the history;
-- **the bar**: the fight's target and time against the boss's enrage, the boss's HP as its
-  progress line, and buttons for the analysis, the overlay's start/stop, the history,
-  arranging the overlay (again to save and finish) and the settings;
+- **the bar**: buttons for the analysis, the overlay's start/stop, the history, the pet
+  map, arranging the overlay (again to save and finish) and the settings;
 - **the lights** at the top right: minimise, keep on top, and close (which closes the
   app).
 
@@ -77,7 +76,8 @@ One transparent layer over the game's picture holding the meter and the other wi
 your theme. It follows the game window, hides when you switch away, never takes the focus
 from the game, and lets the mouse through except over the meter and the world timers.
 
-**Arrange** (on the launcher, or in the settings) moves widgets and resizes them by their
+**Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
+moves widgets and resizes them by their
 corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Widgets
 that grow with what they show (the target frame, cooldowns, party cooldowns) are outlined
 at the most they'll take, so they can be placed clear of each other. Its
@@ -85,8 +85,9 @@ floating menu (drag it by its title) turns each widget on or off, resets the lay
 finishes. The widgets:
 
 - **meter**: the players, below.
-- **boss warnings**: a dangerous cast big in the middle of the screen, its time left, then
-  when it lands, with a chime; a heads-up 5 s before one is due. A cast is dangerous when
+- **boss warnings**: a dangerous cast in the middle of the screen, as a card like the other
+  alerts: casting, then landing (move), the skill's name, and its time left, with a chime;
+  a heads-up 5 s before one is due. Once over, it stays dimmed for 1.5 s. A cast is dangerous when
   it marks the ground or takes 2.5 s or more; in the analysis window's [boss] tab, click a
   skill's alert to make it always or never warn.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
@@ -98,6 +99,12 @@ finishes. The widgets:
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   boss HP, enrage and cast lines, so nothing is shown twice.
+- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. The
+  game never sends your max HP: the highest seen stands in (your max once you've been at
+  full HP).
+- **party frames**: your party as a grid of tiles, each filled by the member's HP in their
+  class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
+  "dead" when they are.
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used).
@@ -109,41 +116,69 @@ finishes. The widgets:
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
 
-- **pet tracker**: the pets you track (settings → pet tracker lists every pet with its
-  portrait: search one, or an area, and click [track]) with their level, souls toward the
-  next one and every area they're found in; a pet whose mobs are in view turns green with
-  how many, and how far and which way while the meter knows where you are (for a minute
-  after you log in, teleport or change zone). **[nearest]** shows every pet you still need
-  whose mobs are in view, tracked or not, nearest first. Which mobs give which souls is from Aion
-  DPS Meter's data; a few mobs aren't in it.
+- **pet tracker**: the pets you track (the pet map's **[+]** beside each pet; search one
+  there by name, genus or area) with their level, souls toward the next one and every
+  area they're found in; a pet whose mobs are in view turns green with how many.
+  **[nearest]** shows every pet you still need whose mobs are in view, tracked or not, the
+  most first. Which mobs give which souls is from Aion DPS Meter's data; a few mobs aren't
+  in it.
+
+**Alt+E** hides the overlay's widgets from in game, and brings them back. That's for now
+only: the overlay stays on (and the next start shows them again), the launcher says
+they're hidden and which keys bring them back, and its play button brings them back too.
+With the overlay off, Alt+E turns it on. Both hotkeys can be changed (settings → keybinds:
+click one, then press the keys): a key with Ctrl, Shift, Alt or Win, or an F key. They go
+through Windows' hotkeys (as Questlog's overlay does with its own Alt+E), so Windows gets
+them before the game does. They're only held while the game is up, and if another app
+already has the same keys, the keybinds say so and it's tried again every few seconds.
+One modifier alone (a tap of Right Alt, say) works too, read from the keyboard, but the
+game gets it as well: Alt shows its cursor.
+**Close with the game** (settings → tools) closes Glass Cannon a few seconds after the game
+closes. **Reset settings & keybinds** (settings → tools, click twice) puts every setting,
+keybind and the appearance back to the defaults; the pets you track, starred and alerted
+events, boss skills you marked, the overlay's layout and the history stay.
 
 **Hide on the world map** (settings, on by default): the overlay steps aside while the
 world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
 contents about every 1.2 s while it's open, and that's how the meter knows.
 
+**Hide for game menus** (settings, on by default): the overlay also steps aside while a
+full-screen game menu is open. Menus send the server nothing, the game keeps its keys from
+other apps, and the cursor a menu brings up is the same as the one Alt does, so the
+cursor alone never hides the widgets. Every full-screen menu (the inventory, the main
+menu…) has a close X at the top right, on the corner's diagonal whatever the UI scale (a
+few windows, like the Season Mission, a back arrow instead): while the cursor shows, the
+meter looks at a small square there (8.5% of the game's height a side) for that X or
+arrow, and steps aside only when one is there. Once seen, they stay aside until the cursor
+goes (a pop-up over a menu dims its X past seeing; closing the menu hides the cursor). The square is only looked at:
+it's never saved or sent, and nothing is read while the cursor is hidden, the setting is
+off or the game isn't in front. Keep widgets off that corner (one there hides the X). The
+setting's tooltip shows the last checks. With the classic controls, where the cursor
+always shows, the corner is simply looked at every half second.
+
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
-background, Windows blurs the game behind each widget; **frost** sets how milky that glass
-looks.
+background, Windows lightly blurs the game behind each widget.
 
 ### The meter
 
 - **auto / mine / party / all**: whose damage counts. *auto* (the default) follows your
   party: your party's fight while you're in a party or expedition, yours on your own.
-  *mine* is only your damage, *all* everyone's nearby.
+  *mine* is only your damage, *all* everyone's nearby. In the *party* view (also an
+  expedition you're waiting to start), hover a member for their gear, once they've been
+  in view: each slot's piece, its enhancement and item level.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
-  gear score, and a ✓ for who's readied up in the party finder. The party shows by itself
-  when someone joins, leaves or readies up between fights, and a line under the meter
-  says who.
+  gear score, and a ✓ for who's readied up in the party finder. A line under the meter says
+  who joins, leaves or readies up.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live
   boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
-  analysis, end the fight, history, and **≡** for the settings: theme (*night*, the
+  analysis, end the fight, arrange the overlay, history, and **≡** for the settings: theme (*night*, the
   default, or rose, lavender, mint, sky, amber, mono, or any colour), font, background,
-  frost, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
+  the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
   combat, recording and status checks.
 
 ### Analysis
@@ -182,6 +217,10 @@ fight on the meter's boss line, or the target frame while it shows (green while 
 beating it), and as ★ tags on the fights in the history that set them. They're kept per
 character, count every kill you were in, and [clear] resets them.
 
+**World PvP**: while you fight players outside your party (as in the Abyss), a line under
+the target shows your kills and deaths and the damage dealt and taken; hover it for the
+opponents. The history's [pvp] tab keeps each session.
+
 **Dummy mode** (history → [dummy]; on by default): hit a Training Scarecrow and the meter
 counts your damage only and times a run (30 s to 5 min, 1 min by default) from your first
 hit. A line under the target shows the run's time and your pace against your best clean
@@ -208,11 +247,28 @@ name in the game data, so double-click one there to name it.
 
 ### Windows
 
-The launcher, settings, history and analysis are windows, with the same lights at the top
-right of their title bars (minimise, keep on top, close). Each opens where you last left it
+The launcher, settings, history, pet map and analysis are windows, with the same lights at
+the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
 analysis windows stay tinted enough to read).
+
+### Pet map
+
+The launcher's map button opens the **pet map**: each world and Abyss map (Verteron,
+Altgard, Eltnen, Morheim, and the three levels of Reshanta) with its zones and their names
+(Questlog's map pictures and zones), and a dot wherever a mob that gives pet souls spawns,
+in its genus' colour (Fera red, Natura green, Cogni blue, Varian purple, Special gold).
+Zoom in for the smaller zones' names. **[+]** beside a pet tracks it for the pet tracker
+widget. The list beside it has the
+pets on that map (**[still needed]** leaves out the ones you've maxed); a search looks
+through every pet, by name, genus or area;
+pick a pet, or click a dot, to light up its spawn points and see the areas it's found in
+and how far along it is. The pets you track show in green. You show as a ring on the map
+you're on, once the meter knows where you are. Scroll to zoom, drag to move, double-click
+for the whole map. The spawn points are from Aion DPS Meter's data (MIT); a recording in
+Altgard puts the game's mobs on them, 2.4 m off at the median. Only the map showing is
+kept in memory, drawn as Questlog draws its own: in levels of detail, a piece at a time.
 
 ### Names
 

@@ -38,3 +38,9 @@
 .lights .light.green { background: #79dcaa; opacity: 0.55; }
 .lights .light.green[aria-pressed="true"] { opacity: 1; }
 .lights:hover .light { filter: brightness(1.08); }
+/* Small marks on the lights: minimise (a bar), keep on top (an arrow up to a bar), close
+   (a cross). */
+.lights .light { background-repeat: no-repeat; background-position: center; background-size: 7px 7px; }
+.lights .light.yellow { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.2 5h5.6' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.lights .light.green { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.5 2.2h5M5 8V4.2M3.2 5.8 5 4l1.8 1.8' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.lights .light.red { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.7 2.7l4.6 4.6M7.3 2.7l-4.6 4.6' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }

@@ -44,30 +44,37 @@ body {
 /* ---------------------------------------------------------------- boss warnings */
 
 [data-widget="boss-warnings"] { display: grid; place-items: center; text-align: center; }
+/* A card like the hidden cubes' alerts: the theme's tint and font, a bar of colour on the
+   left (red while it's cast or landing, amber when coming), the skill's name in the text
+   colour, big and bold, so it reads at a glance. */
 #warning {
+  --warn-c: var(--bad);
   box-sizing: border-box;
   max-width: 100%;
-  padding: 0.3em 1.1em 0.4em;
-  border: 1px solid var(--line);
+  min-width: 14em;
+  padding: 0.35em 1.2em 0.45em 1em;
+  border-left: 4px solid var(--warn-c);
   border-radius: 4px;
   background: var(--tint);
-  text-shadow: 0 0 0.3em #000, 0 0 0.12em #000;
+  text-align: left;
+  transition: opacity 0.3s ease;
 }
+#warning-what { font-size: 0.95em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--warn-c); }
 /* One line, shrunk to fit the widget (hud.js) rather than wrapping. */
-#warning-name { font-size: 2.6em; font-weight: 700; line-height: 1.15; color: var(--warn); white-space: nowrap; }
-#warning-time { font-size: 1.7em; font-variant-numeric: tabular-nums; color: var(--text); }
-/* The cast is on: red, and the box pulses until it lands. */
-#warning.now { border-color: var(--bad); animation: pulse 0.5s ease-in-out infinite alternate; }
-#warning.now #warning-name { color: var(--bad); }
-#warning.lands #warning-name::after { content: " · move"; }
-#warning.soon { border-color: var(--warn); }
-#warning.soon #warning-name { font-size: 1.6em; }
-#warning-time { white-space: nowrap; }
-#warning.soon #warning-time { font-size: 1.2em; }
+#warning-name { font-size: 2.3em; font-weight: 700; line-height: 1.2; color: var(--text); white-space: nowrap; }
+#warning-time { font-size: 1.6em; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--warn-c); white-space: nowrap; }
+/* The cast is on: the card glows until it lands. */
+#warning.now { animation: pulse 0.6s ease-in-out infinite alternate; }
+#warning.soon { --warn-c: var(--warn); }
+#warning.soon #warning-name { font-size: 1.7em; }
+#warning.soon #warning-time { font-size: 1.25em; }
+/* Over: it stays a moment, dimmed, so it can be read. */
+#warning.over { opacity: 0.55; animation: none; }
 @keyframes pulse {
-  from { box-shadow: 0 0 0 0.1em var(--bad), 0 0 0.4em 0.1em color-mix(in srgb, var(--bad) 25%, transparent); }
-  to { box-shadow: 0 0 0 0.1em var(--bad), 0 0 1.4em 0.5em color-mix(in srgb, var(--bad) 55%, transparent); }
+  from { box-shadow: 0 0 0.3em 0 color-mix(in srgb, var(--warn-c) 25%, transparent); }
+  to { box-shadow: 0 0 1.2em 0.25em color-mix(in srgb, var(--warn-c) 50%, transparent); }
 }
+@media (prefers-reduced-motion: reduce) { #warning.now { animation: none; } }
 
 /* ---------------------------------------------------------------- boss timers */
 

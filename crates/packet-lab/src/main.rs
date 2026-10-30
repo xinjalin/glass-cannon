@@ -31,7 +31,9 @@ mod skill_details;
 mod dungeons;
 mod npc_names;
 mod pets;
+mod gear;
 mod pet_icons;
+mod pet_map;
 mod pet_spawns;
 mod item_icons;
 mod theostones;
@@ -260,6 +262,38 @@ enum Cmd {
         #[arg(long)]
         commit: String,
     },
+    /// Build gamedata/pet-map.json (where the mobs that give each pet's souls spawn, on the
+    /// world and Abyss maps, for the pet map window) from SkeeveAN's Aion DPS Meter (MIT)
+    PetMap {
+        /// Its Client/assets/aion2/pets/spawns.json
+        spawns: PathBuf,
+        /// Which mob types give which pet (made by pet-spawns)
+        #[arg(long, default_value = "gamedata/pet-spawns.json")]
+        pet_spawns: PathBuf,
+        /// Questlog's map.getRegions (zone outlines), for each map's zones
+        #[arg(long)]
+        regions: Option<PathBuf>,
+        /// A folder with Questlog's map images (<key>.webp, or tiles <key>_<x>_<y>.webp),
+        /// for each map's picture (saved next to the output as petmap_<key>.jpg)
+        #[arg(long)]
+        images: Option<PathBuf>,
+        #[arg(long, default_value = "gamedata/pet-map.json")]
+        out: PathBuf,
+        /// The upstream commit the file is from (recorded in the file)
+        #[arg(long)]
+        commit: String,
+    },
+    /// Build gamedata/gear.json (weapon, armour and accessory names, grades and item levels,
+    /// for the gear players wear) from a scraped item database
+    Gear {
+        /// The scrape's items: a JSON object by item ID
+        items: PathBuf,
+        #[arg(long, default_value = "gamedata/gear.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Download each pet's portrait (for the pet tracker) from NCSOFT's asset server into
     /// gamedata as pet_<id>.png, by the icon names in a scraped pet database
     PetIcons {
@@ -429,7 +463,11 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
+        Cmd::PetMap { spawns, pet_spawns, regions, images, out, commit } => {
+            pet_map::run(&spawns, &pet_spawns, regions.as_deref(), images.as_deref(), &out, &commit)
+        }
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
+        Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {

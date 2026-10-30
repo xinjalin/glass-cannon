@@ -36,8 +36,6 @@
 :root {
   --fs: 13px;
   --alpha: 0.62;
-  /* How frosted the overlay's frosted glass looks (settings → frost): 0.5 as designed. */
-  --frost: 0.5;
   --tint: rgba(var(--tint-rgb), var(--alpha));
   --tint-strong: rgba(var(--tint-rgb), 0.85);
   /* Bright text with a soft shadow stays readable over bright game scenes. */
@@ -106,12 +104,6 @@
    tinted, clear, or frosted, where the overlay puts Windows' blur of the game behind the
    panel (as the windows had) under a lighter tint. */
 html.widget { --widget-radius: 4px; }
-/* Frost: below half, less tint over the blur (clearer, down to a quarter of it); above, a
-   milky white mixed in. */
-html.widget[data-backdrop="frosted"] {
-  --tint: color-mix(
-    in srgb,
-    rgba(var(--tint-rgb), calc(var(--alpha) * 0.55 * (0.25 + 0.75 * min(1, var(--frost) * 2)))),
-    rgba(255, 255, 255, 0.55) calc(max(0, var(--frost) * 2 - 1) * 40%)
-  );
-}
+/* Frost (settings): the overlay picks Windows' blur behind the widgets (none at 0, a light
+   one, then acrylic thickening to solid at 100); the widgets keep their usual light tint. */
+html.widget[data-backdrop="frosted"] { --tint: rgba(var(--tint-rgb), calc(var(--alpha) * 0.55)); }

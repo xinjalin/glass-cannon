@@ -23,13 +23,20 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 - The same bundle's monsters and dungeons, **no licence**: `dungeons.json` (which dungeon
   and mode each of 1,536 dungeon mobs is in, for the history's dungeon runs). Only those
   entries are used; same terms.
+- The same bundle's items, **no licence**: `gear.json` (3,637 weapons, armour and
+  accessories: name, grade and item level, for the gear players wear in the party view's
+  tooltips). Only those fields are kept; same terms.
 - The same bundle's pets and NPCs, **no licence**: `pets.json` (208 pets' names and genus,
   for the pet soul ticker) and `npc-names.json` (3,719 NPCs' names, for the quest givers,
   merchants and the like that the mob lists don't name). Only names are kept; same terms.
 - [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN, MIT:
   `pet-spawns.json` (which of 2,256 mob types give which pet's souls, and the areas 163
-  pets are found in), from its `Client/assets/aion2/pets/` files. Its licence:
+  pets are found in) and `pet-map.json` (where those mobs spawn on the world and Abyss
+  maps: 16,028 points), from its `Client/assets/aion2/pets/` files. Its licence:
   `gamedata/LICENSE-MIT-AionDPSMeter.txt` (Copyright (c) 2026 SkeeveTV).
+- [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map, **no licence**: the
+  pet map's pictures (`petmap_<map>.jpg`, its map images shrunk to 2 m a pixel; NCSOFT's
+  artwork) and the zones in `pet-map.json` (their outlines and where their names go).
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
   scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits
   (`pet_<id>.png`, 64 px) for the pet tracker. NCSOFT's artwork, like the

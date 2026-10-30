@@ -52,15 +52,34 @@ pub struct Instance {
     pub stages: [u64; MAX_STAGES],
 }
 
+/// A dungeon's clock, as its last `0x6100` set it. On our captures (2026-10-25): phase 1
+/// the 30 s before it starts, 2 its time limit (60 min, 30 min in some, 14 min in an
+/// event), 3 the 10 min after its last boss, 4 the 10 s before you're sent out. Open maps
+/// send an end of 0: no limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct DungeonClock {
+    pub map: u32,
+    pub phase: u8,
+    /// Server time, ms since 1970.
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
 /// Follows the map you're on. Feed it every message; it says when what it knows changed.
 #[derive(Debug, Default, Clone)]
 pub struct Maps {
     current: Option<Instance>,
+    clock: Option<DungeonClock>,
 }
 
 impl Maps {
     pub fn current(&self) -> Option<&Instance> {
         self.current.as_ref()
+    }
+
+    /// The dungeon's clock, while you're in a dungeon with a time limit.
+    pub fn clock(&self) -> Option<DungeonClock> {
+        self.clock
     }
 
     /// This `0x4002` is you moving on inside the dungeon you're in, not a new stay (the
@@ -71,12 +90,18 @@ impl Maps {
 
     /// Returns the instance when this message changed it.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, p: &[u8]) -> Option<Instance> {
+        if opcode == OPCODE_DUNGEON_STEP && p.len() >= 21 {
+            let (start_ms, end_ms) = (u64_at(p, 5)?, u64_at(p, 13)?);
+            let clock = DungeonClock { map: u32_at(p, 0)?, phase: p[4], start_ms, end_ms };
+            self.clock = (end_ms > start_ms).then_some(clock);
+        }
         match opcode {
             OPCODE_MAP_ENTERED => {
                 if self.moving_within(p) {
                     return None;
                 }
                 self.current = Some(Instance::new(u32_at(p, 0)?, ts_us));
+                self.clock = None;
             }
             OPCODE_DUNGEON_STEP => {
                 let (map, step) = (u32_at(p, 0)?, *p.get(4)?);
@@ -119,6 +144,10 @@ fn u32_at(p: &[u8], i: usize) -> Option<u32> {
     Some(u32::from_le_bytes(p.get(i..i + 4)?.try_into().ok()?))
 }
 
+fn u64_at(p: &[u8], i: usize) -> Option<u64> {
+    Some(u64::from_le_bytes(p.get(i..i + 8)?.try_into().ok()?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +163,9 @@ mod tests {
         m.feed(1_100, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 01 8c 08 c4 62 a1 01 00 00 bc 7d c4 62 a1 01 00 00"));
         let started = m.feed(23_000, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 02 ef 7d c4 62 a1 01 00 00 6f 6c fb 62 a1 01 00 00"));
         assert_eq!(started.unwrap().started_us, Some(23_000));
+        // Its clock: the hour from when the countdown ended.
+        let clock = m.clock().unwrap();
+        assert_eq!((clock.phase, (clock.end_ms - clock.start_ms) / 1000), (2, 3600));
         // "Complete" as its state changes nothing: its result says it was cleared.
         assert!(m.feed(716_000, OPCODE_DUNGEON_STEP, &hex("08 28 09 00 03 b9 12 cf 62 a1 01 00 00 79 3a d8 62 a1 01 00 00")).is_none());
         assert!(m.feed(716_000, OPCODE_DUNGEON_COMPLETE, &hex("00 08 28 09 00 00 00")).is_none());

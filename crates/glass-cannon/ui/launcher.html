@@ -9,8 +9,8 @@
 <body>
   <!-- The window the app opens to, laid out like a music player: a cover on the left, what's
        going on as a track list on the right (the window's lights at its top right, in
-       Windows' order), and a control bar
-       under both (analysis, the overlay's start/stop, history; arrange, settings). Its
+       Windows' order), and a bar of buttons under both (analysis, the overlay's
+       start/stop, history; arrange, settings). Its
        colours are its own, whatever the theme. Text too long for its line slides along
        rather than being cut off. Drag it by any bare spot. -->
   <main id="app">
@@ -39,7 +39,6 @@
     </section>
 
     <footer id="bar">
-      <div id="progress"><span id="progress-fill"></span></div>
       <div class="controls">
         <button id="analysis" type="button" class="icon" title="Analysis of the fight going on, or the last one">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V8M7.5 11V4.5M10.5 11V6.5"/></svg>
@@ -51,8 +50,10 @@
         <button id="history" type="button" class="icon" title="Fight history">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.5V8l2.3 1.5M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.5 2.5v2.3h2.3"/></svg>
         </button>
-        <span id="now" class="now scroll" data-tauri-drag-region><span id="now-text"></span></span>
-        <span class="time" data-tauri-drag-region title="The fight's time, and when the boss goes berserk"><span id="clock">--:--</span> <span id="sub" class="dim"></span></span>
+        <button id="pet-map" type="button" class="icon" title="Pet map: where the mobs that give each pet's souls are">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4l3.5-1.5 4 1.5 3.5-1.5v9.5l-3.5 1.5-4-1.5-3.5 1.5zM6 2.5v9.5M10 4v9.5"/></svg>
+        </button>
+        <span class="spacer" data-tauri-drag-region></span>
         <button id="arrange" type="button" class="icon" title="Arrange the overlay's widgets" aria-pressed="false">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z"/></svg>
         </button>

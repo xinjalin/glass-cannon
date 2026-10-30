@@ -10,7 +10,6 @@ const FONT_MAX = 18;
 const OPACITY_MIN = 0;
 const OPACITY_MAX = 100;
 const OPACITY_STEP = 5;
-const FROST_STEP = 10;
 // Window width in em: two 29em columns, the gap between them and the margins.
 const WIDTH_EM = 61.5;
 
@@ -114,11 +113,6 @@ function drawAppearance(a) {
   $("opacity-value").textContent = clear ? "none" : `${a.opacity}%`;
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
-  // Frost only means something with the frosted background.
-  const frosted = a.backdrop === "frosted";
-  $("frost-value").textContent = frosted ? `${a.frost}%` : "–";
-  $("frost-down").disabled = !frosted || a.frost <= 0;
-  $("frost-up").disabled = !frosted || a.frost >= 100;
   setToggle("info-bar", a.info_bar);
   fitWindow();
 }
@@ -156,6 +150,18 @@ async function refresh() {
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
     setToggle("hide-on-world-map", state.hide_on_world_map);
+    setToggle("close-with-game", state.close_with_game);
+    setToggle("hide-for-menus", state.hide_for_menus);
+    // The last checks, on hover: how X-like and arrow-like the top-right corner was with the
+    // cursor up.
+    const menuBtn = $("hide-for-menus");
+    if (!menuBtn.dataset.text) menuBtn.dataset.text = menuBtn.title;
+    menuBtn.title =
+      menuBtn.dataset.text +
+      (state.menu_checks && state.menu_checks.length
+        ? `\n\nLast checks (X from ${state.menu_share[0]}, arrow from ${state.menu_share[1]}): ${state.menu_checks.map(([x, a]) => `X ${x} / arrow ${a}`).join(" · ")}`
+        : "");
+    drawHotkeys();
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
     for (const b of document.querySelectorAll("[data-widget]")) {
@@ -214,12 +220,6 @@ $("font-up").addEventListener("click", () => setAppearance({ fontSize: state.app
 $("opacity-down").addEventListener("click", () => {
   const o = state.appearance.opacity;
   setAppearance({ opacity: Math.max(OPACITY_MIN, Math.ceil(o / OPACITY_STEP) * OPACITY_STEP - OPACITY_STEP) });
-});
-$("frost-down").addEventListener("click", () => {
-  setAppearance({ frost: Math.max(0, Math.ceil(state.appearance.frost / FROST_STEP) * FROST_STEP - FROST_STEP) });
-});
-$("frost-up").addEventListener("click", () => {
-  setAppearance({ frost: Math.min(100, Math.floor(state.appearance.frost / FROST_STEP) * FROST_STEP + FROST_STEP) });
 });
 $("opacity-up").addEventListener("click", () => {
   const o = state.appearance.opacity;
@@ -345,6 +345,114 @@ $("arrange-overlay").addEventListener("click", async () => {
 
 $("hide-on-world-map").addEventListener("click", async () => {
   await invoke("set_hide_on_world_map", { on: !(state && state.hide_on_world_map) });
+  refresh();
+});
+
+$("hide-for-menus").addEventListener("click", async () => {
+  await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
+  refresh();
+});
+
+// Keybinds: click one, then press its new keys (as the app names them: modifiers, then
+// the key's code, "Ctrl+Shift+F10"; or one modifier alone, tapped, "AltRight"). Esc
+// keeps the old ones, Delete puts back the default. The hotkeys pause meanwhile.
+let bindingAction = null;
+const modsDown = new Set();
+const MODIFIERS = ["ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"];
+
+function prettyKeys(keys) {
+  const side = { Left: "Left", Right: "Right" };
+  const names = { Control: "Ctrl", Shift: "Shift", Alt: "Alt", Meta: "Win" };
+  return keys
+    .split("+")
+    .map((k) => {
+      const m = /^(Control|Shift|Alt|Meta)(Left|Right)$/.exec(k);
+      if (m) return `${side[m[2]]} ${names[m[1]]}`;
+      return k.replace(/^Key(.)$/, "$1").replace(/^Digit(.)$/, "$1").replace(/^Numpad(.)$/, "Num $1").replace(/^Arrow/, "");
+    })
+    .join("+");
+}
+
+function drawHotkeys() {
+  const rows = state.hotkeys.map((h) => {
+    const b = el("button", "opt");
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(bindingAction === h.action));
+    b.title = `Works while the game is up · click, then press new keys: with Ctrl, Shift, Alt or Win, or an F key (default: ${prettyKeys(h.default)}) · now: ${h.state}`;
+    if (h.state.startsWith("taken")) b.classList.add("warn");
+    b.append(el("span", "key", h.what), el("span", "state", bindingAction === h.action ? "[press keys…]" : `[${prettyKeys(h.keys)}]${h.state.startsWith("taken") ? " taken" : ""}`));
+    b.addEventListener("click", () => (bindingAction === h.action ? stopPicking() : startPicking(h.action)));
+    return b;
+  });
+  $("hotkeys").replaceChildren(...rows);
+}
+
+function startPicking(action) {
+  bindingAction = action;
+  modsDown.clear();
+  invoke("pause_hotkeys", { on: true }).catch(() => {});
+  $("hotkeys-hint").textContent = "press the new keys (with Ctrl, Shift, Alt or Win, or an F key) · Esc keeps the old ones · Delete puts back the default";
+  $("hotkeys-hint").hidden = false;
+  drawHotkeys();
+}
+
+function stopPicking(error) {
+  bindingAction = null;
+  modsDown.clear();
+  invoke("pause_hotkeys", { on: false }).catch(() => {});
+  // Only shown while picking, or to say why keys weren't taken.
+  $("hotkeys-hint").textContent = error || "";
+  $("hotkeys-hint").hidden = !error;
+  refresh();
+}
+
+async function pickKeys(keys) {
+  const action = bindingAction;
+  try {
+    await invoke("set_hotkey", { action, keys });
+    stopPicking();
+  } catch (e) {
+    stopPicking(String(e));
+  }
+}
+
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (!bindingAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (MODIFIERS.includes(e.code)) {
+      modsDown.add(e.code);
+      return;
+    }
+    const mods = [e.ctrlKey && "Ctrl", e.shiftKey && "Shift", e.altKey && "Alt", e.metaKey && "Win"].filter(Boolean);
+    if (!mods.length && e.code === "Escape") return stopPicking();
+    if (!mods.length && e.code === "Delete") return pickKeys("");
+    pickKeys([...mods, e.code].join("+"));
+  },
+  true,
+);
+window.addEventListener(
+  "keyup",
+  (e) => {
+    if (!bindingAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // One modifier alone, pressed and let go (Right Alt brings a Left Ctrl with it on
+    // some keyboards).
+    const alone = [...modsDown].filter((c) => !(c === "ControlLeft" && modsDown.has("AltRight")));
+    if (alone.length === 1 && alone[0] === e.code) pickKeys(e.code);
+  },
+  true,
+);
+window.addEventListener("blur", () => {
+  if (bindingAction) stopPicking();
+});
+
+$("close-with-game").addEventListener("click", async () => {
+  await invoke("set_close_with_game", { on: !(state && state.close_with_game) });
   refresh();
 });
 
@@ -514,6 +622,29 @@ $("reset").addEventListener("click", async () => {
   }
 });
 
+// The same two clicks for every setting and keybind.
+let resetAllArmed = null;
+function disarmResetAll() {
+  clearTimeout(resetAllArmed);
+  resetAllArmed = null;
+  $("reset-all").querySelector(".state").textContent = "[ reset ]";
+}
+$("reset-all").addEventListener("click", async () => {
+  if (!resetAllArmed) {
+    $("reset-all").querySelector(".state").textContent = "[ sure? ]";
+    resetAllArmed = setTimeout(disarmResetAll, 3000);
+    return;
+  }
+  disarmResetAll();
+  try {
+    await invoke("reset_settings");
+    await refresh();
+    say("settings and keybinds back to the defaults", "ok");
+  } catch (e) {
+    say(String(e), "error");
+  }
+});
+
 $("shortcut").addEventListener("click", async () => {
   try {
     say(await invoke("create_shortcuts"), "ok");
@@ -536,81 +667,3 @@ tauri.event.listen("appearance", (e) => {
 new ResizeObserver(fitWindow).observe($("columns"));
 refresh();
 setInterval(refresh, 2000);
-
-// ---- The pet tracker's picker: every pet (search one, or an area it's found in), to track
-// the ones you're working on.
-let petData = null;
-let petNeededOnly = true;
-
-// Portraits, by pet (asked for once each).
-const petPortraits = new Map();
-function petPortrait(p) {
-  if (!petPortraits.has(p.id)) {
-    petPortraits.set(p.id, null);
-    invoke("pet_icon", { pet: p.id })
-      .then((url) => {
-        petPortraits.set(p.id, url);
-        const img = document.querySelector(`#pet-pick [data-pet="${p.id}"]`);
-        if (url && img) img.replaceWith(petPortrait(p));
-      })
-      .catch(() => {});
-  }
-  const url = petPortraits.get(p.id);
-  const img = url ? el("img", "pp-icon") : el("span", "pp-icon blank", p.name[0]);
-  if (url) {
-    img.src = url;
-    img.alt = "";
-  }
-  img.dataset.pet = p.id;
-  return img;
-}
-
-function drawPetPick() {
-  const list = $("pet-pick");
-  if (!petData) return;
-  const q = $("pet-search").value.trim().toLowerCase();
-  const needed = (p) => p.level == null || p.need != null;
-  const match = (p) => !q || p.name.toLowerCase().includes(q) || (p.genus || "").toLowerCase().includes(q) || p.found_in.some((w) => w.toLowerCase().includes(q));
-  const pets = petData.pets
-    .filter((p) => match(p) && (!petNeededOnly || needed(p) || p.tracked))
-    .sort((a, b) => b.tracked - a.tracked || a.name.localeCompare(b.name));
-  list.replaceChildren(
-    ...pets.map((p) => {
-      const li = el("li");
-      const text = el("span", "pp-text");
-      const name = el("span", "pp-name", p.name);
-      const level = p.level == null ? "Lv ?" : p.need == null ? "max" : `Lv ${p.level} · ${p.souls}/${p.need}`;
-      text.append(name, el("span", "pp-meta", [p.genus, level].filter(Boolean).join(" · ")));
-      if (p.found_in.length) text.title = `Found in:\n${p.found_in.join("\n")}`;
-      const b = el("button", "", p.tracked ? "[tracked]" : "[track]");
-      b.type = "button";
-      b.setAttribute("aria-pressed", String(p.tracked));
-      b.addEventListener("click", async () => {
-        await invoke("set_pet_tracked", { id: p.id, on: !p.tracked }).catch((e) => say(String(e), "error"));
-        loadPets();
-      });
-      li.append(petPortrait(p), text, b);
-      return li;
-    }),
-  );
-  $("pet-pick-hint").textContent = !petData.character
-    ? "log in to a character to track its pets"
-    : `${pets.length} of ${petData.pets.length} pets · tracked ones show in the pet tracker widget`;
-}
-
-async function loadPets() {
-  try {
-    petData = await invoke("pet_tracker");
-  } catch {
-    return;
-  }
-  drawPetPick();
-}
-
-$("pet-search").addEventListener("input", drawPetPick);
-$("pet-needed").addEventListener("click", () => {
-  petNeededOnly = !petNeededOnly;
-  $("pet-needed").setAttribute("aria-pressed", String(petNeededOnly));
-  drawPetPick();
-});
-loadPets();

@@ -15,6 +15,8 @@
 //! There's no max HP here. Mob spawns (`0x3641`) carry the mob's HP and max HP; for
 //! anything else the highest HP seen stands in. See docs/protocol.md.
 
+use serde::Serialize;
+
 use crate::protocol::read_varint;
 
 pub const OPCODE_HP: u16 = 0x8d00;
@@ -61,6 +63,54 @@ pub fn parse_hp(p: &[u8]) -> Option<HpUpdate> {
         return None;
     }
     Some(HpUpdate { entity, hp: hp? })
+}
+
+/// Your u32 stats in `0x8d00` (mask `0x01`), as worked out on our captures (2026-10-30,
+/// your own entity in five sessions): 1 your MP, 8 your max MP (it moves with buffs, and
+/// stat 1 tops out at it), 3 flight energy (counts down by about 500 a tick from about
+/// 120,000), 4 and 6 not known.
+pub const STAT_MP: u8 = 1;
+pub const STAT_MP_MAX: u8 = 8;
+
+/// The u32 stats of a `0x8d00`: (entity, [(stat, value)]); empty when it has none.
+pub fn parse_u32_stats(p: &[u8]) -> Option<(u64, Vec<(u8, u32)>)> {
+    let mut i = 0;
+    let entity = read_varint(p, &mut i)?;
+    let mask = *p.get(i)?;
+    i += 1;
+    let mut out = Vec::new();
+    if mask & 0x01 != 0 {
+        let n = *p.get(i)? as usize;
+        i += 1;
+        for k in 0..n {
+            let at = i + k * 5;
+            out.push((*p.get(at)?, u32::from_le_bytes(p.get(at + 1..at + 5)?.try_into().ok()?)));
+        }
+    }
+    Some((entity, out))
+}
+
+/// A party member's HP and MP (`0x921b`, Questlog's PartyUpdateMemberHPMP): varint entity,
+/// varint HP, varint max HP, u32 MP, u32 max MP, then 17 bytes (zeros, flight energy and
+/// its max, a flag). Checked on our captures (2026-10-30): the HP is the same as the
+/// member's `0x8d00` within 3 s in 11,227 of 11,309, and all 23,249 have this layout.
+pub const OPCODE_PARTY_VITALS: u16 = 0x921b;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Vitals {
+    pub hp: u64,
+    pub hp_max: u64,
+    pub mp: u32,
+    pub mp_max: u32,
+}
+
+pub fn parse_party_vitals(p: &[u8]) -> Option<(u64, Vitals)> {
+    let mut i = 0;
+    let entity = read_varint(p, &mut i)?;
+    let hp = read_varint(p, &mut i)?;
+    let hp_max = read_varint(p, &mut i)?;
+    let u = |at: usize| p.get(at..at + 4).and_then(|b| b.try_into().ok()).map(u32::from_le_bytes);
+    Some((entity, Vitals { hp, hp_max, mp: u(i)?, mp_max: u(i + 4)? }))
 }
 
 /// HP and max HP from a mob spawn (`0x3641`):

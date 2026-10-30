@@ -523,6 +523,17 @@ pub struct CastBar {
     pub remaining_ms: u32,
 }
 
+/// Your HP, MP and the cast you're making, for the player bars. Max HP isn't sent: the
+/// highest seen stands in (your max whenever you've been at full HP).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct SelfBars {
+    pub hp: Option<u64>,
+    pub hp_max: Option<u64>,
+    pub mp: Option<u32>,
+    pub mp_max: Option<u32>,
+    pub cast: Option<CastBar>,
+}
+
 /// Why a fight ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -609,6 +620,19 @@ pub struct PartyView {
     pub is_self: bool,
     /// From the skills we've seen them use (unknown until they fight).
     pub class_code: Option<u32>,
+}
+
+/// A party member for the party frames.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PartyFrame {
+    #[serde(flatten)]
+    pub view: PartyView,
+    pub hp: Option<u64>,
+    pub hp_max: Option<u64>,
+    pub mp: Option<u32>,
+    pub mp_max: Option<u32>,
+    /// How long ago the party's update for them came (ms).
+    pub age_ms: Option<u64>,
 }
 
 /// A fight that has ended, as it looked at the end.
@@ -823,6 +847,12 @@ pub struct Meter {
     contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
     casting: HashMap<u64, (u32, u64, u32)>,
+    /// Your MP: now, max (when sent), and the highest seen.
+    self_mp: (Option<u32>, Option<u32>, u32),
+    /// Other players' gear, from their spawns.
+    gear: crate::gear::GearBook,
+    /// Party members' HP and MP (`0x921b`), and when each was sent.
+    party_vitals: HashMap<u64, (hp::Vitals, u64)>,
     /// Hidden cubes in view.
     cubes: crate::cubes::Cubes,
     /// Your pets' souls.
@@ -876,6 +906,9 @@ impl Meter {
             world_map_us: None,
             contents: Contents::default(),
             casting: HashMap::new(),
+            self_mp: (None, None, 0),
+            party_vitals: HashMap::new(),
+            gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
             pets: crate::pets::Pets::default(),
             positions: crate::positions::Positions::default(),
@@ -942,9 +975,30 @@ impl Meter {
         self.world_map_us.is_some_and(|t| now_us.saturating_sub(t) < WORLD_MAP_GONE_US)
     }
 
+    /// Your HP, MP and cast now (the player bars widget).
+    pub fn self_bars(&self) -> Option<SelfBars> {
+        let me = self.registry.self_id()?;
+        let (mp, mp_max, mp_seen) = self.self_mp;
+        Some(SelfBars {
+            hp: self.hp.last(me),
+            hp_max: self.hp.max(me),
+            mp,
+            mp_max: mp_max.or((mp_seen > 0).then_some(mp_seen)),
+            cast: self.casting.get(&me).and_then(|&(skill, start, cast_ms)| {
+                let end = start + u64::from(cast_ms) * 1000;
+                (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
+            }),
+        })
+    }
+
     /// Hidden cubes in view, and how far and which way while your position is known.
     pub fn cubes(&self, now_us: u64) -> Vec<crate::cubes::CubeView> {
         self.cubes.view(now_us)
+    }
+
+    /// A player's gear, as last seen (they've been in view).
+    pub fn gear_of(&self, name: &str) -> Option<&[crate::gear::GearPiece]> {
+        self.gear.of(name)
     }
 
     /// Where the mobs and players in view are, and you.
@@ -991,6 +1045,11 @@ impl Meter {
     }
 
     /// The map you're on now, if the game has said.
+    /// The dungeon you're in's clock (its time limit, or the time after its last boss).
+    pub fn dungeon_clock(&self) -> Option<crate::dungeon::DungeonClock> {
+        self.maps.clock()
+    }
+
     pub fn instance(&self) -> Option<&Instance> {
         self.maps.current()
     }
@@ -1011,7 +1070,8 @@ impl Meter {
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         self.cubes.feed(ts_us, opcode, payload);
         self.pets.feed(opcode, payload);
-        self.positions.feed(ts_us, opcode, payload);
+        self.positions.feed(ts_us, opcode, payload, self.registry.self_id());
+        self.gear.feed(opcode, payload);
         if opcode == OPCODE_CAST {
             if let Some(c) = parse_cast(payload) {
                 // The cast went off, so its cast time is over.
@@ -1050,7 +1110,25 @@ impl Meter {
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }
+        if opcode == hp::OPCODE_PARTY_VITALS {
+            if let Some((entity, v)) = hp::parse_party_vitals(payload) {
+                self.party_vitals.insert(entity, (v, ts_us));
+            }
+        }
         if opcode == hp::OPCODE_HP {
+            // Your MP, from the same message.
+            if let Some((_, stats)) = hp::parse_u32_stats(payload).filter(|(e, _)| Some(*e) == self.registry.self_id()) {
+                for (stat, value) in stats {
+                    match stat {
+                        hp::STAT_MP => {
+                            self.self_mp.0 = Some(value);
+                            self.self_mp.2 = self.self_mp.2.max(value);
+                        }
+                        hp::STAT_MP_MAX => self.self_mp.1 = Some(value),
+                        _ => {}
+                    }
+                }
+            }
             if let Some(u) = hp::parse_hp(payload) {
                 let before = self.hp.last(u.entity);
                 self.hp.record(ts_us, u.entity, u.hp, None);
@@ -1255,6 +1333,8 @@ impl Meter {
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
                 self.casting.clear();
+                self.self_mp = (None, None, 0);
+                self.party_vitals.clear();
                 self.boss_log.clear();
                 self.pulls.clear();
                 self.cubes.clear();
@@ -1726,6 +1806,37 @@ impl Meter {
             encounter: enc.and_then(|e| self.view(e, active)),
             encounters_completed: self.completed,
         }
+    }
+
+    /// Your party as frames: each member with their HP and MP (from the party's own
+    /// updates, else their `0x8d00`), and how long ago it was sent.
+    pub fn party_frames(&self) -> Vec<PartyFrame> {
+        let me = self.registry.self_id();
+        self.party_view()
+            .into_iter()
+            .map(|view| {
+                let entity = if view.is_self { me } else { self.registry.entity_named(&view.member.name) };
+                let sent = entity.and_then(|e| self.party_vitals.get(&e));
+                let mut f = PartyFrame { view, hp: None, hp_max: None, mp: None, mp_max: None, age_ms: None };
+                if let Some((v, at)) = sent {
+                    (f.hp, f.hp_max, f.mp, f.mp_max) = (Some(v.hp), Some(v.hp_max), Some(v.mp), Some(v.mp_max));
+                    f.age_ms = Some(self.latest_us.saturating_sub(*at) / 1000);
+                }
+                // Newer HP from 0x8d00 (sent as it changes, for anyone in view).
+                if let Some(e) = entity {
+                    if let Some(hp) = self.hp.last(e) {
+                        f.hp = Some(hp);
+                        f.hp_max = f.hp_max.or(self.hp.max(e));
+                    }
+                }
+                if f.view.is_self {
+                    let (mp, mp_max, _) = self.self_mp;
+                    f.mp = mp.or(f.mp);
+                    f.mp_max = mp_max.or(f.mp_max);
+                }
+                f
+            })
+            .collect()
     }
 
     /// Your party with what we know of each member's class.
