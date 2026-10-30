@@ -15,6 +15,8 @@
 //! There's no max HP here. Mob spawns (`0x3641`) carry the mob's HP and max HP; for
 //! anything else the highest HP seen stands in. See docs/protocol.md.
 
+use serde::Serialize;
+
 use crate::protocol::read_varint;
 
 pub const OPCODE_HP: u16 = 0x8d00;
@@ -86,6 +88,29 @@ pub fn parse_u32_stats(p: &[u8]) -> Option<(u64, Vec<(u8, u32)>)> {
         }
     }
     Some((entity, out))
+}
+
+/// A party member's HP and MP (`0x921b`, Questlog's PartyUpdateMemberHPMP): varint entity,
+/// varint HP, varint max HP, u32 MP, u32 max MP, then 17 bytes (zeros, flight energy and
+/// its max, a flag). Checked on our captures (2026-10-30): the HP is the same as the
+/// member's `0x8d00` within 3 s in 11,227 of 11,309, and all 23,249 have this layout.
+pub const OPCODE_PARTY_VITALS: u16 = 0x921b;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Vitals {
+    pub hp: u64,
+    pub hp_max: u64,
+    pub mp: u32,
+    pub mp_max: u32,
+}
+
+pub fn parse_party_vitals(p: &[u8]) -> Option<(u64, Vitals)> {
+    let mut i = 0;
+    let entity = read_varint(p, &mut i)?;
+    let hp = read_varint(p, &mut i)?;
+    let hp_max = read_varint(p, &mut i)?;
+    let u = |at: usize| p.get(at..at + 4).and_then(|b| b.try_into().ok()).map(u32::from_le_bytes);
+    Some((entity, Vitals { hp, hp_max, mp: u(i)?, mp_max: u(i + 4)? }))
 }
 
 /// HP and max HP from a mob spawn (`0x3641`):

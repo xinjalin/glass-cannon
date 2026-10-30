@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 10] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "cooldowns", "party-cooldowns", "timers", "pets"];
+pub const WIDGETS: [&str; 11] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "party", "cooldowns", "party-cooldowns", "timers", "pets"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
@@ -679,4 +679,10 @@ pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::Sel
         c.skill_name = lock(&app.data).skill_meta(c.skill).0;
     }
     Some(bars)
+}
+
+/// Your party as frames (the party frames widget).
+#[tauri::command]
+pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<meter_core::meter::PartyFrame> {
+    app.engine.meter().party_frames()
 }

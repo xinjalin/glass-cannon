@@ -8,9 +8,9 @@ Every message type (opcode) in our captures: 428 opcodes, 5,337,612 messages, fr
 
 | | opcodes | messages |
 | --- | ---: | ---: |
-| Decoded and used by the meter | 52 | 2,948,335 |
+| Decoded and used by the meter | 53 | 2,971,584 |
 | Understood, not used yet | 49 | 1,707,170 |
-| Named elsewhere only | 111 | 668,521 |
+| Named elsewhere only | 110 | 645,272 |
 | Unknown | 216 | 13,586 |
 | Named elsewhere, never seen | 17 | 0 |
 
@@ -27,6 +27,7 @@ Every message type (opcode) in our captures: 428 opcodes, 5,337,612 messages, fr
 | `0x382c` | 74,360 | buffs removed | AbnormalRemoveList_NT |  |
 | `0x364a` | 36,857 | your stats tick (~1/s): names your entity | CharStatsUpdate_NT | A2Tools: stats changed |
 | `0xe005` | 25,004 | a mob's stagger gauge | UpdateGroggyInfo_NT | a2_protocol-research: groggy or guard |
+| `0x921b` | 23,249 | a party member's HP and MP: varint entity, varint HP, varint max HP, u32 MP, u32 max MP, 17 bytes (checked 2026-10-30: HP = the member's `0x8d00` in 11,227 of 11,309; the party frames) | PartyUpdateMemberHPMP_NT | Aion2Flow: party status; A2Tools: HP / MP update |
 | `0x921c` | 18,434 | a party member's update (level, gear score, combat power, position) | PartyUpdateMemberStatus_NT |  |
 | `0x8d21` | 17,257 | in / out of combat; a boss's berserk time | CombatStateUpdate_NT | Aion2Flow: battle toggle |
 | `0x3641` | 15,931 | mob / NPC appears: entity, type, position, HP, max HP; summons; boss copies of players | NpcAppear_NT |  |
@@ -137,7 +138,6 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x3803` | 99,552 | 20 | 35.0 | yes |  | a2_protocol-research: NPC position; Aion DPS Meter: a hit notice, about 0.3 s before the damage (`0x3804`), with the attacker's position |
 | `0x383b` | 31,512 | 16 | 2.0 |  |  | Aion DPS Meter: comes with your skill acknowledgement `0x3801` (ours: 73 % within 0.3 s), `0000` or `0100` |
 | `0x383d` | 31,383 | 16 | 2.0 |  |  | a2_protocol-research: combat batch; Aion DPS Meter: comes with your skill acknowledgement `0x3801` (ours: 73 % within 0.3 s) |
-| `0x921b` | 23,249 | 4 | 32.5 | yes | PartyUpdateMemberHPMP_NT | Aion2Flow: party status; A2Tools: HP / MP update |
 | `0x3848` | 22,893 | 4 | 32.0 | yes | SkillRangeNoticeFilterLocation_NT | decoded 2026-10-24: where a boss's cast lands and when (the meter's boss cast line) |
 | `0x8a33` | 17,660 | 19 | 37.1 | yes | GuildDescUpdate_NT | Aion DPS Meter: a visible player's legion |
 | `0x561b` | 12,497 | 8 | 49.7 |  | ItemModificationList_NT |  |

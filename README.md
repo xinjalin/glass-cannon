@@ -102,6 +102,9 @@ finishes. The widgets:
 - **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. The
   game never sends your max HP: the highest seen stands in (your max once you've been at
   full HP).
+- **party frames**: your party as a grid of tiles, each filled by the member's HP in their
+  class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
+  "dead" when they are.
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used).
