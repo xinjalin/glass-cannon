@@ -130,6 +130,9 @@ pub struct Settings {
     /// The overlay steps aside while a game menu is open (from the cursor: action controls).
     #[serde(default)]
     pub hide_for_menus: bool,
+    /// The hotkeys' keys (settings → keybinds).
+    #[serde(default)]
+    pub hotkeys: crate::hotkeys::Bindings,
 }
 
 fn default_dummy_run_s() -> u32 {
@@ -227,10 +230,6 @@ pub struct Appearance {
     /// "frosted": blurred glass; "tinted": see-through tint, no blur; "clear": nothing at all.
     #[serde(default = "default_backdrop")]
     pub backdrop: String,
-    /// How frosted the overlay's frosted glass is, in percent: 0 clear glass (no blur), up
-    /// to 50 Windows' light blur, then its acrylic with a tint thickening to solid at 100.
-    #[serde(default = "default_frost")]
-    pub frost: u8,
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
@@ -256,9 +255,6 @@ fn default_font_size() -> u8 {
 fn default_opacity() -> u8 {
     62
 }
-fn default_frost() -> u8 {
-    50
-}
 fn default_backdrop() -> String {
     "frosted".into()
 }
@@ -274,7 +270,6 @@ impl Default for Appearance {
             font: String::new(),
             opacity: default_opacity(),
             backdrop: default_backdrop(),
-            frost: default_frost(),
             info_bar: false,
         }
     }
@@ -293,8 +288,6 @@ pub struct AppearanceChange {
     /// Any number: clamped to 0-100.
     pub opacity: Option<i64>,
     pub backdrop: Option<String>,
-    /// Any number: clamped to 0-100.
-    pub frost: Option<i64>,
     pub info_bar: Option<bool>,
 }
 
@@ -315,9 +308,6 @@ impl Appearance {
         }
         if let Some(f) = c.font_size {
             self.font_size = f.clamp(i64::from(*FONT_SIZES.start()), i64::from(*FONT_SIZES.end())) as u8;
-        }
-        if let Some(f) = c.frost {
-            self.frost = f.clamp(0, 100) as u8;
         }
         if let Some(o) = c.opacity {
             self.opacity = o.clamp(i64::from(*OPACITIES.start()), i64::from(*OPACITIES.end())) as u8;
@@ -353,9 +343,6 @@ impl Appearance {
         }
         if !OPACITIES.contains(&self.opacity) {
             self.opacity = fixed.opacity;
-        }
-        if self.frost > 100 {
-            self.frost = fixed.frost;
         }
         if !BACKDROPS.contains(&self.backdrop.as_str()) {
             self.backdrop = fixed.backdrop;
@@ -1252,7 +1239,6 @@ mod tests {
             font: Some("Consolas".into()),
             opacity: Some(0),
             backdrop: Some("clear".into()),
-            frost: Some(80),
             info_bar: Some(true),
         });
         s.save(&dir);

@@ -34,6 +34,7 @@ const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
+const PET_MAP_FILE: &str = "pet-map.json";
 const GEAR_FILE: &str = "gear.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
@@ -715,6 +716,11 @@ impl GameData {
 
     /// A class icon (class_<code>.webp or .png) as a `data:` URL.
     /// A pet's portrait (`pet_<id>.png`, from `packet-lab pet-icons`).
+    /// The pet map's data (`pet-map.json`): where each pet's mobs spawn, per map; as read.
+    pub fn pet_map(&self) -> Option<serde_json::Value> {
+        read_json(&self.dir.join(PET_MAP_FILE)).ok()
+    }
+
     pub fn pet_icon(&self, pet: u32) -> Option<String> {
         self.icon_data_url(&format!("pet_{pet}.png"))
     }

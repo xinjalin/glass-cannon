@@ -170,49 +170,15 @@ pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
     frame(window, a.backdrop == "frosted", DWMWCP_ROUNDSMALL, colorref(border_rgb(&a.theme)));
 }
 
-/// A blur plate under an overlay widget: Windows' frosted backdrop, small rounded corners
-/// (as the widgets'), no border,
-/// kept on while the window isn't active (it never is).
+/// A blur plate under an overlay widget: Windows' light blur (through the accent API; the
+/// newer system backdrop is a heavier frost), small rounded corners (as the widgets'), no
+/// border, kept on while the window isn't active (it never is).
 pub fn plate<R: Runtime>(window: &WebviewWindow<R>) {
     let _ = window.set_shadow(false);
-    frame(window, true, DWMWCP_ROUNDSMALL, NO_BORDER);
-}
-
-/// The frost setting on a plate: 0 none (no plate at all, see [`frosted`]); up to
-/// [`ACRYLIC_FROM`] Windows' light blur; above, its acrylic, whose tint goes from clear to
-/// solid at 100. Through the accent API, whose blur kind and tint can be set (the newer
-/// system backdrop has neither); one dark tint, so the colour never changes.
-pub fn set_plate_frost<R: Runtime>(window: &WebviewWindow<R>, frost: u8) {
+    frame(window, false, DWMWCP_ROUNDSMALL, NO_BORDER);
     let Ok(hwnd) = window.hwnd() else { return };
     let hwnd = hwnd.0 as isize;
-    let (state, gradient) = frost_accent(frost);
-    let _ = window.run_on_main_thread(move || {
-        // SAFETY: a DWM call on our own window with a 4-byte value.
-        unsafe {
-            DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &DWMSBT_NONE, 4);
-        }
-        set_accent_tinted(hwnd, state, gradient);
-    });
-}
-
-/// Whether the frost setting wants plates at all.
-pub fn frosted(frost: u8) -> bool {
-    frost > 0
-}
-
-/// Where the light blur gives way to acrylic.
-pub const ACRYLIC_FROM: u8 = 51;
-/// The acrylic's tint colour (0xBBGGRR): the theme's dark.
-const FROST_TINT: u32 = 0x1c1816;
-
-/// (accent state, gradient 0xAABBGGRR) for a frost setting.
-fn frost_accent(frost: u8) -> (u32, u32) {
-    if frost < ACRYLIC_FROM {
-        return (ACCENT_ENABLE_BLURBEHIND, 0);
-    }
-    // 51 -> a hint of tint (acrylic needs some), 100 -> solid.
-    let alpha = 8 + (u32::from(frost - ACRYLIC_FROM) * (255 - 8)) / u32::from(100 - ACRYLIC_FROM);
-    (ACCENT_ENABLE_ACRYLICBLURBEHIND, alpha.min(255) << 24 | FROST_TINT)
+    let _ = window.run_on_main_thread(move || set_accent_tinted(hwnd, ACCENT_ENABLE_BLURBEHIND, 0));
 }
 
 /// The launcher keeps its own look whatever the theme: solid, small corners, a quiet
@@ -266,13 +232,5 @@ mod tests {
         assert_eq!(border_rgb("#f2a8a4"), 0xc98b88);
         assert_eq!(border_rgb("rose"), 0xc98a86);
         assert_eq!(border_rgb("night"), 0x2c2f37);
-    }
-
-    #[test]
-    fn frost_goes_from_light_blur_to_solid() {
-        assert!(!frosted(0));
-        assert_eq!(frost_accent(30), (ACCENT_ENABLE_BLURBEHIND, 0));
-        assert_eq!(frost_accent(51), (ACCENT_ENABLE_ACRYLICBLURBEHIND, 0x0800_0000 | FROST_TINT));
-        assert_eq!(frost_accent(100).1 >> 24, 255);
     }
 }

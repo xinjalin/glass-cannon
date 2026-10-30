@@ -10,7 +10,6 @@ const FONT_MAX = 18;
 const OPACITY_MIN = 0;
 const OPACITY_MAX = 100;
 const OPACITY_STEP = 5;
-const FROST_STEP = 10;
 // Window width in em: two 29em columns, the gap between them and the margins.
 const WIDTH_EM = 61.5;
 
@@ -114,11 +113,6 @@ function drawAppearance(a) {
   $("opacity-value").textContent = clear ? "none" : `${a.opacity}%`;
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
-  // Frost only means something with the frosted background.
-  const frosted = a.backdrop === "frosted";
-  $("frost-value").textContent = frosted ? `${a.frost}%` : "–";
-  $("frost-down").disabled = !frosted || a.frost <= 0;
-  $("frost-up").disabled = !frosted || a.frost >= 100;
   setToggle("info-bar", a.info_bar);
   fitWindow();
 }
@@ -158,7 +152,7 @@ async function refresh() {
     setToggle("hide-on-world-map", state.hide_on_world_map);
     setToggle("close-with-game", state.close_with_game);
     setToggle("hide-for-menus", state.hide_for_menus);
-    $("hotkeys").textContent = `hotkeys: ${state.hotkeys.map(([k, what]) => `${k} ${what}`).join(" · ")}`;
+    drawHotkeys();
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
     for (const b of document.querySelectorAll("[data-widget]")) {
@@ -217,12 +211,6 @@ $("font-up").addEventListener("click", () => setAppearance({ fontSize: state.app
 $("opacity-down").addEventListener("click", () => {
   const o = state.appearance.opacity;
   setAppearance({ opacity: Math.max(OPACITY_MIN, Math.ceil(o / OPACITY_STEP) * OPACITY_STEP - OPACITY_STEP) });
-});
-$("frost-down").addEventListener("click", () => {
-  setAppearance({ frost: Math.max(0, Math.ceil(state.appearance.frost / FROST_STEP) * FROST_STEP - FROST_STEP) });
-});
-$("frost-up").addEventListener("click", () => {
-  setAppearance({ frost: Math.min(100, Math.floor(state.appearance.frost / FROST_STEP) * FROST_STEP + FROST_STEP) });
 });
 $("opacity-up").addEventListener("click", () => {
   const o = state.appearance.opacity;
@@ -354,6 +342,101 @@ $("hide-on-world-map").addEventListener("click", async () => {
 $("hide-for-menus").addEventListener("click", async () => {
   await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
   refresh();
+});
+
+// Keybinds: click one, then press its new keys (as the app names them: modifiers, then
+// the key's code, "Ctrl+Shift+F10"; or one modifier alone, tapped, "AltRight"). Esc
+// keeps the old ones, Delete puts back the default. The hotkeys pause meanwhile.
+let bindingAction = null;
+const modsDown = new Set();
+const MODIFIERS = ["ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"];
+
+function prettyKeys(keys) {
+  const side = { Left: "Left", Right: "Right" };
+  const names = { Control: "Ctrl", Shift: "Shift", Alt: "Alt", Meta: "Win" };
+  return keys
+    .split("+")
+    .map((k) => {
+      const m = /^(Control|Shift|Alt|Meta)(Left|Right)$/.exec(k);
+      if (m) return `${side[m[2]]} ${names[m[1]]}`;
+      return k.replace(/^Key(.)$/, "$1").replace(/^Digit(.)$/, "$1").replace(/^Numpad(.)$/, "Num $1").replace(/^Arrow/, "");
+    })
+    .join("+");
+}
+
+function drawHotkeys() {
+  const rows = state.hotkeys.map((h) => {
+    const b = el("button", "opt");
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(bindingAction === h.action));
+    b.title = `Click, then press new keys (default: ${prettyKeys(h.default)})`;
+    b.append(el("span", "key", h.what), el("span", "state", bindingAction === h.action ? "[press keys…]" : `[${prettyKeys(h.keys)}]`));
+    b.addEventListener("click", () => (bindingAction === h.action ? stopPicking() : startPicking(h.action)));
+    return b;
+  });
+  $("hotkeys").replaceChildren(...rows);
+}
+
+function startPicking(action) {
+  bindingAction = action;
+  modsDown.clear();
+  invoke("pause_hotkeys", { on: true }).catch(() => {});
+  $("hotkeys-hint").textContent = "press the new keys · Esc keeps the old ones · Delete puts back the default";
+  drawHotkeys();
+}
+
+function stopPicking(error) {
+  bindingAction = null;
+  modsDown.clear();
+  invoke("pause_hotkeys", { on: false }).catch(() => {});
+  $("hotkeys-hint").textContent = error || $("hotkeys-hint").dataset.text;
+  refresh();
+}
+
+async function pickKeys(keys) {
+  const action = bindingAction;
+  try {
+    await invoke("set_hotkey", { action, keys });
+    stopPicking();
+  } catch (e) {
+    stopPicking(String(e));
+  }
+}
+
+$("hotkeys-hint").dataset.text = $("hotkeys-hint").textContent;
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (!bindingAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (MODIFIERS.includes(e.code)) {
+      modsDown.add(e.code);
+      return;
+    }
+    const mods = [e.ctrlKey && "Ctrl", e.shiftKey && "Shift", e.altKey && "Alt", e.metaKey && "Win"].filter(Boolean);
+    if (!mods.length && e.code === "Escape") return stopPicking();
+    if (!mods.length && e.code === "Delete") return pickKeys("");
+    pickKeys([...mods, e.code].join("+"));
+  },
+  true,
+);
+window.addEventListener(
+  "keyup",
+  (e) => {
+    if (!bindingAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // One modifier alone, pressed and let go (Right Alt brings a Left Ctrl with it on
+    // some keyboards).
+    const alone = [...modsDown].filter((c) => !(c === "ControlLeft" && modsDown.has("AltRight")));
+    if (alone.length === 1 && alone[0] === e.code) pickKeys(e.code);
+  },
+  true,
+);
+window.addEventListener("blur", () => {
+  if (bindingAction) stopPicking();
 });
 
 $("close-with-game").addEventListener("click", async () => {

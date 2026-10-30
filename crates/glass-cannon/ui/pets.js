@@ -1,12 +1,12 @@
 // The pet tracker: the pets you track (settings → pet tracker; where each is found shows
 // there), with their level and souls toward the next one, and their mobs in view now: how
-// far and which way while the meter knows where you are (for a minute after you log in,
-// teleport, change zone, are hit, or hit a mob, which is then "about" where you are). With
-// [nearest], every pet you still need whose mobs are in view, tracked or not, nearest first.
+// far and which way to the nearest, once the meter knows where you are (from when you log
+// in, teleport, change zone or are hit; "about" when it's from a mob you hit, or a minute
+// old). With [nearest], every pet you still need whose mobs are in view, nearest first.
 
-// Mobs' positions come once a second (and in small steps between): twice a second keeps the
-// arrow as fresh as they are.
-const POLL_MS = 500;
+// Mobs move in small steps about ten times a second: this keeps the arrow live. Rows are
+// updated in place, so a tooltip being read stays put.
+const POLL_MS = 150;
 let state = null;
 
 // Portraits, by pet (asked for once each).
@@ -52,13 +52,16 @@ function near(p) {
     box.append(arrow, el("span", "", ` ${rough ? "≈" : ""}${p.distance_m} m ×${p.in_view}`));
     box.title =
       `${p.in_view} of its mobs in view; the nearest ${p.distance_m} m away (the arrow: north is up)` +
-      (rough ? "\nAbout: from where the last mob you hit was" : "");
+      (rough ? "\nAbout: from the last mob you hit, or where you were a while ago (being hit, or a teleport, makes it exact)" : "");
   } else {
     box.append(el("span", "", `×${p.in_view}`));
-    box.title = `${p.in_view} of its mobs in view (how far isn't known: the meter knows where you are for a minute after you log in, teleport, change zone, are hit or hit a mob)`;
+    box.title = `${p.in_view} of its mobs in view (which way shows once the meter knows where you are: when you log in, teleport, change zone, are hit or hit a mob)`;
   }
   return box;
 }
+
+// What a row shows, apart from where its mobs are (that changes in place).
+const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view > 0, needs(p)].join("|");
 
 function row(p) {
   const li = el("li", "pet" + (p.in_view ? " here" : "") + (needs(p) ? "" : " done"));
@@ -83,7 +86,26 @@ function draw() {
   const shown = nearest
     ? state.pets.filter((p) => needs(p) && p.in_view).sort((a, b) => dist(a) - dist(b) || b.in_view - a.in_view || a.name.localeCompare(b.name))
     : tracked.sort((a, b) => needs(b) - needs(a) || (b.in_view > 0) - (a.in_view > 0) || a.name.localeCompare(b.name));
-  $("list").replaceChildren(...shown.map(row));
+  const list = $("list");
+  const old = new Map([...list.children].map((li) => [li.dataset.key, li]));
+  const items = shown.map((p) => {
+    const key = rowKey(p);
+    const li = old.get(key) || row(p);
+    li.dataset.key = key;
+    const was = li.querySelector(".pet-near");
+    if (p.in_view && was) {
+      const now = near(p);
+      if (now.textContent !== was.textContent || now.title !== was.title) {
+        was.replaceChildren(...now.childNodes);
+        was.title = now.title;
+      }
+      const arrow = was.querySelector(".pet-arrow");
+      if (arrow) arrow.style.transform = `rotate(${p.bearing - 90}deg)`;
+    }
+    return li;
+  });
+  // Only re-order when the list changed (moving a row would drop its tooltip).
+  if (items.length !== list.children.length || items.some((li, k) => list.children[k] !== li)) list.replaceChildren(...items);
   const empty = $("empty");
   empty.hidden = shown.length > 0;
   empty.textContent = nearest

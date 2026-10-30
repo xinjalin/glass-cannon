@@ -36,8 +36,6 @@
 :root {
   --fs: 13px;
   --alpha: 0.62;
-  /* How frosted the overlay's frosted glass looks (settings → frost): 0.5 as designed. */
-  --frost: 0.5;
   --tint: rgba(var(--tint-rgb), var(--alpha));
   --tint-strong: rgba(var(--tint-rgb), 0.85);
   /* Bright text with a soft shadow stays readable over bright game scenes. */

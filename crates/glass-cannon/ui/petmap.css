@@ -1,0 +1,70 @@
+/* The pet map window: the map's dots on the left, its pets on the right. */
+
+.petmap-body { flex: 1; min-height: 0; display: flex; gap: 0.6em; }
+
+.map-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line-faint);
+  border-radius: 0.35em;
+  background: rgba(var(--tint-rgb), 0.35);
+  overflow: hidden;
+  cursor: grab;
+}
+.map-wrap.dragging { cursor: grabbing; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.map-key { position: absolute; left: 0.6em; bottom: 0.3em; margin: 0; pointer-events: none; }
+.map-tip {
+  position: absolute;
+  max-width: 18em;
+  padding: 0.25em 0.5em;
+  border-radius: 0.3em;
+  background: var(--tint-strong);
+  border: 1px solid var(--line);
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+.map-tip .dim { color: var(--muted); }
+
+.pet-side { flex: none; width: 16em; display: flex; flex-direction: column; min-height: 0; gap: 0.35em; }
+.side-head { display: flex; gap: 0.3em; align-items: center; }
+.side-search {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 0.25em;
+  padding: 0.1em 0.4em;
+  outline: none;
+}
+.side-search::placeholder { color: var(--faint); }
+.side-search:focus { border-color: var(--accent); }
+.side-head button { flex: none; color: var(--accent); font-size: 0.85em; }
+.side-head button[aria-pressed="false"] { color: var(--muted); }
+
+.side-list { list-style: none; margin: 0; padding: 0; }
+.map-pet {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.15em 0.3em;
+  border-radius: 0.3em;
+  cursor: pointer;
+}
+.map-pet:hover { background: var(--line-faint); }
+.map-pet[aria-selected="true"] { background: var(--accent-fill); color: var(--ink); text-shadow: none; }
+.map-pet[aria-selected="true"] .pet-name,
+.map-pet[aria-selected="true"] .map-count { color: var(--ink); }
+.map-pet .pet-icon { width: 1.6em; height: 1.6em; }
+.map-pet .pet-line { display: flex; align-items: center; gap: 0.4em; min-width: 0; }
+.map-pet.done { opacity: 0.55; }
+.map-count { color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.map-pet.tracked .pet-name { color: var(--ok); }
+
+.side-areas { flex: none; max-height: 9em; overflow-y: auto; line-height: 1.35; }
+.side-areas b { color: var(--text); font-weight: normal; }

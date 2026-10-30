@@ -72,6 +72,23 @@
         "center": false
       },
       {
+        "label": "petmap",
+        "title": "Glass Cannon pet map",
+        "width": 820,
+        "height": 620,
+        "minWidth": 480,
+        "minHeight": 320,
+        "url": "petmap.html",
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
+      },
+      {
         "label": "hud",
         "title": "Glass Cannon overlay",
         "url": "hud.html",

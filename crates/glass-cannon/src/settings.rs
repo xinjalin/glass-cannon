@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, HISTORY, LAUNCHER, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -26,6 +26,7 @@ const SCREEN_MARGIN: f64 = 16.0;
 const MIN_SETTINGS: (f64, f64) = (420.0, 320.0);
 /// The same for the history window.
 const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
+const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
@@ -64,8 +65,17 @@ pub struct SettingsStatus {
     hide_after_s: u32,
     close_with_game: bool,
     hide_for_menus: bool,
-    /// The global hotkeys: (keys, what they do).
-    hotkeys: &'static [(&'static str, &'static str)],
+    /// The global hotkeys.
+    hotkeys: Vec<Hotkey>,
+}
+
+/// A hotkey: what it does and the keys it uses ("Ctrl+Shift+F10", "AltRight").
+#[derive(Serialize)]
+pub struct Hotkey {
+    action: &'static str,
+    what: &'static str,
+    keys: String,
+    default: &'static str,
 }
 
 #[tauri::command]
@@ -143,8 +153,26 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         hide_after_s: s.hide_after_s,
         close_with_game: s.close_with_game,
         hide_for_menus: s.hide_for_menus,
-        hotkeys: &crate::hotkeys::LIST,
+        hotkeys: crate::hotkeys::ACTIONS
+            .iter()
+            .map(|&(action, what, default)| Hotkey { action, what, keys: s.hotkeys.get(action).into(), default })
+            .collect(),
     }
+}
+
+/// Sets a hotkey's keys ("" for its default); saved for next time.
+#[tauri::command]
+pub fn set_hotkey(app: State<'_, Arc<AppState>>, action: String, keys: String) -> Result<(), String> {
+    let mut s = lock(&app.settings);
+    s.hotkeys.set(&action, &keys)?;
+    s.save(&app.config_dir);
+    Ok(())
+}
+
+/// While a hotkey is being picked in the settings, none go off.
+#[tauri::command]
+pub fn pause_hotkeys(app: State<'_, Arc<AppState>>, on: bool) {
+    app.hotkeys_paused.store(on, Ordering::SeqCst);
 }
 
 /// Changes how the windows look; saved for next time. Missing values stay as they are.
@@ -242,6 +270,25 @@ pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<
     if (first && !restored) || !fully_on_screen(&w) {
         if let Ok(size) = w.outer_size() {
             place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_HISTORY, &SIDES);
+        }
+    }
+    w.show().map_err(|e| e.to_string())?;
+    let _ = w.unminimize();
+    w.set_focus().map_err(|e| e.to_string())
+}
+
+/// Shows the pet map, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_pet_map(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let w = handle.get_webview_window(PET_MAP).ok_or("no pet map window")?;
+    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
+        return w.hide().map_err(|e| e.to_string());
+    }
+    let first = !app.pet_map_placed.swap(true, Ordering::SeqCst);
+    let restored = first && lock(&app.placements).get(PET_MAP).is_some_and(|p| crate::placement::restore(&w, p, true));
+    if (first && !restored) || !fully_on_screen(&w) {
+        if let Ok(size) = w.outer_size() {
+            place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_PET_MAP, &SIDES);
         }
     }
     w.show().map_err(|e| e.to_string())?;

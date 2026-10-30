@@ -33,6 +33,7 @@ mod npc_names;
 mod pets;
 mod gear;
 mod pet_icons;
+mod pet_map;
 mod pet_spawns;
 mod item_icons;
 mod theostones;
@@ -261,6 +262,20 @@ enum Cmd {
         #[arg(long)]
         commit: String,
     },
+    /// Build gamedata/pet-map.json (where the mobs that give each pet's souls spawn, on the
+    /// world and Abyss maps, for the pet map window) from SkeeveAN's Aion DPS Meter (MIT)
+    PetMap {
+        /// Its Client/assets/aion2/pets/spawns.json
+        spawns: PathBuf,
+        /// Which mob types give which pet (made by pet-spawns)
+        #[arg(long, default_value = "gamedata/pet-spawns.json")]
+        pet_spawns: PathBuf,
+        #[arg(long, default_value = "gamedata/pet-map.json")]
+        out: PathBuf,
+        /// The upstream commit the file is from (recorded in the file)
+        #[arg(long)]
+        commit: String,
+    },
     /// Build gamedata/gear.json (weapon, armour and accessory names, grades and item levels,
     /// for the gear players wear) from a scraped item database
     Gear {
@@ -441,6 +456,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
+        Cmd::PetMap { spawns, pet_spawns, out, commit } => pet_map::run(&spawns, &pet_spawns, &out, &commit),
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),

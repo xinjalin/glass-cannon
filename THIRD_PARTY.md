@@ -31,7 +31,8 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   merchants and the like that the mob lists don't name). Only names are kept; same terms.
 - [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN, MIT:
   `pet-spawns.json` (which of 2,256 mob types give which pet's souls, and the areas 163
-  pets are found in), from its `Client/assets/aion2/pets/` files. Its licence:
+  pets are found in) and `pet-map.json` (where those mobs spawn on the world and Abyss
+  maps: 16,028 points), from its `Client/assets/aion2/pets/` files. Its licence:
   `gamedata/LICENSE-MIT-AionDPSMeter.txt` (Copyright (c) 2026 SkeeveTV).
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
   scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits

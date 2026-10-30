@@ -658,6 +658,33 @@ pub fn pet_tracker(app: State<'_, Arc<AppState>>) -> PetTracker {
     PetTracker { synced: state.is_some(), character, nearest: s.pet_tracker_nearest, me_exact, pets }
 }
 
+/// The pet map window's data: where each pet's mobs spawn, per map (`pet-map.json`).
+#[tauri::command]
+pub fn pet_map(app: State<'_, Arc<AppState>>) -> Option<serde_json::Value> {
+    lock(&app.data).pet_map()
+}
+
+/// Where you are for the pet map: the map (the game's ID) and x, y in metres.
+#[derive(Serialize)]
+pub struct PetMapMe {
+    map: Option<u32>,
+    at: Option<[f32; 2]>,
+    exact: bool,
+}
+
+#[tauri::command]
+pub fn pet_map_me(app: State<'_, Arc<AppState>>) -> PetMapMe {
+    let now = app.engine.now();
+    let meter = app.engine.meter();
+    let positions = meter.positions();
+    let me = positions.me(now);
+    PetMapMe {
+        map: positions.map(),
+        at: me.map(|m| [m.pos[0] / 100.0, m.pos[1] / 100.0]),
+        exact: me.is_some_and(|m| m.exact),
+    }
+}
+
 /// Tracks a pet for your character, or stops.
 #[tauri::command]
 pub fn set_pet_tracked(app: State<'_, Arc<AppState>>, id: u32, on: bool) -> Result<(), String> {

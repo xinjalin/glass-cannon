@@ -86,14 +86,6 @@
                 <button id="opacity-up" type="button" title="More solid">[+]</button>
               </span>
             </div>
-            <div class="line" title="How frosted the overlay's widgets are with the frosted background: 0% is clear glass (no blur), up to 50% a light blur, above that a heavier frosted blur that turns solid at 100%">
-              <span class="key">frost</span>
-              <span class="stepper">
-                <button id="frost-down" type="button" title="Clearer glass (less blur)">[−]</button>
-                <span id="frost-value" class="step-value"></span>
-                <button id="frost-up" type="button" title="More frosted (more blur, then solid)">[+]</button>
-              </span>
-            </div>
             <div class="line">
               <span class="key">highlight</span>
               <span class="choice" role="radiogroup" aria-label="Highlight">
@@ -223,11 +215,16 @@
           </fieldset>
 
           <fieldset class="box">
+            <legend>keybinds</legend>
+            <div id="hotkeys"></div>
+            <p class="hint" id="hotkeys-hint">work while the game has the focus · click one, then press the keys: with Ctrl, Shift, Alt or Win, an F key, or one modifier alone (tapped)</p>
+          </fieldset>
+
+          <fieldset class="box">
             <legend>tools</legend>
             <button id="close-with-game" type="button" class="opt" aria-pressed="false" title="Close Glass Cannon a few seconds after the game closes">
               <span class="key">close with the game</span><span class="state">[off]</span>
             </button>
-            <p class="hint" id="hotkeys"></p>
             <button id="shortcut" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
             </button>

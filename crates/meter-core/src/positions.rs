@@ -2,9 +2,9 @@
 //!
 //! Mobs come into view with their position (`0x3641`), and the game sends where other
 //! players and mobs move: keyframes with a position (mobs' `0x371c` once a second; see
-//! protocol.md, "Other players and mobs moving") and small deltas between them, which this
-//! leaves out (a keyframe is never more than a second or so behind). It never sends your
-//! own movement, so your position comes from:
+//! protocol.md, "Other players and mobs moving") and small steps between them, about ten a
+//! second (signed bytes in cm), which this adds up. It never sends your own movement, so
+//! your position comes from:
 //!
 //! - your `0x3633` (login, teleport, zone change): exact;
 //! - a hit notice (`0x3803`: attacker, 00, target, skill u32, 5 bytes, the target's
@@ -13,7 +13,8 @@
 //! - one of yours on a mob: the mob's position, which you're next to (within a ranged
 //!   skill's reach).
 //!
-//! Each counts for [`crate::cubes::POSITION_FRESH_US`].
+//! Each counts as exact for [`crate::cubes::POSITION_FRESH_US`]; after that the last one
+//! stays, as rough (you've likely moved, but it's still the best there is).
 
 use std::collections::HashMap;
 
@@ -34,6 +35,25 @@ const EXACT_KEPT_US: u64 = 3_000_000;
 
 /// `0x3641`: varint entity, 3 bytes, u32 type, u8 flags, u8, then f32 × 3.
 const SPAWN_POS_AFTER_ENTITY: usize = 3 + 4 + 2;
+
+/// A step's (dx, dy, dz) in cm, after the entity and the flag byte `f` at `i`: each axis
+/// only when its flag bit is set (per opcode, protocol.md).
+fn step(opcode: u16, f: u8, p: &[u8], i: usize) -> Option<[f32; 3]> {
+    let (mut q, bits, z_always) = match opcode {
+        0x371d | 0x372a => (i + 1 + usize::from(f & 1), [2, 4, 8], false),
+        0x3720 => (i + 1, [1, 2, 0], true),
+        0x3725 | 0x3732 | 0x372d => (i + 1, [1, 2, 4], false),
+        _ => return None,
+    };
+    let mut d = [0.0f32; 3];
+    for (k, bit) in bits.iter().enumerate() {
+        if (k == 2 && z_always) || (*bit != 0 && f & bit != 0) {
+            d[k] = f32::from(*p.get(q)? as i8);
+            q += 1;
+        }
+    }
+    Some(d)
+}
 
 /// Where a keyframe's position starts, after the entity and the flag byte `f`.
 fn keyframe_offset(opcode: u16, f: u8) -> Option<usize> {
@@ -108,21 +128,30 @@ impl Positions {
             }
             _ => {
                 let Some(id) = read_varint(p, &mut i) else { return };
-                let Some(off) = p.get(i).and_then(|&f| keyframe_offset(opcode, f)) else { return };
-                if let Some(pos) = f32s(p, i + off) {
+                let Some(&f) = p.get(i) else { return };
+                if let Some(pos) = keyframe_offset(opcode, f).and_then(|off| f32s(p, i + off)) {
                     self.at.insert(id, pos);
+                } else if let (Some(d), Some(at)) = (step(opcode, f, p, i), self.at.get_mut(&id)) {
+                    for k in 0..3 {
+                        at[k] += d[k];
+                    }
                 }
             }
         }
+    }
+
+    /// The map you're on (from the last zone change), when known.
+    pub fn map(&self) -> Option<u32> {
+        self.map
     }
 
     pub fn of(&self, id: u64) -> Option<[f32; 3]> {
         self.at.get(&id).copied()
     }
 
-    /// Your position, while it's fresh.
+    /// Your position: exact while fresh, else the last one known, as rough.
     pub fn me(&self, now_us: u64) -> Option<Me> {
-        self.me.filter(|(_, at)| now_us.saturating_sub(*at) < POSITION_FRESH_US).map(|(m, _)| m)
+        self.me.map(|(m, at)| Me { exact: m.exact && now_us.saturating_sub(at) < POSITION_FRESH_US, ..m })
     }
 
     pub fn clear(&mut self) {
@@ -172,7 +201,10 @@ mod tests {
         k.extend([0, 0, 0, 0, 1]);
         ps.feed(1, 0x371c, &k, None);
         assert_eq!(ps.of(7), Some([1500.0, 2000.0, 100.0]));
-        ps.feed(2, OPCODE_MOB_GONE, &[7, 3], None);
+        // A step (0x371d, flags 0x07: speed, dx and dy): 15 cm east, 11 cm south.
+        ps.feed(2, 0x371d, &[7, 0x07, 0x01, 0x0f, 0x0b, 0x5a, 0x28, 0x5a, 0x28], None);
+        assert_eq!(ps.of(7), Some([1515.0, 2011.0, 100.0]));
+        ps.feed(3, OPCODE_MOB_GONE, &[7, 3], None);
         assert_eq!(ps.of(7), None);
     }
 
@@ -199,8 +231,8 @@ mod tests {
         ps.feed(2 * S, OPCODE_HIT_NOTICE, &hit(7, 9, 1200.0), Some(9));
         ps.feed(3 * S, OPCODE_HIT_NOTICE, &hit(9, 7, 1000.0), Some(9));
         assert_eq!(ps.me(3 * S), Some(Me { pos: [1200.0, 500.0, 100.0], exact: true }));
-        // A minute on: no longer known.
-        assert_eq!(ps.me(70 * S), None);
+        // A minute on: still the best there is, but rough.
+        assert_eq!(ps.me(70 * S), Some(Me { pos: [1200.0, 500.0, 100.0], exact: false }));
     }
 
     #[test]

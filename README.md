@@ -63,8 +63,8 @@ colours whatever the theme:
 - **the list**: the status (capturing, waiting…) and the game's ping, whether the game is
   running, the overlay, how the fight is going or how it ended, your DPS and share, the
   party's, and the history;
-- **the bar**: buttons for the analysis, the overlay's start/stop, the history, arranging
-  the overlay (again to save and finish) and the settings;
+- **the bar**: buttons for the analysis, the overlay's start/stop, the history, the pet
+  map, arranging the overlay (again to save and finish) and the settings;
 - **the lights** at the top right: minimise, keep on top, and close (which closes the
   app).
 
@@ -119,12 +119,18 @@ finishes. The widgets:
 - **pet tracker**: the pets you track (settings → pet tracker lists every pet with its
   portrait: search one, or an area, and click [track]) with their level, souls toward the
   next one and every area they're found in; a pet whose mobs are in view turns green with
-  how many, and how far and which way while the meter knows where you are (for a minute
-  after you log in, teleport or change zone). **[nearest]** shows every pet you still need
+  how many, and how far and which way to the nearest, live as they move, once the meter
+  knows where you are (from when you log in, teleport, change zone or are hit; "≈" when
+  it's from a mob you hit, or a minute old). **[nearest]** shows every pet you still need
   whose mobs are in view, tracked or not, nearest first. Which mobs give which souls is from Aion
   DPS Meter's data; a few mobs aren't in it.
 
-**Ctrl+Shift+F12** shows or hides the overlay from in game (as the launcher's play button).
+A tap of **Right Alt** shows or hides the overlay from in game (as the launcher's play
+button). Both hotkeys can be changed (settings → keybinds: click one, then press the keys):
+a key with Ctrl, Shift, Alt or Win, an F key, or one modifier alone, which counts when
+tapped (holding it to click something in game doesn't). They're read from the keyboard, so
+the game and other apps can't take them first. If they still don't work in game while the
+game runs as administrator, run Glass Cannon as administrator too.
 **Close with the game** (settings → tools) closes Glass Cannon a few seconds after the game
 closes.
 
@@ -140,8 +146,7 @@ controls the cursor always shows, so leave it off there.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**
-background, Windows blurs the game behind each widget; **frost** sets how much: 0% is clear
-glass, up to 50% a light blur, then a heavier frosted one that turns solid at 100%.
+background, Windows lightly blurs the game behind each widget.
 
 ### The meter
 
@@ -161,7 +166,7 @@ glass, up to 50% a light blur, then a heavier frosted one that turns solid at 10
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
   analysis, end the fight, arrange the overlay, history, and **≡** for the settings: theme (*night*, the
   default, or rose, lavender, mint, sky, amber, mono, or any colour), font, background,
-  frost, the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
+  the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
   combat, recording and status checks.
 
 ### Analysis
@@ -230,11 +235,23 @@ name in the game data, so double-click one there to name it.
 
 ### Windows
 
-The launcher, settings, history and analysis are windows, with the same lights at the top
-right of their title bars (minimise, keep on top, close). Each opens where you last left it
+The launcher, settings, history, pet map and analysis are windows, with the same lights at
+the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
 analysis windows stay tinted enough to read).
+
+### Pet map
+
+The launcher's map button opens the **pet map**: on each world and Abyss map (Verteron,
+Altgard, Eltnen, Morheim, and the three levels of Reshanta), a dot wherever a mob that
+gives pet souls spawns. Together they trace the map's zones. The list beside it has the
+pets on that map (**[still needed]** leaves out the ones you've maxed; search one by name);
+pick a pet, or click a dot, to light up its spawn points and see the areas it's found in
+and how far along it is. The pets you track show in green. On Verteron, Altgard and Lower
+Reshanta you show as a ring, once the meter knows where you are. Scroll to zoom, drag to
+move, double-click for the whole map. The spawn points are from Aion DPS Meter's data
+(MIT); a recording in Altgard puts the game's mobs on them, 2.4 m off at the median.
 
 ### Names
 
