@@ -369,7 +369,7 @@ function drawHotkeys() {
     const b = el("button", "opt");
     b.type = "button";
     b.setAttribute("aria-pressed", String(bindingAction === h.action));
-    b.title = `Click, then press new keys (default: ${prettyKeys(h.default)}) · now: ${h.state}`;
+    b.title = `Works while the game is up · click, then press new keys: with Ctrl, Shift, Alt or Win, or an F key (default: ${prettyKeys(h.default)}) · now: ${h.state}`;
     if (h.state.startsWith("taken")) b.classList.add("warn");
     b.append(el("span", "key", h.what), el("span", "state", bindingAction === h.action ? "[press keys…]" : `[${prettyKeys(h.keys)}]${h.state.startsWith("taken") ? " taken" : ""}`));
     b.addEventListener("click", () => (bindingAction === h.action ? stopPicking() : startPicking(h.action)));
@@ -382,7 +382,8 @@ function startPicking(action) {
   bindingAction = action;
   modsDown.clear();
   invoke("pause_hotkeys", { on: true }).catch(() => {});
-  $("hotkeys-hint").textContent = "press the new keys · Esc keeps the old ones · Delete puts back the default";
+  $("hotkeys-hint").textContent = "press the new keys (with Ctrl, Shift, Alt or Win, or an F key) · Esc keeps the old ones · Delete puts back the default";
+  $("hotkeys-hint").hidden = false;
   drawHotkeys();
 }
 
@@ -390,7 +391,9 @@ function stopPicking(error) {
   bindingAction = null;
   modsDown.clear();
   invoke("pause_hotkeys", { on: false }).catch(() => {});
-  $("hotkeys-hint").textContent = error || $("hotkeys-hint").dataset.text;
+  // Only shown while picking, or to say why keys weren't taken.
+  $("hotkeys-hint").textContent = error || "";
+  $("hotkeys-hint").hidden = !error;
   refresh();
 }
 
@@ -404,7 +407,6 @@ async function pickKeys(keys) {
   }
 }
 
-$("hotkeys-hint").dataset.text = $("hotkeys-hint").textContent;
 window.addEventListener(
   "keydown",
   (e) => {
