@@ -20,6 +20,9 @@
 //! scores 163-201; 880 squares elsewhere on them (the world, text, icons) at most 129. The
 //! Season Mission's arrow 149; 1,000 squares elsewhere at most 68.
 //!
+//! A pop-up over a menu dims the screen, its mark too, past telling, so once seen the menu
+//! stays open until the cursor hides (closing the menu hides it).
+//!
 //! The cursor idea is from SkeeveAN's Aion DPS Meter notes (`docs/plans/menu-detect-cursor.md`);
 //! this is our own code.
 
@@ -180,7 +183,11 @@ impl MenuDetector {
             None => now_ms.saturating_sub(since) >= READ_AFTER_MS,
             Some(t) => now_ms.saturating_sub(t) >= READ_EVERY_MS,
         };
-        if due {
+        // Once a menu's mark is seen, the menu stays open until the cursor hides: a pop-up
+        // over it dims the whole screen, the mark too, past telling (on a screenshot, the
+        // X's strokes at 36 of 255), and closing the menu hides the cursor. Nothing more
+        // is read meanwhile.
+        if due && !self.open {
             self.read_at = Some(now_ms);
             self.open = look();
         }
@@ -372,9 +379,12 @@ mod tests {
         // A menu opened with the cursor up: the X shows at the next look.
         assert!(!m.update(600, true, &mut || true));
         assert!(m.update(850, true, &mut || true));
+        // A pop-up dims the X: still open while the cursor shows (and nothing read).
+        assert!(m.update(1400, true, &mut || unreachable!()));
+        assert!(m.update(5000, true, &mut || unreachable!()));
         // The cursor hides: kept a moment, then gone.
-        assert!(m.update(900, false, &mut || unreachable!()));
-        assert!(!m.update(1300, false, &mut || unreachable!()));
+        assert!(m.update(5050, false, &mut || unreachable!()));
+        assert!(!m.update(5400, false, &mut || unreachable!()));
     }
 }
 
