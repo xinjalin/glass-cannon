@@ -900,6 +900,7 @@ fn main() {
             widgets::set_alert_sound,
             widgets::set_hide_on_world_map,
             widgets::set_close_with_game,
+            widgets::self_bars,
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::set_timer_favourites_only,

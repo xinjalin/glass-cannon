@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 9] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "cooldowns", "party-cooldowns", "timers", "pets"];
+pub const WIDGETS: [&str; 10] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "cooldowns", "party-cooldowns", "timers", "pets"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
@@ -669,4 +669,14 @@ pub fn set_pet_tracker_nearest(app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
     s.pet_tracker_nearest = on;
     s.save(&app.config_dir);
+}
+
+/// Your HP, MP and cast now (the player bars widget), the cast's skill named.
+#[tauri::command]
+pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::SelfBars> {
+    let mut bars = app.engine.meter().self_bars()?;
+    if let Some(c) = bars.cast.as_mut() {
+        c.skill_name = lock(&app.data).skill_meta(c.skill).0;
+    }
+    Some(bars)
 }

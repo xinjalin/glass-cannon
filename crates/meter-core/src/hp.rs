@@ -63,6 +63,31 @@ pub fn parse_hp(p: &[u8]) -> Option<HpUpdate> {
     Some(HpUpdate { entity, hp: hp? })
 }
 
+/// Your u32 stats in `0x8d00` (mask `0x01`), as worked out on our captures (2026-10-30,
+/// your own entity in five sessions): 1 your MP, 8 your max MP (it moves with buffs, and
+/// stat 1 tops out at it), 3 flight energy (counts down by about 500 a tick from about
+/// 120,000), 4 and 6 not known.
+pub const STAT_MP: u8 = 1;
+pub const STAT_MP_MAX: u8 = 8;
+
+/// The u32 stats of a `0x8d00`: (entity, [(stat, value)]); empty when it has none.
+pub fn parse_u32_stats(p: &[u8]) -> Option<(u64, Vec<(u8, u32)>)> {
+    let mut i = 0;
+    let entity = read_varint(p, &mut i)?;
+    let mask = *p.get(i)?;
+    i += 1;
+    let mut out = Vec::new();
+    if mask & 0x01 != 0 {
+        let n = *p.get(i)? as usize;
+        i += 1;
+        for k in 0..n {
+            let at = i + k * 5;
+            out.push((*p.get(at)?, u32::from_le_bytes(p.get(at + 1..at + 5)?.try_into().ok()?)));
+        }
+    }
+    Some((entity, out))
+}
+
 /// HP and max HP from a mob spawn (`0x3641`):
 ///
 /// ```text

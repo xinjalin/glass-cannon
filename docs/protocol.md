@@ -602,7 +602,8 @@ NOIA2's notes call this "remaining HP of an entity". Worked out again from our c
 ```text
 varint  entity
 u8      mask
-[0x01]  u8 n, n × (u8 stat, u32 value)     stats 1, 3, 4, 6, 8, 10–13 seen; unknown
+[0x01]  u8 n, n × (u8 stat, u32 value)     on you: 1 MP, 8 max MP, 3 flight energy (2026-10-30);
+                                           4, 6, 10–13 unknown
 [0x02]  u8 n, n × (u8 stat, u64 value)     stat 0 = current HP; stat 7 unknown
 ```
 

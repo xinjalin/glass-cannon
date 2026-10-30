@@ -15,6 +15,7 @@ const DEFAULTS = {
   "boss-timers": { x: 0.015, y: 0.47, w: 300, h: 150 },
   cubes: { x: 0.72, y: 0.06, w: 280, h: 150 },
   target: { x: 0.37, y: 0.02, w: 380, h: 170 },
+  player: { x: 0.37, y: 0.8, w: 300, h: 70 },
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
@@ -26,6 +27,7 @@ const DEFAULTS = {
 // timers, which you read between fights).
 const SIDE_WIDGETS = {
   target: { page: "target.html", label: "target", passive: true, fades: true },
+  player: { page: "player.html", label: "player bars", passive: true, fades: false },
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true },
   timers: { page: "timers.html", label: "world timers", passive: false, fades: false },
@@ -38,6 +40,7 @@ const LABELS = [
   ["boss-timers", "boss timers"],
   ["cubes", "hidden cubes"],
   ["target", "target frame"],
+  ["player", "player bars"],
   ["cooldowns", "cooldowns"],
   ["party-cooldowns", "party cooldowns"],
   ["timers", "world timers"],

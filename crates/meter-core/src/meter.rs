@@ -523,6 +523,17 @@ pub struct CastBar {
     pub remaining_ms: u32,
 }
 
+/// Your HP, MP and the cast you're making, for the player bars. Max HP isn't sent: the
+/// highest seen stands in (your max whenever you've been at full HP).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct SelfBars {
+    pub hp: Option<u64>,
+    pub hp_max: Option<u64>,
+    pub mp: Option<u32>,
+    pub mp_max: Option<u32>,
+    pub cast: Option<CastBar>,
+}
+
 /// Why a fight ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -823,6 +834,8 @@ pub struct Meter {
     contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
     casting: HashMap<u64, (u32, u64, u32)>,
+    /// Your MP: now, max (when sent), and the highest seen.
+    self_mp: (Option<u32>, Option<u32>, u32),
     /// Hidden cubes in view.
     cubes: crate::cubes::Cubes,
     /// Your pets' souls.
@@ -876,6 +889,7 @@ impl Meter {
             world_map_us: None,
             contents: Contents::default(),
             casting: HashMap::new(),
+            self_mp: (None, None, 0),
             cubes: crate::cubes::Cubes::default(),
             pets: crate::pets::Pets::default(),
             positions: crate::positions::Positions::default(),
@@ -940,6 +954,22 @@ impl Meter {
     /// passes without one.
     pub fn world_map_open(&self, now_us: u64) -> bool {
         self.world_map_us.is_some_and(|t| now_us.saturating_sub(t) < WORLD_MAP_GONE_US)
+    }
+
+    /// Your HP, MP and cast now (the player bars widget).
+    pub fn self_bars(&self) -> Option<SelfBars> {
+        let me = self.registry.self_id()?;
+        let (mp, mp_max, mp_seen) = self.self_mp;
+        Some(SelfBars {
+            hp: self.hp.last(me),
+            hp_max: self.hp.max(me),
+            mp,
+            mp_max: mp_max.or((mp_seen > 0).then_some(mp_seen)),
+            cast: self.casting.get(&me).and_then(|&(skill, start, cast_ms)| {
+                let end = start + u64::from(cast_ms) * 1000;
+                (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
+            }),
+        })
     }
 
     /// Hidden cubes in view, and how far and which way while your position is known.
@@ -1056,6 +1086,19 @@ impl Meter {
             return;
         }
         if opcode == hp::OPCODE_HP {
+            // Your MP, from the same message.
+            if let Some((_, stats)) = hp::parse_u32_stats(payload).filter(|(e, _)| Some(*e) == self.registry.self_id()) {
+                for (stat, value) in stats {
+                    match stat {
+                        hp::STAT_MP => {
+                            self.self_mp.0 = Some(value);
+                            self.self_mp.2 = self.self_mp.2.max(value);
+                        }
+                        hp::STAT_MP_MAX => self.self_mp.1 = Some(value),
+                        _ => {}
+                    }
+                }
+            }
             if let Some(u) = hp::parse_hp(payload) {
                 let before = self.hp.last(u.entity);
                 self.hp.record(ts_us, u.entity, u.hp, None);
@@ -1260,6 +1303,7 @@ impl Meter {
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
                 self.casting.clear();
+                self.self_mp = (None, None, 0);
                 self.boss_log.clear();
                 self.pulls.clear();
                 self.cubes.clear();

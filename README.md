@@ -99,6 +99,9 @@ finishes. The widgets:
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   boss HP, enrage and cast lines, so nothing is shown twice.
+- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. The
+  game never sends your max HP: the highest seen stands in (your max once you've been at
+  full HP).
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used).
