@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "glass-cannon"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "meter-core",
@@ -1943,7 +1943,7 @@ dependencies = [
 
 [[package]]
 name = "meter-core"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2322,7 +2322,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "packet-lab"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2336,7 +2336,7 @@ dependencies = [
 
 [[package]]
 name = "packet-lab-gui"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "meter-core",
