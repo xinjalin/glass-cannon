@@ -66,7 +66,7 @@ finishes. The widgets:
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
 
-- **pet tracker**: the pets you track (the pet map's **[+]** beside each pet; search one
+- **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every
   area they're found in; a pet whose mobs are in view turns green with how many.
   **[nearest]** shows every pet you still need whose mobs are in view, tracked or not, the
@@ -197,18 +197,20 @@ name in the game data, so double-click one there to name it.
 
 ## Windows
 
-The launcher, settings, history, pet map and analysis are windows, with the same lights at
+The launcher, settings, history, map and analysis are windows, with the same lights at
 the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
 analysis windows stay tinted enough to read).
 
-## Pet map
+## Map
 
-The launcher's map button opens the **pet map**: each world and Abyss map (Verteron,
-Altgard, Eltnen, Morheim, and the three levels of Reshanta) with its zones and their names
-(Questlog's map pictures and zones), and a dot wherever a mob that gives pet souls spawns,
-in its genus' colour (Fera red, Natura green, Cogni blue, Varian purple, Special gold).
+The launcher's map button opens the **map**: each world and Abyss map (Verteron, Altgard,
+Eltnen, Morheim, and the three levels of Reshanta) with its zones and their names
+(Questlog's map pictures and zones). **[pets]** and **[gathering]** at the top of its list
+switch what it shows; it remembers the one you were on.
+
+**Pets** puts a dot wherever a mob that gives pet souls spawns, in its genus' colour (Fera red, Natura green, Cogni blue, Varian purple, Special gold).
 Zoom in for the smaller zones' names. **[+]** beside a pet tracks it for the pet tracker
 widget. The list beside it has the
 pets on that map (**[still needed]** leaves out the ones you've maxed); a search looks
@@ -217,8 +219,19 @@ pick a pet, or click a dot, to light up its spawn points and see the areas it's 
 and how far along it is. The pets you track show in green. You show as a ring on the map
 you're on, once the meter knows where you are. Scroll to zoom, drag to move, double-click
 for the whole map. The spawn points are from Aion DPS Meter's data (MIT); a recording in
-Altgard puts the game's mobs on them, 2.4 m off at the median. Only the map showing is
-kept in memory, drawn as Questlog draws its own: in levels of detail, a piece at a time.
+Altgard puts the game's mobs on them, 2.4 m off at the median.
+
+**Gathering** puts a dot wherever a material is: Orichalcum ore, gems (diamond, ruby,
+sapphire), herbs, logs, berries, vegetables, shellfish and Odyle, each kind in its own
+colour; and the collectables, hidden cubes and Empyrean traces (hidden at first: there are
+a lot of them). The list has this map's materials by kind with how many spots each has;
+**✓** shows or hides one on the map, or a whole kind from its row, and the map remembers
+your choice. Pick one, or click a dot, to light up its spots and see the areas with the
+most. The spots are Questlog's (about 13,600); the ones in the game's own files sit on
+them, 0.4 m off at the median.
+
+Only the map showing is kept in memory, drawn as Questlog draws its own: in levels of
+detail, a piece at a time.
 
 ## Names
 

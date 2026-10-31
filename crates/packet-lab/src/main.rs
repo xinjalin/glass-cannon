@@ -34,6 +34,7 @@ mod pets;
 mod gear;
 mod pet_icons;
 mod pet_map;
+mod gather_map;
 mod pet_spawns;
 mod item_icons;
 mod theostones;
@@ -283,6 +284,18 @@ enum Cmd {
         #[arg(long)]
         commit: String,
     },
+    /// Build gamedata/gather-map.json (where each material and collectable is on the world
+    /// and Abyss maps, for the map window's gathering side) from Questlog's interactive map
+    GatherMap {
+        /// Questlog's map.getMarkers
+        markers: PathBuf,
+        /// A folder with Questlog's item icons (<icon name>.webp), for each material's icon
+        /// (saved next to the output as gather_<icon name>.png)
+        #[arg(long)]
+        icons: Option<PathBuf>,
+        #[arg(long, default_value = "gamedata/gather-map.json")]
+        out: PathBuf,
+    },
     /// Build gamedata/gear.json (weapon, armour and accessory names, grades and item levels,
     /// for the gear players wear) from a scraped item database
     Gear {
@@ -466,6 +479,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::PetMap { spawns, pet_spawns, regions, images, out, commit } => {
             pet_map::run(&spawns, &pet_spawns, regions.as_deref(), images.as_deref(), &out, &commit)
         }
+        Cmd::GatherMap { markers, icons, out } => gather_map::run(&markers, icons.as_deref(), &out),
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
