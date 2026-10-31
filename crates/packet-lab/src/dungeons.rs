@@ -5,6 +5,11 @@
 //! that belongs to one, which dungeon and which mode (Exploration, Conquest, Stage 2…). A
 //! dungeon's mobs have one ID per mode (Atiel: 2300601 in Exploration, 2340601 in Stage 2),
 //! so the mob a fight was on says where it was.
+//!
+//! The scrape sometimes files a mob under the wrong dungeon (Draupnir's Conquest [Hard]
+//! bosses under Dying Dramata's Nest). A mob's IDs in a dungeon's other modes differ only
+//! in the third digit (Lakshmi: 2300401, 2310401, 2320401, 2330401), so a mob whose such
+//! siblings of the same name, two or more, are all in one other dungeon is put there.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -44,6 +49,11 @@ pub fn run(monsters: &Path, dungeons: &Path, out: &Path, scraped: &str) -> Resul
             Value::Object(e)
         });
     }
+    let name = |id: u32| monsters.get(&id.to_string()).and_then(|m| m["name"].as_str());
+    for (id, from, to) in misfiled(&mobs, name) {
+        println!("{id}: filed under {from}, its other modes are in {to}: moved");
+        mobs.get_mut(&id).expect("listed")["dungeon"] = json!(to);
+    }
     let doc = json!({
         "source": {
             "from": "a scraped Aion 2 monster database (collected from public fan databases; the bundle names no source site)",
@@ -59,6 +69,33 @@ pub fn run(monsters: &Path, dungeons: &Path, out: &Path, scraped: &str) -> Resul
     fs::write(out, serde_json::to_string_pretty(&doc)? + "\n").with_context(|| format!("writing {}", out.display()))?;
     println!("done: {} dungeons, {} mob types saved to {}", doc["dungeons"].as_object().map_or(0, Map::len), mobs.len(), out.display());
     Ok(())
+}
+
+/// Mobs whose other modes (two or more, the same name) are all in another dungeon: (ID,
+/// dungeon, theirs).
+fn misfiled<'a>(mobs: &BTreeMap<u32, Value>, name: impl Fn(u32) -> Option<&'a str>) -> Vec<(u32, String, String)> {
+    let dungeon = |id: u32| mobs.get(&id).and_then(|m| m["dungeon"].as_str());
+    mobs.keys()
+        .filter_map(|&id| {
+            let own = dungeon(id)?;
+            let own_name = name(id)?;
+            let theirs: Vec<&str> = siblings(id).filter(|&s| name(s) == Some(own_name)).filter_map(dungeon).collect();
+            let other = *theirs.first()?;
+            (theirs.len() >= 2 && other != own && theirs.iter().all(|d| *d == other)).then(|| (id, own.to_string(), other.to_string()))
+        })
+        .collect()
+}
+
+/// The same mob's IDs in the other modes: the third digit changed (2320401 → 2300401…).
+fn siblings(id: u32) -> impl Iterator<Item = u32> {
+    let text = id.to_string();
+    (b'0'..=b'9').filter_map(move |d| {
+        let mut b = text.clone().into_bytes();
+        (b.len() == 7 && b[2] != d).then(|| {
+            b[2] = d;
+            String::from_utf8(b).ok()?.parse().ok()
+        })?
+    })
 }
 
 fn read_object(path: &Path) -> Result<Map<String, Value>> {
@@ -96,5 +133,27 @@ mod tests {
         assert_eq!(mode("$L13 Fire Temple span ·  Conquest [Hard]").as_deref(), Some("Conquest [Hard]"));
         assert_eq!(mode("$L13 Krao Cave span ·  Conquest span ·  Phase   1").as_deref(), Some("Conquest · Phase 1"));
         assert_eq!(mode("$L13 Somewhere"), None);
+    }
+
+    #[test]
+    fn a_mob_filed_under_another_dungeon_goes_back_with_its_other_modes() {
+        let mob = |d: &str| json!({ "dungeon": d });
+        let mobs: BTreeMap<u32, Value> = [
+            // Lakshmi: Draupnir in three modes, Dying Dramata's Nest in Conquest [Hard].
+            (2_300_401, mob("Draupnir")),
+            (2_310_401, mob("Draupnir")),
+            (2_320_401, mob("DeadDramataNest")),
+            (2_330_401, mob("Draupnir")),
+            // A mob with one other mode elsewhere stays.
+            (2_300_582, mob("Fire_Temple_Arena")),
+            (2_310_582, mob("BakronIsland")),
+            // So does one whose siblings are other mobs.
+            (2_300_109, mob("SunkenTemple")),
+            (2_310_109, mob("KraoCave")),
+            (2_330_109, mob("KraoCave")),
+        ]
+        .into();
+        let name = |id: u32| Some(if id % 1000 == 109 && id != 2_300_109 { "Condensed Krao" } else if id % 1000 == 109 { "Laser" } else { "Lakshmi" });
+        assert_eq!(misfiled(&mobs, name), [(2_320_401, "DeadDramataNest".to_string(), "Draupnir".to_string())]);
     }
 }
