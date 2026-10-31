@@ -6,8 +6,9 @@
 //! ones after its last dungeon fight don't. A fight in another dungeon ends it.
 //!
 //! Fights the meter saw you enter the dungeon for (it reads the map you're on) are grouped
-//! by that entry: one entry, one run, however long the breaks, and the game's own start
-//! and completion give the clear time. Older fights don't have it, and fall back to this:
+//! by that entry: one entry, one run, however long the breaks and whatever dungeon the data
+//! gives each fight's mob (it has filed some under another), and the game's own start and
+//! completion give the clear time. Older fights don't have it, and fall back to this:
 //!
 //! Going straight back into the same dungeon isn't a gap or another dungeon, so a run also
 //! ends when a boss it already fought comes round again (other than a retry of the boss
@@ -66,7 +67,8 @@ impl<'a> Open<'a> {
 
     fn add(&mut self, i: usize, leg: &Leg) {
         self.end_ms = self.end_ms.max(leg.end_ms);
-        if leg.dungeon.is_some() {
+        // Every fight in the run's map entry was in the dungeon, placed by the data or not.
+        if leg.dungeon.is_some() || (self.instance.is_some() && leg.instance == self.instance) {
             self.last = i;
         }
         if let Some(b) = leg.boss {
@@ -92,14 +94,19 @@ pub fn group<'a>(legs: &[Leg<'a>]) -> Vec<(Range<usize>, &'a str)> {
         // Both from a known map entry: the same entry is the same run, whatever the break.
         let entry = open.as_ref().and_then(|run| run.instance.zip(leg.instance));
         let continues = open.as_ref().is_some_and(|run| match entry {
-            Some((a, b)) => a == b && leg.dungeon.is_none_or(|d| d == run.dungeon),
+            Some((a, b)) => a == b,
             None => leg.start_ms.saturating_sub(run.end_ms) <= RUN_GAP_MS && leg.dungeon.is_none_or(|d| d == run.dungeon),
         });
         if !continues {
             if let Some(run) = open.take() {
                 run.close(&mut runs);
             }
-            open = leg.dungeon.map(|d| Open::start(d, i, &legs[..=i]));
+            // From a map entry, the run takes in that entry's fights before this one too.
+            let first = match leg.instance {
+                Some(at) => (0..i).rev().take_while(|&j| legs[j].instance == Some(at)).last().unwrap_or(i),
+                None => i,
+            };
+            open = leg.dungeon.map(|d| Open::start(d, first, &legs[..=i]));
             continue;
         }
         let run = open.as_mut().expect("checked above");
@@ -436,6 +443,26 @@ mod tests {
         // even straight after.
         let legs = [at(boss(0, d, 1), 7), at(boss(40, d, 2), 7), at(boss(42, d, 1), 7), at(boss(43, d, 1), 8), at(leg(45, Some(d)), 8)];
         assert_eq!(group(&legs), vec![(0..3, d), (3..5, d)]);
+    }
+
+    #[test]
+    fn a_map_entry_keeps_fights_the_data_files_elsewhere() {
+        // Draupnir Conquest [Hard] twice (2026-10-31), its bosses filed under another
+        // dungeon by the data, and an add the data doesn't place first.
+        let (d, other) = ("Draupnir", "DeadDramataNest");
+        let at = |l: Leg<'static>, entry: u64| Leg { instance: Some(entry), ..l };
+        let legs = [
+            at(leg(0, None), 7),
+            at(boss(1, other, 3), 7),
+            at(leg(3, Some(d)), 7),
+            at(boss(4, other, 1), 7),
+            at(boss(6, other, 71), 7),
+            at(leg(10, Some(d)), 8),
+            at(boss(11, other, 3), 8),
+            at(boss(13, other, 1), 8),
+            at(leg(15, None), 8),
+        ];
+        assert_eq!(group(&legs), vec![(0..5, other), (5..9, d)]);
     }
 
     #[test]
