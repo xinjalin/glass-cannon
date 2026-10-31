@@ -1,4 +1,4 @@
-/* The pet map window: the map's dots on the left, its pets on the right. */
+/* The map window: the map's dots on the left, its pets (or materials) on the right. */
 
 .petmap-body { flex: 1; min-height: 0; display: flex; gap: 0.6em; }
 
@@ -88,6 +88,27 @@
 .map-track:hover { background: var(--line-faint); }
 .map-track[aria-pressed="true"] { color: var(--ink); background: var(--ok); border-color: var(--ok); text-shadow: none; }
 .genus-dot { flex: none; width: 0.55em; height: 0.55em; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+
+/* Pets or gathering. */
+.side-mode { margin-bottom: 0; }
+
+/* Gathering: a kind's row, its materials under it; a hidden one fades. */
+.map-kind {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.15em 0.3em;
+  border-radius: 0.3em;
+  cursor: pointer;
+}
+.map-kind:hover { background: var(--line-faint); }
+.map-kind .pet-line { display: flex; align-items: center; gap: 0.4em; min-width: 0; }
+.map-item.sub { padding-left: 1.2em; }
+.map-kind.off,
+.map-item.off { opacity: 0.5; }
+.map-item .pet-icon.blank { border-radius: 50%; }
+.map-show[aria-pressed="true"] { background: var(--accent-fill); border-color: var(--accent-fill); }
 
 .side-areas { flex: none; max-height: 9em; overflow-y: auto; line-height: 1.35; }
 .side-areas b { color: var(--text); font-weight: normal; }

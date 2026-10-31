@@ -19,6 +19,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `pet-spawns.json` (which mob types give which pet's souls, and where each pet is found, for the pet tracker) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Client/assets/aion2/pets/`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json` (where the mobs that give each pet's souls spawn on the world and Abyss maps, in metres, for the pet map) | the same (`spawns.json`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json`'s zones and `petmap_<map>.jpg` (the pet map's zones and pictures) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getRegions`, its map images) | no licence (NCSOFT's artwork) |
+| `gather-map.json` (where each material and collectable is on the world and Abyss maps, in metres, for the map's gathering side) and `gather_<icon>.png` (their icons) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getMarkers`, its item icons) | no licence (NCSOFT's names and artwork) |
 | `field-bosses.json` (world-map field boss IDs to map and mob type) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) (`field_boss_timer.rs`) | GPL-3.0 |
 | `field-bosses.json` (field bosses' level and location) | the same bundle's monsters | none: used without a licence |
 | `pet_<id>.png` (pet portraits, for the pet tracker) | NCSOFT's game asset server, by the bundle's pets' icon names | NCSOFT's artwork, used without a licence |
@@ -60,3 +61,7 @@ sources aren't named; they're here on the same terms and will be removed on requ
   `cdn.questlog.gg/aion-2/map/v3/<key>.webp` (the world maps and Lower Reshanta) and
   `cdn.questlog.gg/aion-2/assets/Game/UI/Map/WorldMap/<key>/Res/<key>_<x>_<y>.webp` (Middle
   and Upper Reshanta's 2×2 tiles).
+- Gathering: `packet-lab gather-map <markers.json> --icons <dir>`. `markers.json` is
+  Questlog's `questlog.gg/aion-2/api/trpc/map.getMarkers?input={"language":"en"}`; the icons
+  are its `cdn.questlog.gg/aion-2<icon path>.webp` for each material's `icon` (saved by name,
+  `<icon name>.webp`), shrunk to 64 px.

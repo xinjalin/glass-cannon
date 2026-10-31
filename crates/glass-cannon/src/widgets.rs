@@ -654,6 +654,18 @@ pub fn pet_map_image(app: State<'_, Arc<AppState>>, file: String) -> Option<Stri
     lock(&app.data).pet_map_image(&file)
 }
 
+/// The map window's gathering side: where each material is, per map (`gather-map.json`).
+#[tauri::command]
+pub fn gather_map(app: State<'_, Arc<AppState>>) -> Option<serde_json::Value> {
+    lock(&app.data).gather_map()
+}
+
+/// A material's icon (its `icon`), as a data URL.
+#[tauri::command]
+pub fn gather_icon(app: State<'_, Arc<AppState>>, file: String) -> Option<String> {
+    lock(&app.data).gather_icon(&file)
+}
+
 /// Where you are for the pet map: the map (the game's ID) and x, y in metres.
 #[derive(Serialize)]
 pub struct PetMapMe {

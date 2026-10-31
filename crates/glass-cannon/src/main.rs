@@ -929,6 +929,8 @@ fn main() {
             widgets::pet_map,
             widgets::pet_map_me,
             widgets::pet_map_image,
+            widgets::gather_map,
+            widgets::gather_icon,
             settings::open_pet_map,
             settings::fit_pet_map,
             settings::reset_settings,

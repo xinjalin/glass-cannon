@@ -36,7 +36,10 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   `gamedata/LICENSE-MIT-AionDPSMeter.txt` (Copyright (c) 2026 SkeeveTV).
 - [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map, **no licence**: the
   pet map's pictures (`petmap_<map>.jpg`, its map images shrunk to 2 m a pixel; NCSOFT's
-  artwork) and the zones in `pet-map.json` (their outlines and where their names go).
+  artwork) and the zones in `pet-map.json` (their outlines and where their names go); and
+  `gather-map.json` (where 23 materials and collectables are on the world and Abyss maps:
+  13,584 spots, from its `map.getMarkers`) with 15 material icons (`gather_<icon>.png`,
+  shrunk to 64 px; NCSOFT's artwork).
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
   scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits
   (`pet_<id>.png`, 64 px) for the pet tracker. NCSOFT's artwork, like the

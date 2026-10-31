@@ -1,4 +1,4 @@
-// The pet tracker: the pets you track (pet map → track; where each is found shows
+// The pet tracker: the pets you track (map → track; where each is found shows
 // there), with their level and souls toward the next one, and how many of their mobs are
 // in view now. With [nearest], every pet you still need whose mobs are in view, the most
 // first.
@@ -89,7 +89,7 @@ function draw() {
     : !state.character
       ? "log in to a character to track its pets"
       : !tracked.length
-        ? "pick pets to track in the pet map (launcher), or [nearest] for the pets around you"
+        ? "pick pets to track in the map (launcher), or [nearest] for the pets around you"
         : "every pet you track is maxed ✓";
 }
 

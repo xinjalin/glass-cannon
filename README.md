@@ -11,7 +11,8 @@ no auto-updates, and it never goes online.
   where you like; they step aside for the world map and full-screen game menus.
 - **Fight analysis and history**: every fight and dungeon run kept, with personal bests,
   rotation, buffs, healing and deaths.
-- **Pets**: a pet map of where each pet's mobs spawn, and a tracker for the pets you're
+- **Map and pets**: a map of where each pet's mobs spawn and where to gather ore, gems,
+  herbs, logs and the rest, and a tracker for the pets you're
   working on.
 
 ## Screenshots
@@ -22,7 +23,7 @@ no auto-updates, and it never goes online.
 | --- | --- |
 | ![The launcher: status, the overlay, the fight going on and the history](docs/screenshots/launcher.png) | ![Settings: appearance, the overlay's widgets, status, meter, keybinds and tools](docs/screenshots/settings.png) |
 
-![The pet map: Altgard with its zones, and where each pet's mobs spawn](docs/screenshots/petmap.png)
+![The map: Altgard with its zones, and where each pet's mobs spawn](docs/screenshots/petmap.png)
 
 | Fight history | Pet tracker |
 | --- | --- |
@@ -55,7 +56,7 @@ for the game if it isn't running.
   the widgets; again to save.
 - **Alt+E** hides the widgets in game and brings them back.
 - Click a player on the meter for their skills; the launcher's buttons open the analysis,
-  the history and the pet map.
+  the history and the map.
 
 Everything it does, in detail: [docs/guide.md](docs/guide.md). Building it and the tools
 behind it: [docs/development.md](docs/development.md).

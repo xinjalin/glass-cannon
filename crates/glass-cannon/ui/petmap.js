@@ -1,21 +1,33 @@
-// The pet map: each world and Abyss map's picture with its zones (from Questlog's map),
-// and where the mobs that give each pet's souls spawn (from Aion DPS Meter's data), as
-// dots in their genus' colour. Pick a pet (in the list, or by clicking a dot) to light up
-// its spawns and see the areas it's found in; [+] tracks it (the pet tracker widget shows
-// the ones you track). The list has this map's pets; a search looks through every pet,
-// by name, genus or area. You show as a ring on the map you're on, once the meter knows
-// where you are.
+// The map: each world and Abyss map's picture with its zones (from Questlog's map), and
+// one of two sides at a time:
+// - pets: where the mobs that give each pet's souls spawn (from Aion DPS Meter's data), as
+//   dots in their genus' colour. Pick a pet (in the list, or by clicking a dot) to light up
+//   its spawns and see the areas it's found in; [+] tracks it (the pet tracker widget shows
+//   the ones you track). The list has this map's pets; a search looks through every pet,
+//   by name, genus or area.
+// - gathering: where each material (ore, gems, herbs, logs, food, Odyle) and collectable
+//   (hidden cubes, Empyrean traces) is (from Questlog's map), as dots in their kind's
+//   colour. ✓ shows or hides one on the map (or a whole kind); pick one to light it up and
+//   see which areas have the most.
+// You show as a ring on the map you're on, once the meter knows where you are.
 
 const ME_POLL_MS = 1000;
 const PETS_POLL_MS = 5000;
 // Pixels around the pointer a dot counts as under it.
 const HIT_PX = 7;
+// What's remembered between openings (only this window's own choices).
+const MODE_KEY = "map.mode";
+const HIDDEN_KEY = "map.hidden";
 
-let data = null; // { maps: [{ key, name, ids, pets: { id: [[x, y]] } }] }
+let data = null; // { maps: [{ key, name, ids, pets: { id: [[x, y]] }, image, zones }] }
+let gather = null; // { kinds: [{ key, name }], items: [{ name, kind, icon, points: { mapId: [[x, y]] } }] }
 let pets = new Map(); // id -> the pet tracker's row (name, level, need, found_in, tracked)
 let me = null; // { map, at, exact }
 let mapIndex = 0;
-let selected = null;
+let mode = remembered(MODE_KEY) === "gather" ? "gather" : "pets";
+let selected = null; // the pet picked
+let picked = null; // the material picked
+let hidden = new Set(); // the materials not shown on the map (by name)
 let onlyNeeded = true;
 let search = "";
 // The view: the centre (metres) and pixels per metre.
@@ -27,6 +39,21 @@ const ctx = canvas.getContext("2d");
 const needs = (p) => !p || p.level == null || p.need != null;
 const current = () => (data ? data.maps[mapIndex] : null);
 const onMap = (m) => m && me && me.map != null && m.ids.includes(me.map);
+
+function remembered(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function remember(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Not kept: fine.
+  }
+}
 
 // Portraits, by pet (asked for once each).
 const portraits = new Map();
@@ -49,6 +76,32 @@ function portrait(id, name) {
     return img;
   }
   return el("span", "pet-icon blank", (name || "?")[0]);
+}
+
+// Materials' icons, by file (asked for once each).
+const itemIcons = new Map();
+function icon(item) {
+  const file = item.icon;
+  if (file && !itemIcons.has(file)) {
+    itemIcons.set(file, null);
+    invoke("gather_icon", { file })
+      .then((url) => {
+        if (!url) return itemIcons.delete(file);
+        itemIcons.set(file, url);
+        drawList();
+      })
+      .catch(() => itemIcons.delete(file));
+  }
+  const url = file && itemIcons.get(file);
+  if (url) {
+    const img = el("img", "pet-icon");
+    img.src = url;
+    img.alt = "";
+    return img;
+  }
+  const blank = el("span", "pet-icon blank", "");
+  blank.style.background = kindColour(item.kind);
+  return blank;
 }
 
 function pips(level) {
@@ -91,6 +144,94 @@ const genusColour = (id) => GENUS[(pets.get(id) || {}).genus] || "#ebe1cd";
 function petName(id) {
   const p = pets.get(id);
   return p ? p.name : `pet ${id}`;
+}
+
+// --- Gathering -------------------------------------------------------------
+
+// The dots' colours, by kind.
+const KINDS = {
+  metal: "#a9b4c2",
+  jewelry: "#3ecfd6",
+  herb: "#46a758",
+  tree: "#a0703c",
+  berry: "#e5484d",
+  vegetable: "#f08a24",
+  shellfish: "#f08fb0",
+  od: "#9b6ef3",
+  "hidden-cube": "#f5b62e",
+  monolith: "#3e8ee8",
+};
+// The collectables start hidden (there are a lot of them); the materials show.
+const HIDDEN_KINDS = ["hidden-cube", "monolith"];
+const kindColour = (kind) => KINDS[kind] || "#ebe1cd";
+const kindName = (kind) => ((gather && gather.kinds.find((k) => k.key === kind)) || { name: kind }).name;
+
+// This map's materials: [item, points here], those it has.
+const itemsCache = new Map();
+function itemsOn(m) {
+  if (!gather || !m) return [];
+  if (!itemsCache.has(m.key)) {
+    const list = gather.items.map((it) => [it, m.ids.flatMap((id) => it.points[id] || [])]).filter(([, pts]) => pts.length);
+    itemsCache.set(m.key, list);
+  }
+  return itemsCache.get(m.key);
+}
+
+const itemMatches = (it, q) => !q || it.name.toLowerCase().includes(q) || kindName(it.kind).toLowerCase().includes(q);
+
+// The materials on the map: shown ones the search lets through (and the one picked): [name, points].
+function shownItems() {
+  const q = search.trim().toLowerCase();
+  return itemsOn(current())
+    .filter(([it]) => it.name === picked || (!hidden.has(it.name) && itemMatches(it, q)))
+    .map(([it, pts]) => [it.name, pts]);
+}
+
+function setHidden(names, hide) {
+  for (const n of names) {
+    if (hide) hidden.add(n);
+    else hidden.delete(n);
+  }
+  remember(HIDDEN_KEY, JSON.stringify([...hidden]));
+  drawList();
+  draw();
+}
+
+// Which zone a spot is in: the smallest area that has it, else the region.
+function inside(poly, x, y) {
+  let on = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) on = !on;
+  }
+  return on;
+}
+function zoneOf(m, x, y) {
+  let best = null;
+  for (const z of m.zones || []) {
+    if (!z.polygons.some((p) => inside(p, x, y))) continue;
+    if (!best || z.rank > best.rank) best = z;
+  }
+  return best ? best.name : null;
+}
+
+// The areas with the most of a material on this map, most first.
+const areasCache = new Map();
+function mostlyIn(m, name, pts) {
+  const key = `${m.key}|${name}`;
+  if (!areasCache.has(key)) {
+    const count = new Map();
+    for (const [x, y] of pts) {
+      const z = zoneOf(m, x, y);
+      if (z) count.set(z, (count.get(z) || 0) + 1);
+    }
+    areasCache.set(
+      key,
+      [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([z, n]) => `${z} ×${n}`),
+    );
+  }
+  return areasCache.get(key);
 }
 
 // --- The map ---------------------------------------------------------------
@@ -177,7 +318,7 @@ function drawPicture(m, w, h) {
 // The zones: their borders, and (below) their names: the big ones always, the small ones
 // once zoomed in.
 const SMALL_NAMES_FROM = 0.12; // px per metre
-function drawZones(m, c) {
+function drawZones(m) {
   if (!m.zones) return;
   ctx.lineJoin = "round";
   for (const z of m.zones) {
@@ -250,10 +391,58 @@ function fitView() {
 const toPx = (x, y) => [(x - view.cx) * view.scale + canvas.clientWidth / 2, (y - view.cy) * view.scale + canvas.clientHeight / 2];
 const toMap = (px, py) => [(px - canvas.clientWidth / 2) / view.scale + view.cx, (py - canvas.clientHeight / 2) / view.scale + view.cy];
 
-function colours() {
-  const cs = getComputedStyle(document.documentElement);
-  const v = (n) => cs.getPropertyValue(n).trim();
-  return { accent: v("--accent"), ok: v("--ok"), muted: v("--muted"), text: v("--text"), faint: v("--faint") };
+// One layer of dots with a dark rim, to read on the map's parchment: the spots of the
+// entries `filter` lets through.
+function dots(shown, filter, r, fill, alpha) {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  ctx.beginPath();
+  for (const [key, pts] of shown) {
+    if (!filter(key)) continue;
+    for (const [x, y] of pts) {
+      const [px, py] = toPx(x, y);
+      if (px < -r || py < -r || px > w + r || py > h + r) continue;
+      ctx.moveTo(px + r, py);
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+    }
+  }
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(20, 14, 8, 0.8)";
+  ctx.stroke();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// Every other pet's spawns, then the tracked ones, by genus; the one picked on top (the
+// others fade back).
+function drawPets() {
+  const shown = shownPets();
+  const tracked = (id) => (pets.get(id) || {}).tracked;
+  const faded = selected != null ? 0.45 : 0.85;
+  for (const g of [...Object.keys(GENUS), null]) {
+    const ofGenus = (id) => ((pets.get(id) || {}).genus in GENUS ? (pets.get(id) || {}).genus : null) === g;
+    const fill = g ? GENUS[g] : "#ebe1cd";
+    dots(shown, (id) => id !== selected && !tracked(id) && ofGenus(id), 1.9, fill, faded);
+    dots(shown, (id) => id !== selected && tracked(id) && ofGenus(id), 2.6, fill, Math.min(1, faded + 0.15));
+  }
+  if (selected != null) {
+    dots(shown, (id) => id === selected, 5, "#fff", 1);
+    dots(shown, (id) => id === selected, 3.6, genusColour(selected), 1);
+  }
+}
+
+// The materials shown, by kind; the one picked on top (the others fade back).
+function drawGather() {
+  const shown = shownItems();
+  const kindOf = new Map(itemsOn(current()).map(([it]) => [it.name, it.kind]));
+  const faded = picked != null ? 0.4 : 0.9;
+  for (const kind of Object.keys(KINDS)) dots(shown, (n) => n !== picked && kindOf.get(n) === kind, 2.1, KINDS[kind], faded);
+  if (picked != null) {
+    dots(shown, (n) => n === picked, 5, "#fff", 1);
+    dots(shown, (n) => n === picked, 3.6, kindColour(kindOf.get(picked)), 1);
+  }
 }
 
 function draw() {
@@ -268,42 +457,10 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   if (!m || !view) return;
-  const c = colours();
   drawPicture(m, w, h);
-  drawZones(m, c);
-  const shown = shownPets();
-  const dot = (x, y, r) => {
-    const [px, py] = toPx(x, y);
-    if (px < -r || py < -r || px > w + r || py > h + r) return;
-    ctx.moveTo(px + r, py);
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-  };
-  // Dots with a dark rim, to read on the map's parchment: every other pet's spawns, then
-  // the tracked ones, then the one picked on top.
-  const layer = (filter, r, fill, alpha) => {
-    ctx.beginPath();
-    for (const [id, pts] of shown) if (filter(id)) for (const [x, y] of pts) dot(x, y, r);
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(20, 14, 8, 0.8)";
-    ctx.stroke();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  };
-  // By genus; a picked pet stands out (the others fade back).
-  const tracked = (id) => (pets.get(id) || {}).tracked;
-  const faded = selected != null ? 0.45 : 0.85;
-  for (const g of [...Object.keys(GENUS), null]) {
-    const ofGenus = (id) => ((pets.get(id) || {}).genus in GENUS ? (pets.get(id) || {}).genus : null) === g;
-    const fill = g ? GENUS[g] : "#ebe1cd";
-    layer((id) => id !== selected && !tracked(id) && ofGenus(id), 1.9, fill, faded);
-    layer((id) => id !== selected && tracked(id) && ofGenus(id), 2.6, fill, Math.min(1, faded + 0.15));
-  }
-  if (selected != null) {
-    layer((id) => id === selected, 5, "#fff", 1);
-    layer((id) => id === selected, 3.6, genusColour(selected), 1);
-  }
+  drawZones(m);
+  if (mode === "gather") drawGather();
+  else drawPets();
   drawZoneNames(m);
   // You.
   if (onMap(m) && me.at) {
@@ -327,20 +484,23 @@ function draw() {
   }
 }
 
-// The pets with a dot under the pointer, nearest first.
-function petsAt(px, py) {
+// The pets (or materials) with a dot under the pointer, nearest first.
+function dotsAt(px, py) {
   const m = current();
   if (!m || !view) return [];
   const found = new Map();
-  for (const [id, pts] of shownPets()) {
+  for (const [key, pts] of mode === "gather" ? shownItems() : shownPets()) {
     for (const [x, y] of pts) {
       const [qx, qy] = toPx(x, y);
       const d = Math.hypot(qx - px, qy - py);
-      if (d <= HIT_PX && (!found.has(id) || d < found.get(id))) found.set(id, d);
+      if (d <= HIT_PX && (!found.has(key) || d < found.get(key))) found.set(key, d);
     }
   }
-  return [...found.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id);
+  return [...found.entries()].sort((a, b) => a[1] - b[1]).map(([key]) => key);
 }
+
+const nameOf = (key) => (mode === "gather" ? key : petName(key));
+const pickedNow = () => (mode === "gather" ? picked : selected);
 
 let drag = null;
 const wrap = $("map-wrap");
@@ -364,13 +524,13 @@ wrap.addEventListener("pointermove", (e) => {
       return;
     }
   }
-  const under = petsAt(e.clientX - r.left, e.clientY - r.top);
+  const under = dotsAt(e.clientX - r.left, e.clientY - r.top);
   const tip = $("tip");
   if (!under.length) {
     tip.hidden = true;
     return;
   }
-  tip.replaceChildren(el("span", "", under.slice(0, 3).map(petName).join(", ")));
+  tip.replaceChildren(el("span", "", under.slice(0, 3).map(nameOf).join(", ")));
   if (under.length > 3) tip.append(el("span", "dim", ` +${under.length - 3}`));
   tip.hidden = false;
   const x = e.clientX - r.left + 12;
@@ -384,11 +544,12 @@ wrap.addEventListener("pointerup", (e) => {
   wrap.classList.remove("dragging");
   if (!was || was.moved) return;
   const r = canvas.getBoundingClientRect();
-  const under = petsAt(e.clientX - r.left, e.clientY - r.top);
-  // A dot picks its pet (the next one under it, if that one's picked already) and shows
-  // it in the list; the map itself, away from the dots, lets go of the pet picked.
-  if (under.length) pick(under[0] === selected && under.length > 1 ? under[1] : under[0]);
-  else if (selected != null) select(null);
+  const under = dotsAt(e.clientX - r.left, e.clientY - r.top);
+  // A dot picks its pet or material (the next one under it, if that one's picked already)
+  // and shows it in the list; the map itself, away from the dots, lets go of the one picked.
+  const now = pickedNow();
+  if (under.length) pick(under[0] === now && under.length > 1 ? under[1] : under[0]);
+  else if (now != null) select(null);
 });
 wrap.addEventListener("pointerleave", () => ($("tip").hidden = true));
 wrap.addEventListener(
@@ -419,19 +580,21 @@ new ResizeObserver(() => {
 
 // --- The list --------------------------------------------------------------
 
-// The list's row: picks the pet, or lets go of it.
-function select(id) {
-  selected = selected === id ? null : id;
+// The list's row: picks the pet (or material), or lets go of it.
+function select(key) {
+  if (mode === "gather") picked = picked === key ? null : key;
+  else selected = selected === key ? null : key;
   drawList();
   draw();
 }
 
-// From the map: picks the pet and scrolls the list to it.
-function pick(id) {
-  selected = id;
+// From the map: picks it and scrolls the list to it.
+function pick(key) {
+  if (mode === "gather") picked = key;
+  else selected = key;
   drawList();
   draw();
-  const row = $("pets").querySelector(`[data-pet="${id}"]`);
+  const row = $("pets").querySelector(`[data-key="${CSS.escape(String(key))}"]`);
   if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
@@ -447,6 +610,11 @@ async function setTracked(id, on) {
 }
 
 function drawList() {
+  if (mode === "gather") drawGatherList();
+  else drawPetList();
+}
+
+function drawPetList() {
   const m = current();
   const rows = listedPets()
     .map(([id, pts]) => [id, pts, pets.get(id)])
@@ -455,7 +623,7 @@ function drawList() {
     ...rows.map(([id, pts, p]) => {
       const li = el("li", "map-pet" + (needs(p) ? "" : " done") + (p && p.tracked ? " tracked" : ""));
       li.setAttribute("aria-selected", String(id === selected));
-      li.dataset.pet = id;
+      li.dataset.key = id;
       // Track it (the pet tracker widget shows the ones you track).
       const track = el("button", "map-track", p && p.tracked ? "✓" : "+");
       track.type = "button";
@@ -489,6 +657,72 @@ function drawList() {
   }
 }
 
+// The show/hide box of a row: ✓ shown, – some shown, empty hidden.
+function showBox(state, title, onClick) {
+  const b = el("button", "map-track map-show", state === "all" ? "✓" : state === "some" ? "–" : "");
+  b.type = "button";
+  b.setAttribute("aria-pressed", String(state === "all"));
+  b.title = title;
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// By kind: a kind with more than one material has a row of its own (to show or hide them
+// all), its materials under it.
+function drawGatherList() {
+  const m = current();
+  const q = search.trim().toLowerCase();
+  const rows = [];
+  for (const k of gather ? gather.kinds : []) {
+    const items = itemsOn(m).filter(([it]) => it.kind === k.key && itemMatches(it, q));
+    if (!items.length) continue;
+    if (items.length > 1) {
+      const names = items.map(([it]) => it.name);
+      const shownCount = names.filter((n) => !hidden.has(n)).length;
+      const state = shownCount === names.length ? "all" : shownCount ? "some" : "none";
+      const li = el("li", "map-kind" + (state === "none" ? " off" : ""));
+      const swatch = el("span", "genus-dot");
+      swatch.style.background = kindColour(k.key);
+      const line = el("span", "pet-line");
+      line.append(swatch, el("span", "pet-name", k.name));
+      const total = items.reduce((n, [, pts]) => n + pts.length, 0);
+      li.append(showBox(state, state === "all" ? `Hide every ${k.name.toLowerCase()} on the map` : `Show every ${k.name.toLowerCase()} on the map`, () => setHidden(names, state === "all")), line, el("span", "map-count", `×${total}`));
+      li.title = `${k.name}: ${total} spots on this map`;
+      li.addEventListener("click", () => setHidden(names, state === "all"));
+      rows.push(li);
+    }
+    for (const [it, pts] of items) {
+      const off = hidden.has(it.name);
+      const li = el("li", "map-pet map-item" + (items.length > 1 ? " sub" : "") + (off ? " off" : ""));
+      li.setAttribute("aria-selected", String(it.name === picked));
+      li.dataset.key = it.name;
+      const box = showBox(off ? "none" : "all", off ? "Show it on the map" : "Hide it on the map", () => setHidden([it.name], !off));
+      const line = el("span", "pet-line");
+      const swatch = el("span", "genus-dot");
+      swatch.style.background = kindColour(it.kind);
+      line.append(swatch, el("span", "pet-name", it.name));
+      li.append(box, icon(it), line, el("span", "map-count", `×${pts.length}`));
+      li.title = `${it.name} (${kindName(it.kind)}): ${pts.length} spots on this map` + (off ? "\nhidden on the map" : "");
+      li.addEventListener("click", () => select(it.name));
+      rows.push(li);
+    }
+  }
+  $("pets").replaceChildren(...rows);
+  if (!rows.length) $("pets").append(el("li", "empty", !gather ? "no gathering data" : q ? "nothing matches" : "nothing to gather on this map"));
+  const areas = $("areas");
+  const it = picked != null ? itemsOn(m).find(([i]) => i.name === picked) : null;
+  areas.hidden = !it;
+  if (it) {
+    const [item, pts] = it;
+    const most = mostlyIn(m, item.name, pts);
+    areas.replaceChildren(el("b", "", item.name), ` · ${kindName(item.kind)} · ${pts.length} spots here`);
+    if (most.length) areas.append(` · most in ${most.join(", ")}`);
+  }
+}
+
 function drawTabs() {
   if (!data) return;
   $("tabs").replaceChildren(
@@ -512,6 +746,30 @@ function drawTabs() {
   const here = data.maps.find(onMap);
   $("where").textContent = here ? `· you're in ${here.name}` : "";
 }
+
+// Pets or gathering: the side shown, on the map and in the list.
+function drawMode() {
+  for (const b of $("mode").querySelectorAll("button")) b.setAttribute("aria-selected", String(b.dataset.mode === mode));
+  $("needed").hidden = mode !== "pets";
+  const s = $("search");
+  s.placeholder = mode === "gather" ? "search a material" : "search a pet";
+  s.title = mode === "gather" ? "A material, by name or kind" : "Any pet, by name, genus or area (not only this map's)";
+  $("map").setAttribute("aria-label", mode === "gather" ? "Where each material is gathered" : "Where the mobs that give pet souls spawn");
+}
+for (const b of $("mode").querySelectorAll("button")) {
+  b.addEventListener("click", () => {
+    if (mode === b.dataset.mode) return;
+    mode = b.dataset.mode;
+    remember(MODE_KEY, mode);
+    search = "";
+    $("search").value = "";
+    $("tip").hidden = true;
+    drawMode();
+    drawList();
+    draw();
+  });
+}
+drawMode();
 
 $("search").addEventListener("input", (e) => {
   search = e.target.value;
@@ -545,6 +803,7 @@ async function loadPets() {
   } catch {
     return;
   }
+  if (mode !== "pets") return;
   drawList();
   draw();
 }
@@ -560,12 +819,29 @@ async function loadMe() {
   draw();
 }
 
+async function loadGather() {
+  try {
+    gather = await invoke("gather_map");
+  } catch {
+    gather = null;
+  }
+  if (!gather || !gather.items) gather = null;
+  let names = null;
+  try {
+    names = JSON.parse(remembered(HIDDEN_KEY));
+  } catch {
+    names = null;
+  }
+  hidden = new Set(Array.isArray(names) ? names : gather ? gather.items.filter((it) => HIDDEN_KINDS.includes(it.kind)).map((it) => it.name) : []);
+}
+
 (async () => {
   try {
     data = await invoke("pet_map");
   } catch {
     data = null;
   }
+  await loadGather();
   if (!data || !data.maps || !data.maps.length) {
     data = null;
     drawList();

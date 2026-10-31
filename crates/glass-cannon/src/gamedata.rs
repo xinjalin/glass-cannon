@@ -35,6 +35,7 @@ const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
 const PET_MAP_FILE: &str = "pet-map.json";
+const GATHER_MAP_FILE: &str = "gather-map.json";
 const GEAR_FILE: &str = "gear.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
@@ -726,6 +727,16 @@ impl GameData {
     /// A pet map picture (`petmap_<key>.jpg`), as a data URL.
     pub fn pet_map_image(&self, file: &str) -> Option<String> {
         file.starts_with("petmap_").then(|| self.data_url(file, MAX_PICTURE_BYTES)).flatten()
+    }
+
+    /// The map's gathering data (`gather-map.json`): where each material is, per map; as read.
+    pub fn gather_map(&self) -> Option<serde_json::Value> {
+        read_json(&self.dir.join(GATHER_MAP_FILE)).ok()
+    }
+
+    /// A material's icon (`gather_<icon>.png`, its `icon`), as a data URL.
+    pub fn gather_icon(&self, file: &str) -> Option<String> {
+        file.starts_with("gather_").then(|| self.icon_data_url(file)).flatten()
     }
 
     pub fn pet_icon(&self, pet: u32) -> Option<String> {
