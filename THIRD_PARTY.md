@@ -40,6 +40,10 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   `gather-map.json` (where 23 materials and collectables are on the world and Abyss maps:
   13,584 spots, from its `map.getMarkers`) with 15 material icons (`gather_<icon>.png`,
   shrunk to 64 px; NCSOFT's artwork).
+- [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110), **no licence**: which
+  effect and skill IDs go with 30 mechanics of 15 dungeon bosses in
+  `boss-mechanics.json`, as leads. Nothing of its code or text is used: the file and its
+  wording are ours, and each mechanic is checked against our own captures as runs show it.
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
   scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits
   (`pet_<id>.png`, 64 px) for the pet tracker. NCSOFT's artwork, like the

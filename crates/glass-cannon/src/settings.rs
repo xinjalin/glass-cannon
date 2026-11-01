@@ -56,6 +56,8 @@ pub struct SettingsStatus {
     refresh_ms: u32,
     boss_hp: bool,
     boss_casts: bool,
+    boss_mechanics: bool,
+    party_cooldowns_by_class: bool,
     pet_souls: bool,
     /// The overlay's widgets that show, and whether they're being arranged.
     widgets: Vec<String>,
@@ -150,6 +152,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         refresh_ms: s.refresh_ms,
         boss_hp: s.boss_hp,
         boss_casts: s.boss_casts,
+        boss_mechanics: s.boss_mechanics,
+        party_cooldowns_by_class: s.party_cooldowns_by_class,
         pet_souls: s.pet_souls,
         widgets: s.widgets,
         arranging: app.hud_editing.load(Ordering::SeqCst),

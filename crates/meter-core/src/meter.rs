@@ -866,6 +866,9 @@ pub struct Meter {
     pulls: HashMap<u64, u64>,
     /// The newest message's time.
     latest_us: u64,
+    /// Dungeon bosses' mechanics (from the app's data), and the stagger gauges and ground
+    /// hits they go by.
+    mechanics: crate::mechanics::Mechanics,
 }
 
 impl Default for Meter {
@@ -915,6 +918,7 @@ impl Meter {
             boss_log: VecDeque::new(),
             pulls: HashMap::new(),
             latest_us: 0,
+            mechanics: crate::mechanics::Mechanics::default(),
         }
     }
 
@@ -938,6 +942,43 @@ impl Meter {
     /// and in combat the fight waits longer before going idle.
     pub fn set_boss_types(&mut self, types: impl IntoIterator<Item = u32>) {
         self.bosses = types.into_iter().collect();
+    }
+
+    /// Dungeon bosses' mechanics to warn of (see [`crate::mechanics`]).
+    pub fn set_mechanics(&mut self, book: crate::mechanics::Book) {
+        self.mechanics.set_book(book);
+    }
+
+    /// The bosses' mechanics going on now, most important first.
+    pub fn mechanics(&self, now_us: u64) -> Vec<crate::mechanics::Alert> {
+        if self.mechanics.is_empty() {
+            return Vec::new();
+        }
+        let from = now_us.saturating_sub(crate::mechanics::LOOK_BACK_US);
+        let effects = self.effects.spans(from, now_us);
+        let casts: Vec<crate::mechanics::CastSeen> = self
+            .boss_log
+            .iter()
+            .filter(|c| c.at_us >= from)
+            .map(|c| crate::mechanics::CastSeen {
+                at_us: c.at_us,
+                fired_us: c.fired_us,
+                caster: c.caster,
+                caster_type: self.registry.mob_type(c.caster),
+                skill: c.skill,
+                cast_ms: c.cast_ms,
+            })
+            .collect();
+        let mob_type = |e: u64| self.registry.mob_type(e);
+        let player_name = |e: u64| self.registry.player_name(e).map(str::to_string);
+        self.mechanics.alerts(&crate::mechanics::Now {
+            now_us,
+            effects: &effects,
+            casts: &casts,
+            you: self.registry.self_id(),
+            mob_type: &mob_type,
+            player_name: &player_name,
+        })
     }
 
     /// The game's latest pings: when each came back (capture time, µs) and when the client
@@ -1014,7 +1055,7 @@ impl Meter {
     /// Your party's (you included) long cooldowns seen this session: ready or time left.
     pub fn party_cooldowns(&self, now_us: u64) -> Vec<CasterCooldown> {
         let r = &self.registry;
-        self.cast_cooldowns.of(now_us, |e| r.is_self(e) || (!r.party().is_empty() && r.player_name(e).is_some() && r.in_party(e)))
+        self.cast_cooldowns.of(now_us, |e| r.in_party(e))
     }
 
     /// The PvP session going on, if any.
@@ -1145,6 +1186,9 @@ impl Meter {
             if let Some((entity, now, max)) = hp::parse_spawn_hp(payload) {
                 self.hp.record(ts_us, entity, now, Some(max));
             }
+            if let Some((mob, mob_type)) = crate::entities::parse_mob_spawn(payload) {
+                self.mechanics.on_spawn(ts_us, mob, mob_type);
+            }
         }
         if opcode == OPCODE_DOT {
             if let Some(ev) = damage::parse_dot(payload) {
@@ -1220,7 +1264,10 @@ impl Meter {
                 }
                 state::OPCODE_STAGGER => {
                     if let Some((mob, s)) = state::parse_stagger(payload) {
-                        self.stagger.insert(mob, s);
+                        self.mechanics.on_stagger(ts_us, mob, self.registry.mob_type(mob), &s);
+                        // A break doesn't say the gauge's size: keep the one it had.
+                        let size = if s.size == 0 { self.stagger.get(&mob).map_or(0, |p| p.size) } else { s.size };
+                        self.stagger.insert(mob, Stagger { size, ..s });
                     }
                 }
                 OPCODE_WORLD_MAP => {
@@ -1340,6 +1387,7 @@ impl Meter {
                 self.cubes.clear();
                 self.pets.clear();
                 self.positions.clear();
+                self.mechanics.clear();
                 self.pvp.end();
             }
             return;
@@ -1427,6 +1475,9 @@ impl Meter {
         let on_party = self.scope == Scope::Party && self.registry.in_party(ev.target);
         // Spirits attack with mob-style skill IDs, so they're players by their owner.
         let player = by != attacker || self.is_player(attacker, ev.skill);
+        if on_me && !player {
+            self.mechanics.on_hit_you(ts_us, ev.skill);
+        }
         // Without knowing who we are yet, every player hit counts.
         let everyone = self.scope == Scope::Everyone || me.is_none();
 
@@ -2859,6 +2910,17 @@ mod tests {
         m
     }
     const BOSS: u64 = 17151;
+
+    #[test]
+    fn a_broken_stagger_gauge_keeps_its_size() {
+        let mut m = meter_with_boss();
+        // You pick the boss; its gauge, then broken (a break says no size: Draupnir 2026-11-01).
+        m.feed(S, state::OPCODE_YOUR_TARGET, &[0, 0, 0, 0xff, 0x85, 0x01]);
+        m.feed(S, state::OPCODE_STAGGER, &[0xff, 0x85, 0x01, 3, 1, 0x2d, 2, 0, 0, 0x31, 0, 0, 0, 2]);
+        m.feed(2 * S, state::OPCODE_STAGGER, &[0xff, 0x85, 0x01, 0, 3, 2]);
+        let s = m.target_view().and_then(|t| t.stagger).unwrap();
+        assert_eq!((s.state, s.left, s.size), (state::STAGGERED, 0, 557));
+    }
 
     /// A death (0x8d04): entity, skill, killer, server, no name or legion, then the rest.
     fn death(entity: u64, skill: u32, killer: u64) -> Vec<u8> {

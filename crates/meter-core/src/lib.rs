@@ -20,6 +20,7 @@ pub mod hp;
 pub mod join;
 pub mod decode;
 pub mod live;
+pub mod mechanics;
 pub mod meter;
 pub mod npcap;
 pub mod pcapfile;

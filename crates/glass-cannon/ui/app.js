@@ -491,7 +491,8 @@ function keyedNotice(key, text, ms, kind = "") {
 // ---------------------------------------------------------------- to the overlay
 
 // As a widget: the boss's cast and what's ahead go up to the overlay, which draws the boss
-// warnings and timers (and the theme, so its own text matches).
+// warnings and timers (and the theme, so its own text matches), with the bosses' mechanics
+// going on (a debuff on you, a pool you're in: not only while a boss is the target).
 function sendBoss(view) {
   const enc = view.meter.encounter;
   const fighting = enc && enc.active && enc.target_boss;
@@ -505,7 +506,7 @@ function sendBoss(view) {
         sound: view.alert_sound,
       }
     : null;
-  toHud({ type: "gc-boss", boss: boss && { ...boss, appearance: view.appearance } });
+  toHud({ type: "gc-boss", boss: boss && { ...boss, appearance: view.appearance }, mechanics: view.boss_mechanics || [], sound: view.alert_sound });
 }
 
 // ---------------------------------------------------------------- pet souls

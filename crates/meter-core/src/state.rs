@@ -21,7 +21,9 @@ pub const OPCODE_MOB_TARGET: u16 = 0x3835;
 /// Your target changed: u8 flags, u16 result, varint target (0: none), flag 1: u32 part.
 pub const OPCODE_YOUR_TARGET: u16 = 0x3834;
 /// A mob's stagger gauge: varint mob, u8 flags, u8 state ([`STAGGERED`] when broken),
-/// flag 1: u32 gauge size, flag 2: u32 gauge left, … (more by flag that we don't read).
+/// flag 1: u32 gauge size, flag 2: u32 gauge left, then (with no other flags) a u8: 2 while
+/// it can be broken, 0 while it's idle. Most bosses' gauges are always 2; a stagger check's
+/// boss (Bakarma, Atiel) idles at 0 and turns 2 for the check (2026-10-24, 2026-11-01).
 pub const OPCODE_STAGGER: u16 = 0xe005;
 pub const STAGGERED: u8 = 3;
 
@@ -73,6 +75,8 @@ pub struct Stagger {
     pub state: u8,
     pub left: u32,
     pub size: u32,
+    /// It can be broken now (false: idle), when the message says.
+    pub breakable: Option<bool>,
 }
 
 pub fn parse_stagger(p: &[u8]) -> Option<(u64, Stagger)> {
@@ -91,7 +95,8 @@ pub fn parse_stagger(p: &[u8]) -> Option<(u64, Stagger)> {
     };
     let size = u32_if(1)?;
     let left = u32_if(2)?;
-    Some((mob, Stagger { state, left, size }))
+    let breakable = if flags & !3 == 0 { p.get(i).map(|b| b & 2 != 0) } else { None };
+    Some((mob, Stagger { state, left, size, breakable }))
 }
 
 /// The NPC and why it left.
@@ -163,7 +168,11 @@ mod tests {
         assert_eq!(parse_your_target(&hex("00 00 00 e4 fb 05")), Some(Some(97_764)));
         assert_eq!(parse_your_target(&hex("00 00 00 00")), Some(None));
         let (mob, s) = parse_stagger(&hex("e4 fb 05 03 01 b0 04 00 00 a6 04 00 00 02")).unwrap();
-        assert_eq!((mob, s), (97_764, Stagger { state: 1, left: 1190, size: 1200 }));
+        assert_eq!((mob, s), (97_764, Stagger { state: 1, left: 1190, size: 1200, breakable: Some(true) }));
+        // Bakarma's gauge idle after a break, then broken (Draupnir, 2026-11-01).
+        assert_eq!(parse_stagger(&hex("aa b9 02 03 01 2d 02 00 00 2d 02 00 00 00")).unwrap().1.breakable, Some(false));
+        let (_, broken) = parse_stagger(&hex("aa b9 02 00 03 02")).unwrap();
+        assert_eq!((broken.state, broken.size), (STAGGERED, 0));
     }
 
     #[test]

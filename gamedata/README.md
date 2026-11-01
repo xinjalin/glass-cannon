@@ -22,6 +22,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `gather-map.json` (where each material and collectable is on the world and Abyss maps, in metres, for the map's gathering side) and `gather_<icon>.png` (their icons) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getMarkers`, its item icons) | no licence (NCSOFT's names and artwork) |
 | `field-bosses.json` (world-map field boss IDs to map and mob type) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) (`field_boss_timer.rs`) | GPL-3.0 |
 | `field-bosses.json` (field bosses' level and location) | the same bundle's monsters | none: used without a licence |
+| `boss-mechanics.json` (dungeon bosses' mechanics for the boss warnings: which buff, debuff, cue cast, stagger gauge or ground hit means what, and what to do) | written by hand; which effect and skill IDs go with which mechanic came from [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110) as leads, the wording is ours | none (the IDs are NCSOFT's) |
 | `pet_<id>.png` (pet portraits, for the pet tracker) | NCSOFT's game asset server, by the bundle's pets' icon names | NCSOFT's artwork, used without a licence |
 | `Icon_Item_Usable_*.png` and `item-icons.json` (icons for scroll, potion and food buffs) | NCSOFT's game asset server (`assets.playnccdn.com`), matched to skills by the bundle's item names | NCSOFT's artwork, used without a licence |
 
@@ -61,6 +62,8 @@ sources aren't named; they're here on the same terms and will be removed on requ
   `cdn.questlog.gg/aion-2/map/v3/<key>.webp` (the world maps and Lower Reshanta) and
   `cdn.questlog.gg/aion-2/assets/Game/UI/Map/WorldMap/<key>/Res/<key>_<x>_<y>.webp` (Middle
   and Upper Reshanta's 2×2 tiles).
+- Boss mechanics: by hand. Each has a `seen` date once our own captures have shown it; the
+  rest are leads until a run does (look in a saved fight's `effects` and `boss_casts`).
 - Gathering: `packet-lab gather-map <markers.json> --icons <dir>`. `markers.json` is
   Questlog's `questlog.gg/aion-2/api/trpc/map.getMarkers?input={"language":"en"}`; the icons
   are its `cdn.questlog.gg/aion-2<icon path>.webp` for each material's `icon` (saved by name,

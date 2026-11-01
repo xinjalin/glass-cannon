@@ -62,6 +62,7 @@ fn tidy(label: &mut String) {
 /// Player skills have 8-digit IDs; mobs' are shorter.
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
 const FIELD_BOSSES_FILE: &str = "field-bosses.json";
+const MECHANICS_FILE: &str = "boss-mechanics.json";
 
 /// Field bosses by their world-map ID: map, mob type, level and where (field-bosses.json).
 #[derive(Debug, Default, Deserialize)]
@@ -276,6 +277,8 @@ pub struct GameData {
     pets: PetFile,
     pet_spawns: PetSpawnFile,
     gear: GearFile,
+    /// Dungeon bosses' mechanics, for the boss warnings (optional).
+    mechanics: meter_core::mechanics::Book,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -299,6 +302,7 @@ impl GameData {
             pets: PetFile::default(),
             pet_spawns: PetSpawnFile::default(),
             gear: GearFile::default(),
+            mechanics: meter_core::mechanics::Book::default(),
             problem: None,
             last_attempt: None,
         };
@@ -329,6 +333,7 @@ impl GameData {
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
                     self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
+                    self.mechanics = read_json(&dir.join(MECHANICS_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
                     let npc_names = read_json::<NpcNameFile>(&dir.join(NPC_NAMES_FILE)).unwrap_or_default();
@@ -506,6 +511,11 @@ impl GameData {
         let name = info.and_then(|b| self.npc(b.npc)).map(|(n, _)| n);
         let map_name = self.field_bosses.maps.get(&map).cloned();
         (name, info.and_then(|b| b.level), info.and_then(|b| b.place.clone()), map_name)
+    }
+
+    /// Dungeon bosses' mechanics, for the meter's boss warnings.
+    pub fn mechanics(&self) -> meter_core::mechanics::Book {
+        self.mechanics.clone()
     }
 
     /// The mob types that are bosses: their death ends a fight, and HP back to full is a

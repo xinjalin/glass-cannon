@@ -276,6 +276,11 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .cd.ready .cd-time { color: var(--ok); }
 .cd.ready .cd-name { color: var(--text); }
 .party-mark { color: var(--accent-2); font-size: 0.8em; }
+/* By class: each skill, then who has it under its name. */
+.cd.who { grid-template-columns: minmax(0, 1fr) auto; padding-left: 2.1em; }
+.cd.who .cd-name { color: var(--muted); }
+.cd.who.ready .cd-name { color: var(--text); }
+.cd.who.self .cd-name { font-weight: 700; }
 
 /* ---------------------------------------------------------------- boss casts */
 
