@@ -101,6 +101,12 @@ pub struct Settings {
     /// dangerous they look).
     #[serde(default)]
     pub boss_skill_alerts: BTreeMap<u32, bool>,
+    /// Dungeon bosses' mechanics in the boss warnings (`gamedata/boss-mechanics.json`).
+    #[serde(default = "default_true")]
+    pub boss_mechanics: bool,
+    /// The party cooldowns widget grouped by class, then skill, then player (else by player).
+    #[serde(default)]
+    pub party_cooldowns_by_class: bool,
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,

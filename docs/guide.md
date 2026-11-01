@@ -29,8 +29,10 @@ from the game, and lets the mouse through except over the meter and the world ti
 **Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
 moves widgets and resizes them by their
 corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Widgets
-that grow with what they show (the target frame, cooldowns, party cooldowns) are outlined
-at the most they'll take, so they can be placed clear of each other. Its
+that grow with what they show (the cooldowns) are outlined at the most they'll take, so
+they can be placed clear of each other; the target frame (stagger gauge included) and the
+party cooldowns (the whole party) are always as tall as what they show (only their width
+resizes), moving up rather than off the screen. Its
 floating menu (drag it by its title) turns each widget on or off, resets the layout, and
 finishes. The widgets:
 
@@ -39,7 +41,13 @@ finishes. The widgets:
   alerts: casting, then landing (move), the skill's name, and its time left, with a chime;
   a heads-up 5 s before one is due. Once over, it stays dimmed for 1.5 s. A cast is dangerous when
   it marks the ground or takes 2.5 s or more; in the analysis window's [boss] tab, click a
-  skill's alert to make it always or never warn.
+  skill's alert to make it always or never warn. Dungeon bosses' **mechanics** come first
+  (settings → boss mechanics): what it is and what to do, with its time left when known.
+  They go off on a buff on the boss (Lakshmi's reflect: stop attacking), a debuff on you
+  (a bomb or pool to carry away from the party, then "out of the fire") or on an ally (who
+  to free, with their name), the boss's cue casts, its stagger check (while the gauge can
+  be broken), and a pool you're standing in: 30 mechanics of 15 bosses in 8 dungeons
+  (`gamedata/boss-mechanics.json`).
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down.
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
@@ -57,7 +65,8 @@ finishes. The widgets:
   "dead" when they are.
 - **cooldowns**: your skills that aren't ready, with time left and charges.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
-  (yours from the start, the others' once used).
+  (yours from the start, the others' once used). Settings' **party cooldowns by** lists
+  them by player, or by class: each class's skills with who has them, ready first.
 - **world timers**: rifts, invasions, sieges, Arena of Tactics (NA, EU and LA), resets and
   field bosses (open the world map in game to read them) in your time; hover an event for
   its next three starts. Star (☆) the ones you want and **[★ only]** shows just those, and

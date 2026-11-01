@@ -226,6 +226,9 @@ struct View {
     /// The boss's next casts and whether its cast now is dangerous (the overlay's boss
     /// alerts), and whether they sound.
     boss_ahead: BossAhead,
+    /// Dungeon bosses' mechanics going on now (settings → boss mechanics), most important
+    /// first: the boss warnings show them before the casts.
+    boss_mechanics: Vec<meter_core::mechanics::Alert>,
     alert_sound: bool,
     /// Hidden cubes in view.
     cubes: Vec<meter_core::cubes::CubeView>,
@@ -335,7 +338,8 @@ fn boss_casts_to_show(
 fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, souls) = {
+    let mechanics_on = lock(&app.settings).boss_mechanics;
+    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, souls, boss_mechanics) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
         let known = remember_players(&app, &mut meter);
@@ -359,7 +363,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         }
         let souls = meter.take_soul_gains();
         let pvp_now = meter.pvp();
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, (souls, pvp_now))
+        let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
+        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, (souls, pvp_now), mechanics)
     };
     let (mut souls, pvp_now) = souls;
     lock(&app.field_bosses).update(field_bosses);
@@ -472,6 +477,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         best,
         boss_next,
         boss_ahead,
+        boss_mechanics,
         alert_sound: settings.alert_sound,
         cubes,
         souls,
@@ -809,6 +815,7 @@ fn main() {
             meter: Mutex::new({
                 let mut m = Meter::default();
                 m.set_boss_types(data.boss_types());
+                m.set_mechanics(data.mechanics());
                 m
             }),
             status: Mutex::new(Status {
@@ -909,6 +916,8 @@ fn main() {
             widgets::set_hide_after,
             widgets::set_boss_hp,
             widgets::set_boss_casts,
+            widgets::set_boss_mechanics,
+            widgets::set_party_cooldowns_by_class,
             widgets::set_pet_souls,
             widgets::dummy_runs,
             widgets::pet_tracker,

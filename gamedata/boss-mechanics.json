@@ -1,0 +1,304 @@
+{
+  "source": {
+    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the wording is ours.",
+    "note": "`seen`: the date we confirmed it in our own captures. The rest are unconfirmed leads until a run shows them.",
+    "when": "effect: a buff or debuff on the boss (on: boss), on you (you), on another player (ally) or on any player (player). cast: the boss casts one of skills; over when it casts one of until (its own skill: when it goes off). stagger: the boss's stagger check (its gauge turns breakable; over once broken or idle). hit: something on the ground hits you.",
+    "times": "max_s: the longest it shows. due_s: when it lands, from its start (a countdown). then: what to do once it's over, for then.s seconds."
+  },
+  "mechanics": [
+    {
+      "id": "urugugu.raur.counter",
+      "bosses": [2300206, 2310206, 2320206],
+      "when": { "kind": "effect", "effect": 15044501, "on": "boss" },
+      "what": "Raur · counter stance",
+      "say": "stop attacking · back off",
+      "due_s": 4.85,
+      "then": { "say": "stay back", "s": 3 },
+      "max_s": 7,
+      "priority": 100
+    },
+    {
+      "id": "urugugu.auldor.tempest",
+      "bosses": [2300218, 2310218, 2320218],
+      "when": { "kind": "effect", "effect": 16010302, "on": "player" },
+      "what": "Auldor · Tempest Strike",
+      "say": "stack together",
+      "due_s": 10.75,
+      "max_s": 12,
+      "priority": 90
+    },
+    {
+      "id": "urugugu.urahum.poison",
+      "bosses": [2300207, 2310207, 2320207],
+      "when": { "kind": "effect", "effect": 16051103, "on": "you" },
+      "what": "Urahum · poison on you",
+      "say": "take it away from the party",
+      "then": { "say": "out of the poison", "s": 2.5 },
+      "max_s": 5,
+      "priority": 80
+    },
+    {
+      "id": "urugugu.urahum.pool",
+      "bosses": [2300207, 2310207, 2320207],
+      "when": { "kind": "hit", "skills": [1605144] },
+      "what": "Urahum · poison pool",
+      "say": "move out",
+      "max_s": 1.5,
+      "priority": 85
+    },
+    {
+      "id": "vakron.tiere.flower",
+      "bosses": [2300810, 2310810, 2320810],
+      "when": { "kind": "cast", "skills": [1604500], "until": [1604532] },
+      "what": "Tiere · Rafflesia",
+      "say": "kill the Rafflesia",
+      "max_s": 9,
+      "priority": 90,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.tiere.rotation",
+      "bosses": [2300810, 2310810, 2320810],
+      "when": { "kind": "cast", "skills": [1604532] },
+      "what": "Tiere · rotation",
+      "say": "stack · move left together",
+      "max_s": 10,
+      "priority": 95,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.tiere.pools",
+      "bosses": [2300810, 2310810, 2320810],
+      "when": { "kind": "hit", "skills": [1604511, 1604531] },
+      "what": "Tiere · poison",
+      "say": "move out",
+      "max_s": 1.5,
+      "priority": 85,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.thamon.physical",
+      "bosses": [2300811, 2310811, 2320811],
+      "when": { "kind": "effect", "effect": 16046601, "on": "boss" },
+      "what": "Thamon · physical shield",
+      "say": "stop physical attacks",
+      "max_s": 11,
+      "priority": 95,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.thamon.magic",
+      "bosses": [2300811, 2310811, 2320811],
+      "when": { "kind": "effect", "effect": 16046701, "on": "boss" },
+      "what": "Thamon · magic shield",
+      "say": "stop magic attacks",
+      "max_s": 11,
+      "priority": 95,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.thamon.petrify",
+      "bosses": [2300811, 2310811, 2320811],
+      "when": { "kind": "effect", "effect": 16047201, "on": "ally" },
+      "what": "Thamon · petrified",
+      "say": "free them",
+      "max_s": 7,
+      "priority": 90,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.vakron.mark",
+      "bosses": [2300812, 2320812],
+      "when": { "kind": "effect", "effect": 16043811, "on": "you" },
+      "what": "Vakron · thorn mark on you",
+      "say": "move away from the party",
+      "max_s": 8,
+      "priority": 100,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.vakron.trapped",
+      "bosses": [2300812, 2320812],
+      "when": { "kind": "effect", "effect": 16043701, "on": "ally" },
+      "what": "Vakron · trapped",
+      "say": "free them",
+      "max_s": 5,
+      "priority": 95,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.vakron.rings",
+      "bosses": [2300812, 2310812, 2320812],
+      "when": { "kind": "cast", "skills": [1604390], "until": [1604390] },
+      "what": "Vakron · thorn rings",
+      "say": "jump the rings",
+      "max_s": 10,
+      "priority": 100,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "vakron.vakron.prison",
+      "bosses": [2300812, 2310812, 2320812],
+      "when": { "kind": "cast", "skills": [1604420], "until": [1604425, 1604426] },
+      "what": "Vakron · prison",
+      "say": "break the red rock to get out",
+      "max_s": 15,
+      "priority": 100,
+      "seen": "2026-10-23"
+    },
+    {
+      "id": "krao.berk.whirlwind",
+      "bosses": [2300171, 2310171, 2320171],
+      "when": { "kind": "effect", "effect": 18001601, "on": "boss" },
+      "what": "Berk · whirlwind",
+      "say": "get out",
+      "max_s": 7,
+      "priority": 90
+    },
+    {
+      "id": "krao.berk.wave",
+      "bosses": [2300171],
+      "when": { "kind": "cast", "skills": [1800150], "until": [1800053] },
+      "what": "Berk · wave",
+      "say": "hide behind a rock",
+      "max_s": 10,
+      "priority": 100
+    },
+    {
+      "id": "krao.berk.stagger",
+      "bosses": [2300171, 2310171, 2320171],
+      "when": { "kind": "stagger" },
+      "what": "Berk · stagger check",
+      "say": "stagger it now",
+      "max_s": 25,
+      "priority": 100
+    },
+    {
+      "id": "draupnir.lakshmi.reflect",
+      "bosses": [2300401, 2310401, 2320401],
+      "when": { "kind": "effect", "effect": 16059101, "on": "boss" },
+      "what": "Lakshmi · reflect",
+      "say": "stop attacking",
+      "max_s": 9,
+      "priority": 100,
+      "seen": "2026-10-31"
+    },
+    {
+      "id": "draupnir.bakarma.stagger",
+      "bosses": [2300471, 2310471, 2320471],
+      "when": { "kind": "stagger" },
+      "what": "Bakarma · stagger check",
+      "say": "stagger it now",
+      "max_s": 25,
+      "priority": 100,
+      "seen": "2026-11-01"
+    },
+    {
+      "id": "fire-temple.ignus.bomb",
+      "bosses": [2300311, 2310311, 2320311],
+      "when": { "kind": "effect", "effect": 16008401, "on": "you" },
+      "what": "Ignus · fire on you",
+      "say": "take it away from the party",
+      "then": { "say": "out of the fire", "s": 2 },
+      "max_s": 6,
+      "priority": 90
+    },
+    {
+      "id": "fire-temple.ignus.zone",
+      "bosses": [2300311, 2310311, 2320311],
+      "when": { "kind": "hit", "skills": [1600865] },
+      "what": "Ignus · flame zone",
+      "say": "move out",
+      "max_s": 1.5,
+      "priority": 85
+    },
+    {
+      "id": "horn-cave.nuakum.rupture",
+      "bosses": [2300910, 2310910, 2320910],
+      "when": { "kind": "effect", "effect": 18020003, "on": "you" },
+      "what": "Nuakum · bleed on you",
+      "say": "take it away from the party",
+      "then": { "say": "out of the pool", "s": 2 },
+      "max_s": 5,
+      "priority": 90
+    },
+    {
+      "id": "deus.nazmun.bomb",
+      "bosses": [2320615, 2340615, 2343615, 2346615],
+      "when": { "kind": "effect", "effect": 16056701, "on": "you" },
+      "what": "Nazmun · bomb on you",
+      "say": "move away from the party",
+      "max_s": 5,
+      "priority": 95,
+      "seen": "2026-10-24"
+    },
+    {
+      "id": "deus.nazmun.bomb-ally",
+      "bosses": [2320615, 2340615, 2343615, 2346615],
+      "when": { "kind": "effect", "effect": 16056701, "on": "ally" },
+      "what": "Nazmun · bomb",
+      "say": "keep away from them",
+      "max_s": 5,
+      "priority": 85,
+      "seen": "2026-10-24"
+    },
+    {
+      "id": "deus.atiel.root",
+      "bosses": [2320601, 2340601, 2343601, 2346601],
+      "when": { "kind": "effect", "effect": 18014501, "on": "ally" },
+      "what": "Atiel · rooted",
+      "say": "stack on them",
+      "max_s": 6,
+      "priority": 90,
+      "seen": "2026-10-24"
+    },
+    {
+      "id": "deus.atiel.chain",
+      "bosses": [2320601, 2340601, 2343601, 2346601],
+      "when": { "kind": "effect", "effect": 18014604, "on": "you" },
+      "what": "Atiel · chained",
+      "say": "move away from your partner",
+      "max_s": 30,
+      "priority": 90
+    },
+    {
+      "id": "deus.atiel.chain-partner",
+      "bosses": [2320601, 2340601, 2343601, 2346601],
+      "when": { "kind": "effect", "effect": 18014651, "on": "you" },
+      "what": "Atiel · chained",
+      "say": "move away from your partner",
+      "max_s": 2.5,
+      "priority": 90
+    },
+    {
+      "id": "deus.atiel.stagger",
+      "bosses": [2320601, 2340601, 2343601, 2346601],
+      "when": { "kind": "stagger" },
+      "what": "Atiel · stagger check",
+      "say": "stagger it now",
+      "max_s": 25,
+      "priority": 100,
+      "seen": "2026-10-24"
+    },
+    {
+      "id": "arkanis.ruthilis.lightning",
+      "bosses": [2330708, 2350708, 2353708, 2356708],
+      "when": { "kind": "effect", "effect": 16063724, "on": "you" },
+      "what": "Ruthilis · lightning on you",
+      "say": "move away from the party",
+      "max_s": 4,
+      "priority": 90,
+      "seen": "2026-10-31"
+    },
+    {
+      "id": "arkanis.talisra.prison",
+      "bosses": [2330709, 2350709, 2353709, 2356709],
+      "when": { "kind": "effect", "effect": 18017805, "on": "ally" },
+      "what": "Talisra · crystal prison",
+      "say": "free them with Crystal Spears",
+      "max_s": 15,
+      "priority": 90,
+      "seen": "2026-10-31"
+    }
+  ]
+}

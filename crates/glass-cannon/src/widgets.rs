@@ -215,6 +215,20 @@ pub fn set_boss_casts(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+#[tauri::command]
+pub fn set_party_cooldowns_by_class(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.party_cooldowns_by_class = on;
+    s.save(&app.config_dir);
+}
+
+#[tauri::command]
+pub fn set_boss_mechanics(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.boss_mechanics = on;
+    s.save(&app.config_dir);
+}
+
 /// Marks a boss skill: always warn (true), never (false), or as it looks (None).
 #[tauri::command]
 pub fn set_boss_skill_alert(app: State<'_, Arc<AppState>>, skill: u32, alert: Option<bool>) {
@@ -315,11 +329,20 @@ pub fn set_timer_favourites_only(app: State<'_, Arc<AppState>>, on: bool) {
 const LONG_MS: u32 = 60_000;
 const PARTY_SKILL_MS: u32 = 30_000;
 
+/// The party cooldowns widget: its members, and how it groups them.
+#[derive(Serialize)]
+pub struct PartyCooldowns {
+    /// By class, then skill, then player (else by player).
+    pub by_class: bool,
+    pub members: Vec<MemberCooldowns>,
+}
+
 #[derive(Serialize)]
 pub struct MemberCooldowns {
     pub entity: u64,
     pub name: String,
     pub class_code: Option<u32>,
+    pub class_name: Option<&'static str>,
     pub is_self: bool,
     pub skills: Vec<PartySkill>,
 }
@@ -338,12 +361,21 @@ pub struct PartySkill {
 /// Your party's long cooldowns (you included), each member's longest first. Your own
 /// long-cooldown skills are listed from the game's list of your skills, ready until used.
 #[tauri::command]
-pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
+pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> PartyCooldowns {
+    let by_class = lock(&app.settings).party_cooldowns_by_class;
     let now = app.engine.now();
     let (list, labels, me, yours) = {
         let m = app.engine.meter();
         let list = m.party_cooldowns(now);
-        let mut labels: Vec<(u64, String)> = list.iter().map(|c| (c.entity, m.registry().label(c.entity))).collect();
+        let r = m.registry();
+        // A member whose name we haven't seen yet goes by their class.
+        let label = |c: &meter_core::cooldowns::CasterCooldown| match r.player_name(c.entity) {
+            None if !r.is_self(c.entity) => meter_core::classes::class_code_of_skill(c.skill)
+                .and_then(meter_core::classes::class_name)
+                .map_or_else(|| r.label(c.entity), String::from),
+            _ => r.label(c.entity),
+        };
+        let mut labels: Vec<(u64, String)> = list.iter().map(|c| (c.entity, label(c))).collect();
         let me = m.registry().self_id();
         if let Some(me) = me {
             labels.push((me, m.registry().label(me)));
@@ -383,6 +415,7 @@ pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
                 entity: c.entity,
                 name: labels.iter().find(|(e, _)| *e == c.entity).map(|(_, n)| n.clone()).unwrap_or_default(),
                 class_code: meter_core::classes::class_code_of_skill(c.skill),
+                class_name: meter_core::classes::class_code_of_skill(c.skill).and_then(meter_core::classes::class_name),
                 is_self: me == Some(c.entity),
                 skills: vec![skill],
             }),
@@ -393,7 +426,7 @@ pub fn party_cooldowns(app: State<'_, Arc<AppState>>) -> Vec<MemberCooldowns> {
     }
     // You first, then the others by name.
     out.sort_by(|a, b| b.is_self.cmp(&a.is_self).then(a.name.cmp(&b.name)));
-    out
+    PartyCooldowns { by_class, members: out }
 }
 
 /// Odyle energy, the other content tickets and who holds the Abyss artifacts, for the world

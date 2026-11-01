@@ -129,6 +129,13 @@
             <button type="button" class="opt" data-widget="party-cooldowns" aria-pressed="false" title="Your party's long cooldowns and party buffs: ready, or how long left">
               <span class="key">party cooldowns</span><span class="state">[off]</span>
             </button>
+            <div class="line">
+              <span class="key">party cooldowns by</span>
+              <span class="choice" role="radiogroup" aria-label="Group the party cooldowns">
+                <button type="button" data-party-cd-choice="player" title="Each player, then their cooldowns">[player]</button>
+                <button type="button" data-party-cd-choice="class" title="Each class, then its skills, then who has them (ready first)">[class]</button>
+              </span>
+            </div>
             <button type="button" class="opt" data-widget="timers" aria-pressed="false" title="When the world events and field bosses start, with alerts">
               <span class="key">world timers</span><span class="state">[off]</span>
             </button>
@@ -143,6 +150,9 @@
             </button>
             <button id="hide-for-menus" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), and steps aside only when it's there. The square is only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over that corner hides the X from it">
               <span class="key">hide for game menus</span><span class="state">[off]</span>
+            </button>
+            <button id="boss-mechanics" type="button" class="opt" aria-pressed="false" title="In the boss warnings, before the casts: dungeon bosses' mechanics and what to do (a buff on the boss not to attack into, a debuff on you or an ally, a cue cast, a stagger check, a pool you're standing in)">
+              <span class="key">boss mechanics</span><span class="state">[on]</span>
             </button>
             <button id="alert-sound" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
               <span class="key">alert sound</span><span class="state">[on]</span>

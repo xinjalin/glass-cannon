@@ -4,10 +4,11 @@
 //! after a zone change), so a label can start as a bare ID and gain a name later.
 //! Layouts are in `docs/protocol.md`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::hp::{parse_party_vitals, OPCODE_PARTY_VITALS};
 use crate::protocol::read_varint;
 
 pub const OPCODE_SELF_SPAWN: u16 = 0x3633;
@@ -136,7 +137,26 @@ pub struct Registry {
     party: Vec<PartyMember>,
     /// Your Force's members (character ID -> name); empty when you're not in one.
     force: HashMap<u32, String>,
+    /// Players the game sends party HP for (`0x921b`, your party members alone): who's in
+    /// your party when their name or the roster isn't known (they were sent before the
+    /// meter started). Forgotten when the party changes.
+    party_ids: HashSet<u64>,
 }
+
+/// Someone leaving the party: what the HP-sent members are forgotten on even when the
+/// roster isn't known.
+const PARTY_EXITS: [u16; 10] = [
+    OPCODE_PARTY_MEMBER_LEFT,
+    OPCODE_GROUP_MEMBER_LEFT,
+    OPCODE_PARTY_LEFT,
+    OPCODE_GROUP_LEFT,
+    OPCODE_PARTY_KICKED,
+    OPCODE_PARTY_DISBANDED,
+    OPCODE_PARTY_LEFT_NOTICE,
+    OPCODE_GROUP_KICKED,
+    OPCODE_FORCE_DISBANDED,
+    OPCODE_FORCE_LEFT,
+];
 
 /// Someone in your party or group, as the rosters and member updates describe them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,11 +203,21 @@ impl Registry {
         &self.party
     }
 
-    /// You, or a player whose name is on your party's roster. Rosters carry names, not
-    /// entity IDs, so a member counts once their name is known.
+    /// You, or a player in your party or Force: their name is on its roster (rosters
+    /// carry names, not entity IDs), or, when their name or a whole roster isn't known, the
+    /// game sends their party HP. A roster without you is only part of one (a member
+    /// coming back online, before the full roster).
     pub fn in_party(&self, id: u64) -> bool {
-        self.is_self(id)
-            || self.player_name(id).is_some_and(|n| self.party.iter().any(|m| m.name == n) || self.force.values().any(|f| f == n))
+        if self.is_self(id) {
+            return true;
+        }
+        let whole = self.self_name.as_deref().is_some_and(|me| self.party.iter().any(|m| m.name == me));
+        match self.player_name(id) {
+            Some(n) if whole || !self.force.is_empty() => {
+                self.party.iter().any(|m| m.name == n) || self.force.values().any(|f| f == n)
+            }
+            _ => self.party_ids.contains(&id),
+        }
     }
 
     /// You're in a Force.
@@ -275,7 +305,24 @@ impl Registry {
 
     /// Updates from one message. Returns what changed, if anything.
     pub fn observe(&mut self, opcode: u16, payload: &[u8]) -> Option<Change> {
+        let change = self.observe_message(opcode, payload);
+        // Joins only add to the party; anything else that changes it may have dropped someone.
+        let join = matches!(opcode, OPCODE_GROUP_JOIN | OPCODE_PARTY_ADD_MEMBER | OPCODE_PARTY_RECONNECT);
+        if (matches!(change, Some(Change::PartyChanged { .. })) && !join) || PARTY_EXITS.contains(&opcode) {
+            self.party_ids.clear();
+        }
+        change
+    }
+
+    fn observe_message(&mut self, opcode: u16, payload: &[u8]) -> Option<Change> {
         match opcode {
+            OPCODE_PARTY_VITALS => {
+                let (id, _) = parse_party_vitals(payload)?;
+                if !self.is_self(id) && !self.mobs.contains_key(&id) {
+                    self.party_ids.insert(id);
+                }
+                None
+            }
             OPCODE_SELF_SPAWN => {
                 let (id, name) = parse_named_spawn(payload)?;
                 if let Some(change) = self.set_self(id) {
@@ -1047,6 +1094,52 @@ pub(crate) mod tests {
         // A leave that failed changes nothing.
         assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("05 00")), None);
         assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("00 00")), Some(Change::PartyChanged { members: 0 }));
+        assert!(!r.in_party(10210));
+        assert!(r.in_party(3659));
+    }
+
+    /// Party HP (`0x921b`): an entity, HP, max HP, MP, max MP.
+    fn party_hp(id: u64) -> Vec<u8> {
+        let mut p = encode_varint(id);
+        p.extend(encode_varint(9_000));
+        p.extend(encode_varint(10_000));
+        p.extend(500u32.to_le_bytes());
+        p.extend(1_000u32.to_le_bytes());
+        p
+    }
+
+    #[test]
+    fn party_hp_tells_members_from_before_the_meter_started() {
+        // As in the 2026-10-24 session started ten minutes in: the members' spawns came
+        // before the meter, so their names aren't known; their party HP still comes.
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_PARTY_ROSTER, &roster(&[(182272, 2503, "Pingu"), (253528, 2503, "NeneneTowawa")]));
+        assert!(!r.in_party(8967));
+        r.observe(OPCODE_PARTY_VITALS, &party_hp(8967));
+        assert!(r.in_party(8967));
+        assert!(!r.in_party(10601));
+        // Once named, the roster says: a stranger who was sent party HP isn't kept.
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e2 4f 01 20 a2 01 07", "Pingu", ""));
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e3 4f 01 20 a2 01 07", "Stranger", ""));
+        r.observe(OPCODE_PARTY_VITALS, &party_hp(10211));
+        assert!(r.in_party(10210));
+        assert!(!r.in_party(10211));
+        // Without a roster (none sent since the meter started), party HP alone counts.
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e2 4f 01 20 a2 01 07", "Pingu", ""));
+        r.observe(OPCODE_PARTY_VITALS, &party_hp(10210));
+        r.observe(OPCODE_PARTY_VITALS, &party_hp(3659));
+        assert!(r.in_party(10210));
+        assert!(r.in_party(3659));
+        // A member back online (2026-11-01, just before the full roster): one entry, not us,
+        // so not the whole party.
+        r.observe(OPCODE_PARTY_RECONNECT, &roster(&[(4, 2504, "Latecomer")]));
+        assert_eq!(r.party().len(), 1);
+        assert!(r.in_party(10210));
+        // Someone leaving: who's in it is learnt again from the next party HP.
+        r.observe(OPCODE_PARTY_MEMBER_LEFT, &hex("00 00 00 00 00 00 00 00"));
         assert!(!r.in_party(10210));
         assert!(r.in_party(3659));
     }

@@ -24,14 +24,16 @@ const DEFAULTS = {
 };
 
 // The side widgets: their page, label, whether they take the mouse (the world timers have
-// buttons; the others only show), and whether they fade outside combat (all but the world
-// timers, which you read between fights).
+// buttons; the others only show), whether they fade outside combat (all but the world
+// timers, which you read between fights), and whether they're always as tall as what they
+// show (the target frame with its stagger gauge, the party cooldowns' whole party: never
+// cut off).
 const SIDE_WIDGETS = {
-  target: { page: "target.html", label: "target", passive: true, fades: true },
+  target: { page: "target.html", label: "target", passive: true, fades: true, grows: true },
   player: { page: "player.html", label: "player bars", passive: true, fades: false },
   party: { page: "party.html", label: "party frames", passive: true, fades: false },
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
-  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true },
+  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true, grows: true },
   timers: { page: "timers.html", label: "world timers", passive: false, fades: false },
   pets: { page: "pets.html", label: "pet tracker", passive: false, fades: false },
 };
@@ -69,13 +71,15 @@ function place() {
   for (const el of document.querySelectorAll(".widget")) {
     const id = el.dataset.widget;
     const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
-    // A widget that fits its content: the meter exactly; the side widgets up to the
-    // height you gave them (they scroll beyond it). While arranging, the side widgets show
-    // that full height, the most they'll take, so they're placed clear of each other.
-    if (fitted[id]) p.h = el.dataset.side === undefined ? fitted[id] : editing ? p.h : Math.min(fitted[id], p.h);
+    // A widget that fits its content: the meter and the growing ones exactly; the other
+    // side widgets up to the height you gave them (they scroll beyond it). While arranging,
+    // those show that full height, the most they'll take, so they're placed clear of each
+    // other. A growing side widget moves up rather than run off the bottom.
+    const grows = el.dataset.grows !== undefined;
+    if (fitted[id]) p.h = el.dataset.side === undefined || grows ? fitted[id] : editing ? p.h : Math.min(fitted[id], p.h);
     const w = px(p.w);
     const x = Math.min(Math.max(0, p.x * innerWidth), innerWidth - Math.min(w, innerWidth));
-    const y = Math.min(Math.max(0, p.y * innerHeight), innerHeight - 40);
+    const y = Math.max(0, Math.min(p.y * innerHeight, innerHeight - (grows ? p.h : 40)));
     Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${p.h}px` });
   }
   reportRects();
@@ -204,7 +208,7 @@ function setUp(el) {
       const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
       if (resizing) {
         p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
-        if (id !== "meter") p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
+        if (id !== "meter" && el.dataset.grows === undefined) p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
       } else {
         p.x = Math.max(0, snap(start.left + dx)) / innerWidth;
         p.y = Math.max(0, snap(start.top + dy)) / innerHeight;
@@ -241,6 +245,7 @@ function showWidgets(names) {
     el.className = `widget${w.passive ? " passive" : ""}${w.fades ? " fades" : ""}`;
     el.dataset.widget = name;
     el.dataset.side = "";
+    if (w.grows) el.dataset.grows = "";
     el.dataset.label = w.label;
     const frame = document.createElement("iframe");
     frame.src = w.page;
@@ -287,6 +292,8 @@ window.addEventListener("message", (e) => {
   } else if (m.type === "gc-boss") {
     boss = m.boss;
     bossAt = performance.now();
+    mechanics = m.mechanics || [];
+    mechanicSound = !!m.sound;
     if (boss && boss.appearance) applyAppearance(boss.appearance);
   }
 });
@@ -348,11 +355,33 @@ function fitLine(el, width) {
 const WARNING_HOLD_MS = 1500;
 let warnedFor = "";
 let lastShown = null;
+// The bosses' mechanics going on (gamedata/boss-mechanics.json), most important first, as
+// the meter last sent them.
+let mechanics = [];
+let mechanicSound = false;
+
+// A mechanic as a card: what it is (and on whom, for an ally's), what to do, and its time
+// left when known.
+function mechanicCard(m, elapsed) {
+  const left = m.left_ms == null ? null : m.left_ms - elapsed;
+  const who = m.who && m.who.length ? ` · ${m.who.join(", ")}` : "";
+  return {
+    cls: "now",
+    what: `${m.what}${who}`,
+    title: m.say,
+    time: left != null && left > 0 ? `${(left / 1000).toFixed(1)} s` : "now",
+    key: m.key,
+    done: "over",
+    sound: mechanicSound,
+  };
+}
+
 function drawWarnings(elapsed) {
   const box = $("warning");
   const live = boss && boss.cast;
-  let show = null;
-  if (live && boss.ahead.cast_danger) {
+  // A mechanic goes before the boss's casts: it says what to do.
+  let show = mechanics.length ? mechanicCard(mechanics[0], elapsed) : null;
+  if (!show && live && boss.ahead.cast_danger) {
     const castLeft = live.cast_left_ms - elapsed;
     const landsLeft = live.lands_left_ms - elapsed;
     const key = `cast:${live.skill}:${boss.castKey}`;
@@ -369,7 +398,7 @@ function drawWarnings(elapsed) {
     lastShown = { ...show, at: now };
   } else if (lastShown && now - lastShown.at < WARNING_HOLD_MS && lastShown.cls !== "soon") {
     // Just over: the same card, dimmed, a moment longer.
-    show = { ...lastShown, cls: `${lastShown.cls} over`, time: lastShown.cls.includes("lands") ? "landed" : "now", key: "" };
+    show = { ...lastShown, cls: `${lastShown.cls} over`, time: lastShown.done || (lastShown.cls.includes("lands") ? "landed" : "now"), key: "" };
   }
   box.hidden = !show;
   if (!show) return;
@@ -385,7 +414,7 @@ function drawWarnings(elapsed) {
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
-    if (boss.sound && !box.closest(".widget").hidden) chime(BOSS_NOTES);
+    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) chime(BOSS_NOTES);
   }
 }
 
@@ -444,7 +473,8 @@ function drawCubes(cubes, sound) {
 }
 
 function frame() {
-  const elapsed = boss ? performance.now() - bossAt : 0;
+  // Since the meter last sent the boss and its mechanics.
+  const elapsed = performance.now() - bossAt;
   drawWarnings(elapsed);
   drawTimers(elapsed);
   requestAnimationFrame(frame);

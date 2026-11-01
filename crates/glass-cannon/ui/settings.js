@@ -147,6 +147,7 @@ async function refresh() {
     setToggle("record", state.record);
     setToggle("boss-hp", state.boss_hp);
     setToggle("boss-casts", state.boss_casts);
+    setToggle("boss-mechanics", state.boss_mechanics);
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
     setToggle("hide-on-world-map", state.hide_on_world_map);
@@ -168,6 +169,10 @@ async function refresh() {
       const on = state.widgets.includes(b.dataset.widget);
       b.setAttribute("aria-pressed", String(on));
       b.querySelector(".state").textContent = on ? "[on]" : "[off]";
+    }
+    for (const b of document.querySelectorAll("[data-party-cd-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String((b.dataset.partyCdChoice === "class") === state.party_cooldowns_by_class));
     }
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
@@ -330,6 +335,11 @@ $("boss-casts").addEventListener("click", async () => {
   refresh();
 });
 
+$("boss-mechanics").addEventListener("click", async () => {
+  await invoke("set_boss_mechanics", { on: !(state && state.boss_mechanics) });
+  refresh();
+});
+
 for (const b of document.querySelectorAll("[data-widget]")) {
   b.addEventListener("click", async () => {
     await invoke("toggle_widget", { name: b.dataset.widget }).catch((e) => say(String(e), "error"));
@@ -465,6 +475,13 @@ $("pet-souls").addEventListener("click", async () => {
   await invoke("set_pet_souls", { on: !(state && state.pet_souls) });
   refresh();
 });
+
+for (const b of document.querySelectorAll("[data-party-cd-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_party_cooldowns_by_class", { on: b.dataset.partyCdChoice === "class" });
+    refresh();
+  });
+}
 
 for (const b of document.querySelectorAll("[data-fade-choice]")) {
   b.addEventListener("click", async () => {

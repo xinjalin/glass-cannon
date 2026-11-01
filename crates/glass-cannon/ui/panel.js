@@ -15,7 +15,12 @@ if (WIDGET && document.body.hasAttribute("data-fit")) {
   // its content changes.
   let sent = 0;
   const report = () => {
-    const h = Math.ceil($("panel").scrollHeight);
+    // With the box shorter than the content, the list scrolls inside it: count what's
+    // scrolled away too, or the box could never grow back.
+    const scroll = $("panel").querySelector(".scroll");
+    const hidden = scroll ? scroll.scrollHeight - scroll.clientHeight : 0;
+    // (A pixel spare: heights in fractions of one round down.)
+    const h = Math.ceil($("panel").scrollHeight + hidden) + 1;
     if (h === sent) return;
     sent = h;
     window.parent.postMessage({ type: "gc-fit", widget: document.body.dataset.panel, height: h }, "*");
