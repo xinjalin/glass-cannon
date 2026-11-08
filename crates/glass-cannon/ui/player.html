@@ -9,18 +9,22 @@
 </head>
 <body data-panel="player">
   <!-- Your HP and MP as two thin bars, and a cast bar while you cast: minimal, to sit
-       under your character. Or (settings → player bars style: arcs) as curved bars around
-       your character, HP left and MP right, the cast underneath; drawn by player.js to
-       the widget's size. -->
+       under your character. Or (settings → player bars style: arcs) as round arcs either
+       side of your character: HP with stamina inside it on the left, MP with flight power
+       inside it on the right, the cast under your feet; drawn by player.js to the
+       widget's size. -->
   <main id="panel" class="player-bars">
     <div class="pb hp"><span class="pb-fill"></span><span class="pb-text"></span></div>
     <div class="pb mp"><span class="pb-fill"></span><span class="pb-text"></span></div>
     <div class="pb cast" hidden><span class="pb-fill"></span><span class="pb-text"></span><span class="pb-time"></span></div>
     <svg id="arcs" class="arcs" hidden aria-hidden="true">
       <path class="arc-track hp"/><path class="arc-fill hp" pathLength="100"/>
+      <path class="arc-track stamina"/><path class="arc-fill stamina" pathLength="100"/>
       <path class="arc-track mp"/><path class="arc-fill mp" pathLength="100"/>
+      <path class="arc-track flight"/><path class="arc-fill flight" pathLength="100"/>
       <path class="arc-track cast"/><path class="arc-fill cast" pathLength="100"/>
-      <text class="arc-text hp"></text><text class="arc-text mp"></text>
+      <text class="arc-text hp"></text><text class="arc-text stamina"></text>
+      <text class="arc-text mp"></text><text class="arc-text flight"></text>
       <text class="arc-text cast"></text>
     </svg>
     <p id="empty" class="note">your HP and MP show once you're in game</p>

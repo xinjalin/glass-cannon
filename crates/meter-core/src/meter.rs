@@ -544,6 +544,11 @@ pub struct SelfBars {
     pub hp_max: Option<u64>,
     pub mp: Option<u32>,
     pub mp_max: Option<u32>,
+    /// Stamina and flight power, as the game sends them (hundredths of what's shown).
+    pub stamina: Option<u32>,
+    pub stamina_max: Option<u32>,
+    pub flight: Option<u32>,
+    pub flight_max: Option<u32>,
     pub cast: Option<CastBar>,
 }
 
@@ -744,6 +749,16 @@ pub struct HpPoint {
     pub hp: u64,
 }
 
+/// Your stats from `0x8d00` besides HP and MP (see [`hp::STAT_STAMINA`]).
+#[derive(Debug, Default, Clone, Copy)]
+struct SelfStats {
+    stamina: Option<u32>,
+    stamina_max: Option<u32>,
+    flight: Option<u32>,
+    flight_max: Option<u32>,
+    hp_max: Option<u64>,
+}
+
 /// Every entity's HP over time (`0x8d00`), and its max HP when known.
 #[derive(Debug, Default)]
 struct HpLog {
@@ -870,6 +885,8 @@ pub struct Meter {
     casting: HashMap<u64, (u32, u64, u32)>,
     /// Your MP: now, max (when sent), and the highest seen.
     self_mp: (Option<u32>, Option<u32>, u32),
+    /// Your other stats from `0x8d00`: stamina, flight power (each with its max), max HP.
+    self_stats: SelfStats,
     /// Other players' gear, from their spawns.
     gear: crate::gear::GearBook,
     /// Party members' HP and MP (`0x921b`), and when each was sent.
@@ -931,6 +948,7 @@ impl Meter {
             contents: Contents::default(),
             casting: HashMap::new(),
             self_mp: (None, None, 0),
+            self_stats: SelfStats::default(),
             party_vitals: HashMap::new(),
             gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
@@ -1041,11 +1059,19 @@ impl Meter {
     pub fn self_bars(&self) -> Option<SelfBars> {
         let me = self.registry.self_id()?;
         let (mp, mp_max, mp_seen) = self.self_mp;
+        let s = &self.self_stats;
+        // A value over a max from before a buff ended: the max moves up to it.
+        let max_of = |v: Option<u32>, m: Option<u32>| m.map(|m| m.max(v.unwrap_or(0)));
         Some(SelfBars {
             hp: self.hp.last(me),
-            hp_max: self.hp.max(me),
+            // The game's max HP once it's sent it, else the highest HP seen.
+            hp_max: s.hp_max.map(|m| m.max(self.hp.last(me).unwrap_or(0))).or(self.hp.max(me)),
             mp,
             mp_max: mp_max.or((mp_seen > 0).then_some(mp_seen)),
+            stamina: s.stamina,
+            stamina_max: max_of(s.stamina, s.stamina_max),
+            flight: s.flight,
+            flight_max: max_of(s.flight, s.flight_max),
             cast: self.casting.get(&me).and_then(|&(skill, start, cast_ms)| {
                 let end = start + u64::from(cast_ms) * 1000;
                 (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
@@ -1187,8 +1213,17 @@ impl Meter {
                             self.self_mp.2 = self.self_mp.2.max(value);
                         }
                         hp::STAT_MP_MAX => self.self_mp.1 = Some(value),
+                        hp::STAT_STAMINA => self.self_stats.stamina = Some(value),
+                        hp::STAT_STAMINA_MAX => self.self_stats.stamina_max = Some(value),
+                        hp::STAT_FLIGHT => self.self_stats.flight = Some(value),
+                        hp::STAT_FLIGHT_MAX => self.self_stats.flight_max = Some(value),
                         _ => {}
                     }
+                }
+            }
+            if let Some((_, stats)) = hp::parse_u64_stats(payload).filter(|(e, _)| Some(*e) == self.registry.self_id()) {
+                if let Some((_, max)) = stats.iter().find(|(s, _)| *s == hp::STAT_HP_MAX) {
+                    self.self_stats.hp_max = Some(*max);
                 }
             }
             if let Some(u) = hp::parse_hp(payload) {
@@ -1404,6 +1439,7 @@ impl Meter {
                 self.cast_cooldowns.clear();
                 self.casting.clear();
                 self.self_mp = (None, None, 0);
+                self.self_stats = SelfStats::default();
                 self.party_vitals.clear();
                 self.boss_log.clear();
                 self.pulls.clear();
@@ -2558,6 +2594,34 @@ mod tests {
         assert_eq!(done[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
         // How low it got: the HP just after the last hit counts, the reset after doesn't.
         assert_eq!(done[0].view.target_low_hp, Some(101_000.0 / 119_700.0));
+    }
+
+    #[test]
+    fn your_bars_have_stamina_flight_power_and_max_hp() {
+        let mut m = meter_as_me();
+        // You: u32 stamina, flight power and their maxes; u64 HP and max HP.
+        let mut p = encode_varint(ME);
+        p.extend([0x03, 4]);
+        for (stat, v) in [(3u8, 150_500u32), (10, 155_600), (6, 612_000), (13, 650_000)] {
+            p.push(stat);
+            p.extend(v.to_le_bytes());
+        }
+        p.push(2);
+        for (stat, v) in [(0u8, 20_000u64), (7, 32_049)] {
+            p.push(stat);
+            p.extend(v.to_le_bytes());
+        }
+        assert_eq!(hp::parse_u64_stats(&p), Some((ME, vec![(0, 20_000), (7, 32_049)])));
+        m.feed(S, hp::OPCODE_HP, &p);
+        let b = m.self_bars().unwrap();
+        assert_eq!((b.hp, b.hp_max), (Some(20_000), Some(32_049)), "the game's max HP, not the highest seen");
+        assert_eq!((b.stamina, b.stamina_max, b.flight, b.flight_max), (Some(150_500), Some(155_600), Some(612_000), Some(650_000)));
+        // Someone else's stats aren't yours.
+        let mut other = encode_varint(15772);
+        other.extend([0x01, 1, 3]);
+        other.extend(1u32.to_le_bytes());
+        m.feed(2 * S, hp::OPCODE_HP, &other);
+        assert_eq!(m.self_bars().unwrap().stamina, Some(150_500));
     }
 
     #[test]

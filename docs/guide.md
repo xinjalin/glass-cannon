@@ -66,12 +66,14 @@ finishes. The widgets:
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   boss HP, enrage and cast lines, so nothing is shown twice.
-- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. The
-  game never sends your max HP: the highest seen stands in (your max once you've been at
-  full HP). Settings' **player bars style** **[arcs]** draws them as curved bars around
-  your character instead, with no box: HP up the left, MP up the right (each filling from
-  the bottom, with its value), and your cast along the bottom. They follow the widget's
-  box, so arrange it around your character; HP glows below 30%.
+- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. Your
+  max HP is the game's (it moves with buffs); until it sends it, the highest HP seen
+  stands in. Settings' **player bars style**
+  **[arcs]** draws them instead as round arcs either side of your character, with no box:
+  on the left HP with your stamina inside it, on the right MP with your flight power
+  inside it, each filling from the bottom with its value by its top end, and your cast
+  on a small arc under your feet. They take the widget's box, so arrange it around your
+  character (wider than tall); HP glows below 30%.
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
   "dead" when they are.
