@@ -255,7 +255,11 @@ switch what it shows; it remembers the one you were on.
 **Pets** puts a dot wherever a mob that gives pet souls spawns, in its genus' colour (Fera red, Natura green, Cogni blue, Varian purple, Special gold).
 Zoom in for the smaller zones' names. **[+]** beside a pet tracks it for the pet tracker
 widget (not one you've maxed). The list beside it has the
-pets on that map (**[still needed]** leaves out the ones you've maxed); a search looks
+pets on that map, and the filters under the search choose which, on the list and the map:
+**[all]**, **[missing]** (pets you have no copies of: never summoned), **[needed]** (the
+default: not summoned or below max level) or **[tracked]**, and each genus on or off
+(click Fera, Natura, Cogni, Varian or Special). Missing and needed go by your pets as the
+game last sent them (at login, changing character or entering a dungeon); a search looks
 through every pet, by name, genus or area;
 pick a pet, or click a dot, to light up its spawn points and see the areas it's found in
 and how far along it is. Picking a pet in the list moves the map to its spawns, switching

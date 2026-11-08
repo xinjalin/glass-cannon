@@ -29,7 +29,21 @@ let mode = remembered(MODE_KEY) === "gather" ? "gather" : "pets";
 let selected = null; // the pet picked
 let picked = null; // the material picked
 let hidden = new Set(); // the materials not shown on the map (by name)
-let onlyNeeded = true;
+// Which pets show: "all", "missing" (no copies: never summoned), "needed" (not at max
+// level) or "tracked"; and the genera turned off. Remembered.
+const SHOWS = ["all", "missing", "needed", "tracked"];
+const SHOW_KEY = "map.petShow";
+const GENERA_KEY = "map.generaOff";
+let show = SHOWS.includes(remembered(SHOW_KEY)) ? remembered(SHOW_KEY) : "needed";
+let generaOff = new Set();
+try {
+  generaOff = new Set(JSON.parse(remembered(GENERA_KEY) || "[]"));
+} catch {
+  // All on, then.
+}
+// The game has sent this character's pets (else levels are unknown, and every pet counts
+// as missing and needed).
+let petsKnown = false;
 let search = "";
 // The view: the centre (metres) and pixels per metre.
 let view = null;
@@ -38,6 +52,16 @@ const canvas = $("map");
 const ctx = canvas.getContext("2d");
 
 const needs = (p) => !p || p.level == null || p.need != null;
+const missing = (p) => !p || p.level == null || p.level === 0;
+// The filters: how far you've got with it, and its genus. The pet picked always shows.
+function passes(id, p) {
+  if (id === selected) return true;
+  if (p && p.genus && generaOff.has(p.genus)) return false;
+  if (show === "missing") return missing(p);
+  if (show === "needed") return needs(p);
+  if (show === "tracked") return !!(p && p.tracked);
+  return true;
+}
 const current = () => (data ? data.maps[mapIndex] : null);
 const onMap = (m) => m && me && me.map != null && m.ids.includes(me.map);
 
@@ -122,8 +146,7 @@ function shownPets() {
     .map(([id, pts]) => [Number(id), pts])
     .filter(([id]) => {
       const p = pets.get(id);
-      if (onlyNeeded && !needs(p) && id !== selected) return false;
-      return !q || matches(p, q);
+      return passes(id, p) && (!q || matches(p, q));
     });
 }
 
@@ -134,7 +157,7 @@ function listedPets() {
   if (!q) return shownPets();
   const m = current();
   return [...pets.values()]
-    .filter((p) => matches(p, q) && (!onlyNeeded || needs(p) || p.id === selected))
+    .filter((p) => matches(p, q) && passes(p.id, p))
     .map((p) => [p.id, (m && m.pets[p.id]) || []]);
 }
 
@@ -720,7 +743,8 @@ function drawPetList() {
       return li;
     }),
   );
-  if (!rows.length) $("pets").append(el("li", "empty", search.trim() ? "no pet matches" : m ? "no pets you still need here" : "no map data"));
+  const none = { all: "no pets here", missing: "no pets here you're missing", needed: "no pets you still need here", tracked: "no tracked pets here" };
+  if (!rows.length) $("pets").append(el("li", "empty", search.trim() ? "no pet matches" : m ? none[show] : "no map data"));
   const areas = $("areas");
   const p = selected != null ? pets.get(selected) : null;
   areas.hidden = !p;
@@ -826,7 +850,7 @@ function switchMap(i) {
 // Pets or gathering: the side shown, on the map and in the list.
 function drawMode() {
   for (const b of $("mode").querySelectorAll("button")) b.setAttribute("aria-selected", String(b.dataset.mode === mode));
-  $("needed").hidden = mode !== "pets";
+  $("pet-filters").hidden = mode !== "pets";
   const s = $("search");
   s.placeholder = mode === "gather" ? "search a material" : "search a pet";
   s.title = mode === "gather" ? "A material, by name or kind" : "Any pet, by name, genus or area (not only this map's)";
@@ -852,12 +876,37 @@ $("search").addEventListener("input", (e) => {
   drawList();
   draw();
 });
-$("needed").addEventListener("click", () => {
-  onlyNeeded = !onlyNeeded;
-  $("needed").setAttribute("aria-pressed", String(onlyNeeded));
-  drawList();
-  draw();
-});
+function drawFilters() {
+  for (const b of document.querySelectorAll("#pet-filters [data-show]")) b.setAttribute("aria-checked", String(b.dataset.show === show));
+  for (const b of document.querySelectorAll("#pet-filters [data-genus]")) {
+    b.setAttribute("aria-pressed", String(!generaOff.has(b.dataset.genus)));
+    b.title = `${b.dataset.genus} pets: ${generaOff.has(b.dataset.genus) ? "hidden · click to show" : "shown · click to hide"}`;
+  }
+  // Levels unknown: missing and needed can't tell yet.
+  $("pets-unknown").hidden = petsKnown || show === "all" || show === "tracked";
+}
+for (const b of document.querySelectorAll("#pet-filters [data-show]")) {
+  b.addEventListener("click", () => {
+    show = b.dataset.show;
+    remember(SHOW_KEY, show);
+    drawFilters();
+    drawList();
+    draw();
+  });
+}
+for (const b of document.querySelectorAll("#pet-filters [data-genus]")) {
+  b.querySelector(".genus-dot").style.background = GENUS[b.dataset.genus];
+  b.addEventListener("click", () => {
+    const g = b.dataset.genus;
+    if (generaOff.has(g)) generaOff.delete(g);
+    else generaOff.add(g);
+    remember(GENERA_KEY, JSON.stringify([...generaOff]));
+    drawFilters();
+    drawList();
+    draw();
+  });
+}
+drawFilters();
 
 // The window grows to what the list and the map need at the font size.
 function fitWindow() {
@@ -876,6 +925,8 @@ async function loadPets() {
   try {
     const t = await invoke("pet_tracker");
     pets = new Map(t.pets.map((p) => [p.id, p]));
+    petsKnown = !!t.synced;
+    drawFilters();
   } catch {
     return;
   }
