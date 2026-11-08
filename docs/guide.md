@@ -79,7 +79,9 @@ finishes. The widgets:
 - **world timers**: rifts, invasions, sieges, Arena of Tactics (NA, EU and LA), resets and
   field bosses (open the world map in game to read them) in your time; hover an event for
   its next three starts. Star (☆) the ones you want and **[★ only]** shows just those, and
-  ring the 🔔 for an alert on the meter before one starts. Also who holds the
+  ring the 🔔 for an alert on the meter before one starts. The region whose schedule it
+  follows and how long before the alert shows (1 to 15 minutes) are in the settings'
+  alerts tab (world timers); the widget's top line says which. Also who holds the
   Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.

@@ -59,6 +59,9 @@ pub struct SettingsStatus {
     boss_casts: bool,
     boss_mechanics: bool,
     boss_on_you: bool,
+    /// The world timers' region and how long before an event its alert shows.
+    timer_region: String,
+    alert_lead_min: u32,
     party_cooldowns_by_class: bool,
     pet_souls: bool,
     /// The overlay's widgets that show, and whether they're being arranged.
@@ -156,6 +159,12 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         boss_casts: s.boss_casts,
         boss_mechanics: s.boss_mechanics,
         boss_on_you: s.boss_on_you,
+        timer_region: if crate::store::TIMER_REGIONS.contains(&s.timer_region.as_str()) {
+            s.timer_region.clone()
+        } else {
+            crate::store::TIMER_REGIONS[0].to_string()
+        },
+        alert_lead_min: s.alert_lead_min,
         party_cooldowns_by_class: s.party_cooldowns_by_class,
         pet_souls: s.pet_souls,
         widgets: s.widgets,

@@ -186,6 +186,14 @@ async function refresh() {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String((b.dataset.partyCdChoice === "class") === state.party_cooldowns_by_class));
     }
+    for (const b of document.querySelectorAll("[data-region-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(b.dataset.regionChoice === state.timer_region));
+    }
+    for (const b of document.querySelectorAll("[data-lead-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(Number(b.dataset.leadChoice) === state.alert_lead_min));
+    }
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
@@ -479,6 +487,19 @@ $("close-with-game").addEventListener("click", async () => {
   await invoke("set_close_with_game", { on: !(state && state.close_with_game) });
   refresh();
 });
+
+for (const b of document.querySelectorAll("[data-region-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_timer_region", { region: b.dataset.regionChoice }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
+for (const b of document.querySelectorAll("[data-lead-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_alert_lead", { minutes: Number(b.dataset.leadChoice) });
+    refresh();
+  });
+}
 
 $("boss-on-you").addEventListener("click", async () => {
   await invoke("set_boss_on_you", { on: !(state && state.boss_on_you) });

@@ -98,14 +98,17 @@ pub fn timer_region(app: State<'_, Arc<AppState>>) -> String {
     if TIMER_REGIONS.contains(&r.as_str()) { r } else { TIMER_REGIONS[0].to_string() }
 }
 
+/// Chosen in the settings; the world timers widget is told (`timer-settings`).
 #[tauri::command]
-pub fn set_timer_region(app: State<'_, Arc<AppState>>, region: String) -> Result<(), String> {
+pub fn set_timer_region(handle: AppHandle, app: State<'_, Arc<AppState>>, region: String) -> Result<(), String> {
     if !TIMER_REGIONS.contains(&region.as_str()) {
         return Err(format!("unknown region {region}"));
     }
     let mut s = lock(&app.settings);
     s.timer_region = region;
     s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("timer-settings", ());
     Ok(())
 }
 
@@ -186,11 +189,15 @@ pub fn set_alert(app: State<'_, Arc<AppState>>, id: String, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// How long before an event its alert shows; chosen in the settings, and the world timers
+/// widget is told (`timer-settings`).
 #[tauri::command]
-pub fn set_alert_lead(app: State<'_, Arc<AppState>>, minutes: u32) {
+pub fn set_alert_lead(handle: AppHandle, app: State<'_, Arc<AppState>>, minutes: u32) {
     let mut s = lock(&app.settings);
     s.alert_lead_min = minutes.clamp(1, 60);
     s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("timer-settings", ());
 }
 
 /// Seconds after combat before the meter fades (0: never).

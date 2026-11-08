@@ -208,6 +208,30 @@
             </button>
           </fieldset>
           <fieldset class="box">
+            <legend>world timers</legend>
+            <div class="line" data-keywords="server timezone schedule events world timers field boss asia na eu la korea taiwan">
+              <span class="key">region</span>
+              <span class="choice" role="radiogroup" aria-label="Whose event schedule the world timers follow">
+                <button type="button" data-region-choice="as" title="Asia (Asia/Tokyo)">[Asia]</button>
+                <button type="button" data-region-choice="naw" title="North America (America/Los Angeles)">[NA]</button>
+                <button type="button" data-region-choice="eu" title="Europe (Europe/Berlin)">[EU]</button>
+                <button type="button" data-region-choice="la" title="Latin America (America/Sao Paulo)">[LA]</button>
+                <button type="button" data-region-choice="kr" title="Korea (Asia/Seoul)">[Korea]</button>
+                <button type="button" data-region-choice="tw" title="Taiwan (Asia/Taipei)">[Taiwan]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="minutes warning notify before event field boss world timers bell">
+              <span class="key">alert before</span>
+              <span class="choice" role="radiogroup" aria-label="How long before an event its alert shows">
+                <button type="button" data-lead-choice="1" title="A minute before the events and field bosses you rang the bell on">[1m]</button>
+                <button type="button" data-lead-choice="3" title="3 minutes before">[3m]</button>
+                <button type="button" data-lead-choice="5" title="5 minutes before (default)">[5m]</button>
+                <button type="button" data-lead-choice="10" title="10 minutes before">[10m]</button>
+                <button type="button" data-lead-choice="15" title="15 minutes before">[15m]</button>
+              </span>
+            </div>
+          </fieldset>
+          <fieldset class="box">
             <legend>notices</legend>
             <button id="pet-souls" data-keywords="notice notification" type="button" class="opt" aria-pressed="false" title="A notice for each pet soul from a kill, with how many the pet has toward its next level">
               <span class="key">pet souls</span><span class="state">[on]</span>

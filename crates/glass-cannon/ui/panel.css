@@ -224,11 +224,9 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .star { padding: 0; width: 1.3em; color: var(--faint); }
 .star.on { color: var(--warn); }
 .star:hover { color: var(--text); }
-.fav-filter { margin-left: 0.4em; color: var(--muted); }
+.region-note { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; align-self: center; }
+.fav-filter { margin-left: auto; color: var(--muted); }
 .fav-filter[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
-.lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
-.lead button { color: var(--accent); }
-.lead button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .section {
   margin: 0.8em 0 0.3em;
   color: var(--muted);
