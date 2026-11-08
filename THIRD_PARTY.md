@@ -23,6 +23,10 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 - The same bundle's monsters and dungeons, **no licence**: `dungeons.json` (which dungeon
   and mode each of 1,536 dungeon mobs is in, for the history's dungeon runs). Only those
   entries are used; same terms.
+- `places.json` (which Sealed Dungeon or Dimensional Invasion each of 51 bosses is in,
+  which the scrape doesn't have) is written by hand from community guides (Legaeon's
+  Sealed Dungeons list, ExpCarry's Dimensional Invasion guide), matched by name to the
+  boss types in `npcs.json`. The names are NCSOFT's.
 - The same bundle's items, **no licence**: `gear.json` (3,637 weapons, armour and
   accessories: name, grade and item level, for the gear players wear in the party view's
   tooltips). Only those fields are kept; same terms.

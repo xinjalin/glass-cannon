@@ -5,6 +5,8 @@
 
 const POLL_MS = 3000;
 const RAID_KIND = "Sanctuary";
+// Out in the world, though the game puts you in a copy of it: with the field bosses.
+const FIELD_KINDS = ["Dimensional Invasion"];
 
 let data = null;
 // The character shown ("" for fights whose character wasn't known), and which places.
@@ -33,7 +35,7 @@ function store(key, value) {
 kind = stored("attempts-kind") || "all";
 
 function placeKind(p) {
-  if (!p.kind) return "other";
+  if (!p.kind || FIELD_KINDS.includes(p.kind)) return "other";
   return p.kind === RAID_KIND ? "raids" : "dungeons";
 }
 

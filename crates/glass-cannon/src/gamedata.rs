@@ -33,6 +33,9 @@ const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
+/// The places the scraped dungeon list doesn't have (Sealed Dungeons, Dimensional
+/// Invasions), written by hand in the same shape.
+const PLACES_FILE: &str = "places.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
 const BOSS_SKILLS_FILE: &str = "boss-skills.json";
@@ -211,6 +214,46 @@ struct DungeonFile {
     dungeons: BTreeMap<String, DungeonEntry>,
     #[serde(default)]
     mobs: BTreeMap<u32, DungeonMob>,
+    /// Filled in on loading: for each block of 100 mob types (the type / 100), the dungeon
+    /// and mode every listed mob in it is in, when there are two or more and they agree.
+    #[serde(skip)]
+    blocks: BTreeMap<u32, (String, Option<String>)>,
+}
+
+impl DungeonFile {
+    /// Adds `other`'s dungeons and mobs (never over this file's own), then works out the
+    /// blocks.
+    fn merge(&mut self, other: DungeonFile) {
+        for (id, d) in other.dungeons {
+            self.dungeons.entry(id).or_insert(d);
+        }
+        for (id, m) in other.mobs {
+            self.mobs.entry(id).or_insert(m);
+        }
+        self.find_blocks();
+    }
+
+    /// The scrape misses a few of a dungeon's mobs (Vakron, the last boss of Vakron Sky
+    /// Island, among Tiere, Thamon and the island's others). A dungeon's mobs in one mode
+    /// are numbered together, so a missing one is where the rest of its block is, when the
+    /// rest (two or more) all say the same.
+    fn find_blocks(&mut self) {
+        // Each block's place (None once two differ) and how many are listed.
+        type Seen<'a> = (Option<(&'a str, Option<&'a str>)>, usize);
+        let mut seen: BTreeMap<u32, Seen> = BTreeMap::new();
+        for (id, m) in &self.mobs {
+            let place = (m.dungeon.as_str(), m.mode.as_deref());
+            let e = seen.entry(id / 100).or_insert((Some(place), 0));
+            if e.0 != Some(place) {
+                e.0 = None;
+            }
+            e.1 += 1;
+        }
+        self.blocks = seen
+            .into_iter()
+            .filter_map(|(block, (place, n))| place.filter(|_| n >= 2).map(|(d, m)| (block, (d.to_string(), m.map(str::to_string)))))
+            .collect();
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -352,6 +395,7 @@ impl GameData {
                     self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
+                    self.dungeons.merge(read_json::<DungeonFile>(&dir.join(PLACES_FILE)).unwrap_or_default());
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
@@ -406,11 +450,15 @@ impl GameData {
         self.details.skills.len()
     }
 
-    /// The dungeon a mob type belongs to, if any.
+    /// The dungeon (or Sealed Dungeon, Dimensional Invasion…) a mob type belongs to, if any:
+    /// the data's word for it, else its block's (see [`DungeonFile::find_blocks`]).
     pub fn dungeon(&self, mob_type: u32) -> Option<DungeonPlace<'_>> {
-        let mob = self.dungeons.mobs.get(&mob_type)?;
-        let (id, d) = self.dungeons.dungeons.get_key_value(&mob.dungeon)?;
-        Some(DungeonPlace { id, name: &d.name, kind: d.kind.as_deref(), mode: mob.mode.as_deref() })
+        let (dungeon, mode) = match self.dungeons.mobs.get(&mob_type) {
+            Some(m) => (&m.dungeon, m.mode.as_deref()),
+            None => self.dungeons.blocks.get(&(mob_type / 100)).map(|(d, m)| (d, m.as_deref()))?,
+        };
+        let (id, d) = self.dungeons.dungeons.get_key_value(dungeon)?;
+        Some(DungeonPlace { id, name: &d.name, kind: d.kind.as_deref(), mode })
     }
 
     pub fn dungeon_mob_count(&self) -> usize {
@@ -1049,6 +1097,41 @@ mod tests {
         assert_eq!(d.dungeon(2_340_601), Some(place));
         assert_eq!(d.dungeon(2_400_010), None);
         assert_eq!(d.dungeon(1), None, "a mob in a dungeon the file doesn't list");
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_mob_the_scrape_missed_is_where_its_block_is_and_the_hand_kept_places_count() {
+        let dir = temp_dir("blocks");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18010000": { "name": "Onslaught" } } }"#).unwrap();
+        fs::write(
+            dir.join(DUNGEONS_FILE),
+            r#"{ "dungeons": { "BakronIsland": { "name": "Vakron Sky Island", "type": "Expedition" },
+                               "DeusCenter": { "name": "Deus Research Base", "type": "Transcendence" } },
+                 "mobs": { "2320810": { "dungeon": "BakronIsland", "mode": "Conquest [Hard]" },
+                           "2320811": { "dungeon": "BakronIsland", "mode": "Conquest [Hard]" },
+                           "2340601": { "dungeon": "DeusCenter", "mode": "Stage 2" },
+                           "2340602": { "dungeon": "DeusCenter", "mode": "Ordeal" },
+                           "2350601": { "dungeon": "DeusCenter", "mode": "Ordeal" } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(PLACES_FILE),
+            r#"{ "dungeons": { "Sealed_ChillyHideout": { "name": "Chilly Hideout", "type": "Sealed Dungeon" },
+                               "BakronIsland": { "name": "Not this", "type": "Nothing" } },
+                 "mobs": { "2700914": { "dungeon": "Sealed_ChillyHideout" },
+                           "2320810": { "dungeon": "Sealed_ChillyHideout" } } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        let vakron = DungeonPlace { id: "BakronIsland", name: "Vakron Sky Island", kind: Some("Expedition"), mode: Some("Conquest [Hard]") };
+        assert_eq!(d.dungeon(2_320_812), Some(vakron.clone()), "missing, among two of the island's");
+        assert_eq!(d.dungeon(2_320_810), Some(vakron), "the scrape's own word stays");
+        assert_eq!(d.dungeon(2_340_603), None, "its block is in two modes");
+        assert_eq!(d.dungeon(2_350_602), None, "one is too few to go by");
+        let sealed = DungeonPlace { id: "Sealed_ChillyHideout", name: "Chilly Hideout", kind: Some("Sealed Dungeon"), mode: None };
+        assert_eq!(d.dungeon(2_700_914), Some(sealed));
+        assert_eq!(d.dungeon(2_700_915), None, "one hand-kept boss doesn't make a block");
         fs::remove_dir_all(dir).ok();
     }
 

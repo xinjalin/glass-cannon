@@ -1,0 +1,363 @@
+{
+  "source": {
+    "note": "Written by hand: the bosses of the Sealed Dungeons and Dimensional Invasions, which the scraped dungeon list (dungeons.json) doesn't have. Places and their bosses from Legaeon's Sealed Dungeons guide (https://legaeon.co.uk/guides/sealed-dungeons.html) and ExpCarry's Dimensional Invasion guide (https://expcarry.com/aion-2-dimensional-invasion-guide), matched by name to the boss types in npcs.json. Aion 2 game data; names belong to NCSOFT. Not covered by Glass Cannon's MIT licence.",
+    "checked": "2026-11-08"
+  },
+  "dungeons": {
+    "Invasion_AccursedSword": {
+      "name": "Accursed Sword",
+      "type": "Dimensional Invasion"
+    },
+    "Invasion_BeritraAirRaid": {
+      "name": "Beritra Air Raid",
+      "type": "Dimensional Invasion"
+    },
+    "Invasion_IncursionoftheSpirits": {
+      "name": "Incursion of the Spirits",
+      "type": "Dimensional Invasion"
+    },
+    "Sealed_AbandonedMemorialRoom": {
+      "name": "Abandoned Memorial Room",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AbandonedOnesGrave": {
+      "name": "Abandoned One's Grave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AllCuringCave": {
+      "name": "All-Curing Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AltarofHope": {
+      "name": "Altar of Hope",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AnguishHideout": {
+      "name": "Anguish Hideout",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AsceticsCave": {
+      "name": "Ascetic's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AullaeuOratory": {
+      "name": "Aullaeu Oratory",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_BalaurScoutsCampsite": {
+      "name": "Balaur Scouts Campsite",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_BloodsoakedConfessional": {
+      "name": "Bloodsoaked Confessional",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_BlueDragonsTrap": {
+      "name": "Blue Dragon's Trap",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ChillyHideout": {
+      "name": "Chilly Hideout",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_CorruptedSpiritmastersResidence": {
+      "name": "Corrupted Spiritmaster's Residence",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DeadlyPoisonDen": {
+      "name": "Deadly Poison Den",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DeepandDarkPit": {
+      "name": "Deep and Dark Pit",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DehinonsHideout": {
+      "name": "Dehinon's Hideout",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DranaDepository": {
+      "name": "Drana Depository",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DratonaCave": {
+      "name": "Dratona Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DratonaOutpost": {
+      "name": "Dratona Outpost",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DuskPit": {
+      "name": "Dusk Pit",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_GraveoftheWrathfulDead": {
+      "name": "Grave of the Wrathful Dead",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_GuardiansArmory": {
+      "name": "Guardian's Armory",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_HerbCave": {
+      "name": "Herb Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_HiddenRuinsAltar": {
+      "name": "Hidden Ruins Altar",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_HomishsPrisonCompound": {
+      "name": "Homish's Prison Compound",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_IllusionaryRuins": {
+      "name": "Illusionary Ruins",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KaratsNest": {
+      "name": "Karat's Nest",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KidnappersHold": {
+      "name": "Kidnapper's Hold",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KiusResidence": {
+      "name": "Kius' Residence",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KrakasAltar": {
+      "name": "Kraka's Altar",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KumbahumsCave": {
+      "name": "Kumbahum's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LaborersTrainingGround": {
+      "name": "Laborers Training Ground",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LagtaFafniteStorage": {
+      "name": "Lagta Fafnite Storage",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LamnahBase": {
+      "name": "Lamnah Base",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LonelyRockChasm": {
+      "name": "Lonely Rock Chasm",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LootedRepository": {
+      "name": "Looted Repository",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_PiratesTreasureStorage": {
+      "name": "Pirate's Treasure Storage",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_PlantationStorage": {
+      "name": "Plantation Storage",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_PoachersDen": {
+      "name": "Poacher's Den",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ScaleAltar": {
+      "name": "Scale Altar",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ShulakCave": {
+      "name": "Shulak Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_SmugglersCave": {
+      "name": "Smuggler's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_SolitaryRockTomb": {
+      "name": "Solitary Rock Tomb",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_TargothsCave": {
+      "name": "Targoth's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_TrickstersDen": {
+      "name": "Trickster's Den",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_UnstableCave": {
+      "name": "Unstable Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ValkasNest": {
+      "name": "Valka's Nest",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_VictimsCave": {
+      "name": "Victims' Cave",
+      "type": "Sealed Dungeon"
+    }
+  },
+  "mobs": {
+    "2340057": {
+      "dungeon": "Invasion_IncursionoftheSpirits"
+    },
+    "2340158": {
+      "dungeon": "Invasion_BeritraAirRaid"
+    },
+    "2340255": {
+      "dungeon": "Invasion_AccursedSword"
+    },
+    "2345107": {
+      "dungeon": "Invasion_IncursionoftheSpirits"
+    },
+    "2700835": {
+      "dungeon": "Sealed_CorruptedSpiritmastersResidence"
+    },
+    "2700876": {
+      "dungeon": "Sealed_DratonaCave"
+    },
+    "2700886": {
+      "dungeon": "Sealed_BlueDragonsTrap"
+    },
+    "2700914": {
+      "dungeon": "Sealed_ChillyHideout"
+    },
+    "2700916": {
+      "dungeon": "Sealed_PoachersDen"
+    },
+    "2700921": {
+      "dungeon": "Sealed_TrickstersDen"
+    },
+    "2700942": {
+      "dungeon": "Sealed_LootedRepository"
+    },
+    "2700949": {
+      "dungeon": "Sealed_IllusionaryRuins"
+    },
+    "2700952": {
+      "dungeon": "Sealed_AbandonedMemorialRoom"
+    },
+    "2700963": {
+      "dungeon": "Sealed_SolitaryRockTomb"
+    },
+    "2700975": {
+      "dungeon": "Sealed_AnguishHideout"
+    },
+    "2700981": {
+      "dungeon": "Sealed_ValkasNest"
+    },
+    "2700988": {
+      "dungeon": "Sealed_DeepandDarkPit"
+    },
+    "2701013": {
+      "dungeon": "Sealed_SmugglersCave"
+    },
+    "2701020": {
+      "dungeon": "Sealed_KaratsNest"
+    },
+    "2701035": {
+      "dungeon": "Sealed_AbandonedOnesGrave"
+    },
+    "2701043": {
+      "dungeon": "Sealed_KrakasAltar"
+    },
+    "2701055": {
+      "dungeon": "Sealed_HiddenRuinsAltar"
+    },
+    "2701072": {
+      "dungeon": "Sealed_KiusResidence"
+    },
+    "2701096": {
+      "dungeon": "Sealed_AltarofHope"
+    },
+    "2701101": {
+      "dungeon": "Sealed_TargothsCave"
+    },
+    "2701118": {
+      "dungeon": "Sealed_GuardiansArmory"
+    },
+    "2701130": {
+      "dungeon": "Sealed_DehinonsHideout"
+    },
+    "2701138": {
+      "dungeon": "Sealed_HerbCave"
+    },
+    "2701142": {
+      "dungeon": "Sealed_KidnappersHold"
+    },
+    "2701145": {
+      "dungeon": "Sealed_DeadlyPoisonDen"
+    },
+    "2701148": {
+      "dungeon": "Sealed_GraveoftheWrathfulDead"
+    },
+    "2701184": {
+      "dungeon": "Sealed_DratonaOutpost"
+    },
+    "2701202": {
+      "dungeon": "Sealed_AullaeuOratory"
+    },
+    "2701227": {
+      "dungeon": "Sealed_DuskPit"
+    },
+    "2701250": {
+      "dungeon": "Sealed_BloodsoakedConfessional"
+    },
+    "2701275": {
+      "dungeon": "Sealed_LamnahBase"
+    },
+    "2701280": {
+      "dungeon": "Sealed_KumbahumsCave"
+    },
+    "2701287": {
+      "dungeon": "Sealed_AllCuringCave"
+    },
+    "2701298": {
+      "dungeon": "Sealed_VictimsCave"
+    },
+    "2701310": {
+      "dungeon": "Sealed_UnstableCave"
+    },
+    "2701454": {
+      "dungeon": "Sealed_ScaleAltar"
+    },
+    "2701480": {
+      "dungeon": "Sealed_LonelyRockChasm"
+    },
+    "2701485": {
+      "dungeon": "Sealed_PiratesTreasureStorage"
+    },
+    "2701501": {
+      "dungeon": "Sealed_BalaurScoutsCampsite"
+    },
+    "2701521": {
+      "dungeon": "Sealed_LaborersTrainingGround"
+    },
+    "2701525": {
+      "dungeon": "Sealed_AsceticsCave"
+    },
+    "2701544": {
+      "dungeon": "Sealed_PlantationStorage"
+    },
+    "2701551": {
+      "dungeon": "Sealed_DranaDepository"
+    },
+    "2701568": {
+      "dungeon": "Sealed_HomishsPrisonCompound"
+    },
+    "2701569": {
+      "dungeon": "Sealed_LagtaFafniteStorage"
+    },
+    "2701578": {
+      "dungeon": "Sealed_ShulakCave"
+    }
+  }
+}
