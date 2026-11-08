@@ -8,6 +8,7 @@
 //!   skills.json    { "skills": { "18010340": { "name": "…", "icon": "1801.png" } } }
 //!   npcs.json      { "npcs":   { "2400009":  { "name": "…", "boss": true } } }
 //!   npc-names.json { "npcs":   { "2950865": "Elvida" } }   NPCs the mob lists don't name
+//!   boss-skills.json { "skills": { "1801969": "Abyssal Gaze" } }  boss skills skills.json calls "Attack"
 //!   1801.png …     skill icons
 //!   class_18.webp  class icons, by class code
 //!   skill-details.json  { "skills": { "18010000": { "cooldown_s": 15, "specs": […] } } }
@@ -34,6 +35,7 @@ const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
+const BOSS_SKILLS_FILE: &str = "boss-skills.json";
 const PET_MAP_FILE: &str = "pet-map.json";
 const GATHER_MAP_FILE: &str = "gather-map.json";
 const GEAR_FILE: &str = "gear.json";
@@ -149,6 +151,27 @@ struct PetSpawnFile {
     monsters: BTreeMap<u32, u32>,
     #[serde(default)]
     found_in: BTreeMap<u32, Vec<String>>,
+}
+
+/// Names for boss and mob skills the skill data only calls "Attack" (optional; from
+/// SkeeveAN's Aion DPS Meter, MIT, made with `packet-lab boss-skills`).
+#[derive(Debug, Default, Deserialize)]
+struct BossSkillFile {
+    #[serde(default)]
+    skills: BTreeMap<u32, String>,
+}
+
+/// Names a mob skill the data has no name for, or only "Attack". A skill not in the data
+/// keeps the icon its base skill would have given it (as [`GameData::resolve_skill`] finds it).
+fn name_mob_skill(skills: &mut BTreeMap<u32, Entry>, id: u32, name: String) {
+    if id >= PLAYER_SKILL_MIN || name.is_empty() {
+        return;
+    }
+    let icon = [id - id % 100, id - id % 10_000].iter().find_map(|k| skills.get(k)).and_then(|e| e.icon.clone());
+    let e = skills.entry(id).or_insert_with(|| Entry { icon, ..Entry::default() });
+    if e.name.is_empty() || e.name == "Attack" {
+        e.name = name;
+    }
 }
 
 /// A training dummy (the Training Scarecrow).
@@ -343,6 +366,11 @@ impl GameData {
                             e.name = name;
                         }
                     }
+                    // Boss and mob skills' names fill in the ones the data only calls "Attack".
+                    let boss_skills = read_json::<BossSkillFile>(&dir.join(BOSS_SKILLS_FILE)).unwrap_or_default();
+                    for (id, name) in boss_skills.skills {
+                        name_mob_skill(&mut self.skills.skills, id, name);
+                    }
                     // Consumables' icons fill in skills that have none.
                     let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
                     for (id, file) in items.icons {
@@ -516,6 +544,11 @@ impl GameData {
     /// Dungeon bosses' mechanics, for the meter's boss warnings.
     pub fn mechanics(&self) -> meter_core::mechanics::Book {
         self.mechanics.clone()
+    }
+
+    /// Boss skills the data says always to warn about.
+    pub fn warn_casts(&self) -> &[u32] {
+        &self.mechanics.warn_casts
     }
 
     /// The mob types that are bosses: their death ends a fight, and HP back to full is a
@@ -882,6 +915,31 @@ mod tests {
         assert_eq!(d.npc(2_950_865), Some(("Elvida".to_string(), false)));
         // A mob's own name stays, and it's still a boss.
         assert_eq!(d.npc(2_400_009), Some(("Hardened Drana".to_string(), true)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn boss_skill_names_fill_in_attack() {
+        let dir = temp_dir("boss-skills");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": { "11100000": { "name": "Ruinous Blow" }, "1801900": { "name": "Attack", "icon": "1801.png" },
+                 "1801840": { "name": "Attack" }, "1218170": { "name": "Claw Swipe" } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(BOSS_SKILLS_FILE),
+            r#"{ "skills": { "1801969": "Abyssal Gaze", "1801840": "Smash", "1218170": "Rake", "11100000": "Not this" } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // Ketu's gaze (as seen 2026-11-07): not in the skill data, named now, with its base skill's icon.
+        assert_eq!(d.boss_skill_name(1_801_969).as_deref(), Some("Abyssal Gaze"));
+        assert_eq!(d.skill_meta(1_801_969).1, Some(1_801_969));
+        assert_eq!(d.boss_skill_name(1_801_840).as_deref(), Some("Smash"));
+        // A name the skill data has stays, and player skills are never renamed.
+        assert_eq!(d.boss_skill_name(1_218_170).as_deref(), Some("Claw Swipe"));
+        assert_eq!(d.skill_meta(11_100_000).0.as_deref(), Some("Ruinous Blow"));
         fs::remove_dir_all(dir).ok();
     }
 

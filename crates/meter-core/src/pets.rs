@@ -133,6 +133,11 @@ impl Pets {
         self.known
     }
 
+    /// The pet is at the top level (known only once your pets are).
+    pub fn maxed(&self, pet: u32) -> bool {
+        self.known && self.level.get(&pet).is_some_and(|l| *l as usize >= SOULS_PER_LEVEL.len())
+    }
+
     pub fn revision(&self) -> u64 {
         self.revision
     }
@@ -252,5 +257,20 @@ mod tests {
         }
         pets.feed(OPCODE_SOULS_GAINED, &gain);
         assert_eq!(pets.take_gains()[0].next_level_souls, None);
+    }
+
+    #[test]
+    fn a_pet_reaching_the_top_level_is_maxed() {
+        let mut pets = Pets::default();
+        // Not known yet: not maxed, whatever comes.
+        pets.level.insert(1188, 3);
+        assert!(!pets.maxed(1188));
+        pets.level.clear();
+        // Vivel (1188) at level 2 with 75 souls; spending them is level 3, the top.
+        pets.seed(&PetState { levels: [(1188, 2)].into(), souls: [(1188, 75)].into() });
+        assert!(!pets.maxed(1188));
+        pets.feed(OPCODE_SOULS_SPENT, &hex("01 a4 04 00 00 4b 00 00 00"));
+        assert!(pets.maxed(1188));
+        assert!(!pets.maxed(1004));
     }
 }

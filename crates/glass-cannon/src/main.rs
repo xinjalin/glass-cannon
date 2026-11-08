@@ -360,6 +360,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let name = meter.registry().self_name().map(str::to_string).or_else(|| lock(&app.profile).name.clone());
         if let Some(name) = name {
             lock(&app.pets).sync(&name, meter.pets());
+            widgets::untrack_maxed(&app, &name, meter.pets());
         }
         let souls = meter.take_soul_gains();
         let pvp_now = meter.pvp();
@@ -403,7 +404,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         }
         let ended_ms = view.end_us / 1000;
         if let Some(analysis) = &f.analysis {
-            app.details.save(ended_ms, analysis);
+            app.details.save(ended_ms, analysis, view.target_boss);
             let s = lock(&app.settings);
             if s.dummy_mode && view.target_type.is_some_and(|t| data.is_dummy(t)) {
                 if let Some(run) = dummy::DummyRun::from_fight(analysis, s.dummy_run_s, ended_ms, self_name.clone(), &s.dummy_label) {
@@ -431,7 +432,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let mut boss_next = None;
     let mut boss_ahead = BossAhead::default();
     if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
-        let marks = lock(&app.settings).boss_skill_alerts.clone();
+        let mut marks = lock(&app.settings).boss_skill_alerts.clone();
+        for &skill in data.warn_casts() {
+            marks.entry(skill).or_insert(true);
+        }
         boss_ahead = boss_casts_to_show(&history, &data, &marks, enc);
         boss_next = boss_ahead.upcoming.first().map(|c| NextCast {
             skill: c.skill,
@@ -444,6 +448,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
+    // The boss turning to you, for the boss warnings (settings → boss on you).
+    if let Some(enc) = snap.encounter.as_mut().filter(|_| !settings.boss_on_you) {
+        enc.boss_on_you_us = None;
+    }
     let dummy = snap
         .encounter
         .as_ref()
@@ -917,6 +925,7 @@ fn main() {
             widgets::set_boss_hp,
             widgets::set_boss_casts,
             widgets::set_boss_mechanics,
+            widgets::set_boss_on_you,
             widgets::set_party_cooldowns_by_class,
             widgets::set_pet_souls,
             widgets::dummy_runs,

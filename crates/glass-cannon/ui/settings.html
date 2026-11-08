@@ -20,13 +20,31 @@
       </span>
     </header>
 
-    <!-- Two columns side by side; they stack if the window is ever too narrow. -->
+    <!-- Search over every tab's settings (fuzzy), then the tabs, then the chosen tab's
+         settings. All the tabs share one grid cell, so the window fits the tallest and
+         keeps its size from tab to tab. -->
+    <div id="search-row">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4 14 14"/></svg>
+      <input id="search" type="search" placeholder="search settings…  (Ctrl+F)" spellcheck="false"
+        autocomplete="off" aria-label="Search settings" aria-controls="panels">
+      <span id="search-count" class="search-count" aria-live="polite"></span>
+    </div>
+    <nav id="tabs" role="tablist" aria-label="Settings">
+      <button type="button" role="tab" id="tab-button-appearance" data-tab="appearance" aria-controls="tab-appearance" aria-selected="false" tabindex="-1">[appearance]<span class="tab-dot" hidden></span></button>
+      <button type="button" role="tab" id="tab-button-overlay" data-tab="overlay" aria-controls="tab-overlay" aria-selected="false" tabindex="-1">[overlay]<span class="tab-dot" hidden></span></button>
+      <button type="button" role="tab" id="tab-button-alerts" data-tab="alerts" aria-controls="tab-alerts" aria-selected="false" tabindex="-1">[alerts]<span class="tab-dot" hidden></span></button>
+      <button type="button" role="tab" id="tab-button-meter" data-tab="meter" aria-controls="tab-meter" aria-selected="false" tabindex="-1">[meter]<span class="tab-dot" hidden></span></button>
+      <button type="button" role="tab" id="tab-button-keybinds" data-tab="keybinds" aria-controls="tab-keybinds" aria-selected="false" tabindex="-1">[keybinds]<span class="tab-dot" hidden></span></button>
+      <button type="button" role="tab" id="tab-button-general" data-tab="general" aria-controls="tab-general" aria-selected="false" tabindex="-1">[general]<span class="tab-dot" hidden></span></button>
+    </nav>
+
     <div id="scroll">
-      <div id="columns">
-        <div class="col">
+      <div id="panels">
+        <section class="tab-panel" id="tab-appearance" role="tabpanel" aria-labelledby="tab-button-appearance" data-tab="appearance">
+          <h2 class="panel-title">appearance</h2>
           <fieldset class="box">
-            <legend>appearance</legend>
-            <div class="line">
+            <legend>colours</legend>
+            <div class="line" data-keywords="color colour accent skin">
               <span class="key">theme</span>
               <span id="themes" class="swatches" role="radiogroup" aria-label="Theme">
                 <button type="button" class="swatch" data-theme-choice="night" title="night (default)"></button>
@@ -39,7 +57,7 @@
                 <button type="button" class="swatch custom" data-theme-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Theme colour"></button>
               </span>
             </div>
-            <div class="line">
+            <div class="line" data-keywords="color colour class damage rows">
               <span class="key">bars</span>
               <span class="swatches" role="radiogroup" aria-label="Bar colour">
                 <span class="group">
@@ -57,36 +75,7 @@
                 </span>
               </span>
             </div>
-            <div class="line">
-              <span class="key">font size</span>
-              <span class="stepper">
-                <button id="font-down" type="button" title="Smaller">[−]</button>
-                <span id="font-value" class="step-value"></span>
-                <button id="font-up" type="button" title="Larger">[+]</button>
-              </span>
-            </div>
-            <div class="line">
-              <span class="key">font</span>
-              <button id="font-button" type="button" class="select-button" aria-haspopup="listbox"
-                aria-expanded="false" aria-controls="font-menu" title="Choose a font">[<span id="font-name"></span> ▾]</button>
-            </div>
-            <div class="line">
-              <span class="key">background</span>
-              <span class="choice" role="radiogroup" aria-label="Background">
-                <button type="button" data-backdrop-choice="frosted" title="Blurred glass with a tint">[frosted]</button>
-                <button type="button" data-backdrop-choice="tinted" title="A see-through tint, no blur">[tinted]</button>
-                <button type="button" data-backdrop-choice="clear" title="No background at all">[clear]</button>
-              </span>
-            </div>
-            <div class="line">
-              <span class="key">tint</span>
-              <span class="stepper">
-                <button id="opacity-down" type="button" title="More see-through">[−]</button>
-                <span id="opacity-value" class="step-value"></span>
-                <button id="opacity-up" type="button" title="More solid">[+]</button>
-              </span>
-            </div>
-            <div class="line">
+            <div class="line" data-keywords="row fill self you">
               <span class="key">highlight</span>
               <span class="choice" role="radiogroup" aria-label="Highlight">
                 <button type="button" data-highlight-choice="self" title="Fill only your row">[you]</button>
@@ -94,70 +83,103 @@
                 <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
               </span>
             </div>
-            <button id="info-bar" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
-              <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
-            </button>
           </fieldset>
-
           <fieldset class="box">
-            <legend>overlay</legend>
+            <legend>text</legend>
+            <div class="line" data-keywords="text bigger smaller scale zoom">
+              <span class="key">font size</span>
+              <span class="stepper">
+                <button id="font-down" type="button" title="Smaller">[−]</button>
+                <span id="font-value" class="step-value"></span>
+                <button id="font-up" type="button" title="Larger">[+]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="typeface text family">
+              <span class="key">font</span>
+              <button id="font-button" type="button" class="select-button" aria-haspopup="listbox"
+                aria-expanded="false" aria-controls="font-menu" title="Choose a font">[<span id="font-name"></span> ▾]</button>
+            </div>
+          </fieldset>
+          <fieldset class="box">
+            <legend>background</legend>
+            <div class="line" data-keywords="blur frosted glass transparent clear">
+              <span class="key">background</span>
+              <span class="choice" role="radiogroup" aria-label="Background">
+                <button type="button" data-backdrop-choice="frosted" title="Blurred glass with a tint">[frosted]</button>
+                <button type="button" data-backdrop-choice="tinted" title="A see-through tint, no blur">[tinted]</button>
+                <button type="button" data-backdrop-choice="clear" title="No background at all">[clear]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="opacity transparency alpha see-through">
+              <span class="key">tint</span>
+              <span class="stepper">
+                <button id="opacity-down" type="button" title="More see-through">[−]</button>
+                <span id="opacity-value" class="step-value"></span>
+                <button id="opacity-up" type="button" title="More solid">[+]</button>
+              </span>
+            </div>
+          </fieldset>
+        </section>
+        <section class="tab-panel" id="tab-overlay" role="tabpanel" aria-labelledby="tab-button-overlay" data-tab="overlay">
+          <h2 class="panel-title">overlay</h2>
+          <fieldset class="box">
+            <legend>widgets</legend>
             <p class="hint">the widgets over the game · start and stop it from the launcher</p>
-            <button type="button" class="opt" data-widget="meter" aria-pressed="false" title="The players' damage, healing or damage taken">
-              <span class="key">meter</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="boss-warnings" aria-pressed="false" title="A boss's dangerous cast, big in the middle of the screen">
-              <span class="key">boss warnings</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="boss-timers" aria-pressed="false" title="The boss's next casts as bars counting down (from the last fight against it)">
-              <span class="key">boss timers</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="cubes" aria-pressed="false" title="An alert (and the alert sound) when a hidden cube comes into view">
-              <span class="key">hidden cubes</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="target" aria-pressed="false" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
-              <span class="key">target frame</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="player" aria-pressed="false" title="Your HP and MP as two thin bars, and a cast bar while you cast">
-              <span class="key">player bars</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="party" aria-pressed="false" title="Your party as a grid of tiles: each member's HP in their class's colour, and their MP">
-              <span class="key">party frames</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="cooldowns" aria-pressed="false" title="Your skills' cooldowns">
-              <span class="key">cooldowns</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="party-cooldowns" aria-pressed="false" title="Your party's long cooldowns and party buffs: ready, or how long left">
-              <span class="key">party cooldowns</span><span class="state">[off]</span>
-            </button>
-            <div class="line">
+            <div class="widget-grid">
+              <button type="button" class="opt" data-widget="meter" aria-pressed="false" title="The players' damage, healing or damage taken">
+                <span class="key">meter</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="boss-warnings" aria-pressed="false" title="A boss's dangerous cast, big in the middle of the screen">
+                <span class="key">boss warnings</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="boss-timers" aria-pressed="false" title="The boss's next casts as bars counting down (from the last fight against it)">
+                <span class="key">boss timers</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="cubes" data-keywords="hidden cube chest treasure" aria-pressed="false" title="An alert (and the alert sound) when a hidden cube comes into view">
+                <span class="key">hidden cubes</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="target" data-keywords="enemy hp health" aria-pressed="false" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
+                <span class="key">target frame</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="player" data-keywords="hp mp mana cast bar" aria-pressed="false" title="Your HP and MP as two thin bars, and a cast bar while you cast">
+                <span class="key">player bars</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="party" aria-pressed="false" title="Your party as a grid of tiles: each member's HP in their class's colour, and their MP">
+                <span class="key">party frames</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="cooldowns" aria-pressed="false" title="Your skills' cooldowns">
+                <span class="key">cooldowns</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="party-cooldowns" aria-pressed="false" title="Your party's long cooldowns and party buffs: ready, or how long left">
+                <span class="key">party cooldowns</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="timers" data-keywords="field boss world event schedule alerts" aria-pressed="false" title="When the world events and field bosses start, with alerts">
+                <span class="key">world timers</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="pets" data-keywords="pet tracker souls" aria-pressed="false" title="The pets you track: level, souls toward the next one, where they're found, and their mobs in view">
+                <span class="key">pet tracker</span><span class="state">[off]</span>
+              </button>
+            </div>
+            <div class="line" data-keywords="group sort class player">
               <span class="key">party cooldowns by</span>
               <span class="choice" role="radiogroup" aria-label="Group the party cooldowns">
                 <button type="button" data-party-cd-choice="player" title="Each player, then their cooldowns">[player]</button>
                 <button type="button" data-party-cd-choice="class" title="Each class, then its skills, then who has them (ready first)">[class]</button>
               </span>
             </div>
-            <button type="button" class="opt" data-widget="timers" aria-pressed="false" title="When the world events and field bosses start, with alerts">
-              <span class="key">world timers</span><span class="state">[off]</span>
-            </button>
-            <button type="button" class="opt" data-widget="pets" aria-pressed="false" title="The pets you track: level, souls toward the next one, where they're found, and their mobs in view">
-              <span class="key">pet tracker</span><span class="state">[off]</span>
-            </button>
-            <button id="arrange-overlay" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
+            <button id="arrange-overlay" data-keywords="move resize layout position edit" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
               <span class="key">arrange</span><span class="state">[ arrange ]</span>
             </button>
-            <button id="hide-on-world-map" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
+          </fieldset>
+          <fieldset class="box">
+            <legend>over the game</legend>
+            <button id="hide-on-world-map" data-keywords="map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
               <span class="key">hide on the world map</span><span class="state">[on]</span>
             </button>
-            <button id="hide-for-menus" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), and steps aside only when it's there. The square is only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over that corner hides the X from it">
+            <button id="hide-for-menus" data-keywords="inventory menu auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), and steps aside only when it's there. The square is only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over that corner hides the X from it">
               <span class="key">hide for game menus</span><span class="state">[off]</span>
             </button>
-            <button id="boss-mechanics" type="button" class="opt" aria-pressed="false" title="In the boss warnings, before the casts: dungeon bosses' mechanics and what to do (a buff on the boss not to attack into, a debuff on you or an ally, a cue cast, a stagger check, a pool you're standing in)">
-              <span class="key">boss mechanics</span><span class="state">[on]</span>
-            </button>
-            <button id="alert-sound" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
-              <span class="key">alert sound</span><span class="state">[on]</span>
-            </button>
-            <div class="line">
+            <div class="line" data-keywords="hide idle out of combat auto-hide transparency">
               <span class="key">fade outside combat</span>
               <span class="choice" role="radiogroup" aria-label="Fade the fight widgets outside combat">
                 <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
@@ -167,19 +189,36 @@
               </span>
             </div>
           </fieldset>
-        </div>
-
-        <div class="col">
+        </section>
+        <section class="tab-panel" id="tab-alerts" role="tabpanel" aria-labelledby="tab-button-alerts" data-tab="alerts">
+          <h2 class="panel-title">alerts</h2>
           <fieldset class="box">
-            <legend>status</legend>
-            <div class="check" id="check-npcap"><span class="led"></span><span class="key">npcap</span><span class="value">…</span></div>
-            <div class="check" id="check-data"><span class="led"></span><span class="key">game data</span><span class="value">…</span></div>
-            <div class="check" id="check-details"><span class="led"></span><span class="key" title="Cooldowns, descriptions and specialties for the analysis window's skill tooltips">skill info</span><span class="value">…</span></div>
+            <legend>boss warnings</legend>
+            <button id="boss-mechanics" data-keywords="warnings dungeon raid" type="button" class="opt" aria-pressed="false" title="In the boss warnings, before the casts: dungeon bosses' mechanics and what to do (a buff on the boss not to attack into, a debuff on you or an ally, a cue cast, a stagger check, a pool you're standing in)">
+              <span class="key">boss mechanics</span><span class="state">[on]</span>
+            </button>
+            <button id="boss-on-you" data-keywords="aggro target targeting threat tank" type="button" class="opt" aria-pressed="false" title="In the boss warnings: a card (and, with alert sound, a chime) when the boss you're fighting turns to attack you">
+              <span class="key">boss on you</span><span class="state">[on]</span>
+            </button>
           </fieldset>
-
           <fieldset class="box">
-            <legend>meter</legend>
-            <div class="line">
+            <legend>sound</legend>
+            <button id="alert-sound" data-keywords="audio chime volume beep mute noise" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
+              <span class="key">alert sound</span><span class="state">[on]</span>
+            </button>
+          </fieldset>
+          <fieldset class="box">
+            <legend>notices</legend>
+            <button id="pet-souls" data-keywords="notice notification" type="button" class="opt" aria-pressed="false" title="A notice for each pet soul from a kill, with how many the pet has toward its next level">
+              <span class="key">pet souls</span><span class="state">[on]</span>
+            </button>
+          </fieldset>
+        </section>
+        <section class="tab-panel" id="tab-meter" role="tabpanel" aria-labelledby="tab-button-meter" data-tab="meter">
+          <h2 class="panel-title">meter</h2>
+          <fieldset class="box">
+            <legend>counting</legend>
+            <div class="line" data-keywords="scope party mine everyone all whose damage">
               <span class="key">count</span>
               <span class="choice" role="radiogroup" aria-label="Whose damage counts">
                 <button type="button" data-scope-choice="auto" title="Follows your party: your party's fight while you're in a party or expedition, yours on your own">[auto]</button>
@@ -189,7 +228,7 @@
               </span>
             </div>
             <p class="hint" id="scope-hint"></p>
-            <div class="line">
+            <div class="line" data-keywords="refresh fps speed interval live">
               <span class="key">update rate</span>
               <span class="choice" role="radiogroup" aria-label="How often the meter updates">
                 <button type="button" data-refresh-choice="100" title="As it happens: redraws as soon as new data arrives (up to ten times a second)">[live]</button>
@@ -199,48 +238,66 @@
                 <button type="button" data-refresh-choice="2000" title="Every two seconds">[2s]</button>
               </span>
             </div>
-            <button id="boss-hp" type="button" class="opt" aria-pressed="false" title="The boss's HP and enrage timer under its name, in live boss fights (left out while the target frame shows them)">
+          </fieldset>
+          <fieldset class="box">
+            <legend>on the meter</legend>
+            <button id="boss-hp" data-keywords="health berserk timer enrage" type="button" class="opt" aria-pressed="false" title="The boss's HP and enrage timer under its name, in live boss fights (left out while the target frame shows them)">
               <span class="key">boss hp &amp; enrage</span><span class="state">[on]</span>
             </button>
             <button id="boss-casts" type="button" class="opt" aria-pressed="false" title="Under the boss's HP: what it's casting and when it lands, else what it cast next the last time you fought it (left out while the target frame shows)">
               <span class="key">boss casts</span><span class="state">[on]</span>
             </button>
-            <button id="pet-souls" type="button" class="opt" aria-pressed="false" title="A notice for each pet soul from a kill, with how many the pet has toward its next level">
-              <span class="key">pet souls</span><span class="state">[on]</span>
+            <button id="info-bar" data-keywords="clock latency ms strip" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
+              <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
             </button>
-            <button id="record" type="button" class="opt" aria-pressed="false">
+          </fieldset>
+          <fieldset class="box">
+            <legend>recording</legend>
+            <button id="record" data-keywords="capture packets pcap log" type="button" class="opt" aria-pressed="false">
               <span class="key">record fights</span><span class="state">[off]</span>
             </button>
             <p class="hint" id="record-hint">save packets to the captures folder</p>
           </fieldset>
-
-
+        </section>
+        <section class="tab-panel" id="tab-keybinds" role="tabpanel" aria-labelledby="tab-button-keybinds" data-tab="keybinds">
+          <h2 class="panel-title">keybinds</h2>
           <fieldset class="box">
-            <legend>keybinds</legend>
+            <legend>while the game is up</legend>
             <div id="hotkeys"></div>
             <p class="hint" id="hotkeys-hint" hidden></p>
           </fieldset>
-
+        </section>
+        <section class="tab-panel" id="tab-general" role="tabpanel" aria-labelledby="tab-button-general" data-tab="general">
+          <h2 class="panel-title">general</h2>
           <fieldset class="box">
-            <legend>tools</legend>
-            <button id="close-with-game" type="button" class="opt" aria-pressed="false" title="Close Glass Cannon a few seconds after the game closes">
+            <legend>status</legend>
+            <div class="check" id="check-npcap"><span class="led"></span><span class="key">npcap</span><span class="value">…</span></div>
+            <div class="check" id="check-data"><span class="led"></span><span class="key">game data</span><span class="value">…</span></div>
+            <div class="check" id="check-details"><span class="led"></span><span class="key" title="Cooldowns, descriptions and specialties for the analysis window's skill tooltips">skill info</span><span class="value">…</span></div>
+          </fieldset>
+          <fieldset class="box">
+            <legend>app</legend>
+            <button id="close-with-game" data-keywords="exit quit auto-close" type="button" class="opt" aria-pressed="false" title="Close Glass Cannon a few seconds after the game closes">
               <span class="key">close with the game</span><span class="state">[off]</span>
             </button>
-            <button id="shortcut" type="button" class="opt">
+            <button id="shortcut" data-keywords="desktop icon start menu" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
             </button>
-            <button id="reset" type="button" class="opt" title="Theme, font, colours and background back to the defaults (the overlay's layout resets while arranging it)">
+          </fieldset>
+          <fieldset class="box">
+            <legend>reset</legend>
+            <button id="reset" data-keywords="default restore" type="button" class="opt" title="Theme, font, colours and background back to the defaults (the overlay's layout resets while arranging it)">
               <span class="key">reset appearance</span><span class="state">[ reset ]</span>
             </button>
-            <button id="reset-all" type="button" class="opt" title="Every setting and keybind back to the defaults, the appearance too. Kept: the pets you track, starred and alerted events, boss skills you marked, the dummy label, and whether the overlay is on. The overlay's layout and the history stay">
+            <button id="reset-all" data-keywords="default restore factory hotkeys" type="button" class="opt" title="Every setting and keybind back to the defaults, the appearance too. Kept: the pets you track, starred and alerted events, boss skills you marked, the dummy label, and whether the overlay is on. The overlay's layout and the history stay">
               <span class="key">reset settings &amp; keybinds</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
-
-          <p id="message" class="message" role="status"></p>
-        </div>
+        </section>
+        <p id="no-results" class="hint" hidden>nothing matches · try fewer letters</p>
       </div>
     </div>
+    <p id="message" class="message" role="status"></p>
 
     <!-- The font picker's menu: shown under the font button, over everything else. -->
     <div id="font-menu" class="menu" hidden>

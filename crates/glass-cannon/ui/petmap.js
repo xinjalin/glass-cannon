@@ -2,7 +2,8 @@
 // one of two sides at a time:
 // - pets: where the mobs that give each pet's souls spawn (from Aion DPS Meter's data), as
 //   dots in their genus' colour. Pick a pet (in the list, or by clicking a dot) to light up
-//   its spawns and see the areas it's found in; [+] tracks it (the pet tracker widget shows
+//   its spawns and see the areas it's found in (picked in the list, the map moves to its
+//   spawns); [+] tracks it (the pet tracker widget shows
 //   the ones you track). The list has this map's pets; a search looks through every pet,
 //   by name, genus or area.
 // - gathering: where each material (ore, gems, herbs, logs, food, Odyle) and collectable
@@ -377,14 +378,77 @@ function bounds(m) {
   return [x0, y0, x1, y1];
 }
 
-function fitView() {
-  const m = current();
-  if (!m) return;
-  const [x0, y0, x1, y1] = bounds(m);
+// The view that frames a box (metres), at least `span` metres across.
+function framing([x0, y0, x1, y1], span, margin) {
   const w = canvas.clientWidth || 1;
   const h = canvas.clientHeight || 1;
-  const scale = Math.min(w / Math.max(1, x1 - x0), h / Math.max(1, y1 - y0)) * 0.9;
-  view = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale };
+  const scale = Math.min(w / Math.max(span, x1 - x0), h / Math.max(span, y1 - y0)) * margin;
+  return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, scale };
+}
+
+function fitView() {
+  stopGlide();
+  const m = current();
+  if (!m) return;
+  view = framing(bounds(m), 1, 0.9);
+}
+
+// A short glide of the view to another (cancelled by a drag, the wheel or a new one).
+const GLIDE_MS = 280;
+let glide = null;
+function stopGlide() {
+  if (glide) cancelAnimationFrame(glide);
+  glide = null;
+}
+function glideTo(to) {
+  stopGlide();
+  if (!view) {
+    view = to;
+    draw();
+    return;
+  }
+  const from = { ...view };
+  const start = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / GLIDE_MS);
+    const e = 1 - (1 - k) ** 3;
+    // The zoom eases on a log scale, so zooming in and out feel the same.
+    view = {
+      cx: from.cx + (to.cx - from.cx) * e,
+      cy: from.cy + (to.cy - from.cy) * e,
+      scale: Math.exp(Math.log(from.scale) + (Math.log(to.scale) - Math.log(from.scale)) * e),
+    };
+    draw();
+    glide = k < 1 ? requestAnimationFrame(step) : null;
+  };
+  glide = requestAnimationFrame(step);
+}
+
+// A pet picked in the list: the map moves to its spawns: on this map when it has some,
+// else on the map with the most of them. They're framed, but not closer than SPAWN_SPAN
+// metres across (a few points close together).
+const SPAWN_SPAN = 400;
+function showSpawns(id) {
+  if (!data) return;
+  let i = mapIndex;
+  if (!((current() && current().pets[id]) || []).length) {
+    let most = 0;
+    data.maps.forEach((m, k) => {
+      const n = (m.pets[id] || []).length;
+      if (n > most) [most, i] = [n, k];
+    });
+    if (!most) return;
+  }
+  if (i !== mapIndex) switchMap(i);
+  const pts = data.maps[i].pets[id];
+  const box = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [x, y] of pts) {
+    box[0] = Math.min(box[0], x);
+    box[1] = Math.min(box[1], y);
+    box[2] = Math.max(box[2], x);
+    box[3] = Math.max(box[3], y);
+  }
+  glideTo(framing(box, SPAWN_SPAN, 0.8));
 }
 
 // Map metres to canvas pixels (north up: the game's y grows southwards, as the screen's).
@@ -506,6 +570,7 @@ let drag = null;
 const wrap = $("map-wrap");
 wrap.addEventListener("pointerdown", (e) => {
   if (!view) return;
+  stopGlide();
   drag = { x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy, moved: false };
   wrap.setPointerCapture(e.pointerId);
 });
@@ -557,6 +622,7 @@ wrap.addEventListener(
   (e) => {
     if (!view) return;
     e.preventDefault();
+    stopGlide();
     const r = canvas.getBoundingClientRect();
     const [mx, my] = toMap(e.clientX - r.left, e.clientY - r.top);
     const k = Math.exp(-e.deltaY * 0.0015);
@@ -580,12 +646,14 @@ new ResizeObserver(() => {
 
 // --- The list --------------------------------------------------------------
 
-// The list's row: picks the pet (or material), or lets go of it.
+// The list's row: picks the pet (or material), or lets go of it. A pet picked moves the
+// map to its spawns.
 function select(key) {
   if (mode === "gather") picked = picked === key ? null : key;
   else selected = selected === key ? null : key;
   drawList();
   draw();
+  if (mode === "pets" && selected != null && selected === key) showSpawns(key);
 }
 
 // From the map: picks it and scrolls the list to it.
@@ -629,9 +697,14 @@ function drawPetList() {
       track.type = "button";
       track.setAttribute("aria-pressed", String(!!(p && p.tracked)));
       track.title = p && p.tracked ? "Tracked (the pet tracker widget shows it) · click to stop" : "Track it in the pet tracker widget";
+      // A pet at max level has nothing left to track (one tracked stops when it gets there).
+      if (!needs(p) && !p.tracked) {
+        track.disabled = true;
+        track.title = "At max level: nothing left to track";
+      }
       track.addEventListener("click", (e) => {
         e.stopPropagation();
-        setTracked(id, !(p && p.tracked));
+        if (!track.disabled) setTracked(id, !(p && p.tracked));
       });
       const line = el("span", "pet-line");
       const swatch = el("span", "genus-dot");
@@ -732,19 +805,22 @@ function drawTabs() {
       b.setAttribute("role", "tab");
       b.setAttribute("aria-selected", String(i === mapIndex));
       if (onMap(m)) b.title = "You're here";
-      b.addEventListener("click", () => {
-        mapIndex = i;
-        loadPicture(current());
-        fitView();
-        drawTabs();
-        drawList();
-        draw();
-      });
+      b.addEventListener("click", () => switchMap(i));
       return b;
     }),
   );
   const here = data.maps.find(onMap);
   $("where").textContent = here ? `· you're in ${here.name}` : "";
+}
+
+// Shows another map, all of it.
+function switchMap(i) {
+  mapIndex = i;
+  loadPicture(current());
+  fitView();
+  drawTabs();
+  drawList();
+  draw();
 }
 
 // Pets or gathering: the side shown, on the map and in the list.

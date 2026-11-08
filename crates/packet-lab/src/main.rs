@@ -36,6 +36,7 @@ mod pet_icons;
 mod pet_map;
 mod gather_map;
 mod pet_spawns;
+mod boss_skills;
 mod item_icons;
 mod theostones;
 
@@ -170,6 +171,10 @@ enum Cmd {
         /// Print the last fight's analysis as JSON (what the analysis window receives)
         #[arg(long, conflicts_with = "json")]
         analysis: bool,
+        /// Also save each finished fight's analysis to this folder (1.json, 2.json, ...),
+        /// as the app saves its fights
+        #[arg(long, conflicts_with_all = ["json", "analysis"])]
+        fights: Option<PathBuf>,
     },
     /// Download skill, mob/boss and class data for the overlay (from the GPL-3.0 NOIA2 project)
     #[command(alias = "import-skills")]
@@ -260,6 +265,20 @@ enum Cmd {
         #[arg(long, default_value = "gamedata/pet-spawns.json")]
         out: PathBuf,
         /// The upstream commit the files are from (recorded in the file)
+        #[arg(long)]
+        commit: String,
+    },
+    /// Build gamedata/boss-skills.json (names for the boss and mob skills skills.json only
+    /// calls "Attack", for boss cast marks and death recaps) from SkeeveAN's Aion DPS Meter (MIT)
+    BossSkills {
+        /// Its Backend/src/data/aion2/skill_names.json
+        names: PathBuf,
+        /// Our skill names, to leave out the skills they already name
+        #[arg(long, default_value = "gamedata/skills.json")]
+        skills: PathBuf,
+        #[arg(long, default_value = "gamedata/boss-skills.json")]
+        out: PathBuf,
+        /// The upstream commit the file is from (recorded in the file)
         #[arg(long)]
         commit: String,
     },
@@ -476,6 +495,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
+        Cmd::BossSkills { names, skills, out, commit } => boss_skills::run(&names, &skills, &out, &commit),
         Cmd::PetMap { spawns, pet_spawns, regions, images, out, commit } => {
             pet_map::run(&spawns, &pet_spawns, regions.as_deref(), images.as_deref(), &out, &commit)
         }
@@ -500,7 +520,8 @@ fn run(cli: Cli) -> Result<()> {
             party,
             json,
             analysis,
-        } => meter_cmd(&path, idle, scope(everyone, party), json, analysis),
+            fights,
+        } => meter_cmd(&path, idle, scope(everyone, party), json, analysis, fights.as_deref()),
         Cmd::Buffs { path, on } => buffs_cmd(&path, on),
         Cmd::Find { path, value, side } => find(&path, value, side),
         Cmd::Hp { path, on, limit } => hp_cmd(&path, on, limit),
@@ -962,8 +983,11 @@ fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, scope: Scope
     Ok(())
 }
 
-fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -> Result<()> {
+fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool, fights: Option<&Path>) -> Result<()> {
     let (_, m) = load_messages(path, SideArg::In)?;
+    if let Some(dir) = fights {
+        std::fs::create_dir_all(dir)?;
+    }
     let mut meter = new_meter(idle, scope);
     let mut seen = 0;
     if analysis {
@@ -988,6 +1012,9 @@ fn meter_cmd(path: &Path, idle: u64, scope: Scope, json: bool, analysis: bool) -
         if meter.encounters_completed() > seen {
             seen = meter.encounters_completed();
             println!("── fight {seen} ──\n{}", render_meter(&meter.snapshot()));
+            if let (Some(dir), Some(a)) = (fights, meter.analysis(msg.ts_us)) {
+                std::fs::write(dir.join(format!("{seen}.json")), serde_json::to_string(&a)?)?;
+            }
         }
         meter.feed(msg.ts_us, msg.opcode, &msg.payload);
         for i in meter.take_instances() {

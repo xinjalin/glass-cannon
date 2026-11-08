@@ -13,8 +13,25 @@ use std::path::{Path, PathBuf};
 use meter_core::meter::{Analysis, EncounterView, FightEnd, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-/// Fights kept in memory and shown in the history list.
+/// Fights kept in memory and shown in the history list, boss fights and the rest each.
 const HISTORY_LIMIT: usize = 200;
+
+/// Which of `items` (oldest first) fall outside the newest `limit` boss fights and the
+/// newest `limit` other fights, so a run of short fights can't push the boss fights out.
+fn beyond_limit<T>(items: &[T], limit: usize, boss: impl Fn(&T) -> bool) -> Vec<bool> {
+    let (mut bosses, mut others) = (0, 0);
+    let mut drop: Vec<bool> = items
+        .iter()
+        .rev()
+        .map(|i| {
+            let seen = if boss(i) { &mut bosses } else { &mut others };
+            *seen += 1;
+            *seen > limit
+        })
+        .collect();
+    drop.reverse();
+    drop
+}
 
 fn load<T: DeserializeOwned + Default>(path: &Path) -> T {
     fs::read(path)
@@ -110,6 +127,9 @@ pub struct Settings {
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
+    /// The boss warnings say when the boss turns to attack you.
+    #[serde(default = "default_true")]
+    pub boss_on_you: bool,
     /// The overlay steps aside while the world map is open.
     #[serde(default = "default_true")]
     pub hide_on_world_map: bool,
@@ -480,7 +500,8 @@ impl Profile {
     }
 }
 
-/// Fights kept with their full analysis (the rest of the history keeps its summary).
+/// Fights kept with their full analysis, boss fights and the rest each (the rest of the
+/// history keeps its summary).
 const DETAILS_LIMIT: usize = 50;
 
 const INSTANCES_LIMIT: usize = 500;
@@ -711,7 +732,8 @@ impl Instances {
     }
 }
 
-/// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
+/// Full analyses of recent fights, one file each in `fights/`, named by when they ended:
+/// `<ms>.boss.json` for a boss fight, `<ms>.json` for the rest.
 pub struct FightDetails {
     dir: PathBuf,
 }
@@ -723,29 +745,35 @@ impl FightDetails {
         }
     }
 
-    fn path(&self, ended_ms: u64) -> PathBuf {
-        self.dir.join(format!("{ended_ms}.json"))
+    fn file(&self, ended_ms: u64, boss: bool) -> PathBuf {
+        self.dir.join(if boss { format!("{ended_ms}.boss.json") } else { format!("{ended_ms}.json") })
     }
 
-    pub fn save(&self, ended_ms: u64, analysis: &Analysis) {
+    /// The fight's file, whichever kind it was saved as.
+    fn path(&self, ended_ms: u64) -> Option<PathBuf> {
+        [true, false].into_iter().map(|boss| self.file(ended_ms, boss)).find(|p| p.is_file())
+    }
+
+    /// `boss`: the fight was against a boss, kept apart from the rest.
+    pub fn save(&self, ended_ms: u64, analysis: &Analysis, boss: bool) {
         if fs::create_dir_all(&self.dir).is_err() {
             return;
         }
         if let Ok(json) = serde_json::to_vec(analysis) {
             let tmp = self.dir.join(format!("{ended_ms}.json.tmp"));
             if fs::write(&tmp, json).is_ok() {
-                let _ = fs::rename(&tmp, self.path(ended_ms));
+                let _ = fs::rename(&tmp, self.file(ended_ms, boss));
             }
         }
         self.prune();
     }
 
     pub fn load(&self, ended_ms: u64) -> Option<Analysis> {
-        serde_json::from_slice(&fs::read(self.path(ended_ms)).ok()?).ok()
+        serde_json::from_slice(&fs::read(self.path(ended_ms)?).ok()?).ok()
     }
 
     pub fn has(&self, ended_ms: u64) -> bool {
-        self.path(ended_ms).is_file()
+        self.path(ended_ms).is_some()
     }
 
     /// Deletes every saved analysis.
@@ -758,16 +786,21 @@ impl FightDetails {
         }
     }
 
-    /// Keeps the newest [`DETAILS_LIMIT`] files.
+    /// Keeps the newest [`DETAILS_LIMIT`] boss fights and as many others.
     fn prune(&self) {
         let Ok(entries) = fs::read_dir(&self.dir) else { return };
-        let mut stamps: Vec<u64> = entries
-            .filter_map(|e| e.ok()?.file_name().to_str()?.strip_suffix(".json")?.parse().ok())
+        let mut saved: Vec<(u64, bool)> = entries
+            .filter_map(|e| {
+                let name = e.ok()?.file_name().into_string().ok()?;
+                let stem = name.strip_suffix(".json")?;
+                let (stamp, boss) = stem.strip_suffix(".boss").map_or((stem, false), |s| (s, true));
+                Some((stamp.parse().ok()?, boss))
+            })
             .collect();
-        stamps.sort_unstable();
-        let excess = stamps.len().saturating_sub(DETAILS_LIMIT);
-        for ended_ms in &stamps[..excess] {
-            let _ = fs::remove_file(self.path(*ended_ms));
+        saved.sort_unstable();
+        let drop = beyond_limit(&saved, DETAILS_LIMIT, |(_, boss)| *boss);
+        for (&(ended_ms, boss), _) in saved.iter().zip(drop).filter(|(_, d)| *d) {
+            let _ = fs::remove_file(self.file(ended_ms, boss));
         }
     }
 }
@@ -953,9 +986,14 @@ impl History {
             .lines()
             .filter_map(|l| serde_json::from_str(l).ok())
             .collect();
-        let excess = fights.len().saturating_sub(HISTORY_LIMIT);
-        fights.drain(..excess);
+        Self::trim(&mut fights);
         Self { path, fights }
+    }
+
+    /// Keeps the newest [`HISTORY_LIMIT`] boss fights and as many others.
+    fn trim(fights: &mut Vec<Fight>) {
+        let mut drop = beyond_limit(fights, HISTORY_LIMIT, |f| f.view.target_boss).into_iter();
+        fights.retain(|_| !drop.next().unwrap_or(false));
     }
 
     pub fn push(&mut self, fight: Fight) {
@@ -968,9 +1006,7 @@ impl History {
             }
         }
         self.fights.push(fight);
-        if self.fights.len() > HISTORY_LIMIT {
-            self.fights.remove(0);
-        }
+        Self::trim(&mut self.fights);
     }
 
     pub fn len(&self) -> usize {
@@ -1279,12 +1315,39 @@ mod tests {
             heals: Vec::new(),
             taken: Vec::new(),
         };
-        for ended_ms in 1..=(DETAILS_LIMIT as u64 + 2) {
-            details.save(ended_ms, &analysis);
+        // A raid's boss pulls, then more short fights than are kept (as on 2026-11-07, when
+        // PvP fights pushed the raid's out).
+        details.save(1, &analysis, true);
+        details.save(2, &analysis, true);
+        for ended_ms in 3..=(DETAILS_LIMIT as u64 + 4) {
+            details.save(ended_ms, &analysis, false);
         }
-        assert!(!details.has(1) && !details.has(2));
-        assert!(details.has(3));
-        assert_eq!(details.load(DETAILS_LIMIT as u64 + 2), Some(analysis));
+        assert!(details.has(1) && details.has(2), "the boss fights stay");
+        assert!(!details.has(3) && !details.has(4));
+        assert!(details.has(5));
+        assert_eq!(details.load(DETAILS_LIMIT as u64 + 4), Some(analysis.clone()));
+        assert_eq!(details.load(1), Some(analysis));
+        // A fight saved before boss fights were kept apart still loads.
+        fs::copy(dir.join("fights/5.json"), dir.join("fights/0.json")).unwrap();
+        assert!(details.has(0));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_boss_fight_outlasts_the_short_fights_in_the_history() {
+        let dir = temp_dir("history-bosses");
+        let mut h = History::load(&dir);
+        let mut boss = snap(None, Some(18)).encounter.unwrap();
+        boss.target_boss = true;
+        h.push(Fight { ended_ms: 0, self_name: None, view: boss });
+        for i in 1..=(HISTORY_LIMIT as u64 + 1) {
+            h.push(Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        }
+        assert_eq!(h.len(), HISTORY_LIMIT + 1);
+        assert_eq!(h.fight(0).map(|f| f.ended_ms), Some(0), "the boss fight stays");
+        assert_eq!(h.fight(1).map(|f| f.ended_ms), Some(2), "the oldest other fight goes");
+        let again = History::load(&dir);
+        assert_eq!((again.len(), again.fight(0).map(|f| f.ended_ms)), (HISTORY_LIMIT + 1, Some(0)));
         fs::remove_dir_all(dir).ok();
     }
 

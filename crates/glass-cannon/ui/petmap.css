@@ -86,6 +86,7 @@
   line-height: 1;
 }
 .map-track:hover { background: var(--line-faint); }
+.map-track:disabled { opacity: 0.35; cursor: default; background: none; }
 .map-track[aria-pressed="true"] { color: var(--ink); background: var(--ok); border-color: var(--ok); text-shadow: none; }
 .genus-dot { flex: none; width: 0.55em; height: 0.55em; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
 

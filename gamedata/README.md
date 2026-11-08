@@ -18,11 +18,12 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `npc-names.json` (NPCs' names: quest givers, merchants and the like, which the mob lists don't have) | the same bundle's NPCs | none: used without a licence |
 | `pet-spawns.json` (which mob types give which pet's souls, and where each pet is found, for the pet tracker) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Client/assets/aion2/pets/`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json` (where the mobs that give each pet's souls spawn on the world and Abyss maps, in metres, for the pet map) | the same (`spawns.json`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
+| `boss-skills.json` (names for 928 boss and mob skills `skills.json` only calls "Attack", for boss cast marks and death recaps) | the same (`Backend/src/data/aion2/skill_names.json`, read from the game's text tables) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json`'s zones and `petmap_<map>.jpg` (the pet map's zones and pictures) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getRegions`, its map images) | no licence (NCSOFT's artwork) |
 | `gather-map.json` (where each material and collectable is on the world and Abyss maps, in metres, for the map's gathering side) and `gather_<icon>.png` (their icons) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getMarkers`, its item icons) | no licence (NCSOFT's names and artwork) |
 | `field-bosses.json` (world-map field boss IDs to map and mob type) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) (`field_boss_timer.rs`) | GPL-3.0 |
 | `field-bosses.json` (field bosses' level and location) | the same bundle's monsters | none: used without a licence |
-| `boss-mechanics.json` (dungeon bosses' mechanics for the boss warnings: which buff, debuff, cue cast, stagger gauge or ground hit means what, and what to do) | written by hand; which effect and skill IDs go with which mechanic came from [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110) as leads, the wording is ours | none (the IDs are NCSOFT's) |
+| `boss-mechanics.json` (dungeon bosses' mechanics for the boss warnings: which buff, debuff, cue cast, stagger gauge or ground hit means what, and what to do) | written by hand; which effect and skill IDs go with which mechanic came from [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110) as leads, Eternal Ludra's from our own runs and [aion2tierlist.com](https://aion2tierlist.com/guides/aion-2-ludra-raid-guide)'s Ludra guide, the wording is ours | none (the IDs are NCSOFT's) |
 | `pet_<id>.png` (pet portraits, for the pet tracker) | NCSOFT's game asset server, by the bundle's pets' icon names | NCSOFT's artwork, used without a licence |
 | `Icon_Item_Usable_*.png` and `item-icons.json` (icons for scroll, potion and food buffs) | NCSOFT's game asset server (`assets.playnccdn.com`), matched to skills by the bundle's item names | NCSOFT's artwork, used without a licence |
 
@@ -55,6 +56,9 @@ sources aren't named; they're here on the same terms and will be removed on requ
   icon names), downloaded from NCSOFT's asset server at 64 px.
 - Pet spawns: `packet-lab pet-spawns <pets.json> <regions.json> --commit <sha>` from Aion DPS
   Meter's `Client/assets/aion2/pets/` at that commit.
+- Boss skill names: `packet-lab boss-skills <skill_names.json> --commit <sha>` from Aion DPS
+  Meter's `Backend/src/data/aion2/skill_names.json` (after `update-data`: it leaves out the
+  skills `skills.json` already names).
 - Pet map: `packet-lab pet-map <spawns.json> --regions <regions.json> --images <dir> --commit <sha>`
   from the same folder, after `pet-spawns` (it takes which mobs give which pet from
   `pet-spawns.json`). `regions.json` is Questlog's

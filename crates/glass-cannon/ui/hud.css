@@ -68,6 +68,11 @@ body {
 #warning.soon { --warn-c: var(--warn); }
 #warning.soon #warning-name { font-size: 1.7em; }
 #warning.soon #warning-time { font-size: 1.25em; }
+/* The boss turned to you: amber, the boss's name over "on you", a little smaller than a
+   cast. */
+#warning.you { --warn-c: var(--warn); }
+#warning.you #warning-name { font-size: 1.9em; color: var(--warn-c); }
+#warning.you #warning-time:empty { display: none; }
 /* Over: it stays a moment, dimmed, so it can be read. */
 #warning.over { opacity: 0.55; animation: none; }
 @keyframes pulse {

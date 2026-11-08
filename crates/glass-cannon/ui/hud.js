@@ -315,8 +315,10 @@ function castName(c, long = true) {
 
 // A short two-note chime, once per warning (settings → alert sound).
 let audio = null;
-// The boss warnings' rising pair, and the hidden cubes' falling one.
+// The boss warnings' rising pair, the boss turning to you's lower pair, and the hidden
+// cubes' falling one.
 const BOSS_NOTES = [880, 1320];
+const ON_YOU_NOTES = [587, 880];
 const CUBE_NOTES = [1568, 1175];
 function chime(notes = BOSS_NOTES) {
   try {
@@ -376,17 +378,28 @@ function mechanicCard(m, elapsed) {
   };
 }
 
+// How long "on you" shows once the boss turns to you (the target frame keeps saying so).
+const ON_YOU_MS = 3000;
+// The boss's last turn to you (when, by the capture's clock) and when it first showed here.
+let onYou = { key: 0, at: 0 };
+
 function drawWarnings(elapsed) {
   const box = $("warning");
   const live = boss && boss.cast;
   // A mechanic goes before the boss's casts: it says what to do.
   let show = mechanics.length ? mechanicCard(mechanics[0], elapsed) : null;
+  const turned = boss ? boss.onYou : 0;
+  if (turned && turned !== onYou.key) onYou = { key: turned, at: performance.now() };
   if (!show && live && boss.ahead.cast_danger) {
     const castLeft = live.cast_left_ms - elapsed;
     const landsLeft = live.lands_left_ms - elapsed;
     const key = `cast:${live.skill}:${boss.castKey}`;
     if (castLeft > 0) show = { cls: "now", what: "casting", title: castName(live, false), time: `${(castLeft / 1000).toFixed(1)} s`, key };
     else if (landsLeft > 0) show = { cls: "now lands", what: "lands · move", title: castName(live, false), time: `${(landsLeft / 1000).toFixed(1)} s`, key };
+  }
+  // The boss turned to attack you: after what to do and its cast, before what's coming.
+  if (!show && turned && turned === onYou.key && performance.now() - onYou.at < ON_YOU_MS) {
+    show = { cls: "now you", what: boss.name || "the boss", title: "on you", time: "", key: `you:${turned}`, done: "", notes: ON_YOU_NOTES };
   }
   if (!show && boss) {
     const next = boss.ahead.upcoming.find((c) => c.danger);
@@ -414,7 +427,7 @@ function drawWarnings(elapsed) {
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
-    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) chime(BOSS_NOTES);
+    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) chime(show.notes || BOSS_NOTES);
   }
 }
 

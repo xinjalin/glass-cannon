@@ -247,6 +247,13 @@ pub fn boss_skill_alerts(app: State<'_, Arc<AppState>>) -> std::collections::BTr
 }
 
 #[tauri::command]
+pub fn set_boss_on_you(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.boss_on_you = on;
+    s.save(&app.config_dir);
+}
+
+#[tauri::command]
 pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
     s.alert_sound = on;
@@ -724,6 +731,9 @@ pub fn pet_map_me(app: State<'_, Arc<AppState>>) -> PetMapMe {
 #[tauri::command]
 pub fn set_pet_tracked(app: State<'_, Arc<AppState>>, id: u32, on: bool) -> Result<(), String> {
     let character = lock(&app.profile).name.clone().ok_or("log in to a character first")?;
+    if on && app.engine.meter().pets().maxed(id) {
+        return Err("it's at max level already".into());
+    }
     let mut s = lock(&app.settings);
     let list = s.tracked_pets.entry(character).or_default();
     list.retain(|p| *p != id);
@@ -732,6 +742,18 @@ pub fn set_pet_tracked(app: State<'_, Arc<AppState>>, id: u32, on: bool) -> Resu
     }
     s.save(&app.config_dir);
     Ok(())
+}
+
+/// A tracked pet that reaches the top level stops being tracked: there's nothing left to
+/// get for it.
+pub fn untrack_maxed(app: &AppState, character: &str, pets: &meter_core::pets::Pets) {
+    let mut s = lock(&app.settings);
+    let Some(list) = s.tracked_pets.get_mut(character) else { return };
+    let before = list.len();
+    list.retain(|&p| !pets.maxed(p));
+    if list.len() != before {
+        s.save(&app.config_dir);
+    }
 }
 
 #[tauri::command]

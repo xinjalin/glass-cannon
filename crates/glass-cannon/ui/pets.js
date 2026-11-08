@@ -1,7 +1,8 @@
 // The pet tracker: the pets you track (map → track; where each is found shows
 // there), with their level and souls toward the next one, and how many of their mobs are
 // in view now. With [nearest], every pet you still need whose mobs are in view, the most
-// first.
+// first. Right-click a tracked pet to stop tracking it; one that reaches max level stops
+// by itself.
 
 // Rows are updated in place, so a tooltip being read stays put.
 const POLL_MS = 1000;
@@ -48,13 +49,24 @@ function near(p) {
 }
 
 // What a row shows (a row is only redrawn when that changes), its portrait having come in too.
-const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view, needs(p), !!portraits.get(p.id)].join("|");
+const rowKey = (p) => [p.id, p.name, p.level, p.souls, p.need, p.in_view, needs(p), p.tracked, !!portraits.get(p.id)].join("|");
+
+const UNTRACK_HINT = "right-click: stop tracking";
 
 function row(p) {
   const li = el("li", "pet" + (p.in_view ? " here" : "") + (needs(p) ? "" : " done"));
   const top = el("div", "pet-top");
   const name = el("span", "pet-name", p.name);
-  if (p.genus) name.title = p.genus;
+  name.title = [p.genus, p.tracked && UNTRACK_HINT].filter(Boolean).join("\n");
+  // Right-click a tracked pet: stop tracking it.
+  if (p.tracked) {
+    li.title = UNTRACK_HINT;
+    li.addEventListener("contextmenu", async (e) => {
+      e.preventDefault();
+      await invoke("set_pet_tracked", { id: p.id, on: false }).catch(() => {});
+      refresh();
+    });
+  }
   const progress = el("span", "pet-souls", p.level == null ? "?" : p.need == null ? "max" : `${p.souls}/${p.need}`);
   progress.title = p.level == null ? "Your pets come when you log in or enter a dungeon" : p.need == null ? "Top level" : `Souls toward level ${p.level + 1}`;
   top.append(name, pips(p.level), progress);

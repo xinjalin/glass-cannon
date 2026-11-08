@@ -48,6 +48,9 @@ const RECAP_HITS: usize = 12;
 const PINGS_KEPT: usize = 6;
 /// Damage over this long sets how fast a target is going down (its time to kill).
 const KILL_RATE_US: u64 = 10_000_000;
+/// How long a mob stays on you before it counts as attacking you (the boss warnings' "on you").
+/// In the Ludra raid (2026-11-07) Ketu sometimes turned to someone and away in one burst.
+const ON_YOU_HOLD_US: u64 = 300_000;
 
 /// The world map counts as closed this long after the game's last request for its contents.
 /// It asks every 1.14-1.25 s while it's open (186 gaps in our captures, 99% within
@@ -420,6 +423,10 @@ pub struct EncounterView {
     /// What the boss is casting now (live fights).
     #[serde(default)]
     pub boss_cast: Option<LiveBossCast>,
+    /// When the boss turned to attack you, while it's on you (live fights): the boss
+    /// warnings' "on you" card, once per turn.
+    #[serde(default)]
+    pub boss_on_you_us: Option<u64>,
 }
 
 /// A boss's cast, from its start (or, with no cast time, when it went off).
@@ -836,7 +843,8 @@ pub struct Meter {
     pvp: PvpTracker,
     /// Your target, what each mob is attacking, and their stagger gauges.
     selected: Option<u64>,
-    aggro: HashMap<u64, u64>,
+    /// What each mob is attacking, and since when (capture µs).
+    aggro: HashMap<u64, (u64, u64)>,
     stagger: HashMap<u64, Stagger>,
     /// Field bosses read from a world map since the last [`Meter::take_field_bosses`].
     field_bosses: Vec<FieldBoss>,
@@ -1259,7 +1267,9 @@ impl Meter {
                 }
                 state::OPCODE_MOB_TARGET => {
                     if let Some((mob, target)) = state::parse_mob_target(payload) {
-                        self.aggro.insert(mob, target);
+                        // Since it turned to this target: the same one again keeps its time.
+                        let since = self.aggro.get(&mob).filter(|(t, _)| *t == target).map_or(ts_us, |(_, at)| *at);
+                        self.aggro.insert(mob, (target, since));
                     }
                 }
                 state::OPCODE_STAGGER => {
@@ -1699,7 +1709,10 @@ impl Meter {
     }
 
     fn is_boss(&self, entity: u64) -> bool {
-        self.registry.mob_type(entity).is_some_and(|t| self.bosses.contains(&t))
+        match self.registry.mob_type(entity) {
+            Some(t) => self.bosses.contains(&t),
+            None => self.registry.unseen_boss(entity),
+        }
     }
 
     /// Something died: a player's death goes in the fight's recap, and it may end the fight.
@@ -2140,7 +2153,8 @@ impl Meter {
             target: main_target.map(|id| self.registry.label(id)),
             target_id: main_target,
             target_type: main_target.and_then(|id| self.registry.mob_type(id)),
-            target_boss: false,
+            // The app sets it from its mob data by type; a boss we never saw spawn has none.
+            target_boss: main_target.is_some_and(|id| self.registry.unseen_boss(id)),
             target_count: counted.len(),
             start_us: first,
             end_us: last,
@@ -2159,7 +2173,15 @@ impl Meter {
             boss_casts,
             boss_now_s,
             boss_cast,
+            boss_on_you_us: main_target.filter(|_| active).and_then(|t| self.on_you_since(t)),
         })
+    }
+
+    /// When `mob` turned to attack you, once it has stayed on you [`ON_YOU_HOLD_US`] (it
+    /// sometimes points at someone and moves on in the same moment).
+    fn on_you_since(&self, mob: u64) -> Option<u64> {
+        let (target, since) = *self.aggro.get(&mob)?;
+        (Some(target) == self.registry.self_id() && self.latest_us.saturating_sub(since) >= ON_YOU_HOLD_US).then_some(since)
     }
 
     /// Your target if you've picked one that's alive, else the live fight's main target.
@@ -2188,12 +2210,12 @@ impl Meter {
             let rate = recent as f64 / (KILL_RATE_US as f64 / 1e6);
             (rate > 0.0).then(|| hp.unwrap_or(0) as f64 / rate).filter(|_| hp.is_some())
         });
-        let attacking = self.aggro.get(&entity).copied().filter(|t| *t != 0);
+        let attacking = self.aggro.get(&entity).map(|(t, _)| *t).filter(|t| *t != 0);
         Some(TargetView {
             entity,
             name: self.registry.label(entity),
             mob_type: self.registry.mob_type(entity),
-            boss: false,
+            boss: self.registry.unseen_boss(entity),
             hp,
             max_hp: self.hp.max(entity),
             berserk_us: self.berserk.get(&entity).map(|ms| ms * 1000),
@@ -3156,6 +3178,33 @@ mod tests {
         stop.push(0);
         m.feed(6 * S, crate::cast::OPCODE_CAST_STOP, &stop);
         assert_eq!(m.snapshot().target.unwrap().cast, None);
+    }
+
+    #[test]
+    fn the_boss_on_you_counts_once_it_stays() {
+        let mut m = meter_with_boss();
+        let turn = |to: u64| {
+            let mut p = encode_varint(BOSS);
+            p.push(0);
+            p.extend(encode_varint(to));
+            p
+        };
+        let on_you = |m: &mut Meter| m.snapshot().encounter.unwrap().boss_on_you_us;
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(S, state::OPCODE_MOB_TARGET, &turn(ME));
+        // Pointed at you and away in the same moment: not on you.
+        m.feed(S, state::OPCODE_MOB_TARGET, &turn(15772));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        assert_eq!(on_you(&mut m), None);
+        m.feed(2 * S, state::OPCODE_MOB_TARGET, &turn(ME));
+        assert_eq!(on_you(&mut m), None, "not yet held");
+        // Told again while it stays on you: still since it turned.
+        m.feed(2 * S + 200_000, state::OPCODE_MOB_TARGET, &turn(ME));
+        m.feed(2 * S + 400_000, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        assert_eq!(on_you(&mut m), Some(2 * S));
+        assert!(m.snapshot().target.unwrap().attacking_you);
+        m.feed(3 * S, state::OPCODE_MOB_TARGET, &turn(0));
+        assert_eq!(on_you(&mut m), None);
     }
 
     #[test]

@@ -101,6 +101,7 @@ fn join_views(views: &[EncounterView]) -> EncounterView {
         boss_casts: Vec::new(),
         boss_now_s: None,
         boss_cast: None,
+        boss_on_you_us: None,
     }
 }
 
@@ -243,6 +244,7 @@ mod tests {
                 boss_casts: Vec::new(),
                 boss_now_s: None,
                 boss_cast: None,
+                boss_on_you_us: None,
             },
             hits: vec![TimelineHit { t: hit_t, player: 1, target: 9, skill: 1, cast: 0, damage: 1, flags: 0, n: 1 }],
             effects: Vec::new(),

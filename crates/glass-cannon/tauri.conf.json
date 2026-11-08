@@ -25,8 +25,8 @@
       {
         "label": "settings",
         "title": "Glass Cannon settings",
-        "width": 800,
-        "height": 397,
+        "width": 520,
+        "height": 490,
         "resizable": false,
         "decorations": false,
         "transparent": true,

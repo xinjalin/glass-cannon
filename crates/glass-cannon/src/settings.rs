@@ -57,6 +57,7 @@ pub struct SettingsStatus {
     boss_hp: bool,
     boss_casts: bool,
     boss_mechanics: bool,
+    boss_on_you: bool,
     party_cooldowns_by_class: bool,
     pet_souls: bool,
     /// The overlay's widgets that show, and whether they're being arranged.
@@ -153,6 +154,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         boss_hp: s.boss_hp,
         boss_casts: s.boss_casts,
         boss_mechanics: s.boss_mechanics,
+        boss_on_you: s.boss_on_you,
         party_cooldowns_by_class: s.party_cooldowns_by_class,
         pet_souls: s.pet_souls,
         widgets: s.widgets,
