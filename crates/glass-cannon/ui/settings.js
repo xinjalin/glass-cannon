@@ -186,6 +186,10 @@ async function refresh() {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String((b.dataset.partyCdChoice === "class") === state.party_cooldowns_by_class));
     }
+    for (const b of document.querySelectorAll("[data-bars-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(b.dataset.barsChoice === state.player_bars_style));
+    }
     for (const b of document.querySelectorAll("[data-region-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(b.dataset.regionChoice === state.timer_region));
@@ -488,6 +492,12 @@ $("close-with-game").addEventListener("click", async () => {
   refresh();
 });
 
+for (const b of document.querySelectorAll("[data-bars-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_player_bars_style", { style: b.dataset.barsChoice }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
 for (const b of document.querySelectorAll("[data-region-choice]")) {
   b.addEventListener("click", async () => {
     await invoke("set_timer_region", { region: b.dataset.regionChoice }).catch((e) => say(String(e), "error"));

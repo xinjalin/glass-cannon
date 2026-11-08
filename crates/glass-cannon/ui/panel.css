@@ -358,3 +358,18 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .att-record { display: flex; justify-content: flex-end; gap: 0.5em; }
 .att-best { text-align: right; white-space: nowrap; }
 .att-wipe { color: var(--warn); }
+
+/* The player bars as arcs (settings → player bars style): no box, just the arcs around
+   your character, drawn to the widget's size by player.js. */
+#panel.arcs-on { position: relative; padding: 0; background: transparent; box-shadow: none; }
+.arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.arc-track, .arc-fill { fill: none; stroke-linecap: round; }
+.arc-track { stroke: color-mix(in srgb, var(--tint-strong, #000) 70%, transparent); }
+.arc-fill { transition: stroke-dasharray 0.15s linear; filter: drop-shadow(0 0 0.15em rgba(0, 0, 0, 0.6)); }
+.arc-fill.hp { stroke: color-mix(in srgb, var(--bad) 85%, transparent); }
+.arc-fill.mp { stroke: color-mix(in srgb, #5b8def 85%, transparent); }
+.arc-fill.cast { stroke: var(--accent-fill, var(--accent)); transition: none; }
+.arcs.low .arc-fill.hp { stroke: var(--bad); filter: drop-shadow(0 0 0.35em var(--bad)); }
+.arc-text { fill: var(--text); font-size: 0.8em; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: rgba(0, 0, 0, 0.75); stroke-width: 3px; }
+.arc-text.cast { font-size: 0.85em; }
+#panel.arcs-on #empty { position: absolute; inset: auto 0 0; text-align: center; }

@@ -124,6 +124,9 @@ pub struct Settings {
     /// The party cooldowns widget grouped by class, then skill, then player (else by player).
     #[serde(default)]
     pub party_cooldowns_by_class: bool,
+    /// The player bars widget's look: one of [`PLAYER_BARS_STYLES`].
+    #[serde(default = "default_player_bars_style")]
+    pub player_bars_style: String,
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
@@ -273,6 +276,11 @@ fn default_theme() -> String {
 }
 fn default_bar_color() -> String {
     "theme".into()
+}
+/// "bars": straight bars; "arcs": two curved bars around your character, HP left, MP right.
+pub const PLAYER_BARS_STYLES: [&str; 2] = ["bars", "arcs"];
+fn default_player_bars_style() -> String {
+    PLAYER_BARS_STYLES[0].into()
 }
 fn default_highlight() -> String {
     "self".into()
