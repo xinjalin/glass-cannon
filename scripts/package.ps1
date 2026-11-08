@@ -67,8 +67,8 @@ $npcNames = Get-Content -Raw (Join-Path $data 'npc-names.json') | ConvertFrom-Js
   "  from public fan databases ($($stones.source.scraped)); removed on request."
   "- dungeons.json (dungeon mobs and modes), from the same kind of scraped monster database"
   "  ($($dungeons.source.scraped)); removed on request."
-  '- places.json (Sealed Dungeon and Dimensional Invasion bosses), written by hand from community'
-  '  guides (Legaeon, ExpCarry) and matched by name to the bosses in npcs.json.'
+  '- places.json (Sealed Dungeon, Stronghold and Dimensional Invasion bosses), written by hand from'
+  '  community guides (Legaeon, aion2data.com, ExpCarry) and matched by name to the bosses in npcs.json.'
   "- pets.json (pets' names and genus) and npc-names.json (NPCs' names), from the same kind"
   "  of scraped pet and NPC databases ($($pets.source.scraped), $($npcNames.source.scraped)); removed on request."
   '- Icon_Item_Usable_*.png (scroll, potion and food icons), NCSOFT artwork from its game asset'

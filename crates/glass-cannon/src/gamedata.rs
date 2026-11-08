@@ -221,16 +221,17 @@ struct DungeonFile {
 }
 
 impl DungeonFile {
-    /// Adds `other`'s dungeons and mobs (never over this file's own), then works out the
-    /// blocks.
+    /// Works out this file's blocks, then adds `other`'s dungeons and mobs (never over
+    /// this file's own). Only the scrape's mobs make blocks: the hand-kept places list
+    /// bosses one by one.
     fn merge(&mut self, other: DungeonFile) {
+        self.find_blocks();
         for (id, d) in other.dungeons {
             self.dungeons.entry(id).or_insert(d);
         }
         for (id, m) in other.mobs {
             self.mobs.entry(id).or_insert(m);
         }
-        self.find_blocks();
     }
 
     /// The scrape misses a few of a dungeon's mobs (Vakron, the last boss of Vakron Sky
@@ -1120,6 +1121,7 @@ mod tests {
             r#"{ "dungeons": { "Sealed_ChillyHideout": { "name": "Chilly Hideout", "type": "Sealed Dungeon" },
                                "BakronIsland": { "name": "Not this", "type": "Nothing" } },
                  "mobs": { "2700914": { "dungeon": "Sealed_ChillyHideout" },
+                           "2700916": { "dungeon": "Sealed_ChillyHideout" },
                            "2320810": { "dungeon": "Sealed_ChillyHideout" } } }"#,
         )
         .unwrap();
@@ -1131,7 +1133,7 @@ mod tests {
         assert_eq!(d.dungeon(2_350_602), None, "one is too few to go by");
         let sealed = DungeonPlace { id: "Sealed_ChillyHideout", name: "Chilly Hideout", kind: Some("Sealed Dungeon"), mode: None };
         assert_eq!(d.dungeon(2_700_914), Some(sealed));
-        assert_eq!(d.dungeon(2_700_915), None, "one hand-kept boss doesn't make a block");
+        assert_eq!(d.dungeon(2_700_915), None, "hand-kept bosses don't make a block");
         fs::remove_dir_all(dir).ok();
     }
 

@@ -1,6 +1,6 @@
 {
   "source": {
-    "note": "Written by hand: the bosses of the Sealed Dungeons and Dimensional Invasions, which the scraped dungeon list (dungeons.json) doesn't have. Places and their bosses from Legaeon's Sealed Dungeons guide (https://legaeon.co.uk/guides/sealed-dungeons.html) and ExpCarry's Dimensional Invasion guide (https://expcarry.com/aion-2-dimensional-invasion-guide), matched by name to the boss types in npcs.json. Aion 2 game data; names belong to NCSOFT. Not covered by Glass Cannon's MIT licence.",
+    "note": "Written by hand: the bosses of the Sealed Dungeons, Strongholds and Dimensional Invasions, which the scraped dungeon list (dungeons.json) doesn't have. Places and their bosses from Legaeon's Sealed Dungeons guide (https://legaeon.co.uk/guides/sealed-dungeons.html), aion2data.com's boss list (https://aion2data.com/bosses: its Stronghold Commanders; a stronghold it doesn't name goes by its commander) and ExpCarry's Dimensional Invasion guide (https://expcarry.com/aion-2-dimensional-invasion-guide), matched by name to the boss types in npcs.json. Aion 2 game data; names belong to NCSOFT. Not covered by Glass Cannon's MIT licence.",
     "checked": "2026-11-08"
   },
   "dungeons": {
@@ -203,9 +203,235 @@
     "Sealed_VictimsCave": {
       "name": "Victims' Cave",
       "type": "Sealed Dungeon"
+    },
+    "Stronghold_AndshaForwardBase": {
+      "name": "Andsha Forward Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_BarahtaExterminationUnitOutpost": {
+      "name": "Barahta Extermination Unit Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_BladesTemporaryOutpost": {
+      "name": "Blades Temporary Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_CanyonThievesDen": {
+      "name": "Canyon Thieves Den",
+      "type": "Stronghold"
+    },
+    "Stronghold_CohtaOutpost": {
+      "name": "Cohta Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_CorruptedForesterRuins": {
+      "name": "Corrupted Forester Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_CursedSnowfieldHideout": {
+      "name": "Cursed Snowfield Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_DeserterEncampment": {
+      "name": "Deserter Encampment",
+      "type": "Stronghold"
+    },
+    "Stronghold_DetlefThievesCamp": {
+      "name": "Detlef Thieves Camp",
+      "type": "Stronghold"
+    },
+    "Stronghold_DharvataSurveillanceBase": {
+      "name": "Dharvata Surveillance Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_DigunakaForwardBase": {
+      "name": "Digunaka Forward Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_DinakraSkyOutpost": {
+      "name": "Dinakra Sky Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_FallenTempleRuins": {
+      "name": "Fallen Temple Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_FlaukeLegionOutpost": {
+      "name": "Flauke Legion Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_ForestMarauderCampsite": {
+      "name": "Forest Marauder Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_ForestShadeExecutionSite": {
+      "name": "Forest Shade Execution Site",
+      "type": "Stronghold"
+    },
+    "Stronghold_GargosThievesCampsite": {
+      "name": "Gargos Thieves Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_GoldenBranchStrongholdRuins": {
+      "name": "Golden Branch Stronghold Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_GranachsHideout": {
+      "name": "Granach's Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_GraverobberDen": {
+      "name": "Graverobber Den",
+      "type": "Stronghold"
+    },
+    "Stronghold_IceCanyonCampsite": {
+      "name": "Ice Canyon Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_LatrimaOutpost": {
+      "name": "Latrima Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_LegionBaseRuins": {
+      "name": "Legion Base Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_LoggersRestRuins": {
+      "name": "Logger's Rest Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_MaktashanOutpost": {
+      "name": "Maktashan Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_MantaschPatrolBase": {
+      "name": "Mantasch Patrol Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_MirosPost": {
+      "name": "Miros Post",
+      "type": "Stronghold"
+    },
+    "Stronghold_OutpostCaptainTarakha": {
+      "name": "Outpost Captain Tarakha",
+      "type": "Stronghold"
+    },
+    "Stronghold_PlateauHillBase": {
+      "name": "Plateau Hill Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_PoachersBase": {
+      "name": "Poacher's Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_PoisonFluidSabga": {
+      "name": "Poison Fluid Sabga",
+      "type": "Stronghold"
+    },
+    "Stronghold_RenegadeHideout": {
+      "name": "Renegade Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_RomlonsHideout": {
+      "name": "Romlon's Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_RubekThievesOccupiedTerritory": {
+      "name": "Rubek Thieves' Occupied Territory",
+      "type": "Stronghold"
+    },
+    "Stronghold_SanctumOutskirtsWatch": {
+      "name": "Sanctum Outskirts Watch",
+      "type": "Stronghold"
+    },
+    "Stronghold_SehnaOutpost": {
+      "name": "Sehna Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_SuspiciousRuins": {
+      "name": "Suspicious Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_ThievesDen": {
+      "name": "Thieves Den",
+      "type": "Stronghold"
+    },
+    "Stronghold_UgarosThievesCampsite": {
+      "name": "Ugaros Thieves Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_WatchCaptainAmurahta": {
+      "name": "Watch Captain Amurahta",
+      "type": "Stronghold"
     }
   },
   "mobs": {
+    "2110000": {
+      "dungeon": "Stronghold_DeserterEncampment"
+    },
+    "2110016": {
+      "dungeon": "Stronghold_RomlonsHideout"
+    },
+    "2110300": {
+      "dungeon": "Stronghold_ForestShadeExecutionSite"
+    },
+    "2110311": {
+      "dungeon": "Stronghold_RenegadeHideout"
+    },
+    "2110350": {
+      "dungeon": "Stronghold_PlateauHillBase"
+    },
+    "2110360": {
+      "dungeon": "Stronghold_UgarosThievesCampsite"
+    },
+    "2110370": {
+      "dungeon": "Stronghold_MirosPost"
+    },
+    "2110377": {
+      "dungeon": "Stronghold_MirosPost"
+    },
+    "2110380": {
+      "dungeon": "Stronghold_PoachersBase"
+    },
+    "2110390": {
+      "dungeon": "Stronghold_GargosThievesCampsite"
+    },
+    "2110399": {
+      "dungeon": "Stronghold_CanyonThievesDen"
+    },
+    "2110410": {
+      "dungeon": "Stronghold_MantaschPatrolBase"
+    },
+    "2110418": {
+      "dungeon": "Stronghold_PoisonFluidSabga"
+    },
+    "2110437": {
+      "dungeon": "Stronghold_CohtaOutpost"
+    },
+    "2110443": {
+      "dungeon": "Stronghold_SehnaOutpost"
+    },
+    "2110453": {
+      "dungeon": "Stronghold_MaktashanOutpost"
+    },
+    "2110465": {
+      "dungeon": "Stronghold_GoldenBranchStrongholdRuins"
+    },
+    "2110470": {
+      "dungeon": "Stronghold_ThievesDen"
+    },
+    "2110600": {
+      "dungeon": "Stronghold_SuspiciousRuins"
+    },
+    "2110619": {
+      "dungeon": "Stronghold_DigunakaForwardBase"
+    },
+    "2110620": {
+      "dungeon": "Stronghold_DigunakaForwardBase"
+    },
+    "2110640": {
+      "dungeon": "Stronghold_OutpostCaptainTarakha"
+    },
     "2340057": {
       "dungeon": "Invasion_IncursionoftheSpirits"
     },
@@ -217,6 +443,75 @@
     },
     "2345107": {
       "dungeon": "Invasion_IncursionoftheSpirits"
+    },
+    "2405006": {
+      "dungeon": "Stronghold_RubekThievesOccupiedTerritory"
+    },
+    "2405023": {
+      "dungeon": "Stronghold_GraverobberDen"
+    },
+    "2405045": {
+      "dungeon": "Stronghold_SanctumOutskirtsWatch"
+    },
+    "2405062": {
+      "dungeon": "Stronghold_CorruptedForesterRuins"
+    },
+    "2405072": {
+      "dungeon": "Stronghold_CorruptedForesterRuins"
+    },
+    "2405085": {
+      "dungeon": "Stronghold_LoggersRestRuins"
+    },
+    "2405106": {
+      "dungeon": "Stronghold_BladesTemporaryOutpost"
+    },
+    "2405120": {
+      "dungeon": "Stronghold_ForestMarauderCampsite"
+    },
+    "2405144": {
+      "dungeon": "Stronghold_LegionBaseRuins"
+    },
+    "2405150": {
+      "dungeon": "Stronghold_FlaukeLegionOutpost"
+    },
+    "2405151": {
+      "dungeon": "Stronghold_FlaukeLegionOutpost"
+    },
+    "2405152": {
+      "dungeon": "Stronghold_FlaukeLegionOutpost"
+    },
+    "2405175": {
+      "dungeon": "Stronghold_GranachsHideout"
+    },
+    "2405194": {
+      "dungeon": "Stronghold_LatrimaOutpost"
+    },
+    "2405215": {
+      "dungeon": "Stronghold_DetlefThievesCamp"
+    },
+    "2405236": {
+      "dungeon": "Stronghold_BarahtaExterminationUnitOutpost"
+    },
+    "2405256": {
+      "dungeon": "Stronghold_WatchCaptainAmurahta"
+    },
+    "2405276": {
+      "dungeon": "Stronghold_AndshaForwardBase"
+    },
+    "2407000": {
+      "dungeon": "Stronghold_IceCanyonCampsite"
+    },
+    "2407023": {
+      "dungeon": "Stronghold_CursedSnowfieldHideout"
+    },
+    "2407046": {
+      "dungeon": "Stronghold_DharvataSurveillanceBase"
+    },
+    "2407075": {
+      "dungeon": "Stronghold_FallenTempleRuins"
+    },
+    "2407094": {
+      "dungeon": "Stronghold_DinakraSkyOutpost"
     },
     "2700835": {
       "dungeon": "Sealed_CorruptedSpiritmastersResidence"

@@ -7,6 +7,8 @@ const POLL_MS = 3000;
 const RAID_KIND = "Sanctuary";
 // Out in the world, though the game puts you in a copy of it: with the field bosses.
 const FIELD_KINDS = ["Dimensional Invasion"];
+// Cleared once each, solo: a tab of their own.
+const SEALED_KINDS = ["Sealed Dungeon", "Stronghold"];
 
 let data = null;
 // The character shown ("" for fights whose character wasn't known), and which places.
@@ -36,6 +38,7 @@ kind = stored("attempts-kind") || "all";
 
 function placeKind(p) {
   if (!p.kind || FIELD_KINDS.includes(p.kind)) return "other";
+  if (SEALED_KINDS.includes(p.kind)) return "sealed";
   return p.kind === RAID_KIND ? "raids" : "dungeons";
 }
 
@@ -118,7 +121,7 @@ function draw(force) {
   $("empty").hidden = places.length > 0;
   $("empty").textContent = !chars.length
     ? "no boss kills or wipes yet: every try at a boss counts here"
-    : { raids: "no raid tries yet", dungeons: "no dungeon boss tries yet", other: "no field boss tries yet", all: "nothing yet" }[kind];
+    : { raids: "no raid tries yet", dungeons: "no dungeon boss tries yet", sealed: "no sealed dungeon or stronghold boss tries yet", other: "no field boss tries yet", all: "nothing yet" }[kind];
   $("clear").hidden = !c || !$("clear-ask").hidden;
   $("clear").title = c ? `Forget ${label(c.name)}'s attempts (the history keeps its fights)` : "";
 }
