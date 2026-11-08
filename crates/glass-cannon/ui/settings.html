@@ -144,6 +144,9 @@
               <button type="button" class="opt" data-widget="player" data-keywords="hp mp mana cast bar" aria-pressed="false" title="Your HP and MP as two thin bars, and a cast bar while you cast">
                 <span class="key">player bars</span><span class="state">[off]</span>
               </button>
+              <button type="button" class="opt" data-widget="vitals" data-keywords="arcs round center hud hp mp stamina flight power health mana gt companion" aria-pressed="false" title="Round arcs either side of your character, with no box: HP and stamina left, MP and flight power right, your cast under your feet (arrange it around your character)">
+                <span class="key">vitals arcs</span><span class="state">[off]</span>
+              </button>
               <button type="button" class="opt" data-widget="party" aria-pressed="false" title="Your party as a grid of tiles: each member's HP in their class's colour, and their MP">
                 <span class="key">party frames</span><span class="state">[off]</span>
               </button>
@@ -165,13 +168,6 @@
               <span class="choice" role="radiogroup" aria-label="Group the party cooldowns">
                 <button type="button" data-party-cd-choice="player" title="Each player, then their cooldowns">[player]</button>
                 <button type="button" data-party-cd-choice="class" title="Each class, then its skills, then who has them (ready first)">[class]</button>
-              </span>
-            </div>
-            <div class="line" data-keywords="player bars hp mp health mana arcs curved round center hud style layout">
-              <span class="key">player bars style</span>
-              <span class="choice" role="radiogroup" aria-label="How the player bars look">
-                <button type="button" data-bars-choice="bars" title="Straight bars: HP, MP and your cast">[bars]</button>
-                <button type="button" data-bars-choice="arcs" title="Curved bars around your character: HP left, MP right, the cast underneath (arrange the widget around your character)">[arcs]</button>
               </span>
             </div>
             <button id="arrange-overlay" data-keywords="move resize layout position edit" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">

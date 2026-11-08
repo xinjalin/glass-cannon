@@ -63,7 +63,6 @@ pub struct SettingsStatus {
     timer_region: String,
     alert_lead_min: u32,
     party_cooldowns_by_class: bool,
-    player_bars_style: String,
     pet_souls: bool,
     /// The overlay's widgets that show, and whether they're being arranged.
     widgets: Vec<String>,
@@ -167,7 +166,6 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         },
         alert_lead_min: s.alert_lead_min,
         party_cooldowns_by_class: s.party_cooldowns_by_class,
-        player_bars_style: s.player_bars_style.clone(),
         pet_souls: s.pet_souls,
         widgets: s.widgets,
         arranging: app.hud_editing.load(Ordering::SeqCst),

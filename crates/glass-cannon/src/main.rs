@@ -946,8 +946,6 @@ fn main() {
             widgets::set_boss_mechanics,
             widgets::set_boss_on_you,
             widgets::set_party_cooldowns_by_class,
-            widgets::player_bars_style,
-            widgets::set_player_bars_style,
             widgets::set_pet_souls,
             widgets::dummy_runs,
             widgets::pet_tracker,

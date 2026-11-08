@@ -16,6 +16,8 @@ const DEFAULTS = {
   cubes: { x: 0.72, y: 0.06, w: 280, h: 150 },
   target: { x: 0.37, y: 0.02, w: 380, h: 170 },
   player: { x: 0.37, y: 0.8, w: 300, h: 70 },
+  // Around your character, in the middle of the screen.
+  vitals: { x: 0.33, y: 0.36, w: 0.34, h: 300 },
   party: { x: 0.015, y: 0.3, w: 260, h: 150 },
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
@@ -27,10 +29,12 @@ const DEFAULTS = {
 // buttons; the others only show), whether they fade outside combat (all but the world
 // timers, which you read between fights), and whether they're always as tall as what they
 // show (the target frame with its stagger gauge, the party cooldowns' whole party: never
-// cut off).
+// cut off). A bare one (the vitals arcs) has no panel, so no frosted plate behind it.
 const SIDE_WIDGETS = {
   target: { page: "target.html", label: "target", passive: true, fades: true, grows: true },
   player: { page: "player.html", label: "player bars", passive: true, fades: false },
+  // No panel: no frosted plate behind it either.
+  vitals: { page: "vitals.html", label: "vitals arcs", passive: true, fades: false, bare: true },
   party: { page: "party.html", label: "party frames", passive: true, fades: false },
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true, grows: true },
@@ -45,6 +49,7 @@ const LABELS = [
   ["cubes", "hidden cubes"],
   ["target", "target frame"],
   ["player", "player bars"],
+  ["vitals", "vitals arcs"],
   ["party", "party frames"],
   ["cooldowns", "cooldowns"],
   ["party-cooldowns", "party cooldowns"],
@@ -99,7 +104,9 @@ function reportRects() {
   // The widgets with a panel get a frosted plate behind it (when frosted is chosen), but
   // not while they're faded.
   const faded = document.documentElement.classList.contains("faded") && !editing;
-  const panels = shown.filter((el) => el.querySelector("iframe") && !(faded && el.classList.contains("fades"))).map(box);
+  const panels = shown
+    .filter((el) => el.querySelector("iframe") && el.dataset.bare === undefined && !(faded && el.classList.contains("fades")))
+    .map(box);
   const key = JSON.stringify([rects, panels].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
@@ -246,6 +253,7 @@ function showWidgets(names) {
     el.dataset.widget = name;
     el.dataset.side = "";
     if (w.grows) el.dataset.grows = "";
+    if (w.bare) el.dataset.bare = "";
     el.dataset.label = w.label;
     const frame = document.createElement("iframe");
     frame.src = w.page;

@@ -14,7 +14,8 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 11] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "party", "cooldowns", "party-cooldowns", "timers", "pets"];
+pub const WIDGETS: [&str; 12] =
+    ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "vitals", "party", "cooldowns", "party-cooldowns", "timers", "pets"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
@@ -778,27 +779,6 @@ pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::Sel
         c.skill_name = lock(&app.data).skill_meta(c.skill).0;
     }
     Some(bars)
-}
-
-/// The player bars widget's look (bars or arcs).
-#[tauri::command]
-pub fn player_bars_style(app: State<'_, Arc<AppState>>) -> String {
-    let s = lock(&app.settings).player_bars_style.clone();
-    if crate::store::PLAYER_BARS_STYLES.contains(&s.as_str()) { s } else { crate::store::PLAYER_BARS_STYLES[0].into() }
-}
-
-/// Chosen in the settings; the widget is told (`player-bars-style`).
-#[tauri::command]
-pub fn set_player_bars_style(handle: AppHandle, app: State<'_, Arc<AppState>>, style: String) -> Result<(), String> {
-    if !crate::store::PLAYER_BARS_STYLES.contains(&style.as_str()) {
-        return Err(format!("unknown style {style}"));
-    }
-    let mut s = lock(&app.settings);
-    s.player_bars_style = style.clone();
-    s.save(&app.config_dir);
-    drop(s);
-    let _ = handle.emit("player-bars-style", style);
-    Ok(())
 }
 
 /// Your party as frames (the party frames widget).

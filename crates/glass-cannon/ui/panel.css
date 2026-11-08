@@ -359,9 +359,9 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .att-best { text-align: right; white-space: nowrap; }
 .att-wipe { color: var(--warn); }
 
-/* The player bars as arcs (settings → player bars style): no box, just round arcs either
-   side of your character on a dark track, drawn to the widget's size by player.js. */
-#panel.arcs-on { position: relative; padding: 0; background: transparent; box-shadow: none; }
+/* The vitals arcs widget: no box, just round arcs either side of your character on a dark
+   track, drawn to the widget's size by vitals.js. */
+#vitals { position: relative; width: 100%; height: 100%; }
 .arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .arcs { --arc-hp: #ef6b4f; --arc-stamina: #6dd37b; --arc-mp: #4ea2e6; --arc-flight: #f2c84b; }
 .arc-track, .arc-fill { fill: none; stroke-linecap: round; }
@@ -379,4 +379,4 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-text.mp { fill: var(--arc-mp); }
 .arc-text.flight { fill: var(--arc-flight); font-size: 0.65em; }
 .arc-text.cast { fill: var(--text); font-size: 0.8em; }
-#panel.arcs-on #empty { position: absolute; inset: auto 0 0; text-align: center; }
+#vitals #empty { position: absolute; inset: auto 0 0; margin: 0; text-align: center; }
