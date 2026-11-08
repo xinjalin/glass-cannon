@@ -198,7 +198,67 @@ $("menu-head").addEventListener("pointerdown", (e) => {
   $("menu-head").addEventListener("pointerup", up);
 });
 
-// A widget can be moved (and resized by its corner) while arranging, snapping to the grid.
+// ---------------------------------------------------------------- line-ups
+
+// How close (CSS pixels) a widget's edge or centre comes to a line before it snaps to it.
+const ALIGN_PX = 8;
+
+// The lines a widget at (left, top), w × h, can line up with: the screen's centre lines,
+// and every other widget's edges and centre, each way. Its own left, centre and right
+// (top, middle and bottom) snap to the nearest within ALIGN_PX, else the grid does.
+// Returns where it goes and the lines it met.
+function lineUp(el, left, top, w, h) {
+  const others = [...document.querySelectorAll(".widget:not([hidden])")].filter((o) => o !== el);
+  const xs = [{ at: innerWidth / 2, centre: true }];
+  const ys = [{ at: innerHeight / 2, centre: true }];
+  for (const o of others) {
+    const r = { l: o.offsetLeft, t: o.offsetTop, w: o.offsetWidth, h: o.offsetHeight };
+    xs.push({ at: r.l }, { at: r.l + r.w / 2 }, { at: r.l + r.w });
+    ys.push({ at: r.t }, { at: r.t + r.h / 2 }, { at: r.t + r.h });
+  }
+  // One axis: the nearest line to any of the three anchors (centre lines win a tie).
+  const best = (start, size, lines) => {
+    let found = null;
+    for (const offset of [0, size / 2, size]) {
+      for (const line of lines) {
+        const d = Math.abs(start + offset - line.at);
+        if (d > ALIGN_PX) continue;
+        if (!found || d < found.d || (d === found.d && line.centre && !found.line.centre)) found = { d, line, pos: line.at - offset };
+      }
+    }
+    return found;
+  };
+  const bx = best(left, w, xs);
+  const by = best(top, h, ys);
+  return {
+    left: bx ? bx.pos : snap(left),
+    top: by ? by.pos : snap(top),
+    x: bx && bx.line,
+    y: by && by.line,
+  };
+}
+
+// Lights the lines a dragged widget lines up with (none when `hit` is null).
+function showLineUps(hit) {
+  const box = $("guides");
+  for (const g of box.querySelectorAll(".guide.met")) g.remove();
+  box.querySelector(".guide.v.centre").classList.toggle("on", !!(hit && hit.x && hit.x.centre));
+  box.querySelector(".guide.h.centre").classList.toggle("on", !!(hit && hit.y && hit.y.centre));
+  if (!hit) return;
+  for (const [line, cls, prop] of [
+    [hit.x, "v", "left"],
+    [hit.y, "h", "top"],
+  ]) {
+    if (!line || line.centre) continue;
+    const g = document.createElement("div");
+    g.className = `guide ${cls} met`;
+    g.style[prop] = `${line.at}px`;
+    box.append(g);
+  }
+}
+
+// A widget can be moved (and resized by its corner) while arranging, snapping to the grid,
+// or to the screen's centre and the other widgets' edges and centres when it comes close.
 function setUp(el) {
   const grip = document.createElement("span");
   grip.className = "grip";
@@ -217,8 +277,10 @@ function setUp(el) {
         p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
         if (id !== "meter" && el.dataset.grows === undefined) p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
       } else {
-        p.x = Math.max(0, snap(start.left + dx)) / innerWidth;
-        p.y = Math.max(0, snap(start.top + dy)) / innerHeight;
+        const at = lineUp(el, start.left + dx, start.top + dy, start.w, start.h);
+        p.x = Math.max(0, at.left) / innerWidth;
+        p.y = Math.max(0, at.top) / innerHeight;
+        showLineUps(at);
       }
       layout[id] = p;
       place();
@@ -226,6 +288,7 @@ function setUp(el) {
     const up = () => {
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
+      showLineUps(null);
       saveLayout();
     };
     el.addEventListener("pointermove", move);

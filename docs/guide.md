@@ -28,7 +28,10 @@ from the game, and lets the mouse through except over the meter and the world ti
 
 **Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
 moves widgets and resizes them by their
-corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Widgets
+corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
+dashed lines mark the screen's centre: a widget dragged near it snaps to it, and the line
+lights up; its edges and centre also snap to another widget's edges or centre, with a
+line showing the line-up. Widgets
 that grow with what they show (the cooldowns) are outlined at the most they'll take, so
 they can be placed clear of each other; the target frame (stagger gauge included) and the
 party cooldowns (the whole party) are always as tall as what they show (only their width
