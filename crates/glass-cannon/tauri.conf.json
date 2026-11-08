@@ -89,6 +89,23 @@
         "center": false
       },
       {
+        "label": "attempts",
+        "title": "Glass Cannon attempts",
+        "width": 520,
+        "height": 560,
+        "minWidth": 360,
+        "minHeight": 260,
+        "url": "attempts.html",
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
+      },
+      {
         "label": "hud",
         "title": "Glass Cannon overlay",
         "url": "hud.html",

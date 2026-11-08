@@ -31,6 +31,7 @@ use meter_core::recorder::Side;
 use meter_core::session;
 
 mod analysis;
+mod attempts;
 mod dummy;
 mod fonts;
 mod game_window;
@@ -57,6 +58,7 @@ const SETTINGS: &str = "settings";
 const ANALYSIS: &str = "analysis";
 const HISTORY: &str = "history";
 const PET_MAP: &str = "petmap";
+const ATTEMPTS: &str = "attempts";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -174,12 +176,15 @@ pub struct AppState {
     field_bosses: Mutex<store::FieldBosses>,
     /// Your best against each boss.
     bests: Mutex<store::Bests>,
+    /// Every boss kill and wipe, per character (the attempts window).
+    attempts: Mutex<store::Attempts>,
     pets: Mutex<store::PetBook>,
     /// Content tickets and Abyss artifacts, as last sent.
     contents: Mutex<store::KnownContents>,
     /// The history window has been placed once.
     history_placed: AtomicBool,
     pet_map_placed: AtomicBool,
+    attempts_placed: AtomicBool,
     /// Where every window was last (saved as they move, at most once a second).
     placements: Mutex<placement::Placements>,
     /// Your training dummy runs, and dummy mode's state on the meter.
@@ -413,6 +418,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             }
         }
         lock(&app.bests).record(&view, ended_ms, self_name.as_deref());
+        lock(&app.attempts).record(&view, ended_ms, self_name.as_deref());
         history.push(Fight { ended_ms, self_name, view });
     }
     data.annotate(&mut snap);
@@ -615,6 +621,12 @@ fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
         }
     }
     drop(bests);
+    let attempts = lock(&app.attempts);
+    for f in fights.iter_mut().filter(|f| f.end == Some(meter_core::meter::FightEnd::Wipe)) {
+        let character = history.fight(f.index).and_then(|x| x.self_name.as_deref());
+        f.best_try = f.target_type.and_then(|t| attempts.get(character, t)).is_some_and(|a| a.best_wipe_ms == f.ended_ms);
+    }
+    drop(attempts);
     drop(history);
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
@@ -818,6 +830,11 @@ fn main() {
     let known_players = KnownPlayers::load(&config_dir);
     let placements = placement::Placements::load(&config_dir);
     let config_dir_for_pvp = config_dir.clone();
+    // Boss fights from before their lowest HP was kept get it from their saved analysis,
+    // before their tries are first counted.
+    let mut history = History::load(&config_dir);
+    history.fill_low_hp(&FightDetails::new(&config_dir));
+    let attempts = store::Attempts::load(&config_dir, &history);
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
             meter: Mutex::new({
@@ -836,7 +853,7 @@ fn main() {
             changed: (Mutex::new(false), Condvar::new()),
         }),
         data: Mutex::new(data),
-        history: Mutex::new(History::load(&config_dir)),
+        history: Mutex::new(history),
         details: FightDetails::new(&config_dir),
         instances: Mutex::new(Instances::load(&config_dir)),
         analysis_selection: Mutex::new(analysis::Selection::default()),
@@ -863,9 +880,11 @@ fn main() {
         field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
         contents: Mutex::new(store::KnownContents::load(&config_dir_for_pvp)),
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
+        attempts: Mutex::new(attempts),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
         pet_map_placed: AtomicBool::new(false),
+        attempts_placed: AtomicBool::new(false),
         placements: Mutex::new(placements),
         dummy: Mutex::new(dummy::DummyBook::load(&config_dir_for_pvp)),
         dummy_tracker: Mutex::new(dummy::DummyTracker::default()),
@@ -950,6 +969,9 @@ fn main() {
             widgets::gather_map,
             widgets::gather_icon,
             settings::open_pet_map,
+            settings::open_attempts,
+            attempts::attempts_list,
+            attempts::clear_attempts,
             settings::fit_pet_map,
             settings::reset_settings,
             settings::set_hotkey,
@@ -1040,7 +1062,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS] {
         if Some(label) == skip {
             continue;
         }

@@ -895,6 +895,136 @@ impl Bests {
     }
 }
 
+/// One boss's attempts as one character.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Tally {
+    pub kills: u32,
+    pub wipes: u32,
+    /// When the first and the latest attempt ended (ms since 1970).
+    pub first_ms: u64,
+    pub last_ms: u64,
+    /// The first kill, when.
+    #[serde(default)]
+    pub first_kill_ms: Option<u64>,
+    /// The fastest kill (the fight's length).
+    #[serde(default)]
+    pub fastest_kill_s: Option<f64>,
+    /// The best wipe: the lowest the boss got (a share of its HP), and when it ended.
+    #[serde(default)]
+    pub best_wipe: Option<f64>,
+    #[serde(default)]
+    pub best_wipe_ms: u64,
+    /// Time in its fights, seconds.
+    #[serde(default)]
+    pub fight_s: f64,
+}
+
+impl Tally {
+    pub fn attempts(&self) -> u32 {
+        self.kills + self.wipes
+    }
+}
+
+/// Every boss kill and wipe, per character and boss (`attempts.json`): how many tries a
+/// boss took, and the best of the wipes. Kept apart from the history, which only keeps the
+/// last fights, and not cleared with it.
+pub struct Attempts {
+    path: PathBuf,
+    /// Character name ("" when it wasn't known) -> boss mob type -> its attempts.
+    by_character: BTreeMap<String, BTreeMap<u32, Tally>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct AttemptsFile {
+    characters: BTreeMap<String, BTreeMap<u32, Tally>>,
+}
+
+impl Attempts {
+    /// Loads `attempts.json`; with none yet, counts the fights in `history` (so the tries
+    /// before this was kept count too) and saves them.
+    pub fn load(dir: &Path, history: &History) -> Self {
+        let path = dir.join("attempts.json");
+        let saved = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<AttemptsFile>(&t).ok());
+        let mut a = Self { path, by_character: saved.as_ref().map(|f| f.characters.clone()).unwrap_or_default() };
+        if saved.is_none() {
+            for f in &history.fights {
+                a.count(&f.view, f.ended_ms, f.self_name.as_deref());
+            }
+            if !a.by_character.is_empty() {
+                a.save();
+            }
+        }
+        a
+    }
+
+    fn save(&self) {
+        if let Some(dir) = self.path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let file = AttemptsFile { characters: self.by_character.clone() };
+        if let Ok(s) = serde_json::to_string_pretty(&file) {
+            let _ = fs::write(&self.path, s);
+        }
+    }
+
+    /// Counts a finished fight if it was a boss kill or wipe; true if it counted.
+    fn count(&mut self, view: &EncounterView, ended_ms: u64, character: Option<&str>) -> bool {
+        let (Some(boss), true) = (view.target_type, view.target_boss) else { return false };
+        let kill = match view.end {
+            Some(FightEnd::Kill) => true,
+            Some(FightEnd::Wipe) => false,
+            _ => return false,
+        };
+        let t = self.by_character.entry(character.unwrap_or("").to_string()).or_default().entry(boss).or_default();
+        if t.attempts() == 0 || ended_ms < t.first_ms {
+            t.first_ms = ended_ms;
+        }
+        t.last_ms = t.last_ms.max(ended_ms);
+        t.fight_s += view.duration_s;
+        if kill {
+            t.kills += 1;
+            if t.first_kill_ms.is_none_or(|ms| ended_ms < ms) {
+                t.first_kill_ms = Some(ended_ms);
+            }
+            if t.fastest_kill_s.is_none_or(|s| view.duration_s < s) {
+                t.fastest_kill_s = Some(view.duration_s);
+            }
+        } else {
+            t.wipes += 1;
+            if let Some(low) = view.target_low_hp {
+                if t.best_wipe.is_none_or(|b| low < b) {
+                    (t.best_wipe, t.best_wipe_ms) = (Some(low), ended_ms);
+                }
+            }
+        }
+        true
+    }
+
+    /// Counts a finished fight if it was a boss kill or wipe, and saves.
+    pub fn record(&mut self, view: &EncounterView, ended_ms: u64, character: Option<&str>) {
+        if self.count(view, ended_ms, character) {
+            self.save();
+        }
+    }
+
+    /// `character`'s attempts at `boss`.
+    pub fn get(&self, character: Option<&str>, boss: u32) -> Option<&Tally> {
+        self.by_character.get(character.unwrap_or(""))?.get(&boss)
+    }
+
+    /// Every character's attempts: name ("" when it wasn't known) -> boss -> attempts.
+    pub fn all(&self) -> &BTreeMap<String, BTreeMap<u32, Tally>> {
+        &self.by_character
+    }
+
+    /// Forgets `character`'s attempts.
+    pub fn clear(&mut self, character: &str) {
+        if self.by_character.remove(character).is_some() {
+            self.save();
+        }
+    }
+}
+
 /// Each character's pets: level and souls toward the next one (`pets.json`), so a meter
 /// started after the game sent its pet list (at login, entering or leaving a dungeon, and
 /// some other moves) still knows them.
@@ -970,7 +1100,11 @@ pub struct FightSummary {
     pub deaths: usize,
     /// Your best DPS against its boss, or its fastest kill (filled in for the list).
     pub best_dps: bool,
-    pub fastest: bool
+    pub fastest: bool,
+    /// How low its target got (a share of its HP; 0 when killed), when known.
+    pub low_hp: Option<f64>,
+    /// Your best wipe against its boss: it got lowest (filled in for the list).
+    pub best_try: bool,
 }
 
 pub struct History {
@@ -1040,8 +1174,21 @@ impl History {
                 deaths: f.view.deaths.len(),
                 best_dps: false,
                 fastest: false,
+                low_hp: f.view.target_low_hp,
+                best_try: false,
             })
             .collect()
+    }
+
+    /// Fills in how low each boss got, for boss fights saved before that was kept, from
+    /// their saved analysis (the newest fights have one).
+    pub fn fill_low_hp(&mut self, details: &FightDetails) {
+        for f in self.fights.iter_mut().filter(|f| f.view.target_boss && f.view.target_low_hp.is_none()) {
+            let Some(a) = details.load(f.ended_ms) else { continue };
+            let Some(hp) = a.target_hp.iter().find(|h| Some(h.target) == f.view.target_id && h.max > 0) else { continue };
+            let Some(low) = hp.samples.iter().map(|p| p.hp).min() else { continue };
+            f.view.target_low_hp = Some(if f.view.end == Some(FightEnd::Kill) { 0.0 } else { low as f64 / hp.max as f64 });
+        }
     }
 
     pub fn fight(&self, index: usize) -> Option<&Fight> {
@@ -1348,6 +1495,58 @@ mod tests {
         assert_eq!(h.fight(1).map(|f| f.ended_ms), Some(2), "the oldest other fight goes");
         let again = History::load(&dir);
         assert_eq!((again.len(), again.fight(0).map(|f| f.ended_ms)), (HISTORY_LIMIT + 1, Some(0)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    /// A boss fight against mob type 7: how it ended, how low the boss got, how long.
+    fn boss_try(end: FightEnd, low: Option<f64>, secs: f64) -> EncounterView {
+        let mut v = snap(None, Some(18)).encounter.unwrap();
+        (v.target_boss, v.target_type, v.end, v.target_low_hp, v.duration_s) = (true, Some(7), Some(end), low, secs);
+        v
+    }
+
+    #[test]
+    fn attempts_count_each_characters_kills_and_wipes() {
+        let dir = temp_dir("attempts");
+        let mut a = Attempts::load(&dir, &History::load(&dir));
+        a.record(&boss_try(FightEnd::Wipe, Some(0.8), 60.0), 1000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Wipe, Some(0.6), 90.0), 2000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Wipe, Some(0.7), 80.0), 3000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Kill, Some(0.0), 200.0), 4000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Kill, Some(0.0), 150.0), 5000, Some("Nene"));
+        // Another character's, and fights that aren't tries: idle, or not a boss.
+        a.record(&boss_try(FightEnd::Wipe, Some(0.9), 30.0), 6000, Some("Alt"));
+        a.record(&boss_try(FightEnd::Idle, Some(0.5), 30.0), 7000, Some("Nene"));
+        let mut trash = boss_try(FightEnd::Kill, None, 10.0);
+        trash.target_boss = false;
+        a.record(&trash, 8000, Some("Nene"));
+
+        let t = a.get(Some("Nene"), 7).unwrap().clone();
+        assert_eq!((t.kills, t.wipes, t.attempts()), (2, 3, 5));
+        assert_eq!((t.best_wipe, t.best_wipe_ms), (Some(0.6), 2000), "the wipe that got lowest");
+        assert_eq!((t.fastest_kill_s, t.first_kill_ms), (Some(150.0), Some(4000)));
+        assert_eq!((t.first_ms, t.last_ms, t.fight_s), (1000, 5000, 580.0));
+        assert_eq!(a.get(Some("Alt"), 7).map(Tally::attempts), Some(1));
+        // Kept, and kept apart from the history.
+        let again = Attempts::load(&dir, &History::load(&dir));
+        assert_eq!(again.get(Some("Nene"), 7), Some(&t));
+        let mut again = again;
+        again.clear("Alt");
+        assert!(Attempts::load(&dir, &History::load(&dir)).get(Some("Alt"), 7).is_none());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn attempts_start_from_the_history() {
+        let dir = temp_dir("attempts-seed");
+        let mut h = History::load(&dir);
+        h.push(Fight { ended_ms: 10, self_name: Some("Nene".into()), view: boss_try(FightEnd::Wipe, Some(0.5), 60.0) });
+        h.push(Fight { ended_ms: 20, self_name: Some("Nene".into()), view: boss_try(FightEnd::Kill, Some(0.0), 60.0) });
+        let a = Attempts::load(&dir, &h);
+        assert_eq!(a.get(Some("Nene"), 7).map(|t| (t.kills, t.wipes)), Some((1, 1)));
+        // Only the first time: the next start reads the file, not the history again.
+        h.push(Fight { ended_ms: 30, self_name: Some("Nene".into()), view: boss_try(FightEnd::Wipe, Some(0.4), 60.0) });
+        assert_eq!(Attempts::load(&dir, &h).get(Some("Nene"), 7).map(|t| t.wipes), Some(1));
         fs::remove_dir_all(dir).ok();
     }
 

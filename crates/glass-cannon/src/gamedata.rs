@@ -574,6 +574,13 @@ impl GameData {
         (!e.name.is_empty()).then(|| (e.name.clone(), e.boss && !dummy_entry(e)))
     }
 
+    /// A mob type's name as the lists show it (tidied), when the data has one.
+    pub fn npc_label(&self, type_id: u32) -> Option<String> {
+        let (mut name, _) = self.npc(type_id)?;
+        tidy(&mut name);
+        Some(name)
+    }
+
     pub fn annotate_view(&self, enc: &mut EncounterView) {
         let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
         for row in rows.flat_map(|p| p.skills.iter_mut()) {

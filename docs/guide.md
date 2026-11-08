@@ -193,6 +193,20 @@ fight on the meter's boss line, or the target frame while it shows (green while 
 beating it), and as ★ tags on the fights in the history that set them. They're kept per
 character, count every kill you were in, and [clear] resets them.
 
+**Raids** ([raids] in the history): the Sanctuaries (Abyssal Forge: Ludra and the others),
+their runs and their fights. Every boss wipe says how far it got, as the boss's lowest HP
+("✗ wipe at 72.9%"), and the wipe that got a boss lowest is your **★ best try** against it
+(per character).
+
+**Attempts** (the flag icon on the launcher, or **[attempts]** at the bottom of the
+history): a window with each character's tries at every boss, a tab per character. Each
+dungeon or raid, in each mode, lists its bosses in the order you first tried them with
+their tries, kills (✓) and wipes (✗), and the best of them: your fastest kill, or until
+the first kill the lowest the boss got. [raids], [dungeons] and [field & other] narrow
+it. It counts every boss kill and wipe from when it was added (starting with the fights
+already in the history), and the history's [clear] doesn't touch it: its own [clear]
+forgets one character's tries (it asks first).
+
 **World PvP**: while you fight players outside your party (as in the Abyss), a line under
 the target shows your kills and deaths and the damage dealt and taken; hover it for the
 opponents. The history's [pvp] tab keeps each session.

@@ -46,6 +46,7 @@ const ACTIONS = {
   analysis: () => invoke("open_analysis", { fight: null, run: null, player: null }).catch(() => {}),
   history: () => invoke("open_history").catch(() => {}),
   petMap: () => invoke("open_pet_map").catch(() => {}),
+  attempts: () => invoke("open_attempts").catch(() => {}),
 };
 
 // The list's rows: "key - value" on the left, something short on the right. Each is only
@@ -176,6 +177,7 @@ $("cover").addEventListener("click", ACTIONS.analysis);
 $("analysis").addEventListener("click", ACTIONS.analysis);
 $("history").addEventListener("click", ACTIONS.history);
 $("pet-map").addEventListener("click", ACTIONS.petMap);
+$("attempts").addEventListener("click", ACTIONS.attempts);
 $("arrange").addEventListener("click", async () => {
   await invoke("hud_edit", { on: !(state && state.arranging) }).catch(() => {});
   refresh();

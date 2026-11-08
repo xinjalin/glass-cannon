@@ -62,6 +62,7 @@ button {
 .note { color: var(--faint); font-size: 0.85em; }
 .history-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6em; }
 .history-foot button { flex: none; color: var(--accent); font-size: 0.85em; }
+.history-foot .foot-buttons { display: flex; flex: none; gap: 0.5em; }
 .clear-ask { flex: none; color: var(--muted); font-size: 0.85em; white-space: nowrap; }
 .clear-ask button { font-size: 1em; }
 .history-foot button.danger { color: var(--bad); }
@@ -331,3 +332,31 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .frame.dead .fr-name, .frame.dead .fr-value { color: var(--bad); }
 /* Nothing sent about them yet (it comes as their HP or MP changes). */
 .frame.unknown { opacity: 0.45; }
+
+/* ---------------------------------------------------------------- attempts */
+
+#characters { margin-bottom: 0.2em; }
+.att-totals { margin: 0 0.3em 0.4em; color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+/* A dungeon or raid in one mode: its name and tries, then a line per boss. */
+.att-place { margin-bottom: 0.6em; padding: 0.3em 0.4em 0.4em; border: 1px solid var(--line-faint); border-radius: 0.3em; background: rgba(0, 0, 0, 0.22); }
+.att-place.raid { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.att-head { display: flex; align-items: center; gap: 0.5em; min-width: 0; margin-bottom: 0.2em; }
+.att-head .run-name { min-width: 0; }
+.att-sum { margin-left: auto; flex: none; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.att-boss {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.2em 6.5em 6.2em;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.12em 0.2em;
+  border-radius: 0.25em;
+  font-variant-numeric: tabular-nums;
+}
+.att-boss:not(.att-cols):hover { background: var(--line-faint); }
+.att-cols { color: var(--faint); font-size: 0.8em; }
+.att-cols span:nth-child(n + 2) { text-align: right; }
+.att-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.att-tries { color: var(--text); font-weight: 700; text-align: right; }
+.att-record { display: flex; justify-content: flex-end; gap: 0.5em; }
+.att-best { text-align: right; white-space: nowrap; }
+.att-wipe { color: var(--warn); }

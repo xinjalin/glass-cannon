@@ -74,6 +74,8 @@ const SELF_HEAL_WAIT_US: u64 = 50_000;
 const MAX_SKILLS_PER_ROW: usize = 12;
 /// HP samples are kept this long, so a long boss fight still has its whole HP line.
 const HP_KEEP_US: u64 = 60 * 60_000_000;
+/// How long after a fight's last hit its target's HP still counts for its lowest.
+const LOW_HP_AFTER_US: u64 = 1_000_000;
 /// How often (in samples) entities that haven't changed HP for that long are forgotten.
 const HP_PRUNE_EVERY: u32 = 4096;
 
@@ -427,6 +429,10 @@ pub struct EncounterView {
     /// warnings' "on you" card, once per turn.
     #[serde(default)]
     pub boss_on_you_us: Option<u64>,
+    /// The main target's lowest HP in the fight as a share of its max (0 when killed): how
+    /// far a wipe got. Unknown when its HP wasn't seen, and in fights saved before this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_low_hp: Option<f64>,
 }
 
 /// A boss's cast, from its start (or, with no cast time, when it went off).
@@ -777,6 +783,13 @@ impl HpLog {
             self.entities
                 .retain(|_, e| e.samples.back().is_some_and(|(t, _)| ts_us.saturating_sub(*t) <= HP_KEEP_US));
         }
+    }
+
+    /// The entity's lowest HP during `start..=end`, as a share of its max.
+    fn lowest(&self, entity: u64, start: u64, end: u64) -> Option<f64> {
+        let e = self.entities.get(&entity)?;
+        let low = e.samples.iter().filter(|(t, _)| (start..=end).contains(t)).map(|(_, hp)| *hp).min()?;
+        (e.max > 0).then(|| low as f64 / e.max as f64)
     }
 
     /// The entity's HP during `start..=end`, in ms from `start`. The last sample before
@@ -2174,6 +2187,11 @@ impl Meter {
             boss_now_s,
             boss_cast,
             boss_on_you_us: main_target.filter(|_| active).and_then(|t| self.on_you_since(t)),
+            // Up to a second after the last hit, for its HP to come in (a wipe's reset to
+            // full comes later); a kill is 0 even when its last HP came later still.
+            target_low_hp: main_target
+                .and_then(|t| self.hp.lowest(t, first, last + LOW_HP_AFTER_US))
+                .map(|low| if e.end == Some(FightEnd::Kill) { 0.0 } else { low }),
         })
     }
 
@@ -2536,7 +2554,10 @@ mod tests {
         let points: Vec<(u32, u64)> = h.samples.iter().map(|p| (p.t, p.hp)).collect();
         // The last value before the fight starts the line; nothing after its last hit.
         assert_eq!(points, [(0, 110_000), (100, 105_500)]);
-        assert_eq!(m.take_finished()[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
+        let done = m.take_finished();
+        assert_eq!(done[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
+        // How low it got: the HP just after the last hit counts, the reset after doesn't.
+        assert_eq!(done[0].view.target_low_hp, Some(101_000.0 / 119_700.0));
     }
 
     #[test]
