@@ -380,3 +380,28 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-text.flight { fill: var(--arc-flight); font-size: 0.65em; }
 .arc-text.cast { fill: var(--text); font-size: 0.8em; }
 #vitals #empty { position: absolute; inset: auto 0 0; margin: 0; text-align: center; }
+
+/* ---------------------------------------------------------------- checklist */
+
+.ck-box { margin-bottom: 0.7em; padding: 0.3em 0.45em 0.45em; border: 1px solid var(--line-faint); border-radius: 0.3em; background: rgba(0, 0, 0, 0.22); }
+.ck-head { margin: 0 0 0.3em; color: var(--accent); font-size: 0.9em; font-weight: 700; letter-spacing: 0.04em; }
+.ck-head .note { font-weight: 400; letter-spacing: 0; }
+.ck-energy { font-variant-numeric: tabular-nums; }
+.ck-energy-basic, .ck-energy-charged { color: var(--accent-2); font-size: 1.2em; font-weight: 700; }
+.ck-list { margin: 0; padding: 0; list-style: none; }
+.ck-source { padding: 0.2em 0.1em; }
+.ck-source + .ck-source { border-top: 1px solid var(--line-faint); }
+.ck-top { display: flex; align-items: center; gap: 0.45em; min-width: 0; }
+.ck-mark { flex: none; width: 1em; color: var(--muted); text-align: center; }
+.ck-source.done .ck-mark { color: var(--ok); }
+.ck-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ck-source.done .ck-label { color: var(--muted); }
+.ck-count { flex: none; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.ck-tag { flex: none; padding: 0 0.35em; border: 1px solid var(--line); border-radius: 0.25em; color: var(--muted); font-size: 0.75em; }
+.ck-step { flex: none; min-width: 1.4em; color: var(--accent); }
+.ck-step:hover:not(:disabled) { background: var(--line-faint); }
+.ck-step:disabled { color: var(--faint); cursor: default; }
+.ck-bar { position: relative; height: 0.3em; margin: 0.25em 0 0 1.45em; border-radius: 0.15em; overflow: hidden; background: var(--line-faint); }
+.ck-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-fill, var(--accent)); }
+.ck-source.done .ck-fill { background: var(--ok); }
+.ck-note { margin: 0.15em 0 0 1.75em; }

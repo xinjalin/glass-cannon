@@ -6,6 +6,13 @@
 //! charged energy, which fell by 80 each time a dungeon was completed (490 to 410, 355 to
 //! 275). The other tickets' contents aren't named in any data we have.
 //!
+//! Shop purchase counters (`0x568e`): u16 0, u8 n, then n × (u32 counter, u32 bought,
+//! u64 reset time in ms since 1970), the whole list after login and when a shop opens.
+//! Counter [`ODYLE_PURCHASE`] is the weekly buy of Odyle Energy for Kina at the trade guild
+//! (20 a week per character, as SkeeveAN's Aion DPS Meter has it): 20 bought in our
+//! 2026-10-24 capture, 0 in the next week's, each resetting Wednesday 07:00 UTC (16:00 in
+//! Korea). The other six counters there aren't named.
+//!
 //! The Abyss artifacts' layout is from A2Tools' notes (read against the in-game map); it
 //! isn't in any of our captures yet, so a message is only read when every byte of it falls
 //! into place.
@@ -20,6 +27,41 @@ pub const OPCODE_TICKETS: u16 = 0x610b;
 pub const OPCODE_TICKET_UPDATE: u16 = 0x610c;
 /// Odyle energy's ticket: its count is the basic energy, its charges the charged energy.
 pub const ODYLE_ENERGY: u32 = 60_000_001;
+
+/// Shop purchase counters: see the module's notes.
+pub const OPCODE_SHOP_COUNTERS: u16 = 0x568e;
+/// The weekly Odyle Energy buy at the trade guild, and how many a week.
+pub const ODYLE_PURCHASE: u32 = 100_134;
+pub const ODYLE_PURCHASE_MAX: u32 = 20;
+
+/// A shop purchase limit: how many were bought, and when the count resets.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ShopCounter {
+    pub id: u32,
+    pub bought: u32,
+    pub reset_ms: u64,
+}
+
+/// Every counter, when the message reads exactly to its end.
+pub fn parse_shop_counters(p: &[u8]) -> Option<Vec<ShopCounter>> {
+    if p.get(..2)? != [0, 0] {
+        return None;
+    }
+    let n = usize::from(*p.get(2)?);
+    if p.len() != 3 + 16 * n {
+        return None;
+    }
+    Some(
+        p[3..]
+            .chunks_exact(16)
+            .map(|c| ShopCounter {
+                id: u32::from_le_bytes(c[..4].try_into().expect("4 bytes")),
+                bought: u32::from_le_bytes(c[4..8].try_into().expect("4 bytes")),
+                reset_ms: u64::from_le_bytes(c[8..].try_into().expect("8 bytes")),
+            })
+            .collect(),
+    )
+}
 
 /// The Abyss map was opened: who holds each artifact, both layers.
 pub const OPCODE_ABYSS_MAP: u16 = 0xe307;
@@ -133,6 +175,20 @@ pub fn parse_abyss(opcode: u16, p: &[u8]) -> Option<(Vec<Siege>, Vec<Artifact>)>
 mod tests {
     use super::*;
     use crate::entities::tests::hex;
+
+    #[test]
+    fn shop_counters_and_the_weekly_odyle_buy() {
+        // From our 2026-10-24 capture: seven counters, the Odyle buy's 20 of 20.
+        let p = hex(
+            "00 00 07 91 04 00 00 00 00 00 00 80 fd 4e 81 a1 01 00 00 e6 04 00 00 00 00 00 00 80 75 d5 2a bb 03 00 00              ee 04 00 00 01 00 00 00 80 6d e8 95 a1 01 00 00 04 87 01 00 1e 00 00 00 80 fd 4e 81 a1 01 00 00              26 87 01 00 14 00 00 00 80 fd 4e 81 a1 01 00 00 27 87 01 00 00 00 00 00 80 fd 4e 81 a1 01 00 00              2d 87 01 00 00 00 00 00 80 fd 4e 81 a1 01 00 00",
+        );
+        let list = parse_shop_counters(&p).unwrap();
+        assert_eq!(list.len(), 7);
+        let odyle = list.iter().find(|c| c.id == ODYLE_PURCHASE).unwrap();
+        // Wednesday 2026-10-28 07:00 UTC.
+        assert_eq!((odyle.bought, odyle.reset_ms), (20, 1_793_170_800_000));
+        assert!(parse_shop_counters(&p[..p.len() - 1]).is_none());
+    }
 
     #[test]
     fn the_ticket_list_and_odyle_energy() {

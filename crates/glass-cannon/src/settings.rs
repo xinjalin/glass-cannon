@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, CHECKLIST, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -28,6 +28,7 @@ const MIN_SETTINGS: (f64, f64) = (420.0, 320.0);
 const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
 const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
 const MIN_ATTEMPTS: (f64, f64) = (360.0, 260.0);
+const MIN_CHECKLIST: (f64, f64) = (320.0, 240.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
@@ -358,6 +359,25 @@ pub fn open_attempts(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result
     if (first && !restored) || !fully_on_screen(&w) {
         if let Ok(size) = w.outer_size() {
             place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_ATTEMPTS, &SIDES);
+        }
+    }
+    w.show().map_err(|e| e.to_string())?;
+    let _ = w.unminimize();
+    w.set_focus().map_err(|e| e.to_string())
+}
+
+/// Shows the checklist window, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_checklist(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let w = handle.get_webview_window(CHECKLIST).ok_or("no checklist window")?;
+    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
+        return w.hide().map_err(|e| e.to_string());
+    }
+    let first = !app.checklist_placed.swap(true, Ordering::SeqCst);
+    let restored = first && lock(&app.placements).get(CHECKLIST).is_some_and(|p| crate::placement::restore(&w, p, true));
+    if (first && !restored) || !fully_on_screen(&w) {
+        if let Ok(size) = w.outer_size() {
+            place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_CHECKLIST, &SIDES);
         }
     }
     w.show().map_err(|e| e.to_string())?;

@@ -219,6 +219,14 @@ it. It counts every boss kill and wipe from when it was added (starting with the
 already in the history), and the history's [clear] doesn't touch it: its own [clear]
 forgets one character's tries (it asks first).
 
+**Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
+and charged) and its weekly sources, with how much of each is done this week and when
+the week starts again (Wednesday 07:00 UTC, 16:00 in Korea). The weekly Kina buy of Odyle
+Energy at the trade guild (20 a week) comes from the game: log in, or open a shop, with
+the meter open. The two weekly conversions into Odyle Energy (16 and 4 a week) aren't in
+anything the game sends that we've found, so tick them with **[+]** and **[−]**. Each
+character keeps its own, and all of it starts again at the weekly reset.
+
 **World PvP**: while you fight players outside your party (as in the Abyss), a line under
 the target shows your kills and deaths and the damage dealt and taken; hover it for the
 opponents. The history's [pvp] tab keeps each session.

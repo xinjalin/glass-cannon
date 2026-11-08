@@ -32,6 +32,7 @@ use meter_core::session;
 
 mod analysis;
 mod attempts;
+mod checklist;
 mod dummy;
 mod fonts;
 mod game_window;
@@ -59,6 +60,7 @@ const ANALYSIS: &str = "analysis";
 const HISTORY: &str = "history";
 const PET_MAP: &str = "petmap";
 const ATTEMPTS: &str = "attempts";
+const CHECKLIST: &str = "checklist";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -185,6 +187,9 @@ pub struct AppState {
     history_placed: AtomicBool,
     pet_map_placed: AtomicBool,
     attempts_placed: AtomicBool,
+    checklist_placed: AtomicBool,
+    /// Each character's weekly Odyle sources (the checklist window).
+    checklist: Mutex<checklist::Checklist>,
     /// Where every window was last (saved as they move, at most once a second).
     placements: Mutex<placement::Placements>,
     /// Your training dummy runs, and dummy mode's state on the meter.
@@ -374,6 +379,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     };
     let (mut souls, pvp_now) = souls;
     lock(&app.field_bosses).update(field_bosses);
+    checklist::take(&app, &contents);
     lock(&app.contents).update(contents);
     if !pvp.is_empty() {
         let mut log = lock(&app.pvp);
@@ -885,6 +891,8 @@ fn main() {
         history_placed: AtomicBool::new(false),
         pet_map_placed: AtomicBool::new(false),
         attempts_placed: AtomicBool::new(false),
+        checklist_placed: AtomicBool::new(false),
+        checklist: Mutex::new(checklist::Checklist::load(&config_dir_for_pvp)),
         placements: Mutex::new(placements),
         dummy: Mutex::new(dummy::DummyBook::load(&config_dir_for_pvp)),
         dummy_tracker: Mutex::new(dummy::DummyTracker::default()),
@@ -972,6 +980,9 @@ fn main() {
             settings::open_attempts,
             attempts::attempts_list,
             attempts::clear_attempts,
+            settings::open_checklist,
+            checklist::checklist,
+            checklist::step_checklist,
             settings::fit_pet_map,
             settings::reset_settings,
             settings::set_hotkey,
@@ -1062,7 +1073,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST] {
         if Some(label) == skip {
             continue;
         }

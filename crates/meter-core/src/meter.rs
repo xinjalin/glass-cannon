@@ -524,6 +524,8 @@ pub struct Contents {
     pub tickets: Vec<crate::contents::Ticket>,
     pub sieges: Vec<crate::contents::Siege>,
     pub artifacts: Vec<crate::contents::Artifact>,
+    /// Shop purchase limits sent (the weekly Odyle Energy buy among them).
+    pub shop: Vec<crate::contents::ShopCounter>,
 }
 
 /// A cast under way.
@@ -1344,6 +1346,14 @@ impl Meter {
                     if let Some(t) = crate::contents::parse_ticket_update(payload) {
                         self.contents.tickets.retain(|x| x.id != t.id);
                         self.contents.tickets.push(t);
+                    }
+                }
+                crate::contents::OPCODE_SHOP_COUNTERS => {
+                    if let Some(list) = crate::contents::parse_shop_counters(payload) {
+                        for c in list {
+                            self.contents.shop.retain(|x| x.id != c.id);
+                            self.contents.shop.push(c);
+                        }
                     }
                 }
                 crate::contents::OPCODE_ABYSS_MAP | crate::contents::OPCODE_ABYSS_ENTERED => {
