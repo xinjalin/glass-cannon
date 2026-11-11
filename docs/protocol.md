@@ -28,6 +28,22 @@ body    = u16 opcode (little-endian), payload
 Varints are unsigned LEB128. Across 7 sessions (about 2.3 MB, 70k messages) every received
 stream splits into messages with no leftover bytes.
 
+**Joining part-way.** A capture that starts after the connection did, or drops a packet,
+has to find a message boundary again. Most packets begin on one, so the framer tries
+each packet's start until a message completes. Two things can go wrong, and both are
+handled (`protocol.rs`, `game.rs`):
+
+- Bytes from the middle of a message can read as a length of up to 1 MB, and waiting for
+  that much stalls the stream. Of the 1.5 million messages in our recordings the longest
+  is 20,369 bytes, so for the first 64 messages after a resync a length over 64 KB is
+  taken for a wrong start.
+- A connection is only trusted as the game's after 50 messages frame cleanly (the game
+  process also holds TLS connections). Losing framing before that used to rule the
+  connection out for good; now it starts again and needs 100 clean messages. Joining our
+  recordings at about 1,200 different packets, every one recovers: within half a second
+  for most, up to half a minute in a Force raid's traffic, where long runs of packets
+  begin inside a message.
+
 ## Bundles: opcode `0xffff` (confirmed)
 
 ```text

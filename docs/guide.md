@@ -200,6 +200,9 @@ dungeon (older fights: no break over 10 minutes and no boss fought twice). **[cl
 the bottom deletes every fight, dungeon run and PvP session (it asks first); a dungeon
 you're in at the time keeps grouping its next fights as a run.
 
+Fights are saved as they end, whether the overlay is showing or not. Closing the app (or
+the game, with **close with the game** on) ends the fight going on and saves it too.
+
 **Personal bests**: your highest DPS and fastest kill against each boss show during the
 fight on the meter's boss line, or the target frame while it shows (green while you're
 beating it), and as ★ tags on the fights in the history that set them. They're kept per
@@ -214,10 +217,14 @@ their runs and their fights. Every boss wipe says how far it got, as the boss's 
 history): a window with each character's tries at every boss, a tab per character. Each
 dungeon or raid, in each mode, lists its bosses in the order you first tried them with
 their tries, kills (✓) and wipes (✗), and the best of them: your fastest kill, or until
-the first kill the lowest the boss got. [raids], [dungeons] and [field & other] narrow
-it. It counts every boss kill and wipe from when it was added (starting with the fights
-already in the history), and the history's [clear] doesn't touch it: its own [clear]
-forgets one character's tries (it asks first).
+the first kill the lowest the boss got. The tabs narrow it: **[raids]** (the
+Sanctuaries), **[dungeons]** (Expeditions and Transcendence), **[sealed & strongholds]**
+(each Sealed Dungeon and Stronghold, cleared once, with its boss) and **[field & other]**
+(field bosses, the three Dimensional Invasions, and anything else). It counts every boss
+kill and wipe from when it was added (starting with the fights already in the history),
+and the history's [clear] doesn't touch it: its own [clear] forgets one character's tries
+(it asks first). A boss the meter never saw spawn has no name to file it under, so it
+isn't counted.
 
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when
@@ -257,7 +264,7 @@ name in the game data, so double-click one there to name it.
 
 ## Windows
 
-The launcher, settings, history, map and analysis are windows, with the same lights at
+The launcher, settings, history, attempts, checklist, map and analysis are windows, with the same lights at
 the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
