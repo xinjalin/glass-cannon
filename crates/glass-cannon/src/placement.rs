@@ -5,7 +5,6 @@
 //! (written at most once a second), so they come back next time even after a crash.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -32,8 +31,7 @@ pub struct Placements {
 impl Placements {
     pub fn load(config_dir: &Path) -> Self {
         let path = config_dir.join(WINDOWS_FILE);
-        let by_label: BTreeMap<String, Placement> =
-            fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let by_label: BTreeMap<String, Placement> = crate::store::read_json(&path).unwrap_or_default();
         Self { path, by_label, changed: false }
     }
 
@@ -54,14 +52,8 @@ impl Placements {
             return;
         }
         self.changed = false;
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(json) = serde_json::to_vec_pretty(&self.by_label) {
-            let tmp = self.path.with_extension("json.tmp");
-            if fs::write(&tmp, json).is_ok() {
-                let _ = fs::rename(&tmp, &self.path);
-            }
+            crate::store::write_atomic(&self.path, json);
         }
     }
 }
@@ -121,6 +113,7 @@ fn overlaps(m: &Monitor, p: &Placement) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn placements_are_kept() {

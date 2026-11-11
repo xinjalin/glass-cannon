@@ -33,23 +33,72 @@ fn beyond_limit<T>(items: &[T], limit: usize, boss: impl Fn(&T) -> bool) -> Vec<
     drop
 }
 
-fn load<T: DeserializeOwned + Default>(path: &Path) -> T {
-    fs::read(path)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+/// `path` with `.suffix` after its whole name (`bests.json` -> `bests.json.bad`).
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".");
+    name.push(suffix);
+    path.with_file_name(name)
 }
 
-fn save<T: Serialize>(path: &Path, value: &T) {
+/// Writes a file whole or not at all: to a temporary file beside it, then renamed over
+/// it. A crash (or the PC losing power) in the middle leaves the file as it was, rather
+/// than cut short.
+pub(crate) fn write_atomic(path: &Path, bytes: impl AsRef<[u8]>) {
     if let Some(dir) = path.parent() {
         let _ = fs::create_dir_all(dir);
     }
-    if let Ok(json) = serde_json::to_vec_pretty(value) {
-        let tmp = path.with_extension("tmp");
-        if fs::write(&tmp, json).is_ok() {
-            let _ = fs::rename(&tmp, path);
+    let tmp = with_suffix(path, "tmp");
+    if fs::write(&tmp, bytes).is_ok() {
+        let _ = fs::rename(&tmp, path);
+    }
+}
+
+/// Reads a JSON file. One that's there but can't be read (damaged, or from a version this
+/// one doesn't understand) is set aside as `<name>.bad`, so that starting over with
+/// nothing doesn't write over it.
+pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
+    let bytes = fs::read(path).ok()?;
+    match serde_json::from_slice(&bytes) {
+        Ok(value) => Some(value),
+        Err(_) => {
+            set_aside(path);
+            None
         }
     }
+}
+
+fn set_aside(path: &Path) {
+    let _ = fs::rename(path, with_suffix(path, "bad"));
+}
+
+fn load<T: DeserializeOwned + Default>(path: &Path) -> T {
+    read_json(path).unwrap_or_default()
+}
+
+fn save<T: Serialize>(path: &Path, value: &T) {
+    if let Ok(json) = serde_json::to_vec_pretty(value) {
+        write_atomic(path, json);
+    }
+}
+
+/// A `.jsonl` log read back: what could be read, and how many lines there were.
+fn read_lines<T: DeserializeOwned>(path: &Path) -> (Vec<T>, usize) {
+    let text = fs::read_to_string(path).unwrap_or_default();
+    let lines = text.lines().filter(|l| !l.trim().is_empty());
+    (lines.clone().filter_map(|l| serde_json::from_str(l).ok()).collect(), lines.count())
+}
+
+/// Rewrites a `.jsonl` log with just `items`, whole or not at all. The logs are added to
+/// a line at a time and only trimmed in memory, so without this they'd grow for ever (and
+/// all of it be read at every start). With `keep_old`, the file as it was is kept beside
+/// it as `<name>.bak` first: it had lines this version couldn't read.
+fn rewrite_lines<'a, T: Serialize + 'a>(path: &Path, items: impl IntoIterator<Item = &'a T>, keep_old: bool) {
+    if keep_old {
+        let _ = fs::copy(path, with_suffix(path, "bak"));
+    }
+    let text: String = items.into_iter().filter_map(|i| serde_json::to_string(i).ok()).map(|l| l + "\n").collect();
+    write_atomic(path, text);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -526,17 +575,14 @@ pub struct FieldBosses {
 impl FieldBosses {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("fieldbosses.json");
-        let mut f: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let mut f: Self = read_json(&path).unwrap_or_default();
         f.path = path;
         f
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(s) = serde_json::to_string_pretty(self) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -588,17 +634,14 @@ pub struct KnownContents {
 impl KnownContents {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("contents.json");
-        let mut c: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let mut c: Self = read_json(&path).unwrap_or_default();
         c.path = path;
         c
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(s) = serde_json::to_string_pretty(self) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -642,13 +685,13 @@ pub struct PvpLog {
 impl PvpLog {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("pvp.jsonl");
-        let mut sessions: Vec<meter_core::pvp::PvpSession> = fs::read_to_string(&path)
-            .unwrap_or_default()
-            .lines()
-            .filter_map(|l| serde_json::from_str(l).ok())
-            .collect();
+        let (mut sessions, lines): (Vec<meter_core::pvp::PvpSession>, usize) = read_lines(&path);
         let extra = sessions.len().saturating_sub(PVP_LIMIT);
         sessions.drain(..extra);
+        // Older sessions than are kept: off the file too.
+        if extra > 0 {
+            rewrite_lines(&path, &sessions, lines > sessions.len() + extra);
+        }
         Self { path, sessions }
     }
 
@@ -660,6 +703,11 @@ impl PvpLog {
             let _ = writeln!(f, "{line}");
         }
         self.sessions.push(s);
+        let extra = self.sessions.len().saturating_sub(2 * PVP_LIMIT);
+        if extra > 0 {
+            self.sessions.drain(..extra + PVP_LIMIT);
+            rewrite_lines(&self.path, &self.sessions, false);
+        }
     }
 
     /// Newest first.
@@ -684,14 +732,15 @@ pub struct Instances {
 impl Instances {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("instances.jsonl");
-        let mut by_entered = BTreeMap::new();
-        for line in fs::read_to_string(&path).unwrap_or_default().lines() {
-            if let Ok(i) = serde_json::from_str::<meter_core::dungeon::Instance>(line) {
-                by_entered.insert(i.entered_us, i);
-            }
-        }
+        let (changes, lines): (Vec<meter_core::dungeon::Instance>, usize) = read_lines(&path);
+        let read = changes.len();
+        let mut by_entered: BTreeMap<u64, meter_core::dungeon::Instance> = changes.into_iter().map(|i| (i.entered_us, i)).collect();
         while by_entered.len() > INSTANCES_LIMIT {
             by_entered.pop_first();
+        }
+        // A line per change: once the file is mostly superseded lines, just the runs.
+        if read > 2 * by_entered.len() + 50 {
+            rewrite_lines(&path, by_entered.values(), lines > read);
         }
         Self { path, by_entered }
     }
@@ -727,7 +776,7 @@ impl Instances {
         if lines.is_empty() {
             let _ = fs::remove_file(&self.path);
         } else {
-            let _ = fs::write(&self.path, lines);
+            write_atomic(&self.path, lines);
         }
     }
 }
@@ -847,20 +896,23 @@ impl Bests {
         let by_character = match serde_json::from_str::<BestsFile>(&text) {
             Ok(f) => f.characters,
             // The first version: one map by mob type.
-            Err(_) => serde_json::from_str::<BTreeMap<u32, Best>>(&text)
-                .map(|old| BTreeMap::from([(String::new(), old)]))
-                .unwrap_or_default(),
+            Err(_) => match serde_json::from_str::<BTreeMap<u32, Best>>(&text) {
+                Ok(old) => BTreeMap::from([(String::new(), old)]),
+                Err(_) => {
+                    if !text.is_empty() {
+                        set_aside(&path);
+                    }
+                    BTreeMap::new()
+                }
+            },
         };
         Self { path, by_character }
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         let file = BestsFile { characters: self.by_character.clone() };
         if let Ok(s) = serde_json::to_string_pretty(&file) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -944,7 +996,7 @@ impl Attempts {
     /// before this was kept count too) and saves them.
     pub fn load(dir: &Path, history: &History) -> Self {
         let path = dir.join("attempts.json");
-        let saved = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<AttemptsFile>(&t).ok());
+        let saved = read_json::<AttemptsFile>(&path);
         let mut a = Self { path, by_character: saved.as_ref().map(|f| f.characters.clone()).unwrap_or_default() };
         if saved.is_none() {
             for f in &history.fights {
@@ -958,12 +1010,9 @@ impl Attempts {
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         let file = AttemptsFile { characters: self.by_character.clone() };
         if let Ok(s) = serde_json::to_string_pretty(&file) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -1038,7 +1087,7 @@ pub struct PetBook {
 impl PetBook {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("pets.json");
-        let by_character = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let by_character = read_json(&path).unwrap_or_default();
         Self { path, by_character, saved: 0 }
     }
 
@@ -1058,11 +1107,8 @@ impl PetBook {
         if let Some(state) = pets.state() {
             self.by_character.insert(character.to_string(), state);
             self.saved = pets.revision();
-            if let Some(dir) = self.path.parent() {
-                let _ = fs::create_dir_all(dir);
-            }
             if let Ok(s) = serde_json::to_string(&self.by_character) {
-                let _ = fs::write(&self.path, s);
+                write_atomic(&self.path, s);
             }
         }
     }
@@ -1110,18 +1156,30 @@ pub struct FightSummary {
 pub struct History {
     path: PathBuf,
     fights: Vec<Fight>,
+    /// Lines in the file, and whether some couldn't be read (by this version).
+    on_disk: usize,
+    unread: bool,
 }
 
 impl History {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("history.jsonl");
-        let mut fights: Vec<Fight> = fs::read_to_string(&path)
-            .unwrap_or_default()
-            .lines()
-            .filter_map(|l| serde_json::from_str(l).ok())
-            .collect();
+        let (mut fights, lines): (Vec<Fight>, usize) = read_lines(&path);
+        let read = fights.len();
         Self::trim(&mut fights);
-        Self { path, fights }
+        let mut history = Self { path, fights, on_disk: lines, unread: lines > read };
+        // Fights older than are kept: off the file too.
+        if read > history.fights.len() {
+            history.compact();
+        }
+        history
+    }
+
+    /// Rewrites the file with the fights kept (see [`rewrite_lines`]).
+    fn compact(&mut self) {
+        rewrite_lines(&self.path, &self.fights, self.unread);
+        self.on_disk = self.fights.len();
+        self.unread = false;
     }
 
     /// Keeps the newest [`HISTORY_LIMIT`] boss fights and as many others.
@@ -1137,10 +1195,14 @@ impl History {
         if let Ok(line) = serde_json::to_string(&fight) {
             if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&self.path) {
                 let _ = writeln!(f, "{line}");
+                self.on_disk += 1;
             }
         }
         self.fights.push(fight);
         Self::trim(&mut self.fights);
+        if self.on_disk > self.fights.len() + HISTORY_LIMIT {
+            self.compact();
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -1202,6 +1264,7 @@ impl History {
     pub fn clear(&mut self) {
         self.fights.clear();
         let _ = fs::remove_file(&self.path);
+        (self.on_disk, self.unread) = (0, false);
     }
 }
 
@@ -1495,6 +1558,94 @@ mod tests {
         assert_eq!(h.fight(1).map(|f| f.ended_ms), Some(2), "the oldest other fight goes");
         let again = History::load(&dir);
         assert_eq!((again.len(), again.fight(0).map(|f| f.ended_ms)), (HISTORY_LIMIT + 1, Some(0)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    fn lines(path: &Path) -> usize {
+        fs::read_to_string(path).unwrap_or_default().lines().count()
+    }
+
+    #[test]
+    fn the_history_file_is_trimmed_too() {
+        let dir = temp_dir("history-file");
+        let file = dir.join("history.jsonl");
+        let plain = |i: u64| Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() };
+        // A file from before it was trimmed: three times what's kept.
+        let old: String = (0..3 * HISTORY_LIMIT as u64).map(|i| serde_json::to_string(&plain(i)).unwrap() + "\n").collect();
+        fs::write(&file, old).unwrap();
+        let mut h = History::load(&dir);
+        assert_eq!((h.len(), lines(&file)), (HISTORY_LIMIT, HISTORY_LIMIT), "loading drops the old fights from the file");
+        assert!(!dir.join("history.jsonl.bak").exists(), "nothing was unreadable: no copy kept");
+        // While running: it grows by a line a fight, and is cut back before it doubles.
+        for i in 0..2 * HISTORY_LIMIT as u64 {
+            h.push(plain(10_000 + i));
+            assert!(lines(&file) <= 2 * HISTORY_LIMIT, "{} lines", lines(&file));
+        }
+        let again = History::load(&dir);
+        assert_eq!(again.len(), HISTORY_LIMIT);
+        assert_eq!(again.newest_first().next().map(|f| f.ended_ms), Some(10_000 + 2 * HISTORY_LIMIT as u64 - 1));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn lines_this_version_cannot_read_are_kept_in_a_copy_before_a_trim() {
+        let dir = temp_dir("history-bak");
+        let file = dir.join("history.jsonl");
+        let plain = |i: u64| serde_json::to_string(&Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() }).unwrap();
+        let mut old: String = (0..HISTORY_LIMIT as u64 + 5).map(|i| plain(i) + "\n").collect();
+        old.push_str("{\"from\":\"a newer version\"}\n");
+        fs::write(&file, &old).unwrap();
+        let h = History::load(&dir);
+        assert_eq!((h.len(), lines(&file)), (HISTORY_LIMIT, HISTORY_LIMIT));
+        assert_eq!(fs::read_to_string(dir.join("history.jsonl.bak")).unwrap(), old);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_set_aside_not_written_over() {
+        let dir = temp_dir("bad-file");
+        // Cut short, as by a crash in the middle of an old (not atomic) save.
+        let cut = r#"{"characters":{"Nene":{"7":{"kills":3,"wipes":"#;
+        fs::write(dir.join("attempts.json"), cut).unwrap();
+        fs::write(dir.join("bests.json"), cut).unwrap();
+        fs::write(dir.join("settings.json"), "not json").unwrap();
+        let history = History::load(&dir);
+        let mut attempts = Attempts::load(&dir, &history);
+        let bests = Bests::load(&dir);
+        let settings = Settings::load(&dir);
+        assert!(attempts.all().is_empty() && bests.by_character.is_empty());
+        assert_eq!(settings.refresh_ms, DEFAULT_REFRESH_MS, "the defaults, then");
+        for name in ["attempts.json", "bests.json", "settings.json"] {
+            assert!(!dir.join(name).exists(), "{name} is out of the way");
+        }
+        assert_eq!(fs::read_to_string(dir.join("attempts.json.bad")).unwrap(), cut, "and kept as it was");
+        assert_eq!(fs::read_to_string(dir.join("settings.json.bad")).unwrap(), "not json");
+        // The next save starts a new file; the old one is still there.
+        attempts.record(&boss_try(FightEnd::Kill, None, 60.0), 1, Some("Nene"));
+        assert!(dir.join("attempts.json").exists() && dir.join("attempts.json.bad").exists());
+        assert!(!dir.join("attempts.json.tmp").exists(), "written whole, under its own name");
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn the_pvp_log_and_the_dungeon_runs_are_trimmed_on_the_file_too() {
+        let dir = temp_dir("logs");
+        let run = |entered_us: u64, stage: u64| meter_core::dungeon::Instance {
+            map: 600_072,
+            entered_us,
+            started_us: Some(entered_us + 1),
+            completed_us: None,
+            stages: [stage, 0, 0, 0, 0, 0],
+        };
+        // One run, saved again at each of 200 changes.
+        let mut i = Instances::load(&dir);
+        for stage in 1..=200 {
+            i.record(run(5, stage));
+        }
+        let file = dir.join("instances.jsonl");
+        assert_eq!(lines(&file), 200);
+        let again = Instances::load(&dir);
+        assert_eq!((lines(&file), again.get(5).map(|r| r.stages[0])), (1, Some(200)), "just the run as it ended");
         fs::remove_dir_all(dir).ok();
     }
 

@@ -49,11 +49,12 @@ pub fn link_payload(linktype: i32, frame: &[u8]) -> Option<&[u8]> {
                 _ => None,
             }
         }
-        // Loopback adapter: 4-byte address family in host byte order.
+        // Loopback adapter: 4-byte address family in host byte order (IPv4 is 2
+        // everywhere; IPv6 is 23 on Windows, 24, 28 or 30 on the BSDs and macOS).
         linktype::NULL => {
             let family = u32::from_le_bytes(frame.get(0..4)?.try_into().ok()?);
             match family {
-                2 | 24 | 28 | 30 => frame.get(4..),
+                2 | 23 | 24 | 28 | 30 => frame.get(4..),
                 _ => None,
             }
         }

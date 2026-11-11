@@ -341,18 +341,23 @@ fn boss_casts_to_show(
     BossAhead { cast_danger, upcoming }
 }
 
-/// The current meter with names filled in. Also moves finished fights into the history.
-/// Skill lists come only for the players in `expanded` (the rows open in the overlay):
-/// the rest would only be thrown away, several times a second.
-#[tauri::command]
-fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
+/// Keeps the app's records up with the meter: ends a fight that has gone quiet, moves
+/// finished fights into the history (and the bests, attempts and dummy runs), and saves
+/// what the game sent since the last time (dungeon runs, PvP sessions, field bosses,
+/// tickets, pets, players' names).
+///
+/// It used to be part of `snapshot`, so it only happened while the overlay's meter was
+/// asking: with the overlay off, or hidden behind another program (where the page's timers
+/// slow to a crawl), fights waited in memory, and closing the app lost them. Now it also
+/// runs once a second ([`keep_records`]) and before the app closes ([`flush`]). Always on
+/// the main thread, as the commands are, so it never runs in the middle of one.
+fn pump(app: &AppState) {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let mechanics_on = lock(&app.settings).boss_mechanics;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, souls, boss_mechanics) = {
+    let (finished, known, entered, pvp, field_bosses, contents) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
-        let known = remember_players(&app, &mut meter);
+        let known = remember_players(app, &mut meter);
         // Whose damage counts follows your party, unless chosen by hand: the party now, or
         // the one in the fight shown (it still shows them after the party breaks up).
         // A fight on a training dummy counts your damage only (dummy mode).
@@ -363,23 +368,17 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         if meter.scope() != scope {
             meter.set_scope(scope);
         }
-        let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let contents = meter.take_contents();
-        let cubes = meter.cubes(now);
         // Your pets as last saved, until the game sends its list (and saved as they change).
         let name = meter.registry().self_name().map(str::to_string).or_else(|| lock(&app.profile).name.clone());
         if let Some(name) = name {
             lock(&app.pets).sync(&name, meter.pets());
-            widgets::untrack_maxed(&app, &name, meter.pets());
+            widgets::untrack_maxed(app, &name, meter.pets());
         }
-        let souls = meter.take_soul_gains();
-        let pvp_now = meter.pvp();
-        let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, (souls, pvp_now), mechanics)
+        (meter.take_finished(), known, meter.take_instances(), meter.take_pvp(), meter.take_field_bosses(), contents)
     };
-    let (mut souls, pvp_now) = souls;
     lock(&app.field_bosses).update(field_bosses);
-    checklist::take(&app, &contents);
+    checklist::take(app, &contents);
     lock(&app.contents).update(contents);
     if !pvp.is_empty() {
         let mut log = lock(&app.pvp);
@@ -393,18 +392,15 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             instances.record(i);
         }
     }
-    if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
-        let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
-        for row in rows.filter(|r| !open.contains(&r.id)) {
-            row.skills.clear();
-        }
-    }
     if let Some(k) = known {
         k.save(&app.config_dir);
     }
+    if finished.is_empty() {
+        return;
+    }
     let mut data = lock(&app.data);
     data.reload_if_empty();
-    let mut profile = lock(&app.profile);
+    let profile = lock(&app.profile);
     let mut history = lock(&app.history);
     for f in finished {
         let mut view = f.view;
@@ -427,6 +423,70 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         lock(&app.attempts).record(&view, ended_ms, self_name.as_deref());
         history.push(Fight { ended_ms, self_name, view });
     }
+}
+
+/// Runs [`pump`] on the main thread once a second, whatever the windows are doing.
+fn keep_records(handle: AppHandle, app: Arc<AppState>) {
+    thread::Builder::new()
+        .name("records".into())
+        .spawn(move || {
+            // One waiting at a time: a busy main thread doesn't get a queue of them.
+            let queued = Arc::new(AtomicBool::new(false));
+            loop {
+                thread::sleep(Duration::from_secs(1));
+                if queued.swap(true, Ordering::SeqCst) {
+                    continue;
+                }
+                let (app, flag) = (Arc::clone(&app), Arc::clone(&queued));
+                let sent = handle.run_on_main_thread(move || {
+                    flag.store(false, Ordering::SeqCst);
+                    pump(&app);
+                });
+                if sent.is_err() {
+                    queued.store(false, Ordering::SeqCst);
+                }
+            }
+        })
+        .expect("starting the records thread");
+}
+
+/// Before the app closes: the fight going on ends here, and it and anything else not yet
+/// saved goes to the history. On the main thread, as [`pump`].
+pub fn flush(app: &AppState) {
+    let now = app.engine.now();
+    app.engine.meter().end_fight(now);
+    pump(app);
+}
+
+/// The current meter with names filled in. Skill lists come only for the players in
+/// `expanded` (the rows open in the overlay): the rest would only be thrown away, several
+/// times a second.
+#[tauri::command]
+fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
+    // Finished fights reach the history before the meter is drawn.
+    pump(&app);
+    let now = app.engine.now();
+    let auto_scope = !lock(&app.settings).manual_scope;
+    let mechanics_on = lock(&app.settings).boss_mechanics;
+    let (mut snap, ping_ms, cubes, mut souls, pvp_now, boss_mechanics) = {
+        let mut meter = app.engine.meter();
+        let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
+        let cubes = meter.cubes(now);
+        let souls = meter.take_soul_gains();
+        let pvp_now = meter.pvp();
+        let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
+        (meter.snapshot(), ping, cubes, souls, pvp_now, mechanics)
+    };
+    if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
+        let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
+        for row in rows.filter(|r| !open.contains(&r.id)) {
+            row.skills.clear();
+        }
+    }
+    let mut data = lock(&app.data);
+    data.reload_if_empty();
+    let mut profile = lock(&app.profile);
+    let history = lock(&app.history);
     data.annotate(&mut snap);
     // Your best against the boss you're fighting (a boss once named above).
     let best = snap
@@ -731,6 +791,7 @@ fn run_live(app: &AppState, record: bool) {
         duration: None,
         record,
         decode: true,
+        follow_adapter: true,
     };
     let stop = AtomicBool::new(false);
     loop {
@@ -752,7 +813,11 @@ fn run_live(app: &AppState, record: bool) {
             LiveEvent::Finished { .. } => {}
         });
         match result {
-            Ok(_) => return,
+            // The game moved to another network adapter: start again on that one.
+            Ok(_) => {
+                engine.set_status(Phase::Starting, "starting again…");
+                thread::sleep(Duration::from_secs(1));
+            }
             Err(e) => {
                 engine.set_status(Phase::Error, format!("{e:#}"));
                 thread::sleep(RETRY_AFTER);
@@ -1017,6 +1082,7 @@ fn main() {
             hotkeys::start(app.handle().clone(), Arc::clone(&state));
             hotkeys::close_with_game(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
+            keep_records(app.handle().clone(), Arc::clone(&state));
             save_placements(Arc::clone(&state));
             Ok(())
         })
@@ -1038,6 +1104,8 @@ fn main() {
                         }
                         placements.save_if_changed();
                         drop(placements);
+                        // The fight going on, and any not saved yet, go to the history.
+                        flush(&app);
                         window.app_handle().exit(0);
                     }
                     // Closing any other window only tucks it away.

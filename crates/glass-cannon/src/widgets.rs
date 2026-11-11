@@ -125,10 +125,11 @@ pub struct TargetFrame {
 /// What you're targeting (or fighting), named, with your best against it.
 #[tauri::command]
 pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetFrame> {
-    let mut snap = app.engine.meter().snapshot();
-    lock(&app.data).annotate(&mut snap);
-    let my_dps = snap.encounter.as_ref().and_then(|e| e.players.iter().find(|p| p.is_self)).map(|p| p.dps);
-    let target = snap.target?;
+    // Just the target and your DPS: the whole snapshot is the meter's, four times a second
+    // here was most of the app's work in a long fight.
+    let (target, my_dps) = app.engine.meter().target_and_dps();
+    let mut target = target?;
+    lock(&app.data).annotate_target(&mut target);
     let best = match (target.boss, target.mob_type) {
         (true, Some(kind)) => {
             let profile = lock(&app.profile);

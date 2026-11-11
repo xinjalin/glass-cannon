@@ -4,6 +4,11 @@
 //! ("limbo"). The connection table is polled, so a brand-new connection is usually
 //! identified a fraction of a second after its first packets. Holding them lets us keep
 //! the handshake and first messages, which tend to be the most informative.
+//!
+//! Only packets nobody is known to own wait there. The same tables say which sockets the
+//! other programs have, and their packets (a download, a stream, a browser) are dropped as
+//! they come: holding them cost a copy of everything the PC sent and received, and filled
+//! limbo in seconds.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::{IpAddr, SocketAddr};
@@ -28,6 +33,10 @@ pub struct LiveMatcher {
     tcp: HashSet<(u16, SocketAddr)>,
     /// Local ports of the game's UDP sockets.
     udp: HashSet<u16>,
+    /// The same for every other program's sockets, as the tables last had them (never
+    /// kept from an earlier look: a port let go can be the game's next).
+    other_tcp: HashSet<(u16, SocketAddr)>,
+    other_udp: HashSet<u16>,
 }
 
 impl LiveMatcher {
@@ -43,6 +52,16 @@ impl LiveMatcher {
                 .filter(|u| pids.contains(&u.pid))
                 .map(|u| u.local.port())
                 .collect(),
+            other_tcp: tcp
+                .iter()
+                .filter(|c| !pids.contains(&c.pid) && c.state != TcpConn::LISTEN && c.remote.port() != 0)
+                .map(|c| (c.local.port(), c.remote))
+                .collect(),
+            other_udp: udp
+                .iter()
+                .filter(|u| !pids.contains(&u.pid))
+                .map(|u| u.local.port())
+                .collect(),
         }
     }
 
@@ -51,6 +70,16 @@ impl LiveMatcher {
     pub fn merge(&mut self, other: &LiveMatcher) {
         self.tcp.extend(other.tcp.iter().copied());
         self.udp.extend(other.udp.iter().copied());
+        self.other_tcp.clone_from(&other.other_tcp);
+        self.other_udp.clone_from(&other.other_udp);
+    }
+
+    /// The packet is on a socket another program is known to own (and none of the game's).
+    fn is_others(&self, s: &Segment) -> bool {
+        match s.transport {
+            Transport::Tcp { .. } => self.other_tcp.contains(&(s.src.port(), s.dst)) || self.other_tcp.contains(&(s.dst.port(), s.src)),
+            Transport::Udp => self.other_udp.contains(&s.src.port()) || self.other_udp.contains(&s.dst.port()),
+        }
     }
 
     pub fn tcp_count(&self) -> usize {
@@ -144,6 +173,8 @@ struct Flow {
 pub struct PipelineStats {
     pub packets_seen: u64,
     pub packets_matched: u64,
+    /// Other programs' packets, dropped as they came.
+    pub packets_others: u64,
     pub undecodable: u64,
     pub bytes_in: u64,
     pub bytes_out: u64,
@@ -167,7 +198,8 @@ pub enum ChunkKind {
     /// A new TCP connection (or a capture that started mid-connection).
     Open,
     Data(Vec<u8>),
-    /// Bytes the capture missed.
+    /// Bytes the capture missed. `Gap(0)` before a connection's first bytes: it was
+    /// joined part-way through, so they may begin inside a message.
     Gap(u64),
     Close,
 }
@@ -317,8 +349,12 @@ impl Pipeline {
         match self.matcher.classify(&seg) {
             Some(side) => self.accept(ts_us, ip, &seg, side),
             None => {
-                if matches!(self.matcher, Matcher::Live(_)) {
-                    self.park(ts_us, ip, &seg);
+                if let Matcher::Live(m) = &self.matcher {
+                    if m.is_others(&seg) {
+                        self.stats.packets_others += 1;
+                    } else {
+                        self.park(ts_us, ip, &seg);
+                    }
                 }
                 Ok(())
             }
@@ -415,7 +451,18 @@ impl Pipeline {
                     Side::In => &mut flow.inn,
                 };
                 let mut events = Vec::new();
+                let was_midstream = half.midstream();
                 half.push(ts_us, seq, flags & tcp_flags::SYN != 0, seg.payload, &mut events);
+                // Joined part-way through (no SYN seen): said before its first bytes, so
+                // whoever splits them into messages knows they may begin inside one.
+                if !was_midstream && half.midstream() {
+                    if let Some(f) = flow.files.as_mut() {
+                        f.mark(ts_us, side, "midstream", json!({}))?;
+                    }
+                    if let Some(streams) = self.streams.as_mut() {
+                        streams.push(StreamChunk { flow: flow.id, remote: flow.remote, side, ts_us, kind: ChunkKind::Gap(0) });
+                    }
+                }
                 let out = Outputs {
                     files: flow.files.as_mut(),
                     streams: self.streams.as_mut(),
@@ -457,9 +504,11 @@ impl Pipeline {
                 self.limbo_bytes -= old.len();
             }
         }
-        if self.limbo_bytes > LIMBO_MAX_BYTES {
-            self.limbo.clear();
-            self.limbo_bytes = 0;
+        // Too much held: the connections that have waited longest go first.
+        while self.limbo_bytes > LIMBO_MAX_BYTES {
+            let oldest = self.limbo.iter().min_by_key(|(_, q)| q.front().map(|(ts, _)| *ts)).map(|(k, _)| *k);
+            let Some(queue) = oldest.and_then(|k| self.limbo.remove(&k)) else { break };
+            self.limbo_bytes -= queue.iter().map(|(_, p)| p.len()).sum::<usize>();
         }
     }
 
@@ -698,5 +747,59 @@ mod tests {
         assert!(flows[1].ends_with("002-udp-6000-to-1.2.3.4_6001"));
         assert_eq!(fs::read(flows[1].join("out.bin")).unwrap(), b"voice");
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn other_programs_packets_are_dropped_not_held() {
+        let (game, browser) = (4242, 7);
+        let tcp = vec![
+            TcpConn { pid: game, local: "10.0.0.2:50000".parse().unwrap(), remote: "1.2.3.4:7777".parse().unwrap(), state: TcpConn::ESTABLISHED },
+            TcpConn { pid: browser, local: "10.0.0.2:50001".parse().unwrap(), remote: "1.2.3.4:443".parse().unwrap(), state: TcpConn::ESTABLISHED },
+        ];
+        let udp = vec![UdpEndpoint { pid: browser, local: "10.0.0.2:6000".parse().unwrap() }];
+        let m = LiveMatcher::from_tables(&HashSet::from([game]), &tcp, &udp);
+        let mut p = Pipeline::new(Matcher::Live(m), None);
+
+        use tcp_flags::*;
+        // The browser's download, both ways, and its voice chat: known to be someone else's.
+        p.ingest(1, &ipv4_tcp(SERVER, 443, ME, 50001, 9, ACK, &[0; 1000])).unwrap();
+        p.ingest(2, &ipv4_tcp(ME, 50001, SERVER, 443, 9, ACK, b"ack")).unwrap();
+        p.ingest(3, &ipv4_udp(ME, 6000, SERVER, 6001, b"voice")).unwrap();
+        // A connection nobody has yet (it may turn out to be the game's): held.
+        p.ingest(4, &ipv4_tcp(ME, 50002, SERVER, 7778, 100, SYN, b"")).unwrap();
+        assert_eq!((p.stats().packets_others, p.limbo.len()), (3, 1));
+        assert!(p.limbo_bytes < 100, "only the unknown connection's packet is held");
+        // The game's own still counts.
+        p.ingest(5, &ipv4_tcp(SERVER, 7777, ME, 50000, 501, ACK, b"hit")).unwrap();
+        assert_eq!(p.stats().packets_matched, 1);
+    }
+
+    #[test]
+    fn when_too_much_is_held_the_oldest_connection_goes_first() {
+        let mut p = Pipeline::new(Matcher::Live(LiveMatcher::default()), None);
+        use tcp_flags::*;
+        let big = vec![0u8; 60_000];
+        // Unknown connections, one packet each, until they're more than limbo holds.
+        let connections = (LIMBO_MAX_BYTES / big.len()) as u64 + 2;
+        for i in 0..connections {
+            p.ingest(1 + i, &ipv4_tcp(ME, 50_001 + i as u16, SERVER, 9001, 1, ACK, &big)).unwrap();
+        }
+        assert!(p.limbo_bytes <= LIMBO_MAX_BYTES);
+        let first: PairKey = (Proto::Tcp, "1.2.3.4:9001".parse().unwrap(), "10.0.0.2:50001".parse().unwrap());
+        assert!(!p.limbo.contains_key(&first), "the one that waited longest was let go");
+        assert!(!p.limbo.is_empty(), "the rest are still held");
+    }
+
+    #[test]
+    fn a_connection_joined_part_way_says_so_before_its_first_bytes() {
+        let local_ips = HashSet::from([IpAddr::from(ME)]);
+        let mut p = Pipeline::new(Matcher::Any { local_ips }, None);
+        p.collect_streams();
+        use tcp_flags::*;
+        // No SYN seen: the capture began after the connection did.
+        p.ingest(1, &ipv4_tcp(SERVER, 7777, ME, 50000, 9000, ACK, b"tail")).unwrap();
+        p.ingest(2, &ipv4_tcp(SERVER, 7777, ME, 50000, 9004, ACK, b"next")).unwrap();
+        let got: Vec<ChunkKind> = p.take_streams().into_iter().map(|c| c.kind).collect();
+        assert_eq!(got, [ChunkKind::Open, ChunkKind::Gap(0), ChunkKind::Data(b"tail".to_vec()), ChunkKind::Data(b"next".to_vec())]);
     }
 }

@@ -448,6 +448,7 @@ fn run(cli: Cli) -> Result<()> {
             duration: seconds.map(Duration::from_secs),
             record: true,
             decode: false,
+            follow_adapter: false,
         }),
         Cmd::Replay { pcap, out, local_ip } => replay(&pcap, &out, local_ip),
         Cmd::Chunks {
@@ -945,6 +946,7 @@ fn live_cmd(process: String, record: bool, out: PathBuf, idle: u64, scope: Scope
         duration: seconds.map(Duration::from_secs),
         record,
         decode: true,
+        follow_adapter: false,
     };
     let mut meter = new_meter(idle, scope);
     let mut last_render = std::time::Instant::now();

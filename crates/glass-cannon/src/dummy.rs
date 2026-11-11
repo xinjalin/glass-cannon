@@ -8,7 +8,6 @@
 //! other clean runs. The history window lists the runs and compares any two.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -157,16 +156,13 @@ pub struct DummyBook {
 impl DummyBook {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("dummy-runs.json");
-        let runs = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let runs = crate::store::read_json(&path).unwrap_or_default();
         Self { path, runs }
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(s) = serde_json::to_string(&self.runs) {
-            let _ = fs::write(&self.path, s);
+            crate::store::write_atomic(&self.path, s);
         }
     }
 

@@ -10,7 +10,6 @@
 //! reset, Wednesday 07:00 UTC (16:00 in Korea).
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -74,16 +73,13 @@ pub struct Checklist {
 impl Checklist {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("checklist.json");
-        let by_character = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let by_character = crate::store::read_json(&path).unwrap_or_default();
         Self { path, by_character }
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(s) = serde_json::to_string_pretty(&self.by_character) {
-            let _ = fs::write(&self.path, s);
+            crate::store::write_atomic(&self.path, s);
         }
     }
 
@@ -219,6 +215,7 @@ pub fn take(app: &AppState, c: &meter_core::meter::Contents) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use meter_core::contents::{ShopCounter, Ticket};
 
     const HOUR: u64 = 3_600_000;

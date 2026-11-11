@@ -529,15 +529,20 @@ impl GameData {
             self.annotate_view(enc);
         }
         if let Some(t) = snap.target.as_mut() {
-            if let Some((name, boss)) = t.mob_type.and_then(|m| self.npc(m)) {
-                t.name = name;
-                t.boss = boss;
-            }
-            tidy(&mut t.name);
-            // A mob's cast: most mob skills are only "Attack" in the data, which says nothing.
-            if let Some(c) = t.cast.as_mut() {
-                c.skill_name = self.boss_skill_name(c.skill);
-            }
+            self.annotate_target(t);
+        }
+    }
+
+    /// Names a target, says whether it's a boss, and names what it's casting.
+    pub fn annotate_target(&self, t: &mut meter_core::meter::TargetView) {
+        if let Some((name, boss)) = t.mob_type.and_then(|m| self.npc(m)) {
+            t.name = name;
+            t.boss = boss;
+        }
+        tidy(&mut t.name);
+        // A mob's cast: most mob skills are only "Attack" in the data, which says nothing.
+        if let Some(c) = t.cast.as_mut() {
+            c.skill_name = self.boss_skill_name(c.skill);
         }
     }
 

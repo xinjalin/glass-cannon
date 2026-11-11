@@ -802,10 +802,12 @@ impl HpLog {
         }
     }
 
-    /// The entity's lowest HP during `start..=end`, as a share of its max.
+    /// The entity's lowest HP during `start..=end`, as a share of its max. (The samples
+    /// are in time order: the window is found, not every sample looked at.)
     fn lowest(&self, entity: u64, start: u64, end: u64) -> Option<f64> {
         let e = self.entities.get(&entity)?;
-        let low = e.samples.iter().filter(|(t, _)| (start..=end).contains(t)).map(|(_, hp)| *hp).min()?;
+        let from = e.samples.partition_point(|(t, _)| *t < start);
+        let low = e.samples.range(from..).take_while(|(t, _)| *t <= end).map(|(_, hp)| *hp).min()?;
         (e.max > 0).then(|| low as f64 / e.max as f64)
     }
 
@@ -813,17 +815,13 @@ impl HpLog {
     /// the fight is moved to 0, so the line starts where the target stood.
     fn during(&self, entity: u64, start: u64, end: u64) -> Option<TargetHp> {
         let e = self.entities.get(&entity)?;
-        let before = e.samples.iter().take_while(|(t, _)| *t < start).last();
+        let from = e.samples.partition_point(|(t, _)| *t < start);
+        let before = from.checked_sub(1).and_then(|i| e.samples.get(i));
         let ms = |us: u64| (us.saturating_sub(start) / 1000).min(u64::from(u32::MAX)) as u32;
         let samples: Vec<HpPoint> = before
             .map(|(_, hp)| HpPoint { t: 0, hp: *hp })
             .into_iter()
-            .chain(
-                e.samples
-                    .iter()
-                    .filter(|(t, _)| (start..=end).contains(t))
-                    .map(|(t, hp)| HpPoint { t: ms(*t), hp: *hp }),
-            )
+            .chain(e.samples.range(from..).take_while(|(t, _)| *t <= end).map(|(t, hp)| HpPoint { t: ms(*t), hp: *hp }))
             .collect();
         (!samples.is_empty()).then_some(TargetHp {
             target: entity,
@@ -1443,8 +1441,16 @@ impl Meter {
                 self.current = None;
                 self.last = None;
                 self.lookback.clear();
+                self.pending_heals.clear();
                 self.effects.clear();
                 self.hp = HpLog::default();
+                self.combat.clear();
+                self.died.clear();
+                self.berserk.clear();
+                self.aggro.clear();
+                self.stagger.clear();
+                self.classes.clear();
+                self.selected = None;
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
                 self.casting.clear();
@@ -2125,6 +2131,52 @@ impl Meter {
         self.view_capped(e, active, Some(MAX_SKILLS_PER_ROW))
     }
 
+    /// Whose damage counts in a fight: yours in mine scope, your party's in party scope
+    /// (just yours when on your own), everyone's in everyone scope or before we know who
+    /// we are.
+    fn shown(&self, e: &Encounter, id: u64) -> bool {
+        let me = self.registry.self_id();
+        match self.scope {
+            _ if me.is_none() => true,
+            Scope::Mine => me == Some(id),
+            Scope::Party => self.registry.in_party(id) || e.party.contains(&id),
+            Scope::Everyone => true,
+        }
+    }
+
+    /// The damage of each player who counts on the fight's counted targets, and the fight's
+    /// span: from the first to the last counted hit, so time someone else spent on the
+    /// target before you arrived doesn't lower your DPS. None with no counted hit.
+    fn damage_by_player(&self, e: &Encounter, counted: &HashSet<u64>) -> Option<(HashMap<u64, PlayerStats>, u64, u64)> {
+        let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
+        for (target, t) in e.targets.iter().filter(|(id, _)| counted.contains(id)) {
+            for (id, p) in &t.players {
+                // Summons are folded into their owner (also hits from before we knew).
+                let by = self.registry.credited(*id);
+                if by == self.registry.credited(*target) {
+                    continue;
+                }
+                if self.shown(e, by) {
+                    per_player.entry(by).or_default().merge(p);
+                }
+            }
+        }
+        let (first, last) = per_player.values().filter_map(|p| p.span).reduce(|a, b| widen(Some(a), b))?;
+        Some((per_player, first, last))
+    }
+
+    /// Your target ([`Snapshot::target`]) and your DPS in the fight shown, without the
+    /// rest of the snapshot: the target frame asks several times a second.
+    pub fn target_and_dps(&self) -> (Option<TargetView>, Option<f64>) {
+        let dps = self.current.as_ref().or(self.last.as_ref()).and_then(|e| {
+            let me = self.registry.self_id()?;
+            let (per_player, first, last) = self.damage_by_player(e, &self.counted_targets(e))?;
+            let duration_s = ((last - first) as f64 / 1e6).max(1.0);
+            per_player.get(&me).map(|p| p.damage as f64 / duration_s)
+        });
+        (self.target_view(), dps)
+    }
+
     /// The summary of a fight; each player's skill list is cut to `skill_cap` if given.
     fn view_capped(&self, e: &Encounter, active: bool, skill_cap: Option<usize>) -> Option<EncounterView> {
         let counted_ids = self.counted_targets(e);
@@ -2133,31 +2185,9 @@ impl Meter {
             return None;
         }
 
-        // Whose damage counts: yours in mine scope, your party's in party scope (just yours
-        // when on your own), everyone's in everyone scope or before we know who we are.
         let me = self.registry.self_id();
-        let shown = |id: u64| match self.scope {
-            _ if me.is_none() => true,
-            Scope::Mine => me == Some(id),
-            Scope::Party => self.registry.in_party(id) || e.party.contains(&id),
-            Scope::Everyone => true,
-        };
-        let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
-        for (target, t) in &counted {
-            for (id, p) in &t.players {
-                // Summons are folded into their owner (also hits from before we knew).
-                let by = self.registry.credited(*id);
-                if by == self.registry.credited(**target) {
-                    continue;
-                }
-                if shown(by) {
-                    per_player.entry(by).or_default().merge(p);
-                }
-            }
-        }
-        // The fight lasts from the first to the last counted hit, so time someone else spent
-        // on the target before you arrived doesn't lower your DPS.
-        let (first, last) = per_player.values().filter_map(|p| p.span).reduce(|a, b| widen(Some(a), b))?;
+        let shown = |id: u64| self.shown(e, id);
+        let (per_player, first, last) = self.damage_by_player(e, &counted_ids)?;
         let duration_s = ((last - first) as f64 / 1e6).max(1.0);
         let total: u64 = per_player.values().map(|p| p.damage).sum();
 
@@ -2703,6 +2733,8 @@ mod tests {
         assert_eq!(me.name, "NeneneTowawa");
         assert_eq!((me.damage, me.dps, me.class_code), (10_000, 1000.0, Some(18)));
         assert_eq!(me.class_name.as_deref(), Some("Chanter"));
+        // The target frame's shortcut says the same as the whole snapshot.
+        assert_eq!(m.target_and_dps(), (m.snapshot().target, Some(1000.0)));
         assert_eq!(me.skills[0].skill, 18_040_350);
 
         m.set_scope(Scope::Everyone);
