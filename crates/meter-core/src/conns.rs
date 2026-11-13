@@ -153,14 +153,48 @@ pub fn udp_endpoints() -> Result<Vec<UdpEndpoint>> {
     Ok(out)
 }
 
-/// Local addresses the given processes use for internet (non-loopback) TCP connections.
-/// Used to pick which network adapter to capture on.
+/// Local addresses of the given processes' open TCP connections: the address of the
+/// network adapter a connection goes out on, or 127.0.0.1 when it goes to a relay on this
+/// PC. Ping reducers (ExitLag and the like) work that way: the game talks to their relay
+/// over this PC's own loopback, and the relay sends it on in a tunnel of its own, so the
+/// game's messages can only be read on loopback. Used to pick where to capture.
 pub fn local_ips_for(pids: &HashSet<u32>, tcp: &[TcpConn]) -> HashSet<IpAddr> {
     tcp.iter()
         .filter(|c| pids.contains(&c.pid))
-        .filter(|c| c.state == TcpConn::ESTABLISHED && !c.remote.ip().is_loopback())
+        .filter(|c| c.state == TcpConn::ESTABLISHED && c.remote.port() != 0)
         .map(|c| c.local.ip())
         .collect()
+}
+
+/// Each local IPv4 address and the GUID of the network interface it's on ("{6B29FC40-…}"),
+/// as Windows has them. Npcap names its adapters after that GUID (`\Device\NPF_{…}`), so an
+/// adapter Npcap lists without its address (a VPN's, a ping reducer's) is still found.
+pub fn interface_guids() -> Vec<(IpAddr, String)> {
+    let Ok(table) = fetch_table(|buf, size| unsafe { win::GetIpAddrTable(buf, size, 0) }) else {
+        return Vec::new();
+    };
+    // MIB_IPADDRROW: addr, index, mask, broadcast, reassembly size, u16, u16 (24 bytes).
+    rows(&table, 24)
+        .filter_map(|r| {
+            let ip = IpAddr::V4(v4_at(r, 0));
+            let index = u32_at(r, 4);
+            let mut luid = 0u64;
+            let mut guid = [0u8; 16];
+            // SAFETY: plain conversions into our own locals.
+            let ok = unsafe { win::ConvertInterfaceIndexToLuid(index, &mut luid) == 0 && win::ConvertInterfaceLuidToGuid(&luid, &mut guid) == 0 };
+            ok.then(|| (ip, guid_text(&guid)))
+        })
+        .collect()
+}
+
+/// A GUID as Windows writes it: `{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}` (its first three
+/// parts little-endian).
+fn guid_text(g: &[u8; 16]) -> String {
+    let d1 = u32::from_le_bytes([g[0], g[1], g[2], g[3]]);
+    let d2 = u16::from_le_bytes([g[4], g[5]]);
+    let d3 = u16::from_le_bytes([g[6], g[7]]);
+    let tail: String = g[10..].iter().map(|b| format!("{b:02X}")).collect();
+    format!("{{{d1:08X}-{d2:04X}-{d3:04X}-{:02X}{:02X}-{tail}}}", g[8], g[9])
 }
 
 /// Calls a GetExtended*Table function, growing the buffer until the table fits.
@@ -255,5 +289,34 @@ mod tests {
         assert!(!processes().unwrap().is_empty());
         tcp_connections().unwrap();
         udp_endpoints().unwrap();
+        // This PC's interfaces: loopback at least, each with a GUID.
+        let guids = interface_guids();
+        assert!(guids.iter().any(|(ip, _)| ip.is_loopback()));
+        assert!(guids.iter().all(|(_, g)| g.len() == 38 && g.starts_with('{')));
+    }
+
+    #[test]
+    fn guids_read_as_windows_writes_them() {
+        // {6B29FC40-CA47-1067-B31D-00DD010662DA}, as the bytes of a GUID struct.
+        let g = [0x40, 0xfc, 0x29, 0x6b, 0x47, 0xca, 0x67, 0x10, 0xb3, 0x1d, 0x00, 0xdd, 0x01, 0x06, 0x62, 0xda];
+        assert_eq!(guid_text(&g), "{6B29FC40-CA47-1067-B31D-00DD010662DA}");
+    }
+
+    #[test]
+    fn a_relay_on_this_pc_counts_as_where_the_game_talks() {
+        let conn = |pid, local: &str, remote: &str, state| TcpConn { pid, local: local.parse().unwrap(), remote: remote.parse().unwrap(), state };
+        let tcp = [
+            // Straight to a server.
+            conn(7, "192.168.0.248:50000", "193.202.112.209:13328", TcpConn::ESTABLISHED),
+            // Through ExitLag's relay on this PC.
+            conn(7, "127.0.0.1:50001", "127.0.0.1:61000", TcpConn::ESTABLISHED),
+            // Not open, or not the game's.
+            conn(7, "0.0.0.0:50002", "0.0.0.0:0", TcpConn::LISTEN),
+            conn(7, "10.0.0.5:50003", "1.2.3.4:443", 8),
+            conn(9, "10.9.9.9:50004", "1.2.3.4:443", TcpConn::ESTABLISHED),
+        ];
+        let ips = local_ips_for(&HashSet::from([7]), &tcp);
+        let want: HashSet<IpAddr> = ["192.168.0.248".parse().unwrap(), "127.0.0.1".parse().unwrap()].into();
+        assert_eq!(ips, want);
     }
 }

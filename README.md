@@ -49,12 +49,18 @@ names are made up.</sub>
 Requires Windows 10 or 11 with WebView2 (built into Windows 11).
 
 1. Install [Npcap](https://npcap.com). Leave **"Restrict Npcap driver's access to
-   Administrators only"** unticked, so the meter can run without admin rights.
+   Administrators only"** unticked, so the meter can run without admin rights, and keep
+   **"Support loopback traffic"** ticked (the default), which ExitLag and other ping
+   reducers need.
 2. Download the zip from [Releases](../../releases) and extract it anywhere.
 3. Run `glass-cannon.exe`. The program isn't code-signed, so SmartScreen may ask:
    **More info → Run anyway**.
 
 To update, extract a new release over the old one. Settings and history are kept.
+
+**Ping reducers and VPNs** (ExitLag and the like) work: the meter follows the game's
+connection to wherever it goes, a relay on your PC included. If the launcher says Npcap
+can't see your PC's own traffic, reinstall Npcap with "Support loopback traffic" ticked.
 
 ## Usage
 
@@ -75,7 +81,8 @@ Both hotkeys can be changed in the settings. The full guide is in
 
 ## Privacy
 
-- **Network**: Npcap captures on the network adapter the game uses. Packets that aren't
+- **Network**: Npcap captures on the network adapter the game uses (and your PC's own
+  loopback traffic, when the game goes through a ping reducer's relay). Packets that aren't
   the game's are dropped as they arrive; nothing is saved unless you turn on recording.
 - **Screen**: to step aside for game menus, the overlay looks at a small square in the
   game's top-right corner while the cursor is showing. It is never saved, and the setting

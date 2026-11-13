@@ -779,9 +779,17 @@ from step 2 to step 3.
 
 - **Finding the game:** the Windows connection tables (`GetExtendedTcpTable` /
   `GetExtendedUdpTable`) list the game process's sockets, polled every 500 ms.
-- **Capture:** one Npcap handle per adapter the game uses, filtered to TCP/UDP. Packets
-  from connections not yet identified are held for up to 3 s, so a new connection's
-  handshake and first messages aren't lost.
+- **Capture:** one Npcap handle per adapter the game uses, filtered to TCP/UDP. Which
+  adapters: those of the local addresses of the game's open TCP connections. 127.0.0.1 is
+  Npcap's loopback adapter: a ping reducer (ExitLag…) has the game connect to a relay on
+  this PC, which sends the traffic on in a tunnel of its own, so the game's messages are
+  only readable between the game and the relay (DLT_NULL frames, a 4-byte address family
+  first). Any other address is the adapter Npcap lists it on, or, when Npcap lists an
+  adapter without its address (some VPNs), the one whose GUID Windows gives for it
+  (`GetIpAddrTable`, `ConvertInterfaceIndexToLuid`, `ConvertInterfaceLuidToGuid`; Npcap's
+  adapters are `\Device\NPF_{GUID}`). When the game's addresses change to an adapter not
+  being captured, the capture starts again. Packets from connections not yet identified
+  are held for up to 3 s, so a new connection's handshake and first messages aren't lost.
 - **Reassembly:** per-direction TCP streams with out-of-order, retransmission, overlap and
   wraparound handling. Holes that never fill are skipped and recorded as gaps.
 
