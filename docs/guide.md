@@ -28,7 +28,10 @@ from the game, and lets the mouse through except over the meter and the world ti
 
 **Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
 moves widgets and resizes them by their
-corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Widgets
+corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
+dashed lines mark the screen's centre: a widget dragged near it snaps to it, and the line
+lights up; its edges and centre also snap to another widget's edges or centre, with a
+line showing the line-up. Widgets
 that grow with what they show (the cooldowns) are outlined at the most they'll take, so
 they can be placed clear of each other; the target frame (stagger gauge included) and the
 party cooldowns (the whole party) are always as tall as what they show (only their width
@@ -46,8 +49,24 @@ finishes. The widgets:
   They go off on a buff on the boss (Lakshmi's reflect: stop attacking), a debuff on you
   (a bomb or pool to carry away from the party, then "out of the fire") or on an ally (who
   to free, with their name), the boss's cue casts, its stagger check (while the gauge can
-  be broken), and a pool you're standing in: 30 mechanics of 15 bosses in 8 dungeons
-  (`gamedata/boss-mechanics.json`).
+  be broken), and a pool you're standing in: 34 mechanics of 18 bosses in 9 dungeons and
+  raids (`gamedata/boss-mechanics.json`). A few casts that killed the most in our runs
+  always warn, though short: in the Ludra raid, Rahu's, Ketu's, the Fusion Reactor's and
+  five of Eternal Ludra's (her casts are 1.5 to 2.3 s).
+  **What a move is called**: the game's own name for it when it has one (Ludra's Trial,
+  Abyssal Gaze, Wheel of Torment). The game calls most boss moves only "Attack"; for the
+  deadliest of those in the Ludra raid the card shows our own short label for what the
+  move does, from our runs: *raid-wide blast* (it hits most of the raid), *area blast*,
+  *strike* (one player), *heavy* (half a health bar or more), *pulses* (again and again),
+  *marked ground* (the game marks where it lands). Any other unnamed move shows the boss's
+  name. Name one yourself in the analysis window's [boss] tab and yours is used instead.
+  When the boss you're fighting turns to attack you, the card says so for 3 s (its name
+  over "on you", in amber; its mechanics and casts go first), with a lower chime (settings → boss
+  on you). It counts once the boss has stayed on you for 0.3 s, since a boss can point at
+  someone and move on at once; the target frame keeps showing "→ you" while it lasts.
+  A boss that was already up when the meter started (a raid boss stays up through every
+  wipe) shows as **Boss**: the meter never saw its spawn, so it can't name it, but it
+  knows it's a boss by its stagger gauge, and its HP, wipes, casts and warnings work.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down.
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
@@ -57,9 +76,16 @@ finishes. The widgets:
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   boss HP, enrage and cast lines, so nothing is shown twice.
-- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. The
-  game never sends your max HP: the highest seen stands in (your max once you've been at
-  full HP).
+- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. Your
+  max HP is the game's (it moves with buffs); until it sends it, the highest HP seen
+  stands in.
+- **vitals arcs**: the same, round, like GT Companion's center HUD: arcs either side of
+  your character with no box, on the left HP with your stamina inside it, on the right
+  MP with your flight power inside it, each filling from the bottom with its value by its
+  top end, and your cast on a small arc under your feet. It starts in the middle of the
+  screen; arrange it around your character (wider than tall), and the arcs take its box.
+  HP glows below 30%. Stamina and flight power come with their maximums now and then (at
+  login, a new character or zone), so they can be missing until then.
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
   "dead" when they are.
@@ -70,7 +96,9 @@ finishes. The widgets:
 - **world timers**: rifts, invasions, sieges, Arena of Tactics (NA, EU and LA), resets and
   field bosses (open the world map in game to read them) in your time; hover an event for
   its next three starts. Star (☆) the ones you want and **[★ only]** shows just those, and
-  ring the 🔔 for an alert on the meter before one starts. Also who holds the
+  ring the 🔔 for an alert on the meter before one starts. The region whose schedule it
+  follows and how long before the alert shows (1 to 15 minutes) are in the settings'
+  alerts tab (world timers); the widget's top line says which. Also who holds the
   Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
@@ -79,7 +107,8 @@ finishes. The widgets:
   there by name, genus or area) with their level, souls toward the next one and every
   area they're found in; a pet whose mobs are in view turns green with how many.
   **[nearest]** shows every pet you still need whose mobs are in view, tracked or not, the
-  most first. Which mobs give which souls is from Aion DPS Meter's data; a few mobs aren't
+  most first. Right-click a tracked pet to stop tracking it; a tracked pet that reaches max
+  level stops being tracked by itself. Which mobs give which souls is from Aion DPS Meter's data; a few mobs aren't
   in it.
 
 **Alt+E** hides the overlay's widgets from in game, and brings them back. That's for now
@@ -92,8 +121,8 @@ them before the game does. They're only held while the game is up, and if anothe
 already has the same keys, the keybinds say so and it's tried again every few seconds.
 One modifier alone (a tap of Right Alt, say) works too, read from the keyboard, but the
 game gets it as well: Alt shows its cursor.
-**Close with the game** (settings → tools) closes Glass Cannon a few seconds after the game
-closes. **Reset settings & keybinds** (settings → tools, click twice) puts every setting,
+**Close with the game** (settings → general) closes Glass Cannon a few seconds after the game
+closes. **Reset settings & keybinds** (settings → general, click twice) puts every setting,
 keybind and the appearance back to the defaults; the pets you track, starred and alerted
 events, boss skills you marked, the overlay's layout and the history stay.
 
@@ -135,10 +164,16 @@ background, Windows lightly blurs the game behind each widget.
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live
   boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
-  analysis, end the fight, arrange the overlay, history, and **≡** for the settings: theme (*night*, the
-  default, or rose, lavender, mint, sky, amber, mono, or any colour), font, background,
-  the overlay's widgets, update rate (*live* or every 0.2–2 s), fading outside
-  combat, recording and status checks.
+  analysis, end the fight, arrange the overlay, history, and **≡** for the settings, in tabs: **appearance** (theme:
+  *night*, the default, or rose, lavender, mint, sky, amber, mono, or any colour; bars,
+  font, background), **overlay** (its widgets, hiding it, fading outside combat),
+  **alerts** (boss warnings and their sound), **meter** (whose damage counts, update rate:
+  *live* or every 0.2–2 s, what shows on it, recording), **keybinds** and **general**
+  (status checks, closing with the game, resets; a dot on it when a check needs a look).
+  The search over the tabs (**Ctrl+F** or **/**) is forgiving: letters in order find a
+  setting ("alrt snd": alert sound), a slip is fine ("soudn"), and common words find
+  theirs ("opacity": tint, "fps": update rate). **Enter** goes to the best match, **Esc**
+  clears the search (opening that setting's tab), and **Ctrl+Tab** steps through the tabs.
 
 ## Analysis
 
@@ -161,8 +196,9 @@ fight; right-click again to close it. Tabs:
 ## History and dungeon runs
 
 The **clock icon** (on the meter or the launcher) opens the history window with the last
-200 fights (the newest 50 keep their full analysis), dungeon runs, bosses and PvP sessions;
-click a fight to show it on the meter.
+200 boss fights and the last 200 other fights (the newest 50 of each keep their full
+analysis, so short fights don't push out a raid's pulls), dungeon runs, bosses and PvP
+sessions; click a fight to show it on the meter.
 Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
 damage and, when the game says it was completed, the clear time (✓) and each stage's
 time; your fastest clear and stages of a dungeon and mode get a ★. Right-click a run for
@@ -171,10 +207,39 @@ dungeon (older fights: no break over 10 minutes and no boss fought twice). **[cl
 the bottom deletes every fight, dungeon run and PvP session (it asks first); a dungeon
 you're in at the time keeps grouping its next fights as a run.
 
+Fights are saved as they end, whether the overlay is showing or not. Closing the app (or
+the game, with **close with the game** on) ends the fight going on and saves it too.
+
 **Personal bests**: your highest DPS and fastest kill against each boss show during the
 fight on the meter's boss line, or the target frame while it shows (green while you're
 beating it), and as ★ tags on the fights in the history that set them. They're kept per
 character, count every kill you were in, and [clear] resets them.
+
+**Raids** ([raids] in the history): the Sanctuaries (Abyssal Forge: Ludra and the others),
+their runs and their fights. Every boss wipe says how far it got, as the boss's lowest HP
+("✗ wipe at 72.9%"), and the wipe that got a boss lowest is your **★ best try** against it
+(per character).
+
+**Attempts** (the flag icon on the launcher, or **[attempts]** at the bottom of the
+history): a window with each character's tries at every boss, a tab per character. Each
+dungeon or raid, in each mode, lists its bosses in the order you first tried them with
+their tries, kills (✓) and wipes (✗), and the best of them: your fastest kill, or until
+the first kill the lowest the boss got. The tabs narrow it: **[raids]** (the
+Sanctuaries), **[dungeons]** (Expeditions and Transcendence), **[sealed & strongholds]**
+(each Sealed Dungeon and Stronghold, cleared once, with its boss) and **[field & other]**
+(field bosses, the three Dimensional Invasions, and anything else). It counts every boss
+kill and wipe from when it was added (starting with the fights already in the history),
+and the history's [clear] doesn't touch it: its own [clear] forgets one character's tries
+(it asks first). A boss the meter never saw spawn has no name to file it under, so it
+isn't counted.
+
+**Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
+and charged) and its weekly sources, with how much of each is done this week and when
+the week starts again (Wednesday 07:00 UTC, 16:00 in Korea). The weekly Kina buy of Odyle
+Energy at the trade guild (20 a week) comes from the game: log in, or open a shop, with
+the meter open. The two weekly conversions into Odyle Energy (16 and 4 a week) aren't in
+anything the game sends that we've found, so tick them with **[+]** and **[−]**. Each
+character keeps its own, and all of it starts again at the weekly reset.
 
 **World PvP**: while you fight players outside your party (as in the Abyss), a line under
 the target shows your kills and deaths and the damage dealt and taken; hover it for the
@@ -206,7 +271,7 @@ name in the game data, so double-click one there to name it.
 
 ## Windows
 
-The launcher, settings, history, map and analysis are windows, with the same lights at
+The launcher, settings, history, attempts, checklist, map and analysis are windows, with the same lights at
 the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
@@ -221,11 +286,16 @@ switch what it shows; it remembers the one you were on.
 
 **Pets** puts a dot wherever a mob that gives pet souls spawns, in its genus' colour (Fera red, Natura green, Cogni blue, Varian purple, Special gold).
 Zoom in for the smaller zones' names. **[+]** beside a pet tracks it for the pet tracker
-widget. The list beside it has the
-pets on that map (**[still needed]** leaves out the ones you've maxed); a search looks
+widget (not one you've maxed). The list beside it has the
+pets on that map, and the filters under the search choose which, on the list and the map:
+**[all]**, **[missing]** (pets you have no copies of: never summoned), **[needed]** (the
+default: not summoned or below max level) or **[tracked]**, and each genus on or off
+(click Fera, Natura, Cogni, Varian or Special). Missing and needed go by your pets as the
+game last sent them (at login, changing character or entering a dungeon); a search looks
 through every pet, by name, genus or area;
 pick a pet, or click a dot, to light up its spawn points and see the areas it's found in
-and how far along it is. The pets you track show in green. You show as a ring on the map
+and how far along it is. Picking a pet in the list moves the map to its spawns, switching
+to the map with the most of them when it isn't on the one showing. The pets you track show in green. You show as a ring on the map
 you're on, once the meter knows where you are. Scroll to zoom, drag to move, double-click
 for the whole map. The spawn points are from Aion DPS Meter's data (MIT); a recording in
 Altgard puts the game's mobs on them, 2.4 m off at the median.

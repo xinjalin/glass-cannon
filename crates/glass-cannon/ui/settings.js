@@ -1,5 +1,5 @@
-// Glass Cannon settings: appearance, the overlay's widgets, status checks, meter options,
-// tools.
+// Glass Cannon settings, in tabs (appearance, overlay, alerts, meter, keybinds, general),
+// with a fuzzy search over all of them.
 
 const tauri = window.__TAURI__;
 const invoke = tauri.core.invoke;
@@ -10,8 +10,9 @@ const FONT_MAX = 18;
 const OPACITY_MIN = 0;
 const OPACITY_MAX = 100;
 const OPACITY_STEP = 5;
-// Window width in em: two 29em columns, the gap between them and the margins.
-const WIDTH_EM = 61.5;
+// Window width in em: one column of settings and the margins (wide enough for the tabs on
+// one line).
+const WIDTH_EM = 40;
 
 const SCOPE_HINTS = {
   mine: "just you: your damage on the targets you hit",
@@ -49,21 +50,30 @@ function fitWindow() {
   });
 }
 
+// The window fits the tallest tab (they share one grid cell), so it keeps its size from tab
+// to tab; search results scroll in that size instead.
 function measureAndFit() {
+  if (searching()) return;
   const fs = parseFloat(getComputedStyle(document.documentElement).fontSize);
   const width = Math.ceil(WIDTH_EM * fs);
-  const columns = $("columns");
-  // Measure the columns at the width they'll have once the window is resized.
-  columns.style.width = `${width - 2.2 * fs}px`;
-  const panel = getComputedStyle($("panel"));
+  const panels = $("panels");
+  // Measure the tabs at the width they'll have once the window is resized.
+  panels.style.width = `${width - 2.2 * fs}px`;
+  const outer = (el) => {
+    const cs = getComputedStyle(el);
+    return el.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+  };
   const height = Math.ceil(
-    $("bar").offsetHeight +
-      columns.offsetHeight +
-      $("footer").offsetHeight +
-      parseFloat(panel.paddingBottom) +
+    outer($("bar")) +
+      outer($("search-row")) +
+      outer($("tabs")) +
+      panels.offsetHeight +
+      outer($("message")) +
+      outer($("footer")) +
+      parseFloat(getComputedStyle($("panel")).paddingBottom) +
       0.6 * fs,
   );
-  columns.style.width = "";
+  panels.style.width = "";
   const size = `${width}x${height}`;
   if (size === fitted) return;
   fitted = size;
@@ -138,6 +148,7 @@ async function refresh() {
     setCheck("check-npcap", state.npcap);
     setCheck("check-data", state.data);
     setCheck("check-details", state.details);
+    markGeneral();
     drawAppearance(state.appearance);
     drawScope(state.scope, state.party_size, state.auto_scope);
     for (const b of document.querySelectorAll("[data-refresh-choice]")) {
@@ -148,6 +159,7 @@ async function refresh() {
     setToggle("boss-hp", state.boss_hp);
     setToggle("boss-casts", state.boss_casts);
     setToggle("boss-mechanics", state.boss_mechanics);
+    setToggle("boss-on-you", state.boss_on_you);
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
     setToggle("hide-on-world-map", state.hide_on_world_map);
@@ -173,6 +185,14 @@ async function refresh() {
     for (const b of document.querySelectorAll("[data-party-cd-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String((b.dataset.partyCdChoice === "class") === state.party_cooldowns_by_class));
+    }
+    for (const b of document.querySelectorAll("[data-region-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(b.dataset.regionChoice === state.timer_region));
+    }
+    for (const b of document.querySelectorAll("[data-lead-choice]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(Number(b.dataset.leadChoice) === state.alert_lead_min));
     }
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
@@ -395,6 +415,8 @@ function drawHotkeys() {
     return b;
   });
   $("hotkeys").replaceChildren(...rows);
+  // New rows: filter them like the rest while searching.
+  if (searching()) runSearch();
 }
 
 function startPicking(action) {
@@ -463,6 +485,24 @@ window.addEventListener("blur", () => {
 
 $("close-with-game").addEventListener("click", async () => {
   await invoke("set_close_with_game", { on: !(state && state.close_with_game) });
+  refresh();
+});
+
+for (const b of document.querySelectorAll("[data-region-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_timer_region", { region: b.dataset.regionChoice }).catch((e) => say(String(e), "error"));
+    refresh();
+  });
+}
+for (const b of document.querySelectorAll("[data-lead-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_alert_lead", { minutes: Number(b.dataset.leadChoice) });
+    refresh();
+  });
+}
+
+$("boss-on-you").addEventListener("click", async () => {
+  await invoke("set_boss_on_you", { on: !(state && state.boss_on_you) });
   refresh();
 });
 
@@ -672,7 +712,14 @@ $("shortcut").addEventListener("click", async () => {
 
 $("close").addEventListener("click", () => invoke("hide_settings"));
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && $("font-menu").hidden) invoke("hide_settings");
+  if (e.key !== "Escape" || !$("font-menu").hidden) return;
+  // A search first: Esc clears it, the next one closes.
+  if (searching()) {
+    e.preventDefault();
+    clearSearch();
+    return;
+  }
+  invoke("hide_settings");
 });
 
 // A change from another window (or "reset appearance") shows here too.
@@ -681,6 +728,316 @@ tauri.event.listen("appearance", (e) => {
   drawAppearance(e.payload);
 });
 
-new ResizeObserver(fitWindow).observe($("columns"));
+// ---------------------------------------------------------------- tabs
+
+const TAB_KEY = "settings-tab";
+const tabButtons = [...document.querySelectorAll("#tabs [role=tab]")];
+const panels = [...document.querySelectorAll(".tab-panel")];
+
+function storedTab() {
+  try {
+    return localStorage.getItem(TAB_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function showTab(name, focus = false) {
+  if (!panels.some((p) => p.dataset.tab === name)) name = panels[0].dataset.tab;
+  for (const b of tabButtons) {
+    const on = b.dataset.tab === name;
+    b.setAttribute("aria-selected", String(on));
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  }
+  for (const p of panels) p.classList.toggle("active", p.dataset.tab === name);
+  try {
+    localStorage.setItem(TAB_KEY, name);
+  } catch {
+    // Not remembered, then.
+  }
+}
+
+function currentTab() {
+  const b = tabButtons.find((x) => x.getAttribute("aria-selected") === "true");
+  return b ? b.dataset.tab : panels[0].dataset.tab;
+}
+
+function stepTab(step, focus) {
+  const i = tabButtons.findIndex((b) => b.dataset.tab === currentTab());
+  showTab(tabButtons[(i + step + tabButtons.length) % tabButtons.length].dataset.tab, focus);
+}
+
+for (const b of tabButtons) {
+  b.addEventListener("click", () => {
+    // A tab picked while searching: back to that tab's settings.
+    if (searching()) clearSearch(false);
+    showTab(b.dataset.tab);
+  });
+}
+$("tabs").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    e.preventDefault();
+    stepTab(e.key === "ArrowRight" ? 1 : -1, true);
+  } else if (e.key === "Home" || e.key === "End") {
+    e.preventDefault();
+    const b = e.key === "Home" ? tabButtons[0] : tabButtons[tabButtons.length - 1];
+    showTab(b.dataset.tab, true);
+  }
+});
+
+// A dot on [general] when one of its status checks isn't ok.
+function markGeneral() {
+  const levels = [...document.querySelectorAll("#tab-general .check")].map((c) => c.className);
+  const bad = levels.some((l) => l.includes("bad"));
+  const warn = levels.some((l) => l.includes("warn"));
+  const dot = $("tab-button-general").querySelector(".tab-dot");
+  dot.hidden = !bad && !warn;
+  dot.classList.toggle("bad", bad);
+  $("tab-button-general").title = bad || warn ? "A status check needs a look" : "";
+}
+
+// ---------------------------------------------------------------- search
+
+// Fuzzy: each word typed must match a setting. In its name the letters only need to come
+// in order, from the start of a word ("alrt snd" finds "alert sound"; one or two letters
+// must be a word's start); in its description, keywords and section a word must start with
+// what's typed. A word of 4 letters or more may also be one slip off a word of its name,
+// keywords or section (a letter missing, extra, wrong or swapped: "aletr", "soudn").
+
+const norm = (t) => (t || "").toLowerCase().replace(/[\[\]]/g, " ").replace(/\s+/g, " ").trim();
+const isWordStart = (t, i) => i === 0 || !/[a-z0-9]/.test(t[i - 1]);
+
+// The letters of `q` in order in `t`, starting at a word start: their positions and a
+// score (a run of letters and word starts count most), or null.
+function inOrder(q, t) {
+  let best = null;
+  for (let start = 0; start < t.length; start++) {
+    if (t[start] !== q[0] || !isWordStart(t, start)) continue;
+    const pos = [start];
+    let score = 3;
+    let i = start + 1;
+    for (const ch of q.slice(1)) {
+      // Prefer the next letter right after, then at a word start, then anywhere.
+      let k = t[i] === ch ? i : -1;
+      if (k < 0) {
+        for (let j = i; j < t.length; j++) {
+          if (t[j] === ch && isWordStart(t, j)) {
+            k = j;
+            break;
+          }
+        }
+      }
+      if (k < 0) k = t.indexOf(ch, i);
+      if (k < 0) break;
+      score += k === pos[pos.length - 1] + 1 ? 3 : isWordStart(t, k) ? 2 : 0;
+      score -= Math.min(3, (k - pos[pos.length - 1] - 1) * 0.15);
+      pos.push(k);
+      i = k + 1;
+    }
+    if (pos.length === q.length && (!best || score > best.score)) best = { pos, score };
+  }
+  return best;
+}
+
+// Damerau-Levenshtein distance (with swaps), stopping early past `max`.
+function slips(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let rowMin = Infinity;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      rowMin = Math.min(rowMin, d[i][j]);
+    }
+    if (rowMin > max) return max + 1;
+  }
+  return d[a.length][b.length];
+}
+
+// A word of `words` that `token` is one slip from (the word whole, or its start as long as
+// the token), or false.
+function nearWord(token, words) {
+  if (token.length < 4) return false;
+  const max = token.length >= 7 ? 2 : 1;
+  return words.some((w) => w.length >= 3 && (slips(token, w, max) <= max || (w.length > token.length && slips(token, w.slice(0, token.length), max) <= max)));
+}
+
+// How well one word typed matches a setting: a score, and the name's letters it matched.
+function matchToken(token, item) {
+  const exact = item.name.indexOf(token);
+  if (exact >= 0 && isWordStart(item.name, exact)) {
+    return { score: 12 + token.length, pos: [...Array(token.length).keys()].map((k) => exact + k) };
+  }
+  const order = token.length > 2 && inOrder(token, item.name);
+  if (order) return { score: order.score, pos: order.pos };
+  if (item.moreWords.some((w) => w.startsWith(token))) return { score: 4, pos: [] };
+  if (token.length >= 3 && item.more.includes(token)) return { score: 2, pos: [] };
+  if (nearWord(token, item.nameWords)) return { score: 3, pos: [] };
+  if (nearWord(token, item.tagWords)) return { score: 1, pos: [] };
+  return null;
+}
+
+// Every setting's row, with what's searched: its name, then its description, keywords,
+// choices and where it is (section and tab). Read again each search, so the keybinds'
+// rows (redrawn every refresh) and changed descriptions count.
+function searchItems() {
+  const items = [];
+  for (const panel of panels) {
+    for (const row of panel.querySelectorAll(".line, .opt, .check")) {
+      const key = row.querySelector(".key");
+      if (!key) continue;
+      if (!key.dataset.text) key.dataset.text = key.textContent;
+      const box = row.closest(".box");
+      const legend = box ? box.querySelector("legend").textContent : "";
+      const extra = [...row.querySelectorAll("[title]")].map((b) => `${b.textContent} ${b.title}`).join(" ");
+      const name = norm(key.dataset.text);
+      const tags = norm(`${row.dataset.keywords || ""} ${legend} ${panel.dataset.tab}`);
+      const more = norm(`${row.title || ""} ${key.title || ""} ${extra} ${tags}`);
+      items.push({
+        row,
+        key,
+        panel,
+        name,
+        nameWords: name.split(/[^a-z0-9]+/).filter(Boolean),
+        more,
+        moreWords: more.split(/[^a-z0-9]+/).filter(Boolean),
+        tagWords: tags.split(/[^a-z0-9]+/).filter(Boolean),
+      });
+    }
+  }
+  return items;
+}
+
+// The name with the matched letters marked (built from text nodes: names are our own, but
+// never set as HTML anyway).
+function markKey(key, positions) {
+  const text = key.dataset.text;
+  if (!positions.length) {
+    key.textContent = text;
+    return;
+  }
+  // Positions are in the normalised name; it keeps the original's length unless it had
+  // brackets or runs of spaces, which names don't.
+  const at = new Set(positions);
+  const parts = [];
+  let run = "";
+  let marked = false;
+  for (let i = 0; i < text.length; i++) {
+    const m = at.has(i);
+    if (m !== marked && run) {
+      parts.push(marked ? Object.assign(document.createElement("mark"), { textContent: run }) : document.createTextNode(run));
+      run = "";
+    }
+    marked = m;
+    run += text[i];
+  }
+  if (run) parts.push(marked ? Object.assign(document.createElement("mark"), { textContent: run }) : document.createTextNode(run));
+  key.replaceChildren(...parts);
+}
+
+let bestRow = null;
+
+function searching() {
+  return norm($("search").value).length > 0;
+}
+
+function runSearch() {
+  const tokens = norm($("search").value).split(" ").filter(Boolean);
+  const box = $("panels");
+  const on = tokens.length > 0;
+  box.classList.toggle("searching", on);
+  document.body.classList.toggle("searching", on);
+  if (bestRow) bestRow.classList.remove("found");
+  bestRow = null;
+  let shown = 0;
+  let bestScore = -Infinity;
+  for (const item of searchItems()) {
+    let score = 0;
+    let pos = [];
+    for (const t of tokens) {
+      const m = matchToken(t, item);
+      if (!m) {
+        score = null;
+        break;
+      }
+      score += m.score;
+      pos = pos.concat(m.pos);
+    }
+    const hit = !on || score !== null;
+    item.row.toggleAttribute("data-miss", !hit);
+    markKey(item.key, on && hit ? pos : []);
+    if (on && hit) {
+      shown++;
+      if (score > bestScore) {
+        bestScore = score;
+        bestRow = item.row;
+      }
+    }
+  }
+  // Hints show under a setting that matched; sections and tabs with nothing left go.
+  for (const hint of document.querySelectorAll(".tab-panel .hint")) {
+    const prev = hint.previousElementSibling;
+    const keep = !on || hint.id === "hotkeys-hint" || (prev && prev.matches(".line, .opt") && !prev.hasAttribute("data-miss"));
+    hint.toggleAttribute("data-miss", !keep);
+  }
+  for (const b of document.querySelectorAll(".tab-panel .box")) {
+    b.toggleAttribute("data-miss", on && !b.querySelector(".line:not([data-miss]), .opt:not([data-miss]), .check:not([data-miss])"));
+  }
+  for (const p of panels) p.toggleAttribute("data-miss", on && !p.querySelector(".box:not([data-miss])"));
+  if (bestRow && on) bestRow.classList.add("found");
+  $("no-results").hidden = !on || shown > 0;
+  $("search-count").textContent = on ? (shown === 1 ? "1 setting" : `${shown} settings`) : "";
+  if (!on) fitWindow();
+}
+
+// Clears the search. With a setting focused in the results, its tab opens, so it stays in
+// view.
+function clearSearch(followFocus = true) {
+  const focused = document.activeElement && document.activeElement.closest(".tab-panel");
+  $("search").value = "";
+  runSearch();
+  if (followFocus && focused) showTab(focused.dataset.tab);
+}
+
+// The control to go to for a row: the row itself when it's a button, else its first one.
+function controlOf(row) {
+  return row.matches("button") ? row : row.querySelector("button, input");
+}
+
+$("search").addEventListener("input", () => {
+  runSearch();
+  $("scroll").scrollTop = 0;
+});
+$("search").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === "ArrowDown") && bestRow) {
+    // To the best match (Enter doesn't switch anything: Space or Enter again does).
+    e.preventDefault();
+    const c = controlOf(bestRow);
+    if (c) {
+      c.focus();
+      c.scrollIntoView({ block: "nearest" });
+    }
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (bindingAction) return;
+  const typing = e.target.matches && e.target.matches("input, textarea");
+  if ((e.ctrlKey && e.key.toLowerCase() === "f") || (e.key === "/" && !typing)) {
+    e.preventDefault();
+    $("search").focus();
+    $("search").select();
+  } else if (e.ctrlKey && (e.key === "Tab" || e.key === "PageDown" || e.key === "PageUp")) {
+    e.preventDefault();
+    if (searching()) clearSearch(false);
+    stepTab(e.key === "PageUp" || (e.key === "Tab" && e.shiftKey) ? -1 : 1, false);
+  }
+});
+
+showTab(storedTab() || "appearance");
+new ResizeObserver(fitWindow).observe($("panels"));
 refresh();
 setInterval(refresh, 2000);

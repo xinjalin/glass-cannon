@@ -8,6 +8,7 @@
 //!   skills.json    { "skills": { "18010340": { "name": "…", "icon": "1801.png" } } }
 //!   npcs.json      { "npcs":   { "2400009":  { "name": "…", "boss": true } } }
 //!   npc-names.json { "npcs":   { "2950865": "Elvida" } }   NPCs the mob lists don't name
+//!   boss-skills.json { "skills": { "1801969": "Abyssal Gaze" } }  the game's names for boss and mob skills
 //!   1801.png …     skill icons
 //!   class_18.webp  class icons, by class code
 //!   skill-details.json  { "skills": { "18010000": { "cooldown_s": 15, "specs": […] } } }
@@ -32,8 +33,12 @@ const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
+/// The places the scraped dungeon list doesn't have (Sealed Dungeons, Dimensional
+/// Invasions), written by hand in the same shape.
+const PLACES_FILE: &str = "places.json";
 const PETS_FILE: &str = "pets.json";
 const PET_SPAWNS_FILE: &str = "pet-spawns.json";
+const BOSS_SKILLS_FILE: &str = "boss-skills.json";
 const PET_MAP_FILE: &str = "pet-map.json";
 const GATHER_MAP_FILE: &str = "gather-map.json";
 const GEAR_FILE: &str = "gear.json";
@@ -151,6 +156,26 @@ struct PetSpawnFile {
     found_in: BTreeMap<u32, Vec<String>>,
 }
 
+/// Names for boss and mob skills the skill data only calls "Attack" (optional; from
+/// SkeeveAN's Aion DPS Meter, MIT, made with `packet-lab boss-skills`).
+#[derive(Debug, Default, Deserialize)]
+struct BossSkillFile {
+    #[serde(default)]
+    skills: BTreeMap<u32, String>,
+}
+
+/// Gives a mob skill the game's own name (boss-skills.json has them only where skills.json
+/// has none, only "Attack", or another: its names are NOIA2's, and "Purple Bolt" was the
+/// game's "Ludra's Trial"). A skill not in the data keeps the icon its base skill would
+/// have given it (as [`GameData::resolve_skill`] finds it).
+fn name_mob_skill(skills: &mut BTreeMap<u32, Entry>, id: u32, name: String) {
+    if id >= PLAYER_SKILL_MIN || name.is_empty() {
+        return;
+    }
+    let icon = [id - id % 100, id - id % 10_000].iter().find_map(|k| skills.get(k)).and_then(|e| e.icon.clone());
+    skills.entry(id).or_insert_with(|| Entry { icon, ..Entry::default() }).name = name;
+}
+
 /// A training dummy (the Training Scarecrow).
 fn dummy_entry(e: &Entry) -> bool {
     e.dummy || e.name.contains("Training Scarecrow")
@@ -188,6 +213,47 @@ struct DungeonFile {
     dungeons: BTreeMap<String, DungeonEntry>,
     #[serde(default)]
     mobs: BTreeMap<u32, DungeonMob>,
+    /// Filled in on loading: for each block of 100 mob types (the type / 100), the dungeon
+    /// and mode every listed mob in it is in, when there are two or more and they agree.
+    #[serde(skip)]
+    blocks: BTreeMap<u32, (String, Option<String>)>,
+}
+
+impl DungeonFile {
+    /// Works out this file's blocks, then adds `other`'s dungeons and mobs (never over
+    /// this file's own). Only the scrape's mobs make blocks: the hand-kept places list
+    /// bosses one by one.
+    fn merge(&mut self, other: DungeonFile) {
+        self.find_blocks();
+        for (id, d) in other.dungeons {
+            self.dungeons.entry(id).or_insert(d);
+        }
+        for (id, m) in other.mobs {
+            self.mobs.entry(id).or_insert(m);
+        }
+    }
+
+    /// The scrape misses a few of a dungeon's mobs (Vakron, the last boss of Vakron Sky
+    /// Island, among Tiere, Thamon and the island's others). A dungeon's mobs in one mode
+    /// are numbered together, so a missing one is where the rest of its block is, when the
+    /// rest (two or more) all say the same.
+    fn find_blocks(&mut self) {
+        // Each block's place (None once two differ) and how many are listed.
+        type Seen<'a> = (Option<(&'a str, Option<&'a str>)>, usize);
+        let mut seen: BTreeMap<u32, Seen> = BTreeMap::new();
+        for (id, m) in &self.mobs {
+            let place = (m.dungeon.as_str(), m.mode.as_deref());
+            let e = seen.entry(id / 100).or_insert((Some(place), 0));
+            if e.0 != Some(place) {
+                e.0 = None;
+            }
+            e.1 += 1;
+        }
+        self.blocks = seen
+            .into_iter()
+            .filter_map(|(block, (place, n))| place.filter(|_| n >= 2).map(|(d, m)| (block, (d.to_string(), m.map(str::to_string)))))
+            .collect();
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -329,6 +395,7 @@ impl GameData {
                     self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
+                    self.dungeons.merge(read_json::<DungeonFile>(&dir.join(PLACES_FILE)).unwrap_or_default());
                     self.field_bosses = read_json::<FieldBossFile>(&dir.join(FIELD_BOSSES_FILE)).unwrap_or_default();
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
@@ -342,6 +409,12 @@ impl GameData {
                         if e.name.is_empty() {
                             e.name = name;
                         }
+                    }
+                    // The game's own names for boss and mob skills, where the data has none,
+                    // only "Attack", or another.
+                    let boss_skills = read_json::<BossSkillFile>(&dir.join(BOSS_SKILLS_FILE)).unwrap_or_default();
+                    for (id, name) in boss_skills.skills {
+                        name_mob_skill(&mut self.skills.skills, id, name);
                     }
                     // Consumables' icons fill in skills that have none.
                     let items = read_json::<ItemIconFile>(&dir.join(ITEM_ICONS_FILE)).unwrap_or_default();
@@ -378,11 +451,15 @@ impl GameData {
         self.details.skills.len()
     }
 
-    /// The dungeon a mob type belongs to, if any.
+    /// The dungeon (or Sealed Dungeon, Dimensional Invasion…) a mob type belongs to, if any:
+    /// the data's word for it, else its block's (see [`DungeonFile::find_blocks`]).
     pub fn dungeon(&self, mob_type: u32) -> Option<DungeonPlace<'_>> {
-        let mob = self.dungeons.mobs.get(&mob_type)?;
-        let (id, d) = self.dungeons.dungeons.get_key_value(&mob.dungeon)?;
-        Some(DungeonPlace { id, name: &d.name, kind: d.kind.as_deref(), mode: mob.mode.as_deref() })
+        let (dungeon, mode) = match self.dungeons.mobs.get(&mob_type) {
+            Some(m) => (&m.dungeon, m.mode.as_deref()),
+            None => self.dungeons.blocks.get(&(mob_type / 100)).map(|(d, m)| (d, m.as_deref()))?,
+        };
+        let (id, d) = self.dungeons.dungeons.get_key_value(dungeon)?;
+        Some(DungeonPlace { id, name: &d.name, kind: d.kind.as_deref(), mode })
     }
 
     pub fn dungeon_mob_count(&self) -> usize {
@@ -412,14 +489,22 @@ impl GameData {
         &self.dir
     }
 
-    /// A skill's entry: its exact ID first, then its base skill (variants differ in the
-    /// last digits, e.g. 11100048 -> 11100000). Theostones come in as 7 digits (3001015)
-    /// but the data lists them by their effect ID, one digit longer (30010151).
+    /// A skill's entry: its exact ID first, then, for a player's skill, its base skill
+    /// (variants differ in the last digits, e.g. 11100048 -> 11100000). Theostones come in
+    /// as 7 digits (3001015) but the data lists them by their effect ID, one digit longer
+    /// (30010151).
+    ///
+    /// A mob's skill is only ever its own entry: its neighbours are other moves, not
+    /// variants. Going by the base, every cast of the Central Abyss Fusion Reactor (1802510
+    /// to 1802580, none in the data) was named after 1802500, "Shatter Ground", and Eternal
+    /// Ludra's 1803050 to 1803090 "Supply Eldritch Energy" (1803000), in the boss warnings
+    /// and death recaps of the Ludra raid (2026-11-13).
     fn resolve_skill(&self, id: u32) -> Option<(u32, &Entry)> {
         let theostone = THEOSTONE_SKILLS.contains(&id).then(|| id * 10 + 1);
-        [Some(id), Some(id - id % 100), Some(id - id % 10_000), theostone]
-            .into_iter()
-            .flatten()
+        let bases = (id >= PLAYER_SKILL_MIN).then_some([id - id % 100, id - id % 10_000]);
+        std::iter::once(id)
+            .chain(bases.into_iter().flatten())
+            .chain(theostone)
             .find_map(|k| self.skills.skills.get(&k).map(|e| (k, e)))
     }
 
@@ -452,15 +537,20 @@ impl GameData {
             self.annotate_view(enc);
         }
         if let Some(t) = snap.target.as_mut() {
-            if let Some((name, boss)) = t.mob_type.and_then(|m| self.npc(m)) {
-                t.name = name;
-                t.boss = boss;
-            }
-            tidy(&mut t.name);
-            // A mob's cast: most mob skills are only "Attack" in the data, which says nothing.
-            if let Some(c) = t.cast.as_mut() {
-                c.skill_name = self.boss_skill_name(c.skill);
-            }
+            self.annotate_target(t);
+        }
+    }
+
+    /// Names a target, says whether it's a boss, and names what it's casting.
+    pub fn annotate_target(&self, t: &mut meter_core::meter::TargetView) {
+        if let Some((name, boss)) = t.mob_type.and_then(|m| self.npc(m)) {
+            t.name = name;
+            t.boss = boss;
+        }
+        tidy(&mut t.name);
+        // A mob's cast: most mob skills are only "Attack" in the data, which says nothing.
+        if let Some(c) = t.cast.as_mut() {
+            c.skill_name = self.boss_skill_name(c.skill);
         }
     }
 
@@ -518,6 +608,11 @@ impl GameData {
         self.mechanics.clone()
     }
 
+    /// Boss skills the data says always to warn about.
+    pub fn warn_casts(&self) -> &[u32] {
+        &self.mechanics.warn_casts
+    }
+
     /// The mob types that are bosses: their death ends a fight, and HP back to full is a
     /// wipe. Training dummies are marked as bosses in the data but reset all the time.
     pub fn boss_types(&self) -> Vec<u32> {
@@ -539,6 +634,13 @@ impl GameData {
     pub fn npc(&self, type_id: u32) -> Option<(String, bool)> {
         let e = self.npcs.npcs.get(&type_id)?;
         (!e.name.is_empty()).then(|| (e.name.clone(), e.boss && !dummy_entry(e)))
+    }
+
+    /// A mob type's name as the lists show it (tidied), when the data has one.
+    pub fn npc_label(&self, type_id: u32) -> Option<String> {
+        let (mut name, _) = self.npc(type_id)?;
+        tidy(&mut name);
+        Some(name)
     }
 
     pub fn annotate_view(&self, enc: &mut EncounterView) {
@@ -625,9 +727,13 @@ impl GameData {
     }
 
     /// A boss skill's name: the data names most mob skills only "Attack", which says
-    /// nothing, so that counts as no name (yours from names.json still does).
+    /// nothing, so that counts as no name (yours from names.json still does). For those,
+    /// our own label for the move when we have one (boss-mechanics.json's `labels`).
     pub fn boss_skill_name(&self, skill: u32) -> Option<String> {
-        self.skill_meta(skill).0.filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
+        self.skill_meta(skill)
+            .0
+            .filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
+            .or_else(|| self.mechanics.labels.get(&skill).cloned())
     }
 
     /// Names a skill (an empty name goes back to the data's name). Saved to names.json.
@@ -886,6 +992,69 @@ mod tests {
     }
 
     #[test]
+    fn boss_skills_take_the_games_names() {
+        let dir = temp_dir("boss-skills");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": { "11100000": { "name": "Ruinous Blow" }, "1801900": { "name": "Attack", "icon": "1801.png" },
+                 "1801840": { "name": "Attack" }, "1218170": { "name": "Claw Swipe" }, "1803010": { "name": "Purple Bolt" } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(BOSS_SKILLS_FILE),
+            r#"{ "skills": { "1801969": "Abyssal Gaze", "1801840": "Smash", "1218170": "Rake", "1803010": "Ludra's Trial",
+                             "11100000": "Not this" } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // Ketu's gaze (as seen 2026-11-07): not in the skill data, named now, with its base skill's icon.
+        assert_eq!(d.boss_skill_name(1_801_969).as_deref(), Some("Abyssal Gaze"));
+        assert_eq!(d.skill_meta(1_801_969).1, Some(1_801_969));
+        assert_eq!(d.boss_skill_name(1_801_840).as_deref(), Some("Smash"));
+        // Where the skill data had another name, the game's (NCSOFT's notes say "Ludra's Trial").
+        assert_eq!(d.boss_skill_name(1_218_170).as_deref(), Some("Rake"));
+        assert_eq!(d.boss_skill_name(1_803_010).as_deref(), Some("Ludra's Trial"));
+        // Player skills are never renamed.
+        assert_eq!(d.skill_meta(11_100_000).0.as_deref(), Some("Ruinous Blow"));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_boss_skill_is_never_named_after_its_neighbour() {
+        let dir = temp_dir("boss-neighbours");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": { "1802500": { "name": "Shatter Ground", "icon": "1802.png" }, "1803000": { "name": "Supply Eldritch Energy" },
+                 "11100000": { "name": "Ruinous Blow" } } }"#,
+        )
+        .unwrap();
+        fs::write(dir.join("1802.png"), b"png").unwrap();
+        fs::write(
+            dir.join(MECHANICS_FILE),
+            r#"{ "labels": { "1803200": "raid-wide blast", "1802500": "not this: the game names it" } }"#,
+        )
+        .unwrap();
+        let mut d = GameData::load_first(vec![dir.clone()]);
+        // The Fusion Reactor's casts and Eternal Ludra's (2026-11-13): none in the data. They
+        // were "Shatter Ground" and "Supply Eldritch Energy", after 1802500 and 1803000.
+        for skill in [1_802_510, 1_802_555, 1_802_580, 1_803_050, 1_803_080] {
+            assert_eq!((d.skill_meta(skill).0, d.boss_skill_name(skill)), (None, None), "{skill}");
+        }
+        // They still get their family's icon.
+        assert!(d.skill_icon(1_802_510).is_some());
+        // The ones the data does name keep their names; a player skill's variant its base's.
+        assert_eq!(d.boss_skill_name(1_802_500).as_deref(), Some("Shatter Ground"));
+        assert_eq!(d.skill_meta(11_100_048).0.as_deref(), Some("Ruinous Blow"));
+        // A move the game doesn't name takes our label, until you name it yourself.
+        assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("raid-wide blast"));
+        assert_eq!(d.skill_meta(1_803_200).0, None, "a label is for the boss's casts only");
+        d.names_path = Some(dir.join("names.json"));
+        d.rename_skill(1_803_200, "Big Boom").unwrap();
+        assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("Big Boom"));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
     fn annotates_skills_target_and_boss() {
         let dir = temp_dir("annotate");
         fs::write(dir.join("1110.png"), b"png").unwrap();
@@ -984,6 +1153,42 @@ mod tests {
         assert_eq!(d.dungeon(2_340_601), Some(place));
         assert_eq!(d.dungeon(2_400_010), None);
         assert_eq!(d.dungeon(1), None, "a mob in a dungeon the file doesn't list");
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_mob_the_scrape_missed_is_where_its_block_is_and_the_hand_kept_places_count() {
+        let dir = temp_dir("blocks");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "18010000": { "name": "Onslaught" } } }"#).unwrap();
+        fs::write(
+            dir.join(DUNGEONS_FILE),
+            r#"{ "dungeons": { "BakronIsland": { "name": "Vakron Sky Island", "type": "Expedition" },
+                               "DeusCenter": { "name": "Deus Research Base", "type": "Transcendence" } },
+                 "mobs": { "2320810": { "dungeon": "BakronIsland", "mode": "Conquest [Hard]" },
+                           "2320811": { "dungeon": "BakronIsland", "mode": "Conquest [Hard]" },
+                           "2340601": { "dungeon": "DeusCenter", "mode": "Stage 2" },
+                           "2340602": { "dungeon": "DeusCenter", "mode": "Ordeal" },
+                           "2350601": { "dungeon": "DeusCenter", "mode": "Ordeal" } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(PLACES_FILE),
+            r#"{ "dungeons": { "Sealed_ChillyHideout": { "name": "Chilly Hideout", "type": "Sealed Dungeon" },
+                               "BakronIsland": { "name": "Not this", "type": "Nothing" } },
+                 "mobs": { "2700914": { "dungeon": "Sealed_ChillyHideout" },
+                           "2700916": { "dungeon": "Sealed_ChillyHideout" },
+                           "2320810": { "dungeon": "Sealed_ChillyHideout" } } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        let vakron = DungeonPlace { id: "BakronIsland", name: "Vakron Sky Island", kind: Some("Expedition"), mode: Some("Conquest [Hard]") };
+        assert_eq!(d.dungeon(2_320_812), Some(vakron.clone()), "missing, among two of the island's");
+        assert_eq!(d.dungeon(2_320_810), Some(vakron), "the scrape's own word stays");
+        assert_eq!(d.dungeon(2_340_603), None, "its block is in two modes");
+        assert_eq!(d.dungeon(2_350_602), None, "one is too few to go by");
+        let sealed = DungeonPlace { id: "Sealed_ChillyHideout", name: "Chilly Hideout", kind: Some("Sealed Dungeon"), mode: None };
+        assert_eq!(d.dungeon(2_700_914), Some(sealed));
+        assert_eq!(d.dungeon(2_700_915), None, "hand-kept bosses don't make a block");
         fs::remove_dir_all(dir).ok();
     }
 

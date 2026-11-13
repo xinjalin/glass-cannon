@@ -13,26 +13,92 @@ use std::path::{Path, PathBuf};
 use meter_core::meter::{Analysis, EncounterView, FightEnd, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-/// Fights kept in memory and shown in the history list.
+/// Fights kept in memory and shown in the history list, boss fights and the rest each.
 const HISTORY_LIMIT: usize = 200;
 
-fn load<T: DeserializeOwned + Default>(path: &Path) -> T {
-    fs::read(path)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+/// Which of `items` (oldest first) fall outside the newest `limit` boss fights and the
+/// newest `limit` other fights, so a run of short fights can't push the boss fights out.
+fn beyond_limit<T>(items: &[T], limit: usize, boss: impl Fn(&T) -> bool) -> Vec<bool> {
+    let (mut bosses, mut others) = (0, 0);
+    let mut drop: Vec<bool> = items
+        .iter()
+        .rev()
+        .map(|i| {
+            let seen = if boss(i) { &mut bosses } else { &mut others };
+            *seen += 1;
+            *seen > limit
+        })
+        .collect();
+    drop.reverse();
+    drop
 }
 
-fn save<T: Serialize>(path: &Path, value: &T) {
+/// `path` with `.suffix` after its whole name (`bests.json` -> `bests.json.bad`).
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".");
+    name.push(suffix);
+    path.with_file_name(name)
+}
+
+/// Writes a file whole or not at all: to a temporary file beside it, then renamed over
+/// it. A crash (or the PC losing power) in the middle leaves the file as it was, rather
+/// than cut short.
+pub(crate) fn write_atomic(path: &Path, bytes: impl AsRef<[u8]>) {
     if let Some(dir) = path.parent() {
         let _ = fs::create_dir_all(dir);
     }
-    if let Ok(json) = serde_json::to_vec_pretty(value) {
-        let tmp = path.with_extension("tmp");
-        if fs::write(&tmp, json).is_ok() {
-            let _ = fs::rename(&tmp, path);
+    let tmp = with_suffix(path, "tmp");
+    if fs::write(&tmp, bytes).is_ok() {
+        let _ = fs::rename(&tmp, path);
+    }
+}
+
+/// Reads a JSON file. One that's there but can't be read (damaged, or from a version this
+/// one doesn't understand) is set aside as `<name>.bad`, so that starting over with
+/// nothing doesn't write over it.
+pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
+    let bytes = fs::read(path).ok()?;
+    match serde_json::from_slice(&bytes) {
+        Ok(value) => Some(value),
+        Err(_) => {
+            set_aside(path);
+            None
         }
     }
+}
+
+fn set_aside(path: &Path) {
+    let _ = fs::rename(path, with_suffix(path, "bad"));
+}
+
+fn load<T: DeserializeOwned + Default>(path: &Path) -> T {
+    read_json(path).unwrap_or_default()
+}
+
+fn save<T: Serialize>(path: &Path, value: &T) {
+    if let Ok(json) = serde_json::to_vec_pretty(value) {
+        write_atomic(path, json);
+    }
+}
+
+/// A `.jsonl` log read back: what could be read, and how many lines there were.
+fn read_lines<T: DeserializeOwned>(path: &Path) -> (Vec<T>, usize) {
+    let text = fs::read_to_string(path).unwrap_or_default();
+    let lines = text.lines().filter(|l| !l.trim().is_empty());
+    (lines.clone().filter_map(|l| serde_json::from_str(l).ok()).collect(), lines.count())
+}
+
+/// Rewrites a `.jsonl` log with just `items`, whole or not at all. The logs are added to
+/// a line at a time and only trimmed in memory, so without this they'd grow for ever (and
+/// all of it be read at every start). With `keep_old`, the file as it was is kept beside
+/// it as `<name>.bak` first: it had lines this version couldn't read.
+fn rewrite_lines<'a, T: Serialize + 'a>(path: &Path, items: impl IntoIterator<Item = &'a T>, keep_old: bool) {
+    if keep_old {
+        let _ = fs::copy(path, with_suffix(path, "bak"));
+    }
+    let text: String = items.into_iter().filter_map(|i| serde_json::to_string(i).ok()).map(|l| l + "\n").collect();
+    write_atomic(path, text);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +176,9 @@ pub struct Settings {
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
+    /// The boss warnings say when the boss turns to attack you.
+    #[serde(default = "default_true")]
+    pub boss_on_you: bool,
     /// The overlay steps aside while the world map is open.
     #[serde(default = "default_true")]
     pub hide_on_world_map: bool,
@@ -480,7 +549,8 @@ impl Profile {
     }
 }
 
-/// Fights kept with their full analysis (the rest of the history keeps its summary).
+/// Fights kept with their full analysis, boss fights and the rest each (the rest of the
+/// history keeps its summary).
 const DETAILS_LIMIT: usize = 50;
 
 const INSTANCES_LIMIT: usize = 500;
@@ -505,17 +575,14 @@ pub struct FieldBosses {
 impl FieldBosses {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("fieldbosses.json");
-        let mut f: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let mut f: Self = read_json(&path).unwrap_or_default();
         f.path = path;
         f
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(s) = serde_json::to_string_pretty(self) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -567,17 +634,14 @@ pub struct KnownContents {
 impl KnownContents {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("contents.json");
-        let mut c: Self = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let mut c: Self = read_json(&path).unwrap_or_default();
         c.path = path;
         c
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         if let Ok(s) = serde_json::to_string_pretty(self) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -621,13 +685,13 @@ pub struct PvpLog {
 impl PvpLog {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("pvp.jsonl");
-        let mut sessions: Vec<meter_core::pvp::PvpSession> = fs::read_to_string(&path)
-            .unwrap_or_default()
-            .lines()
-            .filter_map(|l| serde_json::from_str(l).ok())
-            .collect();
+        let (mut sessions, lines): (Vec<meter_core::pvp::PvpSession>, usize) = read_lines(&path);
         let extra = sessions.len().saturating_sub(PVP_LIMIT);
         sessions.drain(..extra);
+        // Older sessions than are kept: off the file too.
+        if extra > 0 {
+            rewrite_lines(&path, &sessions, lines > sessions.len() + extra);
+        }
         Self { path, sessions }
     }
 
@@ -639,6 +703,11 @@ impl PvpLog {
             let _ = writeln!(f, "{line}");
         }
         self.sessions.push(s);
+        let extra = self.sessions.len().saturating_sub(2 * PVP_LIMIT);
+        if extra > 0 {
+            self.sessions.drain(..extra + PVP_LIMIT);
+            rewrite_lines(&self.path, &self.sessions, false);
+        }
     }
 
     /// Newest first.
@@ -663,14 +732,15 @@ pub struct Instances {
 impl Instances {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("instances.jsonl");
-        let mut by_entered = BTreeMap::new();
-        for line in fs::read_to_string(&path).unwrap_or_default().lines() {
-            if let Ok(i) = serde_json::from_str::<meter_core::dungeon::Instance>(line) {
-                by_entered.insert(i.entered_us, i);
-            }
-        }
+        let (changes, lines): (Vec<meter_core::dungeon::Instance>, usize) = read_lines(&path);
+        let read = changes.len();
+        let mut by_entered: BTreeMap<u64, meter_core::dungeon::Instance> = changes.into_iter().map(|i| (i.entered_us, i)).collect();
         while by_entered.len() > INSTANCES_LIMIT {
             by_entered.pop_first();
+        }
+        // A line per change: once the file is mostly superseded lines, just the runs.
+        if read > 2 * by_entered.len() + 50 {
+            rewrite_lines(&path, by_entered.values(), lines > read);
         }
         Self { path, by_entered }
     }
@@ -706,12 +776,13 @@ impl Instances {
         if lines.is_empty() {
             let _ = fs::remove_file(&self.path);
         } else {
-            let _ = fs::write(&self.path, lines);
+            write_atomic(&self.path, lines);
         }
     }
 }
 
-/// Full analyses of recent fights, one file each in `fights/`, named by when they ended.
+/// Full analyses of recent fights, one file each in `fights/`, named by when they ended:
+/// `<ms>.boss.json` for a boss fight, `<ms>.json` for the rest.
 pub struct FightDetails {
     dir: PathBuf,
 }
@@ -723,29 +794,35 @@ impl FightDetails {
         }
     }
 
-    fn path(&self, ended_ms: u64) -> PathBuf {
-        self.dir.join(format!("{ended_ms}.json"))
+    fn file(&self, ended_ms: u64, boss: bool) -> PathBuf {
+        self.dir.join(if boss { format!("{ended_ms}.boss.json") } else { format!("{ended_ms}.json") })
     }
 
-    pub fn save(&self, ended_ms: u64, analysis: &Analysis) {
+    /// The fight's file, whichever kind it was saved as.
+    fn path(&self, ended_ms: u64) -> Option<PathBuf> {
+        [true, false].into_iter().map(|boss| self.file(ended_ms, boss)).find(|p| p.is_file())
+    }
+
+    /// `boss`: the fight was against a boss, kept apart from the rest.
+    pub fn save(&self, ended_ms: u64, analysis: &Analysis, boss: bool) {
         if fs::create_dir_all(&self.dir).is_err() {
             return;
         }
         if let Ok(json) = serde_json::to_vec(analysis) {
             let tmp = self.dir.join(format!("{ended_ms}.json.tmp"));
             if fs::write(&tmp, json).is_ok() {
-                let _ = fs::rename(&tmp, self.path(ended_ms));
+                let _ = fs::rename(&tmp, self.file(ended_ms, boss));
             }
         }
         self.prune();
     }
 
     pub fn load(&self, ended_ms: u64) -> Option<Analysis> {
-        serde_json::from_slice(&fs::read(self.path(ended_ms)).ok()?).ok()
+        serde_json::from_slice(&fs::read(self.path(ended_ms)?).ok()?).ok()
     }
 
     pub fn has(&self, ended_ms: u64) -> bool {
-        self.path(ended_ms).is_file()
+        self.path(ended_ms).is_some()
     }
 
     /// Deletes every saved analysis.
@@ -758,16 +835,21 @@ impl FightDetails {
         }
     }
 
-    /// Keeps the newest [`DETAILS_LIMIT`] files.
+    /// Keeps the newest [`DETAILS_LIMIT`] boss fights and as many others.
     fn prune(&self) {
         let Ok(entries) = fs::read_dir(&self.dir) else { return };
-        let mut stamps: Vec<u64> = entries
-            .filter_map(|e| e.ok()?.file_name().to_str()?.strip_suffix(".json")?.parse().ok())
+        let mut saved: Vec<(u64, bool)> = entries
+            .filter_map(|e| {
+                let name = e.ok()?.file_name().into_string().ok()?;
+                let stem = name.strip_suffix(".json")?;
+                let (stamp, boss) = stem.strip_suffix(".boss").map_or((stem, false), |s| (s, true));
+                Some((stamp.parse().ok()?, boss))
+            })
             .collect();
-        stamps.sort_unstable();
-        let excess = stamps.len().saturating_sub(DETAILS_LIMIT);
-        for ended_ms in &stamps[..excess] {
-            let _ = fs::remove_file(self.path(*ended_ms));
+        saved.sort_unstable();
+        let drop = beyond_limit(&saved, DETAILS_LIMIT, |(_, boss)| *boss);
+        for (&(ended_ms, boss), _) in saved.iter().zip(drop).filter(|(_, d)| *d) {
+            let _ = fs::remove_file(self.file(ended_ms, boss));
         }
     }
 }
@@ -814,20 +896,23 @@ impl Bests {
         let by_character = match serde_json::from_str::<BestsFile>(&text) {
             Ok(f) => f.characters,
             // The first version: one map by mob type.
-            Err(_) => serde_json::from_str::<BTreeMap<u32, Best>>(&text)
-                .map(|old| BTreeMap::from([(String::new(), old)]))
-                .unwrap_or_default(),
+            Err(_) => match serde_json::from_str::<BTreeMap<u32, Best>>(&text) {
+                Ok(old) => BTreeMap::from([(String::new(), old)]),
+                Err(_) => {
+                    if !text.is_empty() {
+                        set_aside(&path);
+                    }
+                    BTreeMap::new()
+                }
+            },
         };
         Self { path, by_character }
     }
 
     fn save(&self) {
-        if let Some(dir) = self.path.parent() {
-            let _ = fs::create_dir_all(dir);
-        }
         let file = BestsFile { characters: self.by_character.clone() };
         if let Ok(s) = serde_json::to_string_pretty(&file) {
-            let _ = fs::write(&self.path, s);
+            write_atomic(&self.path, s);
         }
     }
 
@@ -862,6 +947,133 @@ impl Bests {
     }
 }
 
+/// One boss's attempts as one character.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Tally {
+    pub kills: u32,
+    pub wipes: u32,
+    /// When the first and the latest attempt ended (ms since 1970).
+    pub first_ms: u64,
+    pub last_ms: u64,
+    /// The first kill, when.
+    #[serde(default)]
+    pub first_kill_ms: Option<u64>,
+    /// The fastest kill (the fight's length).
+    #[serde(default)]
+    pub fastest_kill_s: Option<f64>,
+    /// The best wipe: the lowest the boss got (a share of its HP), and when it ended.
+    #[serde(default)]
+    pub best_wipe: Option<f64>,
+    #[serde(default)]
+    pub best_wipe_ms: u64,
+    /// Time in its fights, seconds.
+    #[serde(default)]
+    pub fight_s: f64,
+}
+
+impl Tally {
+    pub fn attempts(&self) -> u32 {
+        self.kills + self.wipes
+    }
+}
+
+/// Every boss kill and wipe, per character and boss (`attempts.json`): how many tries a
+/// boss took, and the best of the wipes. Kept apart from the history, which only keeps the
+/// last fights, and not cleared with it.
+pub struct Attempts {
+    path: PathBuf,
+    /// Character name ("" when it wasn't known) -> boss mob type -> its attempts.
+    by_character: BTreeMap<String, BTreeMap<u32, Tally>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct AttemptsFile {
+    characters: BTreeMap<String, BTreeMap<u32, Tally>>,
+}
+
+impl Attempts {
+    /// Loads `attempts.json`; with none yet, counts the fights in `history` (so the tries
+    /// before this was kept count too) and saves them.
+    pub fn load(dir: &Path, history: &History) -> Self {
+        let path = dir.join("attempts.json");
+        let saved = read_json::<AttemptsFile>(&path);
+        let mut a = Self { path, by_character: saved.as_ref().map(|f| f.characters.clone()).unwrap_or_default() };
+        if saved.is_none() {
+            for f in &history.fights {
+                a.count(&f.view, f.ended_ms, f.self_name.as_deref());
+            }
+            if !a.by_character.is_empty() {
+                a.save();
+            }
+        }
+        a
+    }
+
+    fn save(&self) {
+        let file = AttemptsFile { characters: self.by_character.clone() };
+        if let Ok(s) = serde_json::to_string_pretty(&file) {
+            write_atomic(&self.path, s);
+        }
+    }
+
+    /// Counts a finished fight if it was a boss kill or wipe; true if it counted.
+    fn count(&mut self, view: &EncounterView, ended_ms: u64, character: Option<&str>) -> bool {
+        let (Some(boss), true) = (view.target_type, view.target_boss) else { return false };
+        let kill = match view.end {
+            Some(FightEnd::Kill) => true,
+            Some(FightEnd::Wipe) => false,
+            _ => return false,
+        };
+        let t = self.by_character.entry(character.unwrap_or("").to_string()).or_default().entry(boss).or_default();
+        if t.attempts() == 0 || ended_ms < t.first_ms {
+            t.first_ms = ended_ms;
+        }
+        t.last_ms = t.last_ms.max(ended_ms);
+        t.fight_s += view.duration_s;
+        if kill {
+            t.kills += 1;
+            if t.first_kill_ms.is_none_or(|ms| ended_ms < ms) {
+                t.first_kill_ms = Some(ended_ms);
+            }
+            if t.fastest_kill_s.is_none_or(|s| view.duration_s < s) {
+                t.fastest_kill_s = Some(view.duration_s);
+            }
+        } else {
+            t.wipes += 1;
+            if let Some(low) = view.target_low_hp {
+                if t.best_wipe.is_none_or(|b| low < b) {
+                    (t.best_wipe, t.best_wipe_ms) = (Some(low), ended_ms);
+                }
+            }
+        }
+        true
+    }
+
+    /// Counts a finished fight if it was a boss kill or wipe, and saves.
+    pub fn record(&mut self, view: &EncounterView, ended_ms: u64, character: Option<&str>) {
+        if self.count(view, ended_ms, character) {
+            self.save();
+        }
+    }
+
+    /// `character`'s attempts at `boss`.
+    pub fn get(&self, character: Option<&str>, boss: u32) -> Option<&Tally> {
+        self.by_character.get(character.unwrap_or(""))?.get(&boss)
+    }
+
+    /// Every character's attempts: name ("" when it wasn't known) -> boss -> attempts.
+    pub fn all(&self) -> &BTreeMap<String, BTreeMap<u32, Tally>> {
+        &self.by_character
+    }
+
+    /// Forgets `character`'s attempts.
+    pub fn clear(&mut self, character: &str) {
+        if self.by_character.remove(character).is_some() {
+            self.save();
+        }
+    }
+}
+
 /// Each character's pets: level and souls toward the next one (`pets.json`), so a meter
 /// started after the game sent its pet list (at login, entering or leaving a dungeon, and
 /// some other moves) still knows them.
@@ -875,7 +1087,7 @@ pub struct PetBook {
 impl PetBook {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("pets.json");
-        let by_character = fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let by_character = read_json(&path).unwrap_or_default();
         Self { path, by_character, saved: 0 }
     }
 
@@ -895,11 +1107,8 @@ impl PetBook {
         if let Some(state) = pets.state() {
             self.by_character.insert(character.to_string(), state);
             self.saved = pets.revision();
-            if let Some(dir) = self.path.parent() {
-                let _ = fs::create_dir_all(dir);
-            }
             if let Ok(s) = serde_json::to_string(&self.by_character) {
-                let _ = fs::write(&self.path, s);
+                write_atomic(&self.path, s);
             }
         }
     }
@@ -937,25 +1146,46 @@ pub struct FightSummary {
     pub deaths: usize,
     /// Your best DPS against its boss, or its fastest kill (filled in for the list).
     pub best_dps: bool,
-    pub fastest: bool
+    pub fastest: bool,
+    /// How low its target got (a share of its HP; 0 when killed), when known.
+    pub low_hp: Option<f64>,
+    /// Your best wipe against its boss: it got lowest (filled in for the list).
+    pub best_try: bool,
 }
 
 pub struct History {
     path: PathBuf,
     fights: Vec<Fight>,
+    /// Lines in the file, and whether some couldn't be read (by this version).
+    on_disk: usize,
+    unread: bool,
 }
 
 impl History {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("history.jsonl");
-        let mut fights: Vec<Fight> = fs::read_to_string(&path)
-            .unwrap_or_default()
-            .lines()
-            .filter_map(|l| serde_json::from_str(l).ok())
-            .collect();
-        let excess = fights.len().saturating_sub(HISTORY_LIMIT);
-        fights.drain(..excess);
-        Self { path, fights }
+        let (mut fights, lines): (Vec<Fight>, usize) = read_lines(&path);
+        let read = fights.len();
+        Self::trim(&mut fights);
+        let mut history = Self { path, fights, on_disk: lines, unread: lines > read };
+        // Fights older than are kept: off the file too.
+        if read > history.fights.len() {
+            history.compact();
+        }
+        history
+    }
+
+    /// Rewrites the file with the fights kept (see [`rewrite_lines`]).
+    fn compact(&mut self) {
+        rewrite_lines(&self.path, &self.fights, self.unread);
+        self.on_disk = self.fights.len();
+        self.unread = false;
+    }
+
+    /// Keeps the newest [`HISTORY_LIMIT`] boss fights and as many others.
+    fn trim(fights: &mut Vec<Fight>) {
+        let mut drop = beyond_limit(fights, HISTORY_LIMIT, |f| f.view.target_boss).into_iter();
+        fights.retain(|_| !drop.next().unwrap_or(false));
     }
 
     pub fn push(&mut self, fight: Fight) {
@@ -965,11 +1195,13 @@ impl History {
         if let Ok(line) = serde_json::to_string(&fight) {
             if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&self.path) {
                 let _ = writeln!(f, "{line}");
+                self.on_disk += 1;
             }
         }
         self.fights.push(fight);
-        if self.fights.len() > HISTORY_LIMIT {
-            self.fights.remove(0);
+        Self::trim(&mut self.fights);
+        if self.on_disk > self.fights.len() + HISTORY_LIMIT {
+            self.compact();
         }
     }
 
@@ -1004,8 +1236,21 @@ impl History {
                 deaths: f.view.deaths.len(),
                 best_dps: false,
                 fastest: false,
+                low_hp: f.view.target_low_hp,
+                best_try: false,
             })
             .collect()
+    }
+
+    /// Fills in how low each boss got, for boss fights saved before that was kept, from
+    /// their saved analysis (the newest fights have one).
+    pub fn fill_low_hp(&mut self, details: &FightDetails) {
+        for f in self.fights.iter_mut().filter(|f| f.view.target_boss && f.view.target_low_hp.is_none()) {
+            let Some(a) = details.load(f.ended_ms) else { continue };
+            let Some(hp) = a.target_hp.iter().find(|h| Some(h.target) == f.view.target_id && h.max > 0) else { continue };
+            let Some(low) = hp.samples.iter().map(|p| p.hp).min() else { continue };
+            f.view.target_low_hp = Some(if f.view.end == Some(FightEnd::Kill) { 0.0 } else { low as f64 / hp.max as f64 });
+        }
     }
 
     pub fn fight(&self, index: usize) -> Option<&Fight> {
@@ -1019,6 +1264,7 @@ impl History {
     pub fn clear(&mut self) {
         self.fights.clear();
         let _ = fs::remove_file(&self.path);
+        (self.on_disk, self.unread) = (0, false);
     }
 }
 
@@ -1279,12 +1525,179 @@ mod tests {
             heals: Vec::new(),
             taken: Vec::new(),
         };
-        for ended_ms in 1..=(DETAILS_LIMIT as u64 + 2) {
-            details.save(ended_ms, &analysis);
+        // A raid's boss pulls, then more short fights than are kept (as on 2026-11-07, when
+        // PvP fights pushed the raid's out).
+        details.save(1, &analysis, true);
+        details.save(2, &analysis, true);
+        for ended_ms in 3..=(DETAILS_LIMIT as u64 + 4) {
+            details.save(ended_ms, &analysis, false);
         }
-        assert!(!details.has(1) && !details.has(2));
-        assert!(details.has(3));
-        assert_eq!(details.load(DETAILS_LIMIT as u64 + 2), Some(analysis));
+        assert!(details.has(1) && details.has(2), "the boss fights stay");
+        assert!(!details.has(3) && !details.has(4));
+        assert!(details.has(5));
+        assert_eq!(details.load(DETAILS_LIMIT as u64 + 4), Some(analysis.clone()));
+        assert_eq!(details.load(1), Some(analysis));
+        // A fight saved before boss fights were kept apart still loads.
+        fs::copy(dir.join("fights/5.json"), dir.join("fights/0.json")).unwrap();
+        assert!(details.has(0));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_boss_fight_outlasts_the_short_fights_in_the_history() {
+        let dir = temp_dir("history-bosses");
+        let mut h = History::load(&dir);
+        let mut boss = snap(None, Some(18)).encounter.unwrap();
+        boss.target_boss = true;
+        h.push(Fight { ended_ms: 0, self_name: None, view: boss });
+        for i in 1..=(HISTORY_LIMIT as u64 + 1) {
+            h.push(Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        }
+        assert_eq!(h.len(), HISTORY_LIMIT + 1);
+        assert_eq!(h.fight(0).map(|f| f.ended_ms), Some(0), "the boss fight stays");
+        assert_eq!(h.fight(1).map(|f| f.ended_ms), Some(2), "the oldest other fight goes");
+        let again = History::load(&dir);
+        assert_eq!((again.len(), again.fight(0).map(|f| f.ended_ms)), (HISTORY_LIMIT + 1, Some(0)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    fn lines(path: &Path) -> usize {
+        fs::read_to_string(path).unwrap_or_default().lines().count()
+    }
+
+    #[test]
+    fn the_history_file_is_trimmed_too() {
+        let dir = temp_dir("history-file");
+        let file = dir.join("history.jsonl");
+        let plain = |i: u64| Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() };
+        // A file from before it was trimmed: three times what's kept.
+        let old: String = (0..3 * HISTORY_LIMIT as u64).map(|i| serde_json::to_string(&plain(i)).unwrap() + "\n").collect();
+        fs::write(&file, old).unwrap();
+        let mut h = History::load(&dir);
+        assert_eq!((h.len(), lines(&file)), (HISTORY_LIMIT, HISTORY_LIMIT), "loading drops the old fights from the file");
+        assert!(!dir.join("history.jsonl.bak").exists(), "nothing was unreadable: no copy kept");
+        // While running: it grows by a line a fight, and is cut back before it doubles.
+        for i in 0..2 * HISTORY_LIMIT as u64 {
+            h.push(plain(10_000 + i));
+            assert!(lines(&file) <= 2 * HISTORY_LIMIT, "{} lines", lines(&file));
+        }
+        let again = History::load(&dir);
+        assert_eq!(again.len(), HISTORY_LIMIT);
+        assert_eq!(again.newest_first().next().map(|f| f.ended_ms), Some(10_000 + 2 * HISTORY_LIMIT as u64 - 1));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn lines_this_version_cannot_read_are_kept_in_a_copy_before_a_trim() {
+        let dir = temp_dir("history-bak");
+        let file = dir.join("history.jsonl");
+        let plain = |i: u64| serde_json::to_string(&Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() }).unwrap();
+        let mut old: String = (0..HISTORY_LIMIT as u64 + 5).map(|i| plain(i) + "\n").collect();
+        old.push_str("{\"from\":\"a newer version\"}\n");
+        fs::write(&file, &old).unwrap();
+        let h = History::load(&dir);
+        assert_eq!((h.len(), lines(&file)), (HISTORY_LIMIT, HISTORY_LIMIT));
+        assert_eq!(fs::read_to_string(dir.join("history.jsonl.bak")).unwrap(), old);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_set_aside_not_written_over() {
+        let dir = temp_dir("bad-file");
+        // Cut short, as by a crash in the middle of an old (not atomic) save.
+        let cut = r#"{"characters":{"Nene":{"7":{"kills":3,"wipes":"#;
+        fs::write(dir.join("attempts.json"), cut).unwrap();
+        fs::write(dir.join("bests.json"), cut).unwrap();
+        fs::write(dir.join("settings.json"), "not json").unwrap();
+        let history = History::load(&dir);
+        let mut attempts = Attempts::load(&dir, &history);
+        let bests = Bests::load(&dir);
+        let settings = Settings::load(&dir);
+        assert!(attempts.all().is_empty() && bests.by_character.is_empty());
+        assert_eq!(settings.refresh_ms, DEFAULT_REFRESH_MS, "the defaults, then");
+        for name in ["attempts.json", "bests.json", "settings.json"] {
+            assert!(!dir.join(name).exists(), "{name} is out of the way");
+        }
+        assert_eq!(fs::read_to_string(dir.join("attempts.json.bad")).unwrap(), cut, "and kept as it was");
+        assert_eq!(fs::read_to_string(dir.join("settings.json.bad")).unwrap(), "not json");
+        // The next save starts a new file; the old one is still there.
+        attempts.record(&boss_try(FightEnd::Kill, None, 60.0), 1, Some("Nene"));
+        assert!(dir.join("attempts.json").exists() && dir.join("attempts.json.bad").exists());
+        assert!(!dir.join("attempts.json.tmp").exists(), "written whole, under its own name");
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn the_pvp_log_and_the_dungeon_runs_are_trimmed_on_the_file_too() {
+        let dir = temp_dir("logs");
+        let run = |entered_us: u64, stage: u64| meter_core::dungeon::Instance {
+            map: 600_072,
+            entered_us,
+            started_us: Some(entered_us + 1),
+            completed_us: None,
+            stages: [stage, 0, 0, 0, 0, 0],
+        };
+        // One run, saved again at each of 200 changes.
+        let mut i = Instances::load(&dir);
+        for stage in 1..=200 {
+            i.record(run(5, stage));
+        }
+        let file = dir.join("instances.jsonl");
+        assert_eq!(lines(&file), 200);
+        let again = Instances::load(&dir);
+        assert_eq!((lines(&file), again.get(5).map(|r| r.stages[0])), (1, Some(200)), "just the run as it ended");
+        fs::remove_dir_all(dir).ok();
+    }
+
+    /// A boss fight against mob type 7: how it ended, how low the boss got, how long.
+    fn boss_try(end: FightEnd, low: Option<f64>, secs: f64) -> EncounterView {
+        let mut v = snap(None, Some(18)).encounter.unwrap();
+        (v.target_boss, v.target_type, v.end, v.target_low_hp, v.duration_s) = (true, Some(7), Some(end), low, secs);
+        v
+    }
+
+    #[test]
+    fn attempts_count_each_characters_kills_and_wipes() {
+        let dir = temp_dir("attempts");
+        let mut a = Attempts::load(&dir, &History::load(&dir));
+        a.record(&boss_try(FightEnd::Wipe, Some(0.8), 60.0), 1000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Wipe, Some(0.6), 90.0), 2000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Wipe, Some(0.7), 80.0), 3000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Kill, Some(0.0), 200.0), 4000, Some("Nene"));
+        a.record(&boss_try(FightEnd::Kill, Some(0.0), 150.0), 5000, Some("Nene"));
+        // Another character's, and fights that aren't tries: idle, or not a boss.
+        a.record(&boss_try(FightEnd::Wipe, Some(0.9), 30.0), 6000, Some("Alt"));
+        a.record(&boss_try(FightEnd::Idle, Some(0.5), 30.0), 7000, Some("Nene"));
+        let mut trash = boss_try(FightEnd::Kill, None, 10.0);
+        trash.target_boss = false;
+        a.record(&trash, 8000, Some("Nene"));
+
+        let t = a.get(Some("Nene"), 7).unwrap().clone();
+        assert_eq!((t.kills, t.wipes, t.attempts()), (2, 3, 5));
+        assert_eq!((t.best_wipe, t.best_wipe_ms), (Some(0.6), 2000), "the wipe that got lowest");
+        assert_eq!((t.fastest_kill_s, t.first_kill_ms), (Some(150.0), Some(4000)));
+        assert_eq!((t.first_ms, t.last_ms, t.fight_s), (1000, 5000, 580.0));
+        assert_eq!(a.get(Some("Alt"), 7).map(Tally::attempts), Some(1));
+        // Kept, and kept apart from the history.
+        let again = Attempts::load(&dir, &History::load(&dir));
+        assert_eq!(again.get(Some("Nene"), 7), Some(&t));
+        let mut again = again;
+        again.clear("Alt");
+        assert!(Attempts::load(&dir, &History::load(&dir)).get(Some("Alt"), 7).is_none());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn attempts_start_from_the_history() {
+        let dir = temp_dir("attempts-seed");
+        let mut h = History::load(&dir);
+        h.push(Fight { ended_ms: 10, self_name: Some("Nene".into()), view: boss_try(FightEnd::Wipe, Some(0.5), 60.0) });
+        h.push(Fight { ended_ms: 20, self_name: Some("Nene".into()), view: boss_try(FightEnd::Kill, Some(0.0), 60.0) });
+        let a = Attempts::load(&dir, &h);
+        assert_eq!(a.get(Some("Nene"), 7).map(|t| (t.kills, t.wipes)), Some((1, 1)));
+        // Only the first time: the next start reads the file, not the history again.
+        h.push(Fight { ended_ms: 30, self_name: Some("Nene".into()), view: boss_try(FightEnd::Wipe, Some(0.4), 60.0) });
+        assert_eq!(Attempts::load(&dir, &h).get(Some("Nene"), 7).map(|t| t.wipes), Some(1));
         fs::remove_dir_all(dir).ok();
     }
 

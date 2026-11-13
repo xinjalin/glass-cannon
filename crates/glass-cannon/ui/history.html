@@ -22,6 +22,7 @@
     <nav id="tabs" class="tabs" role="tablist" aria-label="Show">
       <button type="button" role="tab" data-tab="all">[all]</button>
       <button type="button" role="tab" data-tab="runs">[dungeon runs]</button>
+      <button type="button" role="tab" data-tab="raids" title="Raids (Sanctuaries): their runs and boss attempts">[raids]</button>
       <button type="button" role="tab" data-tab="bosses">[bosses]</button>
       <button type="button" role="tab" data-tab="pvp">[pvp]</button>
       <button type="button" role="tab" data-tab="dummy" title="Your training dummy runs (dummy mode)">[dummy]</button>
@@ -32,7 +33,10 @@
     </div>
     <div class="history-foot">
       <p id="hint" class="note">click: show on the meter · right-click: analysis</p>
-      <button id="clear" type="button" title="Delete every fight, dungeon run and PvP session in the history">[clear]</button>
+      <span class="foot-buttons">
+        <button id="open-attempts" type="button" title="Every character's tries at each dungeon and raid boss: kills, wipes, the best wipe, the fastest kill">[attempts]</button>
+        <button id="clear" type="button" title="Delete every fight, dungeon run and PvP session in the history (not the attempts)">[clear]</button>
+      </span>
       <span id="clear-ask" class="clear-ask" hidden>
         clear every fight, dungeon run and PvP session?
         <button id="clear-yes" type="button" class="danger">[yes]</button>

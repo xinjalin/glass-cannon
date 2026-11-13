@@ -16,6 +16,8 @@ const DEFAULTS = {
   cubes: { x: 0.72, y: 0.06, w: 280, h: 150 },
   target: { x: 0.37, y: 0.02, w: 380, h: 170 },
   player: { x: 0.37, y: 0.8, w: 300, h: 70 },
+  // Around your character, in the middle of the screen.
+  vitals: { x: 0.33, y: 0.36, w: 0.34, h: 300 },
   party: { x: 0.015, y: 0.3, w: 260, h: 150 },
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
@@ -27,10 +29,12 @@ const DEFAULTS = {
 // buttons; the others only show), whether they fade outside combat (all but the world
 // timers, which you read between fights), and whether they're always as tall as what they
 // show (the target frame with its stagger gauge, the party cooldowns' whole party: never
-// cut off).
+// cut off). A bare one (the vitals arcs) has no panel, so no frosted plate behind it.
 const SIDE_WIDGETS = {
   target: { page: "target.html", label: "target", passive: true, fades: true, grows: true },
   player: { page: "player.html", label: "player bars", passive: true, fades: false },
+  // No panel: no frosted plate behind it either.
+  vitals: { page: "vitals.html", label: "vitals arcs", passive: true, fades: false, bare: true },
   party: { page: "party.html", label: "party frames", passive: true, fades: false },
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true, grows: true },
@@ -45,6 +49,7 @@ const LABELS = [
   ["cubes", "hidden cubes"],
   ["target", "target frame"],
   ["player", "player bars"],
+  ["vitals", "vitals arcs"],
   ["party", "party frames"],
   ["cooldowns", "cooldowns"],
   ["party-cooldowns", "party cooldowns"],
@@ -99,7 +104,9 @@ function reportRects() {
   // The widgets with a panel get a frosted plate behind it (when frosted is chosen), but
   // not while they're faded.
   const faded = document.documentElement.classList.contains("faded") && !editing;
-  const panels = shown.filter((el) => el.querySelector("iframe") && !(faded && el.classList.contains("fades"))).map(box);
+  const panels = shown
+    .filter((el) => el.querySelector("iframe") && el.dataset.bare === undefined && !(faded && el.classList.contains("fades")))
+    .map(box);
   const key = JSON.stringify([rects, panels].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
@@ -191,7 +198,67 @@ $("menu-head").addEventListener("pointerdown", (e) => {
   $("menu-head").addEventListener("pointerup", up);
 });
 
-// A widget can be moved (and resized by its corner) while arranging, snapping to the grid.
+// ---------------------------------------------------------------- line-ups
+
+// How close (CSS pixels) a widget's edge or centre comes to a line before it snaps to it.
+const ALIGN_PX = 8;
+
+// The lines a widget at (left, top), w × h, can line up with: the screen's centre lines,
+// and every other widget's edges and centre, each way. Its own left, centre and right
+// (top, middle and bottom) snap to the nearest within ALIGN_PX, else the grid does.
+// Returns where it goes and the lines it met.
+function lineUp(el, left, top, w, h) {
+  const others = [...document.querySelectorAll(".widget:not([hidden])")].filter((o) => o !== el);
+  const xs = [{ at: innerWidth / 2, centre: true }];
+  const ys = [{ at: innerHeight / 2, centre: true }];
+  for (const o of others) {
+    const r = { l: o.offsetLeft, t: o.offsetTop, w: o.offsetWidth, h: o.offsetHeight };
+    xs.push({ at: r.l }, { at: r.l + r.w / 2 }, { at: r.l + r.w });
+    ys.push({ at: r.t }, { at: r.t + r.h / 2 }, { at: r.t + r.h });
+  }
+  // One axis: the nearest line to any of the three anchors (centre lines win a tie).
+  const best = (start, size, lines) => {
+    let found = null;
+    for (const offset of [0, size / 2, size]) {
+      for (const line of lines) {
+        const d = Math.abs(start + offset - line.at);
+        if (d > ALIGN_PX) continue;
+        if (!found || d < found.d || (d === found.d && line.centre && !found.line.centre)) found = { d, line, pos: line.at - offset };
+      }
+    }
+    return found;
+  };
+  const bx = best(left, w, xs);
+  const by = best(top, h, ys);
+  return {
+    left: bx ? bx.pos : snap(left),
+    top: by ? by.pos : snap(top),
+    x: bx && bx.line,
+    y: by && by.line,
+  };
+}
+
+// Lights the lines a dragged widget lines up with (none when `hit` is null).
+function showLineUps(hit) {
+  const box = $("guides");
+  for (const g of box.querySelectorAll(".guide.met")) g.remove();
+  box.querySelector(".guide.v.centre").classList.toggle("on", !!(hit && hit.x && hit.x.centre));
+  box.querySelector(".guide.h.centre").classList.toggle("on", !!(hit && hit.y && hit.y.centre));
+  if (!hit) return;
+  for (const [line, cls, prop] of [
+    [hit.x, "v", "left"],
+    [hit.y, "h", "top"],
+  ]) {
+    if (!line || line.centre) continue;
+    const g = document.createElement("div");
+    g.className = `guide ${cls} met`;
+    g.style[prop] = `${line.at}px`;
+    box.append(g);
+  }
+}
+
+// A widget can be moved (and resized by its corner) while arranging, snapping to the grid,
+// or to the screen's centre and the other widgets' edges and centres when it comes close.
 function setUp(el) {
   const grip = document.createElement("span");
   grip.className = "grip";
@@ -210,8 +277,10 @@ function setUp(el) {
         p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
         if (id !== "meter" && el.dataset.grows === undefined) p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
       } else {
-        p.x = Math.max(0, snap(start.left + dx)) / innerWidth;
-        p.y = Math.max(0, snap(start.top + dy)) / innerHeight;
+        const at = lineUp(el, start.left + dx, start.top + dy, start.w, start.h);
+        p.x = Math.max(0, at.left) / innerWidth;
+        p.y = Math.max(0, at.top) / innerHeight;
+        showLineUps(at);
       }
       layout[id] = p;
       place();
@@ -219,6 +288,7 @@ function setUp(el) {
     const up = () => {
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
+      showLineUps(null);
       saveLayout();
     };
     el.addEventListener("pointermove", move);
@@ -246,6 +316,7 @@ function showWidgets(names) {
     el.dataset.widget = name;
     el.dataset.side = "";
     if (w.grows) el.dataset.grows = "";
+    if (w.bare) el.dataset.bare = "";
     el.dataset.label = w.label;
     const frame = document.createElement("iframe");
     frame.src = w.page;
@@ -315,8 +386,10 @@ function castName(c, long = true) {
 
 // A short two-note chime, once per warning (settings → alert sound).
 let audio = null;
-// The boss warnings' rising pair, and the hidden cubes' falling one.
+// The boss warnings' rising pair, the boss turning to you's lower pair, and the hidden
+// cubes' falling one.
 const BOSS_NOTES = [880, 1320];
+const ON_YOU_NOTES = [587, 880];
 const CUBE_NOTES = [1568, 1175];
 function chime(notes = BOSS_NOTES) {
   try {
@@ -376,17 +449,28 @@ function mechanicCard(m, elapsed) {
   };
 }
 
+// How long "on you" shows once the boss turns to you (the target frame keeps saying so).
+const ON_YOU_MS = 3000;
+// The boss's last turn to you (when, by the capture's clock) and when it first showed here.
+let onYou = { key: 0, at: 0 };
+
 function drawWarnings(elapsed) {
   const box = $("warning");
   const live = boss && boss.cast;
   // A mechanic goes before the boss's casts: it says what to do.
   let show = mechanics.length ? mechanicCard(mechanics[0], elapsed) : null;
+  const turned = boss ? boss.onYou : 0;
+  if (turned && turned !== onYou.key) onYou = { key: turned, at: performance.now() };
   if (!show && live && boss.ahead.cast_danger) {
     const castLeft = live.cast_left_ms - elapsed;
     const landsLeft = live.lands_left_ms - elapsed;
     const key = `cast:${live.skill}:${boss.castKey}`;
     if (castLeft > 0) show = { cls: "now", what: "casting", title: castName(live, false), time: `${(castLeft / 1000).toFixed(1)} s`, key };
     else if (landsLeft > 0) show = { cls: "now lands", what: "lands · move", title: castName(live, false), time: `${(landsLeft / 1000).toFixed(1)} s`, key };
+  }
+  // The boss turned to attack you: after what to do and its cast, before what's coming.
+  if (!show && turned && turned === onYou.key && performance.now() - onYou.at < ON_YOU_MS) {
+    show = { cls: "now you", what: boss.name || "the boss", title: "on you", time: "", key: `you:${turned}`, done: "", notes: ON_YOU_NOTES };
   }
   if (!show && boss) {
     const next = boss.ahead.upcoming.find((c) => c.danger);
@@ -414,7 +498,7 @@ function drawWarnings(elapsed) {
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
-    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) chime(BOSS_NOTES);
+    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) chime(show.notes || BOSS_NOTES);
   }
 }
 

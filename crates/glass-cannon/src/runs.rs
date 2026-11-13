@@ -395,6 +395,8 @@ mod tests {
             deaths: 0,
             best_dps: false,
             fastest: false,
+            low_hp: None,
+            best_try: false,
         }
     }
 

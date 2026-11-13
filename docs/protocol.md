@@ -28,6 +28,22 @@ body    = u16 opcode (little-endian), payload
 Varints are unsigned LEB128. Across 7 sessions (about 2.3 MB, 70k messages) every received
 stream splits into messages with no leftover bytes.
 
+**Joining part-way.** A capture that starts after the connection did, or drops a packet,
+has to find a message boundary again. Most packets begin on one, so the framer tries
+each packet's start until a message completes. Two things can go wrong, and both are
+handled (`protocol.rs`, `game.rs`):
+
+- Bytes from the middle of a message can read as a length of up to 1 MB, and waiting for
+  that much stalls the stream. Of the 1.5 million messages in our recordings the longest
+  is 20,369 bytes, so for the first 64 messages after a resync a length over 64 KB is
+  taken for a wrong start.
+- A connection is only trusted as the game's after 50 messages frame cleanly (the game
+  process also holds TLS connections). Losing framing before that used to rule the
+  connection out for good; now it starts again and needs 100 clean messages. Joining our
+  recordings at about 1,200 different packets, every one recovers: within half a second
+  for most, up to half a minute in a Force raid's traffic, where long runs of packets
+  begin inside a message.
+
 ## Bundles: opcode `0xffff` (confirmed)
 
 ```text
@@ -608,9 +624,11 @@ NOIA2's notes call this "remaining HP of an entity". Worked out again from our c
 ```text
 varint  entity
 u8      mask
-[0x01]  u8 n, n × (u8 stat, u32 value)     on you: 1 MP, 8 max MP, 3 flight energy (2026-10-30);
-                                           4, 6, 10–13 unknown
-[0x02]  u8 n, n × (u8 stat, u64 value)     stat 0 = current HP; stat 7 unknown
+[0x01]  u8 n, n × (u8 stat, u32 value)     on you: each value's max is its stat + 7:
+                                           1 MP (max 8); 3 stamina (max 10); 6 flight power
+                                           (max 13), both in hundredths of what's shown;
+                                           4 (max 11) and 5 (max 12) unknown (2026-11-08)
+[0x02]  u8 n, n × (u8 stat, u64 value)     stat 0 = current HP; stat 7 = your max HP
 ```
 
 All 11,377 messages in the 19 captures parse to the last byte with this layout (mask

@@ -141,6 +141,10 @@ pub struct Registry {
     /// your party when their name or the roster isn't known (they were sent before the
     /// meter started). Forgotten when the party changes.
     party_ids: HashSet<u64>,
+    /// Mobs whose spawn we missed (it came before the meter started) that have a stagger
+    /// gauge: bosses, as far as we can tell (a raid boss stays up through every wipe, so
+    /// it may never spawn again).
+    unseen_bosses: HashSet<u64>,
 }
 
 /// Someone leaving the party: what the HP-sent members are forgotten on even when the
@@ -242,6 +246,12 @@ impl Registry {
         self.mobs.get(&id).copied()
     }
 
+    /// A boss we never saw spawn (so its type isn't known): a mob with a stagger gauge.
+    /// Only bosses have one (Deus 2026-10-24, the raid 2026-11-06).
+    pub fn unseen_boss(&self, id: u64) -> bool {
+        self.unseen_bosses.contains(&id) && !self.mobs.contains_key(&id) && !self.players.contains_key(&id)
+    }
+
     /// The player who summoned this creature, if it is one.
     pub fn owner_of(&self, id: u64) -> Option<u64> {
         self.owners.get(&id).copied()
@@ -277,7 +287,8 @@ impl Registry {
         self.mobs.iter().map(|(id, t)| (*id, *t))
     }
 
-    /// A display name: your name, a player's name, "Mob <type>", or "#<id>".
+    /// A display name: your name, a player's name, "Mob <type>", "Boss" (one we never saw
+    /// spawn), or "#<id>".
     pub fn label(&self, id: u64) -> String {
         if self.is_self(id) {
             return match &self.self_name {
@@ -290,6 +301,9 @@ impl Registry {
         }
         if let Some(t) = self.mobs.get(&id) {
             return format!("Mob {t}");
+        }
+        if self.unseen_boss(id) {
+            return "Boss".to_string();
         }
         format!("#{id}")
     }
@@ -316,6 +330,13 @@ impl Registry {
 
     fn observe_message(&mut self, opcode: u16, payload: &[u8]) -> Option<Change> {
         match opcode {
+            crate::state::OPCODE_STAGGER => {
+                let (mob, _) = crate::state::parse_stagger(payload)?;
+                if !self.is_self(mob) && !self.mobs.contains_key(&mob) && !self.players.contains_key(&mob) {
+                    self.unseen_bosses.insert(mob);
+                }
+                None
+            }
             OPCODE_PARTY_VITALS => {
                 let (id, _) = parse_party_vitals(payload)?;
                 if !self.is_self(id) && !self.mobs.contains_key(&id) {
@@ -1096,6 +1117,22 @@ pub(crate) mod tests {
         assert_eq!(r.observe(OPCODE_PARTY_LEFT, &hex("00 00")), Some(Change::PartyChanged { members: 0 }));
         assert!(!r.in_party(10210));
         assert!(r.in_party(3659));
+    }
+
+    #[test]
+    fn a_boss_we_never_saw_spawn() {
+        // Eternal Ludra in the 2026-11-06 raid: up before the meter started, so no spawn,
+        // but its stagger gauge comes (entity 36018).
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
+        assert_eq!(r.label(36_018), "#36018");
+        r.observe(crate::state::OPCODE_STAGGER, &hex("b2 99 02 03 01 94 11 00 00 8a 11 00 00 02"));
+        assert!(r.unseen_boss(36_018));
+        assert_eq!(r.label(36_018), "Boss");
+        // A player's gauge (a boss's copy of one) or a mob whose spawn we saw isn't one.
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("e2 4f 01 20 a2 01 07", "Pingu", ""));
+        r.observe(crate::state::OPCODE_STAGGER, &hex("e2 4f 03 01 94 11 00 00 8a 11 00 00 02"));
+        assert!(!r.unseen_boss(10_210));
     }
 
     /// Party HP (`0x921b`): an entity, HP, max HP, MP, max MP.

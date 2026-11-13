@@ -62,7 +62,10 @@ pub fn read_messages(flow: &Path, side: Side) -> Result<FlowMessages> {
                 result.gaps += 1;
                 framer.reset();
             }
-            Some("syn") | Some("rst") => framer.reset(),
+            // A connection from its first byte: nothing to be wary of.
+            Some("syn") => framer.start(),
+            // "midstream": the recording began part-way through the connection.
+            Some("rst") | Some("midstream") => framer.reset(),
             _ => {}
         }
     }

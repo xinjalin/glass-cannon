@@ -6803,21 +6803,75 @@
     "2300276": {
       "name": "Ordeal of Love"
     },
+    "2300277": {
+      "name": "Ludra Follower Drakan"
+    },
+    "2300278": {
+      "name": "Ludra Follower Beast"
+    },
+    "2300279": {
+      "name": "Ludra Follower Warmage"
+    },
+    "2300280": {
+      "name": "Ludra Follower Officer"
+    },
+    "2300281": {
+      "name": "Ludra Follower Scout"
+    },
     "2300282": {
       "boss": true,
-      "name": ""
+      "name": "Isolation Specialist Rahu"
     },
     "2300283": {
       "boss": true,
-      "name": ""
+      "name": "Abyssal Wings Ketu"
     },
     "2300284": {
       "boss": true,
-      "name": ""
+      "name": "Central Abyss Fusion Reactor"
+    },
+    "2300285": {
+      "name": "Auxiliary Abyss Fusion Reactor"
+    },
+    "2300286": {
+      "name": "Laser"
+    },
+    "2300287": {
+      "name": "Laser"
+    },
+    "2300288": {
+      "name": "Auxiliary Abyss Fusion Reactor"
+    },
+    "2300289": {
+      "name": "Auxiliary Abyss Fusion Reactor"
     },
     "2300290": {
       "boss": true,
-      "name": ""
+      "name": "Eternal Ludra"
+    },
+    "2300291": {
+      "name": "None"
+    },
+    "2300292": {
+      "name": "None"
+    },
+    "2300293": {
+      "name": "None"
+    },
+    "2300294": {
+      "name": "Abyssal Drakan Armed Soldier"
+    },
+    "2300295": {
+      "name": "Abyssal Beast"
+    },
+    "2300296": {
+      "name": "Abyssal Drakan Mage Officer"
+    },
+    "2300297": {
+      "name": "Abyssal Drakan Chief"
+    },
+    "2300298": {
+      "name": "Abyssal Drakan Scout Officer"
     },
     "2300299": {
       "boss": true,
@@ -31290,7 +31344,7 @@
     "language": "en",
     "license": "GPL-3.0",
     "mob_names": {
-      "commit": "57974f81fd64dfca7e0f9d664765607ca20749c9",
+      "commit": "113a3a47e9dd726a825db48519fa1a366f1cd337",
       "license": "GPL-3.0",
       "project": "https://github.com/Kuroukihime/AIon2-Dps-Meter"
     },

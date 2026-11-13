@@ -14,7 +14,8 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 11] = ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "party", "cooldowns", "party-cooldowns", "timers", "pets"];
+pub const WIDGETS: [&str; 12] =
+    ["meter", "boss-warnings", "boss-timers", "cubes", "target", "player", "vitals", "party", "cooldowns", "party-cooldowns", "timers", "pets"];
 
 /// Shows a widget, or takes it away; saved for next time.
 #[tauri::command]
@@ -98,14 +99,17 @@ pub fn timer_region(app: State<'_, Arc<AppState>>) -> String {
     if TIMER_REGIONS.contains(&r.as_str()) { r } else { TIMER_REGIONS[0].to_string() }
 }
 
+/// Chosen in the settings; the world timers widget is told (`timer-settings`).
 #[tauri::command]
-pub fn set_timer_region(app: State<'_, Arc<AppState>>, region: String) -> Result<(), String> {
+pub fn set_timer_region(handle: AppHandle, app: State<'_, Arc<AppState>>, region: String) -> Result<(), String> {
     if !TIMER_REGIONS.contains(&region.as_str()) {
         return Err(format!("unknown region {region}"));
     }
     let mut s = lock(&app.settings);
     s.timer_region = region;
     s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("timer-settings", ());
     Ok(())
 }
 
@@ -121,10 +125,11 @@ pub struct TargetFrame {
 /// What you're targeting (or fighting), named, with your best against it.
 #[tauri::command]
 pub fn target(app: State<'_, Arc<AppState>>) -> Option<TargetFrame> {
-    let mut snap = app.engine.meter().snapshot();
-    lock(&app.data).annotate(&mut snap);
-    let my_dps = snap.encounter.as_ref().and_then(|e| e.players.iter().find(|p| p.is_self)).map(|p| p.dps);
-    let target = snap.target?;
+    // Just the target and your DPS: the whole snapshot is the meter's, four times a second
+    // here was most of the app's work in a long fight.
+    let (target, my_dps) = app.engine.meter().target_and_dps();
+    let mut target = target?;
+    lock(&app.data).annotate_target(&mut target);
     let best = match (target.boss, target.mob_type) {
         (true, Some(kind)) => {
             let profile = lock(&app.profile);
@@ -186,11 +191,15 @@ pub fn set_alert(app: State<'_, Arc<AppState>>, id: String, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// How long before an event its alert shows; chosen in the settings, and the world timers
+/// widget is told (`timer-settings`).
 #[tauri::command]
-pub fn set_alert_lead(app: State<'_, Arc<AppState>>, minutes: u32) {
+pub fn set_alert_lead(handle: AppHandle, app: State<'_, Arc<AppState>>, minutes: u32) {
     let mut s = lock(&app.settings);
     s.alert_lead_min = minutes.clamp(1, 60);
     s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("timer-settings", ());
 }
 
 /// Seconds after combat before the meter fades (0: never).
@@ -244,6 +253,13 @@ pub fn set_boss_skill_alert(app: State<'_, Arc<AppState>>, skill: u32, alert: Op
 #[tauri::command]
 pub fn boss_skill_alerts(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<u32, bool> {
     lock(&app.settings).boss_skill_alerts.clone()
+}
+
+#[tauri::command]
+pub fn set_boss_on_you(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.boss_on_you = on;
+    s.save(&app.config_dir);
 }
 
 #[tauri::command]
@@ -724,6 +740,9 @@ pub fn pet_map_me(app: State<'_, Arc<AppState>>) -> PetMapMe {
 #[tauri::command]
 pub fn set_pet_tracked(app: State<'_, Arc<AppState>>, id: u32, on: bool) -> Result<(), String> {
     let character = lock(&app.profile).name.clone().ok_or("log in to a character first")?;
+    if on && app.engine.meter().pets().maxed(id) {
+        return Err("it's at max level already".into());
+    }
     let mut s = lock(&app.settings);
     let list = s.tracked_pets.entry(character).or_default();
     list.retain(|p| *p != id);
@@ -732,6 +751,18 @@ pub fn set_pet_tracked(app: State<'_, Arc<AppState>>, id: u32, on: bool) -> Resu
     }
     s.save(&app.config_dir);
     Ok(())
+}
+
+/// A tracked pet that reaches the top level stops being tracked: there's nothing left to
+/// get for it.
+pub fn untrack_maxed(app: &AppState, character: &str, pets: &meter_core::pets::Pets) {
+    let mut s = lock(&app.settings);
+    let Some(list) = s.tracked_pets.get_mut(character) else { return };
+    let before = list.len();
+    list.retain(|&p| !pets.maxed(p));
+    if list.len() != before {
+        s.save(&app.config_dir);
+    }
 }
 
 #[tauri::command]

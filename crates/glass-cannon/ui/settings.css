@@ -47,8 +47,8 @@ body {
 .brand { color: var(--muted); letter-spacing: 0.12em; font-size: 0.9em; }
 .version { flex: 1; color: var(--faint); font-size: 0.9em; }
 
-/* The window is sized to fit everything (settings.js asks for it); this only scrolls
-   when the screen is too small for that. */
+/* The window is sized to fit the tallest tab (settings.js asks for it); this only scrolls
+   when the screen is too small for that, or for a long list of search results. */
 #scroll {
   flex: 1;
   min-height: 0;
@@ -57,19 +57,98 @@ body {
   padding-right: 0.15em;
 }
 
-/* Two columns, like a table: appearance | status, meter, tools. */
-#columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(29em, 1fr));
-  align-items: start;
-  gap: 0.6em 0.8em;
+/* ---------------------------------------------------------------- search and tabs */
+
+/* A search over every tab's settings, under the title bar. */
+#search-row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.45em;
+  margin: 0.15em 0 0.35em;
+  padding: 0 0.3em 0.25em;
+  border-bottom: 1px dashed var(--line);
+  color: var(--faint);
 }
-.col {
+#search-row:focus-within { border-bottom-color: var(--accent); color: var(--accent); }
+#search {
+  flex: 1;
+  min-width: 0;
+  padding: 0.1em 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-shadow: inherit;
+  outline: none;
+}
+#search::placeholder { color: var(--faint); }
+#search::-webkit-search-cancel-button { filter: grayscale(1) brightness(1.6); cursor: pointer; }
+.search-count { flex: none; color: var(--faint); font-size: 0.9em; white-space: nowrap; }
+
+/* The tabs, as the analysis window's: [name], the chosen one filled. */
+#tabs {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.2em 0.35em;
+  margin-bottom: 0.5em;
+}
+#tabs button { position: relative; padding: 0.05em 0.3em; border-radius: 0.25em; color: var(--accent); }
+#tabs button:hover { background: var(--line-faint); }
+#tabs button[aria-selected="true"] { background: var(--accent-fill); color: var(--ink); text-shadow: none; }
+/* While searching no tab is chosen: the results come from all of them. */
+.searching #tabs button[aria-selected="true"] { background: transparent; color: var(--accent); text-shadow: inherit; box-shadow: inset 0 -1px 0 var(--accent); border-radius: 0; }
+/* A check on [general] that isn't ok (Npcap missing, game data not found). */
+.tab-dot {
+  position: absolute;
+  top: 0.05em;
+  right: -0.1em;
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.tab-dot.bad { background: var(--bad); }
+
+/* Every tab in the same grid cell: the area is as tall as the tallest, so the window keeps
+   its size from tab to tab; only the chosen one shows. */
+#panels { display: grid; align-items: start; }
+.tab-panel,
+#no-results { grid-area: 1 / 1; }
+.tab-panel {
   display: flex;
   flex-direction: column;
   gap: 0.6em;
   min-width: 0;
+  visibility: hidden;
 }
+.tab-panel.active { visibility: visible; }
+/* The tab's name, only over the search results. */
+.panel-title {
+  display: none;
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.9em;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+.panel-title::before { content: "["; }
+.panel-title::after { content: "]"; }
+/* Searching: the matching settings of every tab, one after another under their tab's name. */
+#panels.searching { display: flex; flex-direction: column; align-items: stretch; gap: 0.8em; }
+.searching .tab-panel { visibility: visible; }
+.searching .panel-title { display: block; }
+#panels [data-miss] { display: none !important; }
+/* The letters that matched. */
+mark {
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  text-underline-offset: 0.18em;
+}
+.found { background: var(--line-faint); }
 
 button {
   font: inherit;
@@ -208,6 +287,9 @@ legend {
 .stepper button:disabled { color: var(--faint); cursor: default; background: none; }
 .step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
 
+/* The overlay's widgets, two to a line (short names, each on or off). */
+.widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.6em; }
+
 /* ---------------------------------------------------------------- font picker */
 
 .select-button {
@@ -286,8 +368,9 @@ legend {
 .opt.warn .state { color: var(--warn); }
 
 .message {
+  flex: none;
   min-height: 1.3em;
-  margin: 0;
+  margin: 0.2em 0 0;
   color: var(--muted);
   font-size: 0.9em;
 }

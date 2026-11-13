@@ -171,6 +171,7 @@ fn start_live(app: State<'_, Arc<AppState>>, process: String) -> Result<(), Stri
                 duration: None,
                 record: false,
                 decode: true,
+                follow_adapter: false,
             };
             let result = live::run(&opts, &stop, |ev| match ev {
                 LiveEvent::Waiting(m) => state.say(&stop, m),

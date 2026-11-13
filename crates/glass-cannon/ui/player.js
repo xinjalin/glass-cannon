@@ -1,5 +1,6 @@
-// The player bars: your HP and MP, and the cast you're making, as thin bars. Max HP isn't
-// sent: the highest HP seen stands in (your max whenever you've been at full HP).
+// The player bars: your HP and MP, and the cast you're making, as thin bars (the vitals
+// arcs widget shows them round, around your character). Max HP is the game's; until it
+// sends it, the highest HP seen stands in.
 
 // Smooth enough for a cast bar.
 const POLL_MS = 100;

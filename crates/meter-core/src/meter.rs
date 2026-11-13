@@ -42,12 +42,21 @@ const TELEGRAPH_WINDOW_US: u64 = 5_000_000;
 const AFTER_DEATH_US: u64 = 10_000_000;
 /// Deaths remembered this long, then forgotten (entity IDs get reused).
 const DEATHS_KEPT_US: u64 = 120_000_000;
+/// After a wipe, what still lands on the boss doesn't start another try: a hit already on
+/// its way for this long, damage over time still ticking for this long. (In the Ludra raid
+/// on 2026-11-13, a tick a second after a wipe on Ketu made a one-hit "fight" that ended as
+/// a second wipe, and counted as a try.)
+const AFTER_WIPE_HIT_US: u64 = 5_000_000;
+const AFTER_WIPE_TICK_US: u64 = 30_000_000;
 /// A death recap lists this many of the last hits.
 const RECAP_HITS: usize = 12;
 /// Pings kept for the median.
 const PINGS_KEPT: usize = 6;
 /// Damage over this long sets how fast a target is going down (its time to kill).
 const KILL_RATE_US: u64 = 10_000_000;
+/// How long a mob stays on you before it counts as attacking you (the boss warnings' "on you").
+/// In the Ludra raid (2026-11-07) Ketu sometimes turned to someone and away in one burst.
+const ON_YOU_HOLD_US: u64 = 300_000;
 
 /// The world map counts as closed this long after the game's last request for its contents.
 /// It asks every 1.14-1.25 s while it's open (186 gaps in our captures, 99% within
@@ -71,6 +80,8 @@ const SELF_HEAL_WAIT_US: u64 = 50_000;
 const MAX_SKILLS_PER_ROW: usize = 12;
 /// HP samples are kept this long, so a long boss fight still has its whole HP line.
 const HP_KEEP_US: u64 = 60 * 60_000_000;
+/// How long after a fight's last hit its target's HP still counts for its lowest.
+const LOW_HP_AFTER_US: u64 = 1_000_000;
 /// How often (in samples) entities that haven't changed HP for that long are forgotten.
 const HP_PRUNE_EVERY: u32 = 4096;
 
@@ -420,6 +431,14 @@ pub struct EncounterView {
     /// What the boss is casting now (live fights).
     #[serde(default)]
     pub boss_cast: Option<LiveBossCast>,
+    /// When the boss turned to attack you, while it's on you (live fights): the boss
+    /// warnings' "on you" card, once per turn.
+    #[serde(default)]
+    pub boss_on_you_us: Option<u64>,
+    /// The main target's lowest HP in the fight as a share of its max (0 when killed): how
+    /// far a wipe got. Unknown when its HP wasn't seen, and in fights saved before this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_low_hp: Option<f64>,
 }
 
 /// A boss's cast, from its start (or, with no cast time, when it went off).
@@ -511,6 +530,8 @@ pub struct Contents {
     pub tickets: Vec<crate::contents::Ticket>,
     pub sieges: Vec<crate::contents::Siege>,
     pub artifacts: Vec<crate::contents::Artifact>,
+    /// Shop purchase limits sent (the weekly Odyle Energy buy among them).
+    pub shop: Vec<crate::contents::ShopCounter>,
 }
 
 /// A cast under way.
@@ -531,6 +552,11 @@ pub struct SelfBars {
     pub hp_max: Option<u64>,
     pub mp: Option<u32>,
     pub mp_max: Option<u32>,
+    /// Stamina and flight power, as the game sends them (hundredths of what's shown).
+    pub stamina: Option<u32>,
+    pub stamina_max: Option<u32>,
+    pub flight: Option<u32>,
+    pub flight_max: Option<u32>,
     pub cast: Option<CastBar>,
 }
 
@@ -731,6 +757,16 @@ pub struct HpPoint {
     pub hp: u64,
 }
 
+/// Your stats from `0x8d00` besides HP and MP (see [`hp::STAT_STAMINA`]).
+#[derive(Debug, Default, Clone, Copy)]
+struct SelfStats {
+    stamina: Option<u32>,
+    stamina_max: Option<u32>,
+    flight: Option<u32>,
+    flight_max: Option<u32>,
+    hp_max: Option<u64>,
+}
+
 /// Every entity's HP over time (`0x8d00`), and its max HP when known.
 #[derive(Debug, Default)]
 struct HpLog {
@@ -772,21 +808,26 @@ impl HpLog {
         }
     }
 
+    /// The entity's lowest HP during `start..=end`, as a share of its max. (The samples
+    /// are in time order: the window is found, not every sample looked at.)
+    fn lowest(&self, entity: u64, start: u64, end: u64) -> Option<f64> {
+        let e = self.entities.get(&entity)?;
+        let from = e.samples.partition_point(|(t, _)| *t < start);
+        let low = e.samples.range(from..).take_while(|(t, _)| *t <= end).map(|(_, hp)| *hp).min()?;
+        (e.max > 0).then(|| low as f64 / e.max as f64)
+    }
+
     /// The entity's HP during `start..=end`, in ms from `start`. The last sample before
     /// the fight is moved to 0, so the line starts where the target stood.
     fn during(&self, entity: u64, start: u64, end: u64) -> Option<TargetHp> {
         let e = self.entities.get(&entity)?;
-        let before = e.samples.iter().take_while(|(t, _)| *t < start).last();
+        let from = e.samples.partition_point(|(t, _)| *t < start);
+        let before = from.checked_sub(1).and_then(|i| e.samples.get(i));
         let ms = |us: u64| (us.saturating_sub(start) / 1000).min(u64::from(u32::MAX)) as u32;
         let samples: Vec<HpPoint> = before
             .map(|(_, hp)| HpPoint { t: 0, hp: *hp })
             .into_iter()
-            .chain(
-                e.samples
-                    .iter()
-                    .filter(|(t, _)| (start..=end).contains(t))
-                    .map(|(t, hp)| HpPoint { t: ms(*t), hp: *hp }),
-            )
+            .chain(e.samples.range(from..).take_while(|(t, _)| *t <= end).map(|(t, hp)| HpPoint { t: ms(*t), hp: *hp }))
             .collect();
         (!samples.is_empty()).then_some(TargetHp {
             target: entity,
@@ -824,6 +865,8 @@ pub struct Meter {
     combat: HashMap<u64, (bool, u64)>,
     /// When things died (pruned after [`DEATHS_KEPT_US`]).
     died: HashMap<u64, u64>,
+    /// Bosses that just wiped you, and when (kept [`AFTER_WIPE_TICK_US`]).
+    wiped: HashMap<u64, u64>,
     /// When bosses go berserk (ms since 1970).
     berserk: HashMap<u64, u64>,
     /// The game's pings coming back: (arrival, when the client sent it on its clock).
@@ -836,7 +879,8 @@ pub struct Meter {
     pvp: PvpTracker,
     /// Your target, what each mob is attacking, and their stagger gauges.
     selected: Option<u64>,
-    aggro: HashMap<u64, u64>,
+    /// What each mob is attacking, and since when (capture µs).
+    aggro: HashMap<u64, (u64, u64)>,
     stagger: HashMap<u64, Stagger>,
     /// Field bosses read from a world map since the last [`Meter::take_field_bosses`].
     field_bosses: Vec<FieldBoss>,
@@ -849,6 +893,8 @@ pub struct Meter {
     casting: HashMap<u64, (u32, u64, u32)>,
     /// Your MP: now, max (when sent), and the highest seen.
     self_mp: (Option<u32>, Option<u32>, u32),
+    /// Your other stats from `0x8d00`: stamina, flight power (each with its max), max HP.
+    self_stats: SelfStats,
     /// Other players' gear, from their spawns.
     gear: crate::gear::GearBook,
     /// Party members' HP and MP (`0x921b`), and when each was sent.
@@ -897,6 +943,7 @@ impl Meter {
             bosses: HashSet::new(),
             combat: HashMap::new(),
             died: HashMap::new(),
+            wiped: HashMap::new(),
             berserk: HashMap::new(),
             pings: VecDeque::new(),
             cooldowns: Cooldowns::default(),
@@ -910,6 +957,7 @@ impl Meter {
             contents: Contents::default(),
             casting: HashMap::new(),
             self_mp: (None, None, 0),
+            self_stats: SelfStats::default(),
             party_vitals: HashMap::new(),
             gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
@@ -1020,11 +1068,19 @@ impl Meter {
     pub fn self_bars(&self) -> Option<SelfBars> {
         let me = self.registry.self_id()?;
         let (mp, mp_max, mp_seen) = self.self_mp;
+        let s = &self.self_stats;
+        // A value over a max from before a buff ended: the max moves up to it.
+        let max_of = |v: Option<u32>, m: Option<u32>| m.map(|m| m.max(v.unwrap_or(0)));
         Some(SelfBars {
             hp: self.hp.last(me),
-            hp_max: self.hp.max(me),
+            // The game's max HP once it's sent it, else the highest HP seen.
+            hp_max: s.hp_max.map(|m| m.max(self.hp.last(me).unwrap_or(0))).or(self.hp.max(me)),
             mp,
             mp_max: mp_max.or((mp_seen > 0).then_some(mp_seen)),
+            stamina: s.stamina,
+            stamina_max: max_of(s.stamina, s.stamina_max),
+            flight: s.flight,
+            flight_max: max_of(s.flight, s.flight_max),
             cast: self.casting.get(&me).and_then(|&(skill, start, cast_ms)| {
                 let end = start + u64::from(cast_ms) * 1000;
                 (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
@@ -1166,8 +1222,17 @@ impl Meter {
                             self.self_mp.2 = self.self_mp.2.max(value);
                         }
                         hp::STAT_MP_MAX => self.self_mp.1 = Some(value),
+                        hp::STAT_STAMINA => self.self_stats.stamina = Some(value),
+                        hp::STAT_STAMINA_MAX => self.self_stats.stamina_max = Some(value),
+                        hp::STAT_FLIGHT => self.self_stats.flight = Some(value),
+                        hp::STAT_FLIGHT_MAX => self.self_stats.flight_max = Some(value),
                         _ => {}
                     }
+                }
+            }
+            if let Some((_, stats)) = hp::parse_u64_stats(payload).filter(|(e, _)| Some(*e) == self.registry.self_id()) {
+                if let Some((_, max)) = stats.iter().find(|(s, _)| *s == hp::STAT_HP_MAX) {
+                    self.self_stats.hp_max = Some(*max);
                 }
             }
             if let Some(u) = hp::parse_hp(payload) {
@@ -1259,7 +1324,9 @@ impl Meter {
                 }
                 state::OPCODE_MOB_TARGET => {
                     if let Some((mob, target)) = state::parse_mob_target(payload) {
-                        self.aggro.insert(mob, target);
+                        // Since it turned to this target: the same one again keeps its time.
+                        let since = self.aggro.get(&mob).filter(|(t, _)| *t == target).map_or(ts_us, |(_, at)| *at);
+                        self.aggro.insert(mob, (target, since));
                     }
                 }
                 state::OPCODE_STAGGER => {
@@ -1286,6 +1353,14 @@ impl Meter {
                     if let Some(t) = crate::contents::parse_ticket_update(payload) {
                         self.contents.tickets.retain(|x| x.id != t.id);
                         self.contents.tickets.push(t);
+                    }
+                }
+                crate::contents::OPCODE_SHOP_COUNTERS => {
+                    if let Some(list) = crate::contents::parse_shop_counters(payload) {
+                        for c in list {
+                            self.contents.shop.retain(|x| x.id != c.id);
+                            self.contents.shop.push(c);
+                        }
                     }
                 }
                 crate::contents::OPCODE_ABYSS_MAP | crate::contents::OPCODE_ABYSS_ENTERED => {
@@ -1375,12 +1450,22 @@ impl Meter {
                 self.current = None;
                 self.last = None;
                 self.lookback.clear();
+                self.pending_heals.clear();
                 self.effects.clear();
                 self.hp = HpLog::default();
+                self.combat.clear();
+                self.died.clear();
+                self.wiped.clear();
+                self.berserk.clear();
+                self.aggro.clear();
+                self.stagger.clear();
+                self.classes.clear();
+                self.selected = None;
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
                 self.casting.clear();
                 self.self_mp = (None, None, 0);
+                self.self_stats = SelfStats::default();
                 self.party_vitals.clear();
                 self.boss_log.clear();
                 self.pulls.clear();
@@ -1527,8 +1612,13 @@ impl Meter {
         // join a fight it wasn't in either: in Fire Temple a hit landing just after Black
         // Smoke Murute died made it look alive in the next fight.
         let corpse = self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US);
+        // Nor does what still lands on a boss that has just wiped you start another try.
+        let after_wipe = self
+            .wiped
+            .get(&ev.target)
+            .is_some_and(|at| ts_us.saturating_sub(*at) < if ev.is_dot { AFTER_WIPE_TICK_US } else { AFTER_WIPE_HIT_US });
         match &self.current {
-            None if dmg <= 1 || corpse || !player => return,
+            None if dmg <= 1 || corpse || after_wipe || !player => return,
             Some(enc) if corpse && !enc.targets.contains_key(&ev.target) => return,
             _ => {}
         }
@@ -1699,7 +1789,10 @@ impl Meter {
     }
 
     fn is_boss(&self, entity: u64) -> bool {
-        self.registry.mob_type(entity).is_some_and(|t| self.bosses.contains(&t))
+        match self.registry.mob_type(entity) {
+            Some(t) => self.bosses.contains(&t),
+            None => self.registry.unseen_boss(entity),
+        }
     }
 
     /// Something died: a player's death goes in the fight's recap, and it may end the fight.
@@ -1813,6 +1906,11 @@ impl Meter {
                 self_name: self.registry.self_name().map(str::to_string),
                 analysis: self.analyse(enc, false, now_us),
             });
+        }
+        if end == FightEnd::Wipe {
+            let bosses: Vec<u64> = self.counted_targets(enc).into_iter().filter(|t| self.is_boss(*t)).collect();
+            self.wiped.retain(|_, at| now_us.saturating_sub(*at) < AFTER_WIPE_TICK_US);
+            self.wiped.extend(bosses.into_iter().map(|b| (b, now_us)));
         }
         self.last = self.current.take();
         self.completed += 1;
@@ -2053,6 +2151,52 @@ impl Meter {
         self.view_capped(e, active, Some(MAX_SKILLS_PER_ROW))
     }
 
+    /// Whose damage counts in a fight: yours in mine scope, your party's in party scope
+    /// (just yours when on your own), everyone's in everyone scope or before we know who
+    /// we are.
+    fn shown(&self, e: &Encounter, id: u64) -> bool {
+        let me = self.registry.self_id();
+        match self.scope {
+            _ if me.is_none() => true,
+            Scope::Mine => me == Some(id),
+            Scope::Party => self.registry.in_party(id) || e.party.contains(&id),
+            Scope::Everyone => true,
+        }
+    }
+
+    /// The damage of each player who counts on the fight's counted targets, and the fight's
+    /// span: from the first to the last counted hit, so time someone else spent on the
+    /// target before you arrived doesn't lower your DPS. None with no counted hit.
+    fn damage_by_player(&self, e: &Encounter, counted: &HashSet<u64>) -> Option<(HashMap<u64, PlayerStats>, u64, u64)> {
+        let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
+        for (target, t) in e.targets.iter().filter(|(id, _)| counted.contains(id)) {
+            for (id, p) in &t.players {
+                // Summons are folded into their owner (also hits from before we knew).
+                let by = self.registry.credited(*id);
+                if by == self.registry.credited(*target) {
+                    continue;
+                }
+                if self.shown(e, by) {
+                    per_player.entry(by).or_default().merge(p);
+                }
+            }
+        }
+        let (first, last) = per_player.values().filter_map(|p| p.span).reduce(|a, b| widen(Some(a), b))?;
+        Some((per_player, first, last))
+    }
+
+    /// Your target ([`Snapshot::target`]) and your DPS in the fight shown, without the
+    /// rest of the snapshot: the target frame asks several times a second.
+    pub fn target_and_dps(&self) -> (Option<TargetView>, Option<f64>) {
+        let dps = self.current.as_ref().or(self.last.as_ref()).and_then(|e| {
+            let me = self.registry.self_id()?;
+            let (per_player, first, last) = self.damage_by_player(e, &self.counted_targets(e))?;
+            let duration_s = ((last - first) as f64 / 1e6).max(1.0);
+            per_player.get(&me).map(|p| p.damage as f64 / duration_s)
+        });
+        (self.target_view(), dps)
+    }
+
     /// The summary of a fight; each player's skill list is cut to `skill_cap` if given.
     fn view_capped(&self, e: &Encounter, active: bool, skill_cap: Option<usize>) -> Option<EncounterView> {
         let counted_ids = self.counted_targets(e);
@@ -2061,31 +2205,9 @@ impl Meter {
             return None;
         }
 
-        // Whose damage counts: yours in mine scope, your party's in party scope (just yours
-        // when on your own), everyone's in everyone scope or before we know who we are.
         let me = self.registry.self_id();
-        let shown = |id: u64| match self.scope {
-            _ if me.is_none() => true,
-            Scope::Mine => me == Some(id),
-            Scope::Party => self.registry.in_party(id) || e.party.contains(&id),
-            Scope::Everyone => true,
-        };
-        let mut per_player: HashMap<u64, PlayerStats> = HashMap::new();
-        for (target, t) in &counted {
-            for (id, p) in &t.players {
-                // Summons are folded into their owner (also hits from before we knew).
-                let by = self.registry.credited(*id);
-                if by == self.registry.credited(**target) {
-                    continue;
-                }
-                if shown(by) {
-                    per_player.entry(by).or_default().merge(p);
-                }
-            }
-        }
-        // The fight lasts from the first to the last counted hit, so time someone else spent
-        // on the target before you arrived doesn't lower your DPS.
-        let (first, last) = per_player.values().filter_map(|p| p.span).reduce(|a, b| widen(Some(a), b))?;
+        let shown = |id: u64| self.shown(e, id);
+        let (per_player, first, last) = self.damage_by_player(e, &counted_ids)?;
         let duration_s = ((last - first) as f64 / 1e6).max(1.0);
         let total: u64 = per_player.values().map(|p| p.damage).sum();
 
@@ -2140,7 +2262,8 @@ impl Meter {
             target: main_target.map(|id| self.registry.label(id)),
             target_id: main_target,
             target_type: main_target.and_then(|id| self.registry.mob_type(id)),
-            target_boss: false,
+            // The app sets it from its mob data by type; a boss we never saw spawn has none.
+            target_boss: main_target.is_some_and(|id| self.registry.unseen_boss(id)),
             target_count: counted.len(),
             start_us: first,
             end_us: last,
@@ -2159,7 +2282,20 @@ impl Meter {
             boss_casts,
             boss_now_s,
             boss_cast,
+            boss_on_you_us: main_target.filter(|_| active).and_then(|t| self.on_you_since(t)),
+            // Up to a second after the last hit, for its HP to come in (a wipe's reset to
+            // full comes later); a kill is 0 even when its last HP came later still.
+            target_low_hp: main_target
+                .and_then(|t| self.hp.lowest(t, first, last + LOW_HP_AFTER_US))
+                .map(|low| if e.end == Some(FightEnd::Kill) { 0.0 } else { low }),
         })
+    }
+
+    /// When `mob` turned to attack you, once it has stayed on you [`ON_YOU_HOLD_US`] (it
+    /// sometimes points at someone and moves on in the same moment).
+    fn on_you_since(&self, mob: u64) -> Option<u64> {
+        let (target, since) = *self.aggro.get(&mob)?;
+        (Some(target) == self.registry.self_id() && self.latest_us.saturating_sub(since) >= ON_YOU_HOLD_US).then_some(since)
     }
 
     /// Your target if you've picked one that's alive, else the live fight's main target.
@@ -2188,12 +2324,12 @@ impl Meter {
             let rate = recent as f64 / (KILL_RATE_US as f64 / 1e6);
             (rate > 0.0).then(|| hp.unwrap_or(0) as f64 / rate).filter(|_| hp.is_some())
         });
-        let attacking = self.aggro.get(&entity).copied().filter(|t| *t != 0);
+        let attacking = self.aggro.get(&entity).map(|(t, _)| *t).filter(|t| *t != 0);
         Some(TargetView {
             entity,
             name: self.registry.label(entity),
             mob_type: self.registry.mob_type(entity),
-            boss: false,
+            boss: self.registry.unseen_boss(entity),
             hp,
             max_hp: self.hp.max(entity),
             berserk_us: self.berserk.get(&entity).map(|ms| ms * 1000),
@@ -2514,7 +2650,38 @@ mod tests {
         let points: Vec<(u32, u64)> = h.samples.iter().map(|p| (p.t, p.hp)).collect();
         // The last value before the fight starts the line; nothing after its last hit.
         assert_eq!(points, [(0, 110_000), (100, 105_500)]);
-        assert_eq!(m.take_finished()[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
+        let done = m.take_finished();
+        assert_eq!(done[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
+        // How low it got: the HP just after the last hit counts, the reset after doesn't.
+        assert_eq!(done[0].view.target_low_hp, Some(101_000.0 / 119_700.0));
+    }
+
+    #[test]
+    fn your_bars_have_stamina_flight_power_and_max_hp() {
+        let mut m = meter_as_me();
+        // You: u32 stamina, flight power and their maxes; u64 HP and max HP.
+        let mut p = encode_varint(ME);
+        p.extend([0x03, 4]);
+        for (stat, v) in [(3u8, 150_500u32), (10, 155_600), (6, 612_000), (13, 650_000)] {
+            p.push(stat);
+            p.extend(v.to_le_bytes());
+        }
+        p.push(2);
+        for (stat, v) in [(0u8, 20_000u64), (7, 32_049)] {
+            p.push(stat);
+            p.extend(v.to_le_bytes());
+        }
+        assert_eq!(hp::parse_u64_stats(&p), Some((ME, vec![(0, 20_000), (7, 32_049)])));
+        m.feed(S, hp::OPCODE_HP, &p);
+        let b = m.self_bars().unwrap();
+        assert_eq!((b.hp, b.hp_max), (Some(20_000), Some(32_049)), "the game's max HP, not the highest seen");
+        assert_eq!((b.stamina, b.stamina_max, b.flight, b.flight_max), (Some(150_500), Some(155_600), Some(612_000), Some(650_000)));
+        // Someone else's stats aren't yours.
+        let mut other = encode_varint(15772);
+        other.extend([0x01, 1, 3]);
+        other.extend(1u32.to_le_bytes());
+        m.feed(2 * S, hp::OPCODE_HP, &other);
+        assert_eq!(m.self_bars().unwrap().stamina, Some(150_500));
     }
 
     #[test]
@@ -2586,6 +2753,8 @@ mod tests {
         assert_eq!(me.name, "NeneneTowawa");
         assert_eq!((me.damage, me.dps, me.class_code), (10_000, 1000.0, Some(18)));
         assert_eq!(me.class_name.as_deref(), Some("Chanter"));
+        // The target frame's shortcut says the same as the whole snapshot.
+        assert_eq!(m.target_and_dps(), (m.snapshot().target, Some(1000.0)));
         assert_eq!(me.skills[0].skill, 18_040_350);
 
         m.set_scope(Scope::Everyone);
@@ -2978,6 +3147,34 @@ mod tests {
     }
 
     #[test]
+    fn what_still_lands_after_a_wipe_is_not_another_try() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(BOSS, 71_643));
+        m.feed(5 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
+        assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+        // A second later: your damage over time ticks on it, and a hit already on its way
+        // lands. Then its HP is sent again, still full.
+        let mut tick = encode_varint(BOSS);
+        tick.push(0x0a);
+        tick.extend(encode_varint(ME));
+        tick.extend(encode_varint(1));
+        tick.extend(0u32.to_le_bytes());
+        tick.extend(encode_varint(328));
+        tick.extend(18_730_002u32.to_le_bytes());
+        m.feed(6 * S, OPCODE_DOT, &tick);
+        m.feed(6 * S + 200_000, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 900));
+        m.feed(7 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_000));
+        m.feed(8 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
+        assert!(ends(&mut m).is_empty(), "no one-hit fight, no second wipe");
+        // A tick 20 s on still doesn't; the next pull's first hit does.
+        m.feed(26 * S, OPCODE_DOT, &tick);
+        assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+        m.feed(27 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        assert!(m.snapshot().encounter.is_some_and(|e| e.active && e.total_damage == 5000));
+    }
+
+    #[test]
     fn a_boss_still_fighting_gets_longer() {
         let mut m = meter_with_boss();
         m.feed(S, state::OPCODE_COMBAT_STATE, &combat(BOSS, true));
@@ -3156,6 +3353,33 @@ mod tests {
         stop.push(0);
         m.feed(6 * S, crate::cast::OPCODE_CAST_STOP, &stop);
         assert_eq!(m.snapshot().target.unwrap().cast, None);
+    }
+
+    #[test]
+    fn the_boss_on_you_counts_once_it_stays() {
+        let mut m = meter_with_boss();
+        let turn = |to: u64| {
+            let mut p = encode_varint(BOSS);
+            p.push(0);
+            p.extend(encode_varint(to));
+            p
+        };
+        let on_you = |m: &mut Meter| m.snapshot().encounter.unwrap().boss_on_you_us;
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(S, state::OPCODE_MOB_TARGET, &turn(ME));
+        // Pointed at you and away in the same moment: not on you.
+        m.feed(S, state::OPCODE_MOB_TARGET, &turn(15772));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        assert_eq!(on_you(&mut m), None);
+        m.feed(2 * S, state::OPCODE_MOB_TARGET, &turn(ME));
+        assert_eq!(on_you(&mut m), None, "not yet held");
+        // Told again while it stays on you: still since it turned.
+        m.feed(2 * S + 200_000, state::OPCODE_MOB_TARGET, &turn(ME));
+        m.feed(2 * S + 400_000, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        assert_eq!(on_you(&mut m), Some(2 * S));
+        assert!(m.snapshot().target.unwrap().attacking_you);
+        m.feed(3 * S, state::OPCODE_MOB_TARGET, &turn(0));
+        assert_eq!(on_you(&mut m), None);
     }
 
     #[test]

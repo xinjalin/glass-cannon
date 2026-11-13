@@ -25,6 +25,8 @@ use crate::session::TimedMessage;
 const CAPTURE_FILTER: &str = "tcp or udp";
 const REFRESH_EVERY: Duration = Duration::from_millis(500);
 const STATUS_EVERY: Duration = Duration::from_secs(1);
+/// The game seen only on other adapters this many looks in a row (2 s): it has moved.
+const ADAPTER_CHECKS: u32 = 4;
 
 pub struct LiveOptions {
     /// Case-insensitive substring of the game's executable name.
@@ -38,6 +40,11 @@ pub struct LiveOptions {
     pub record: bool,
     /// Decode the game stream and emit [`LiveEvent::Messages`].
     pub decode: bool,
+    /// Return (with `Ok`) when the game is found talking through another network adapter
+    /// than the ones being captured (a VPN turned on or off, Wi-Fi to cable), so the
+    /// caller can call [`run`] again and pick it up. Only when the adapters were chosen
+    /// automatically, by the game's own address.
+    pub follow_adapter: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -130,6 +137,9 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
     // 2. Capture only on the adapter(s) the game actually uses.
     let all = np.devices()?;
     let chosen = pick_devices(&all, &opts.devices, &local_ips, &mut on_event)?;
+    // The addresses being captured, when the adapters were picked by the game's own.
+    let chosen_addrs: HashSet<IpAddr> = chosen.iter().flat_map(|d| d.addrs.iter().copied()).collect();
+    let follows = opts.follow_adapter && opts.devices.is_empty() && local_ips.iter().any(|ip| chosen_addrs.contains(ip));
 
     // 3. Session folder, if recording.
     let session_dir = opts
@@ -194,6 +204,8 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
     let mut last_status = started;
     let mut game_gone = false;
     let mut failure: Option<anyhow::Error> = None;
+    // Looks at the tables in a row that found the game only on adapters we aren't on.
+    let mut elsewhere = 0u32;
     loop {
         if stop.load(Ordering::Relaxed) || opts.duration.is_some_and(|d| started.elapsed() >= d) {
             break;
@@ -227,12 +239,20 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                 }
                 game_gone = false;
                 pids = procs.iter().map(|p| p.pid).collect();
-                current = snapshot_matcher(&pids)?;
+                let (tcp, udp) = (conns::tcp_connections()?, conns::udp_endpoints()?);
+                current = LiveMatcher::from_tables(&pids, &tcp, &udp);
                 matcher.merge(&current);
+                let ips = conns::local_ips_for(&pids, &tcp);
+                let moved = follows && !ips.is_empty() && !ips.iter().any(|ip| chosen_addrs.contains(ip));
+                elsewhere = if moved { elsewhere + 1 } else { 0 };
                 pipeline.set_matcher(Matcher::Live(matcher.clone()), now_us())
             })();
             if let Err(e) = refreshed {
                 failure = Some(e);
+                break;
+            }
+            if elsewhere >= ADAPTER_CHECKS {
+                on_event(LiveEvent::Warning("the game is on another network adapter now: starting the capture again".into()));
                 break;
             }
             // Released held packets and skipped holes can produce data too.

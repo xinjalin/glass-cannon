@@ -68,6 +68,11 @@ body {
 #warning.soon { --warn-c: var(--warn); }
 #warning.soon #warning-name { font-size: 1.7em; }
 #warning.soon #warning-time { font-size: 1.25em; }
+/* The boss turned to you: amber, the boss's name over "on you", a little smaller than a
+   cast. */
+#warning.you { --warn-c: var(--warn); }
+#warning.you #warning-name { font-size: 1.9em; color: var(--warn-c); }
+#warning.you #warning-time:empty { display: none; }
 /* Over: it stays a moment, dimmed, so it can be read. */
 #warning.over { opacity: 0.55; animation: none; }
 @keyframes pulse {
@@ -172,6 +177,21 @@ body {
   cursor: nwse-resize;
 }
 .editing .grip { display: block; }
+
+/* Line-ups while arranging: the screen's centre lines, faint and dashed, lit when a
+   dragged widget snaps to them; and a line where it lines up with another widget. */
+#guides { display: none; position: absolute; inset: 0; z-index: 15; pointer-events: none; }
+.editing #guides { display: block; }
+.guide { position: absolute; }
+.guide.v { top: 0; bottom: 0; width: 0; border-left: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+.guide.h { left: 0; right: 0; height: 0; border-top: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+.guide.v.centre { left: 50%; }
+.guide.h.centre { top: 50%; }
+.guide.on, .guide.met { border-style: solid; border-width: 2px; }
+.guide.v.on, .guide.v.met { margin-left: -1px; }
+.guide.h.on, .guide.h.met { margin-top: -1px; }
+.guide.on { border-color: var(--warn); box-shadow: 0 0 0.5em var(--warn); }
+.guide.met { border-color: var(--accent); box-shadow: 0 0 0.4em var(--accent); }
 
 /* The arrange menu: a raised panel like the windows' title bars, moved by its title. */
 #arrange-menu {

@@ -1,5 +1,7 @@
 // World timers: the events' schedule (schedule.js) for your region, field bosses from the
 // world map, and which of them to be alerted about (the bell; the meter shows the alert).
+// The region and how long before an alert shows are chosen in the settings (alerts tab);
+// only [★ only] is here.
 
 let region = "as";
 let alerts = new Set();
@@ -9,7 +11,6 @@ let favouritesOnly = false;
 const shown = (id) => !favouritesOnly || favourites.has(id);
 let lead = 5;
 let bosses = [];
-const LEADS = [1, 3, 5, 10, 15];
 // A field boss "up" as of a world map read longer ago than this may have been killed.
 const STALE_MS = 3 * 3_600_000;
 
@@ -36,38 +37,14 @@ function upcomingText(name, e, timeZone, now) {
   return `${name}, next:\n${lines.join("\n")}`;
 }
 
+// The top line: the region shown (chosen in the settings) and [★ only].
 function drawRegions() {
   const nav = $("regions");
   nav.replaceChildren();
-  for (const [key, r] of Object.entries(REGIONS)) {
-    const b = el("button", "", `[${r.label}]`);
-    b.type = "button";
-    b.setAttribute("role", "tab");
-    b.setAttribute("aria-selected", String(key === region));
-    b.title = r.timeZone.replace("_", " ");
-    b.addEventListener("click", () => {
-      region = key;
-      invoke("set_timer_region", { region }).catch(() => {});
-      drawRegions();
-      draw();
-    });
-    nav.append(b);
-  }
-  const leadBox = el("span", "lead");
-  leadBox.append(el("span", "note", "alert"));
-  for (const m of LEADS) {
-    const b = el("button", "", `[${m}m]`);
-    b.type = "button";
-    b.setAttribute("aria-selected", String(m === lead));
-    b.title = `Alerts ${m} minute${m === 1 ? "" : "s"} before`;
-    b.addEventListener("click", () => {
-      lead = m;
-      invoke("set_alert_lead", { minutes: m }).catch(() => {});
-      drawRegions();
-    });
-    leadBox.append(b);
-  }
-  nav.append(leadBox);
+  const r = REGIONS[region];
+  const where = el("span", "note region-note", `${r.label} schedule · alerts ${lead}m before`);
+  where.title = `${r.timeZone.replace("_", " ")} · change the region and alert time in the settings (alerts tab)`;
+  nav.append(where);
   const only = el("button", "fav-filter", "[★ only]");
   only.type = "button";
   only.setAttribute("aria-selected", String(favouritesOnly));
@@ -270,20 +247,28 @@ async function loadBosses() {
   draw();
 }
 
-invoke("timer_settings")
-  .then((s) => {
-    if (REGIONS[s.region]) region = s.region;
-    alerts = new Set(s.alerts);
-    lead = s.alert_lead_min;
-    favourites = new Set(s.favourites || []);
-    favouritesOnly = !!s.favourites_only;
-  })
-  .catch(() => {})
-  .finally(() => {
-    drawRegions();
-    loadBosses();
-    loadContents();
-  });
+function loadSettings() {
+  return invoke("timer_settings")
+    .then((s) => {
+      if (REGIONS[s.region]) region = s.region;
+      alerts = new Set(s.alerts);
+      lead = s.alert_lead_min;
+      favourites = new Set(s.favourites || []);
+      favouritesOnly = !!s.favourites_only;
+    })
+    .catch(() => {})
+    .finally(() => {
+      drawRegions();
+      draw();
+    });
+}
+
+loadSettings().then(() => {
+  loadBosses();
+  loadContents();
+});
+// The region or alert time changed in the settings.
+tauri.event.listen("timer-settings", loadSettings);
 setInterval(() => {
   if (!document.hidden) draw();
 }, 1000);

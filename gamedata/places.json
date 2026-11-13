@@ -1,0 +1,658 @@
+{
+  "source": {
+    "note": "Written by hand: the bosses of the Sealed Dungeons, Strongholds and Dimensional Invasions, which the scraped dungeon list (dungeons.json) doesn't have. Places and their bosses from Legaeon's Sealed Dungeons guide (https://legaeon.co.uk/guides/sealed-dungeons.html), aion2data.com's boss list (https://aion2data.com/bosses: its Stronghold Commanders; a stronghold it doesn't name goes by its commander) and ExpCarry's Dimensional Invasion guide (https://expcarry.com/aion-2-dimensional-invasion-guide), matched by name to the boss types in npcs.json. Aion 2 game data; names belong to NCSOFT. Not covered by Glass Cannon's MIT licence.",
+    "checked": "2026-11-08"
+  },
+  "dungeons": {
+    "Invasion_AccursedSword": {
+      "name": "Accursed Sword",
+      "type": "Dimensional Invasion"
+    },
+    "Invasion_BeritraAirRaid": {
+      "name": "Beritra Air Raid",
+      "type": "Dimensional Invasion"
+    },
+    "Invasion_IncursionoftheSpirits": {
+      "name": "Incursion of the Spirits",
+      "type": "Dimensional Invasion"
+    },
+    "Sealed_AbandonedMemorialRoom": {
+      "name": "Abandoned Memorial Room",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AbandonedOnesGrave": {
+      "name": "Abandoned One's Grave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AllCuringCave": {
+      "name": "All-Curing Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AltarofHope": {
+      "name": "Altar of Hope",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AnguishHideout": {
+      "name": "Anguish Hideout",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AsceticsCave": {
+      "name": "Ascetic's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_AullaeuOratory": {
+      "name": "Aullaeu Oratory",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_BalaurScoutsCampsite": {
+      "name": "Balaur Scouts Campsite",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_BloodsoakedConfessional": {
+      "name": "Bloodsoaked Confessional",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_BlueDragonsTrap": {
+      "name": "Blue Dragon's Trap",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ChillyHideout": {
+      "name": "Chilly Hideout",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_CorruptedSpiritmastersResidence": {
+      "name": "Corrupted Spiritmaster's Residence",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DeadlyPoisonDen": {
+      "name": "Deadly Poison Den",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DeepandDarkPit": {
+      "name": "Deep and Dark Pit",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DehinonsHideout": {
+      "name": "Dehinon's Hideout",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DranaDepository": {
+      "name": "Drana Depository",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DratonaCave": {
+      "name": "Dratona Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DratonaOutpost": {
+      "name": "Dratona Outpost",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_DuskPit": {
+      "name": "Dusk Pit",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_GraveoftheWrathfulDead": {
+      "name": "Grave of the Wrathful Dead",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_GuardiansArmory": {
+      "name": "Guardian's Armory",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_HerbCave": {
+      "name": "Herb Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_HiddenRuinsAltar": {
+      "name": "Hidden Ruins Altar",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_HomishsPrisonCompound": {
+      "name": "Homish's Prison Compound",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_IllusionaryRuins": {
+      "name": "Illusionary Ruins",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KaratsNest": {
+      "name": "Karat's Nest",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KidnappersHold": {
+      "name": "Kidnapper's Hold",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KiusResidence": {
+      "name": "Kius' Residence",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KrakasAltar": {
+      "name": "Kraka's Altar",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_KumbahumsCave": {
+      "name": "Kumbahum's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LaborersTrainingGround": {
+      "name": "Laborers Training Ground",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LagtaFafniteStorage": {
+      "name": "Lagta Fafnite Storage",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LamnahBase": {
+      "name": "Lamnah Base",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LonelyRockChasm": {
+      "name": "Lonely Rock Chasm",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_LootedRepository": {
+      "name": "Looted Repository",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_PiratesTreasureStorage": {
+      "name": "Pirate's Treasure Storage",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_PlantationStorage": {
+      "name": "Plantation Storage",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_PoachersDen": {
+      "name": "Poacher's Den",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ScaleAltar": {
+      "name": "Scale Altar",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ShulakCave": {
+      "name": "Shulak Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_SmugglersCave": {
+      "name": "Smuggler's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_SolitaryRockTomb": {
+      "name": "Solitary Rock Tomb",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_TargothsCave": {
+      "name": "Targoth's Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_TrickstersDen": {
+      "name": "Trickster's Den",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_UnstableCave": {
+      "name": "Unstable Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_ValkasNest": {
+      "name": "Valka's Nest",
+      "type": "Sealed Dungeon"
+    },
+    "Sealed_VictimsCave": {
+      "name": "Victims' Cave",
+      "type": "Sealed Dungeon"
+    },
+    "Stronghold_AndshaForwardBase": {
+      "name": "Andsha Forward Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_BarahtaExterminationUnitOutpost": {
+      "name": "Barahta Extermination Unit Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_BladesTemporaryOutpost": {
+      "name": "Blades Temporary Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_CanyonThievesDen": {
+      "name": "Canyon Thieves Den",
+      "type": "Stronghold"
+    },
+    "Stronghold_CohtaOutpost": {
+      "name": "Cohta Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_CorruptedForesterRuins": {
+      "name": "Corrupted Forester Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_CursedSnowfieldHideout": {
+      "name": "Cursed Snowfield Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_DeserterEncampment": {
+      "name": "Deserter Encampment",
+      "type": "Stronghold"
+    },
+    "Stronghold_DetlefThievesCamp": {
+      "name": "Detlef Thieves Camp",
+      "type": "Stronghold"
+    },
+    "Stronghold_DharvataSurveillanceBase": {
+      "name": "Dharvata Surveillance Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_DigunakaForwardBase": {
+      "name": "Digunaka Forward Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_DinakraSkyOutpost": {
+      "name": "Dinakra Sky Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_FallenTempleRuins": {
+      "name": "Fallen Temple Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_FlaukeLegionOutpost": {
+      "name": "Flauke Legion Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_ForestMarauderCampsite": {
+      "name": "Forest Marauder Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_ForestShadeExecutionSite": {
+      "name": "Forest Shade Execution Site",
+      "type": "Stronghold"
+    },
+    "Stronghold_GargosThievesCampsite": {
+      "name": "Gargos Thieves Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_GoldenBranchStrongholdRuins": {
+      "name": "Golden Branch Stronghold Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_GranachsHideout": {
+      "name": "Granach's Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_GraverobberDen": {
+      "name": "Graverobber Den",
+      "type": "Stronghold"
+    },
+    "Stronghold_IceCanyonCampsite": {
+      "name": "Ice Canyon Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_LatrimaOutpost": {
+      "name": "Latrima Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_LegionBaseRuins": {
+      "name": "Legion Base Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_LoggersRestRuins": {
+      "name": "Logger's Rest Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_MaktashanOutpost": {
+      "name": "Maktashan Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_MantaschPatrolBase": {
+      "name": "Mantasch Patrol Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_MirosPost": {
+      "name": "Miros Post",
+      "type": "Stronghold"
+    },
+    "Stronghold_OutpostCaptainTarakha": {
+      "name": "Outpost Captain Tarakha",
+      "type": "Stronghold"
+    },
+    "Stronghold_PlateauHillBase": {
+      "name": "Plateau Hill Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_PoachersBase": {
+      "name": "Poacher's Base",
+      "type": "Stronghold"
+    },
+    "Stronghold_PoisonFluidSabga": {
+      "name": "Poison Fluid Sabga",
+      "type": "Stronghold"
+    },
+    "Stronghold_RenegadeHideout": {
+      "name": "Renegade Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_RomlonsHideout": {
+      "name": "Romlon's Hideout",
+      "type": "Stronghold"
+    },
+    "Stronghold_RubekThievesOccupiedTerritory": {
+      "name": "Rubek Thieves' Occupied Territory",
+      "type": "Stronghold"
+    },
+    "Stronghold_SanctumOutskirtsWatch": {
+      "name": "Sanctum Outskirts Watch",
+      "type": "Stronghold"
+    },
+    "Stronghold_SehnaOutpost": {
+      "name": "Sehna Outpost",
+      "type": "Stronghold"
+    },
+    "Stronghold_SuspiciousRuins": {
+      "name": "Suspicious Ruins",
+      "type": "Stronghold"
+    },
+    "Stronghold_ThievesDen": {
+      "name": "Thieves Den",
+      "type": "Stronghold"
+    },
+    "Stronghold_UgarosThievesCampsite": {
+      "name": "Ugaros Thieves Campsite",
+      "type": "Stronghold"
+    },
+    "Stronghold_WatchCaptainAmurahta": {
+      "name": "Watch Captain Amurahta",
+      "type": "Stronghold"
+    }
+  },
+  "mobs": {
+    "2110000": {
+      "dungeon": "Stronghold_DeserterEncampment"
+    },
+    "2110016": {
+      "dungeon": "Stronghold_RomlonsHideout"
+    },
+    "2110300": {
+      "dungeon": "Stronghold_ForestShadeExecutionSite"
+    },
+    "2110311": {
+      "dungeon": "Stronghold_RenegadeHideout"
+    },
+    "2110350": {
+      "dungeon": "Stronghold_PlateauHillBase"
+    },
+    "2110360": {
+      "dungeon": "Stronghold_UgarosThievesCampsite"
+    },
+    "2110370": {
+      "dungeon": "Stronghold_MirosPost"
+    },
+    "2110377": {
+      "dungeon": "Stronghold_MirosPost"
+    },
+    "2110380": {
+      "dungeon": "Stronghold_PoachersBase"
+    },
+    "2110390": {
+      "dungeon": "Stronghold_GargosThievesCampsite"
+    },
+    "2110399": {
+      "dungeon": "Stronghold_CanyonThievesDen"
+    },
+    "2110410": {
+      "dungeon": "Stronghold_MantaschPatrolBase"
+    },
+    "2110418": {
+      "dungeon": "Stronghold_PoisonFluidSabga"
+    },
+    "2110437": {
+      "dungeon": "Stronghold_CohtaOutpost"
+    },
+    "2110443": {
+      "dungeon": "Stronghold_SehnaOutpost"
+    },
+    "2110453": {
+      "dungeon": "Stronghold_MaktashanOutpost"
+    },
+    "2110465": {
+      "dungeon": "Stronghold_GoldenBranchStrongholdRuins"
+    },
+    "2110470": {
+      "dungeon": "Stronghold_ThievesDen"
+    },
+    "2110600": {
+      "dungeon": "Stronghold_SuspiciousRuins"
+    },
+    "2110619": {
+      "dungeon": "Stronghold_DigunakaForwardBase"
+    },
+    "2110620": {
+      "dungeon": "Stronghold_DigunakaForwardBase"
+    },
+    "2110640": {
+      "dungeon": "Stronghold_OutpostCaptainTarakha"
+    },
+    "2340057": {
+      "dungeon": "Invasion_IncursionoftheSpirits"
+    },
+    "2340158": {
+      "dungeon": "Invasion_BeritraAirRaid"
+    },
+    "2340255": {
+      "dungeon": "Invasion_AccursedSword"
+    },
+    "2345107": {
+      "dungeon": "Invasion_IncursionoftheSpirits"
+    },
+    "2405006": {
+      "dungeon": "Stronghold_RubekThievesOccupiedTerritory"
+    },
+    "2405023": {
+      "dungeon": "Stronghold_GraverobberDen"
+    },
+    "2405045": {
+      "dungeon": "Stronghold_SanctumOutskirtsWatch"
+    },
+    "2405062": {
+      "dungeon": "Stronghold_CorruptedForesterRuins"
+    },
+    "2405072": {
+      "dungeon": "Stronghold_CorruptedForesterRuins"
+    },
+    "2405085": {
+      "dungeon": "Stronghold_LoggersRestRuins"
+    },
+    "2405106": {
+      "dungeon": "Stronghold_BladesTemporaryOutpost"
+    },
+    "2405120": {
+      "dungeon": "Stronghold_ForestMarauderCampsite"
+    },
+    "2405144": {
+      "dungeon": "Stronghold_LegionBaseRuins"
+    },
+    "2405150": {
+      "dungeon": "Stronghold_FlaukeLegionOutpost"
+    },
+    "2405151": {
+      "dungeon": "Stronghold_FlaukeLegionOutpost"
+    },
+    "2405152": {
+      "dungeon": "Stronghold_FlaukeLegionOutpost"
+    },
+    "2405175": {
+      "dungeon": "Stronghold_GranachsHideout"
+    },
+    "2405194": {
+      "dungeon": "Stronghold_LatrimaOutpost"
+    },
+    "2405215": {
+      "dungeon": "Stronghold_DetlefThievesCamp"
+    },
+    "2405236": {
+      "dungeon": "Stronghold_BarahtaExterminationUnitOutpost"
+    },
+    "2405256": {
+      "dungeon": "Stronghold_WatchCaptainAmurahta"
+    },
+    "2405276": {
+      "dungeon": "Stronghold_AndshaForwardBase"
+    },
+    "2407000": {
+      "dungeon": "Stronghold_IceCanyonCampsite"
+    },
+    "2407023": {
+      "dungeon": "Stronghold_CursedSnowfieldHideout"
+    },
+    "2407046": {
+      "dungeon": "Stronghold_DharvataSurveillanceBase"
+    },
+    "2407075": {
+      "dungeon": "Stronghold_FallenTempleRuins"
+    },
+    "2407094": {
+      "dungeon": "Stronghold_DinakraSkyOutpost"
+    },
+    "2700835": {
+      "dungeon": "Sealed_CorruptedSpiritmastersResidence"
+    },
+    "2700876": {
+      "dungeon": "Sealed_DratonaCave"
+    },
+    "2700886": {
+      "dungeon": "Sealed_BlueDragonsTrap"
+    },
+    "2700914": {
+      "dungeon": "Sealed_ChillyHideout"
+    },
+    "2700916": {
+      "dungeon": "Sealed_PoachersDen"
+    },
+    "2700921": {
+      "dungeon": "Sealed_TrickstersDen"
+    },
+    "2700942": {
+      "dungeon": "Sealed_LootedRepository"
+    },
+    "2700949": {
+      "dungeon": "Sealed_IllusionaryRuins"
+    },
+    "2700952": {
+      "dungeon": "Sealed_AbandonedMemorialRoom"
+    },
+    "2700963": {
+      "dungeon": "Sealed_SolitaryRockTomb"
+    },
+    "2700975": {
+      "dungeon": "Sealed_AnguishHideout"
+    },
+    "2700981": {
+      "dungeon": "Sealed_ValkasNest"
+    },
+    "2700988": {
+      "dungeon": "Sealed_DeepandDarkPit"
+    },
+    "2701013": {
+      "dungeon": "Sealed_SmugglersCave"
+    },
+    "2701020": {
+      "dungeon": "Sealed_KaratsNest"
+    },
+    "2701035": {
+      "dungeon": "Sealed_AbandonedOnesGrave"
+    },
+    "2701043": {
+      "dungeon": "Sealed_KrakasAltar"
+    },
+    "2701055": {
+      "dungeon": "Sealed_HiddenRuinsAltar"
+    },
+    "2701072": {
+      "dungeon": "Sealed_KiusResidence"
+    },
+    "2701096": {
+      "dungeon": "Sealed_AltarofHope"
+    },
+    "2701101": {
+      "dungeon": "Sealed_TargothsCave"
+    },
+    "2701118": {
+      "dungeon": "Sealed_GuardiansArmory"
+    },
+    "2701130": {
+      "dungeon": "Sealed_DehinonsHideout"
+    },
+    "2701138": {
+      "dungeon": "Sealed_HerbCave"
+    },
+    "2701142": {
+      "dungeon": "Sealed_KidnappersHold"
+    },
+    "2701145": {
+      "dungeon": "Sealed_DeadlyPoisonDen"
+    },
+    "2701148": {
+      "dungeon": "Sealed_GraveoftheWrathfulDead"
+    },
+    "2701184": {
+      "dungeon": "Sealed_DratonaOutpost"
+    },
+    "2701202": {
+      "dungeon": "Sealed_AullaeuOratory"
+    },
+    "2701227": {
+      "dungeon": "Sealed_DuskPit"
+    },
+    "2701250": {
+      "dungeon": "Sealed_BloodsoakedConfessional"
+    },
+    "2701275": {
+      "dungeon": "Sealed_LamnahBase"
+    },
+    "2701280": {
+      "dungeon": "Sealed_KumbahumsCave"
+    },
+    "2701287": {
+      "dungeon": "Sealed_AllCuringCave"
+    },
+    "2701298": {
+      "dungeon": "Sealed_VictimsCave"
+    },
+    "2701310": {
+      "dungeon": "Sealed_UnstableCave"
+    },
+    "2701454": {
+      "dungeon": "Sealed_ScaleAltar"
+    },
+    "2701480": {
+      "dungeon": "Sealed_LonelyRockChasm"
+    },
+    "2701485": {
+      "dungeon": "Sealed_PiratesTreasureStorage"
+    },
+    "2701501": {
+      "dungeon": "Sealed_BalaurScoutsCampsite"
+    },
+    "2701521": {
+      "dungeon": "Sealed_LaborersTrainingGround"
+    },
+    "2701525": {
+      "dungeon": "Sealed_AsceticsCave"
+    },
+    "2701544": {
+      "dungeon": "Sealed_PlantationStorage"
+    },
+    "2701551": {
+      "dungeon": "Sealed_DranaDepository"
+    },
+    "2701568": {
+      "dungeon": "Sealed_HomishsPrisonCompound"
+    },
+    "2701569": {
+      "dungeon": "Sealed_LagtaFafniteStorage"
+    },
+    "2701578": {
+      "dungeon": "Sealed_ShulakCave"
+    }
+  }
+}

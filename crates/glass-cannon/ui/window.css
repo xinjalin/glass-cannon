@@ -22,25 +22,26 @@
 #bar .brand { color: var(--text); font-weight: 700; letter-spacing: 0.04em; }
 
 /* The lights, as on the launcher (their colours are the same in every theme). */
-.lights { display: flex; flex: none; gap: 8px; margin-left: 0.4em; }
+/* Rounded squares, big enough to hit without aiming. */
+.lights { display: flex; flex: none; gap: 6px; margin-left: 0.4em; }
 .light {
-  width: 11px;
+  width: 22px;
   min-width: 0;
-  height: 11px;
+  height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: 5px;
   cursor: pointer;
 }
 /* Specific enough to beat each page's button hover colours. */
-.lights .light.red { background: #f87070; }
-.lights .light.yellow { background: #ffe59e; }
-.lights .light.green { background: #79dcaa; opacity: 0.55; }
+.lights .light.red { background-color: #f87070; }
+.lights .light.yellow { background-color: #ffe59e; }
+.lights .light.green { background-color: #79dcaa; opacity: 0.55; }
 .lights .light.green[aria-pressed="true"] { opacity: 1; }
 .lights:hover .light { filter: brightness(1.08); }
 /* Small marks on the lights: minimise (a bar), keep on top (an arrow up to a bar), close
    (a cross). */
-.lights .light { background-repeat: no-repeat; background-position: center; background-size: 7px 7px; }
+.lights .light { background-repeat: no-repeat; background-position: center; background-size: 10px 10px; }
 .lights .light.yellow { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.2 5h5.6' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .lights .light.green { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.5 2.2h5M5 8V4.2M3.2 5.8 5 4l1.8 1.8' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .lights .light.red { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.7 2.7l4.6 4.6M7.3 2.7l-4.6 4.6' fill='none' stroke='%23000' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }

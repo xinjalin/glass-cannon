@@ -21,6 +21,16 @@ use crate::state::{Stagger, STAGGERED};
 pub struct Book {
     #[serde(default)]
     pub mechanics: Vec<Mechanic>,
+    /// Boss skills always worth a warning, whatever their cast time: ones that killed the
+    /// most in our runs though their cast is short and marks no ground. Your own marks in
+    /// the settings still win.
+    #[serde(default)]
+    pub warn_casts: Vec<u32>,
+    /// Our own short labels for boss skills the game itself only calls "Attack" (what the
+    /// move does, from our runs: "raid-wide blast"). A name from the game, or one you gave
+    /// the skill, always comes first.
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<u32, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -377,6 +387,18 @@ mod tests {
         let a = alerts(&m, 4 * S, &done, &[]);
         assert_eq!((a[0].say.as_str(), a[0].after, a[0].left_ms), ("out of the fire", true, Some(1000)));
         assert!(alerts(&m, 6 * S, &done, &[]).is_empty());
+    }
+
+    #[test]
+    fn ketus_smash_counts_down_from_its_wind_up_to_the_hit() {
+        // As in our Ketu pulls (2026-11-07): the 1.3 s wind-up, its hit 3 s after it starts.
+        let m = book(
+            r#"{"mechanics":[{"id":"smash","when":{"kind":"cast","skills":[1801840,1801843],"until":[1801841,1801842]},
+             "what":"x","say":"dodge","due_s":3,"max_s":4}]}"#,
+        );
+        let a = alerts(&m, 2 * S, &[], &[cast(S, 1_801_843, 1300, None)]);
+        assert_eq!((a[0].say.as_str(), a[0].left_ms), ("dodge", Some(2000)));
+        assert!(alerts(&m, 4_100_000, &[], &[cast(S, 1_801_843, 1300, Some(2_300_000)), cast(4 * S, 1_801_842, 0, Some(4 * S))]).is_empty());
     }
 
     #[test]

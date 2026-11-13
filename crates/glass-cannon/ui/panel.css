@@ -62,6 +62,7 @@ button {
 .note { color: var(--faint); font-size: 0.85em; }
 .history-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6em; }
 .history-foot button { flex: none; color: var(--accent); font-size: 0.85em; }
+.history-foot .foot-buttons { display: flex; flex: none; gap: 0.5em; }
 .clear-ask { flex: none; color: var(--muted); font-size: 0.85em; white-space: nowrap; }
 .clear-ask button { font-size: 1em; }
 .history-foot button.danger { color: var(--bad); }
@@ -223,11 +224,9 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .star { padding: 0; width: 1.3em; color: var(--faint); }
 .star.on { color: var(--warn); }
 .star:hover { color: var(--text); }
-.fav-filter { margin-left: 0.4em; color: var(--muted); }
+.region-note { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; align-self: center; }
+.fav-filter { margin-left: auto; color: var(--muted); }
 .fav-filter[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
-.lead { display: flex; align-items: center; gap: 0.1em; margin-left: auto; }
-.lead button { color: var(--accent); }
-.lead button[aria-selected="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .section {
   margin: 0.8em 0 0.3em;
   color: var(--muted);
@@ -331,3 +330,78 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .frame.dead .fr-name, .frame.dead .fr-value { color: var(--bad); }
 /* Nothing sent about them yet (it comes as their HP or MP changes). */
 .frame.unknown { opacity: 0.45; }
+
+/* ---------------------------------------------------------------- attempts */
+
+#characters { margin-bottom: 0.2em; }
+.att-totals { margin: 0 0.3em 0.4em; color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+/* A dungeon or raid in one mode: its name and tries, then a line per boss. */
+.att-place { margin-bottom: 0.6em; padding: 0.3em 0.4em 0.4em; border: 1px solid var(--line-faint); border-radius: 0.3em; background: rgba(0, 0, 0, 0.22); }
+.att-place.raid { border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.att-head { display: flex; align-items: center; gap: 0.5em; min-width: 0; margin-bottom: 0.2em; }
+.att-head .run-name { min-width: 0; }
+.att-sum { margin-left: auto; flex: none; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.att-boss {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.2em 6.5em 6.2em;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.12em 0.2em;
+  border-radius: 0.25em;
+  font-variant-numeric: tabular-nums;
+}
+.att-boss:not(.att-cols):hover { background: var(--line-faint); }
+.att-cols { color: var(--faint); font-size: 0.8em; }
+.att-cols span:nth-child(n + 2) { text-align: right; }
+.att-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.att-tries { color: var(--text); font-weight: 700; text-align: right; }
+.att-record { display: flex; justify-content: flex-end; gap: 0.5em; }
+.att-best { text-align: right; white-space: nowrap; }
+.att-wipe { color: var(--warn); }
+
+/* The vitals arcs widget: no box, just round arcs either side of your character on a dark
+   track, drawn to the widget's size by vitals.js. */
+#vitals { position: relative; width: 100%; height: 100%; }
+.arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.arcs { --arc-hp: #ef6b4f; --arc-stamina: #6dd37b; --arc-mp: #4ea2e6; --arc-flight: #f2c84b; }
+.arc-track, .arc-fill { fill: none; stroke-linecap: round; }
+.arc-track { stroke: rgba(10, 10, 14, 0.6); }
+.arc-fill { transition: stroke-dasharray 0.15s linear; }
+.arc-fill.hp { stroke: var(--arc-hp); }
+.arc-fill.stamina { stroke: var(--arc-stamina); }
+.arc-fill.mp { stroke: var(--arc-mp); }
+.arc-fill.flight { stroke: var(--arc-flight); }
+.arc-fill.cast { stroke: var(--accent-fill, var(--accent)); transition: none; }
+.arcs.low .arc-fill.hp { filter: drop-shadow(0 0 0.35em var(--arc-hp)); }
+.arc-text { font-size: 0.75em; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: rgba(0, 0, 0, 0.8); stroke-width: 3px; }
+.arc-text.hp { fill: var(--arc-hp); }
+.arc-text.stamina { fill: var(--arc-stamina); font-size: 0.65em; }
+.arc-text.mp { fill: var(--arc-mp); }
+.arc-text.flight { fill: var(--arc-flight); font-size: 0.65em; }
+.arc-text.cast { fill: var(--text); font-size: 0.8em; }
+#vitals #empty { position: absolute; inset: auto 0 0; margin: 0; text-align: center; }
+
+/* ---------------------------------------------------------------- checklist */
+
+.ck-box { margin-bottom: 0.7em; padding: 0.3em 0.45em 0.45em; border: 1px solid var(--line-faint); border-radius: 0.3em; background: rgba(0, 0, 0, 0.22); }
+.ck-head { margin: 0 0 0.3em; color: var(--accent); font-size: 0.9em; font-weight: 700; letter-spacing: 0.04em; }
+.ck-head .note { font-weight: 400; letter-spacing: 0; }
+.ck-energy { font-variant-numeric: tabular-nums; }
+.ck-energy-basic, .ck-energy-charged { color: var(--accent-2); font-size: 1.2em; font-weight: 700; }
+.ck-list { margin: 0; padding: 0; list-style: none; }
+.ck-source { padding: 0.2em 0.1em; }
+.ck-source + .ck-source { border-top: 1px solid var(--line-faint); }
+.ck-top { display: flex; align-items: center; gap: 0.45em; min-width: 0; }
+.ck-mark { flex: none; width: 1em; color: var(--muted); text-align: center; }
+.ck-source.done .ck-mark { color: var(--ok); }
+.ck-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ck-source.done .ck-label { color: var(--muted); }
+.ck-count { flex: none; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.ck-tag { flex: none; padding: 0 0.35em; border: 1px solid var(--line); border-radius: 0.25em; color: var(--muted); font-size: 0.75em; }
+.ck-step { flex: none; min-width: 1.4em; color: var(--accent); }
+.ck-step:hover:not(:disabled) { background: var(--line-faint); }
+.ck-step:disabled { color: var(--faint); cursor: default; }
+.ck-bar { position: relative; height: 0.3em; margin: 0.25em 0 0 1.45em; border-radius: 0.15em; overflow: hidden; background: var(--line-faint); }
+.ck-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-fill, var(--accent)); }
+.ck-source.done .ck-fill { background: var(--ok); }
+.ck-note { margin: 0.15em 0 0 1.75em; }

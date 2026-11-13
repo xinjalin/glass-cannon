@@ -1,9 +1,29 @@
 {
   "source": {
-    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the wording is ours.",
-    "note": "`seen`: the date we confirmed it in our own captures. The rest are unconfirmed leads until a run shows them.",
+    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the Ludra raid's from our own runs (2026-11-06, 2026-11-07, 2026-11-13) and two guides to it (aion2tierlist.com's and dbaion2.ru's: what to do in the grid, Ludra's Trial, and when Rahu splits the arena). The wording is ours.",
+    "note": "`seen`: the date we confirmed it in our own captures. The rest are unconfirmed leads until a run shows them. `bosses` empty: any boss, for one whose type we may not know (a raid boss up before the meter started).",
     "when": "effect: a buff or debuff on the boss (on: boss), on you (you), on another player (ally) or on any player (player). cast: the boss casts one of skills; over when it casts one of until (its own skill: when it goes off). stagger: the boss's stagger check (its gauge turns breakable; over once broken or idle). hit: something on the ground hits you.",
-    "times": "max_s: the longest it shows. due_s: when it lands, from its start (a countdown). then: what to do once it's over, for then.s seconds."
+    "times": "max_s: the longest it shows. due_s: when it lands, from its start (a countdown). then: what to do once it's over, for then.s seconds.",
+    "warn_casts": "boss skills always warned about (the cast and its time left), though their cast is short and marks no ground: the ones that killed the most in our runs. 1802730: Isolation Specialist Rahu (his skills are 18026xx to 18029xx; the raid's map is 600082), 17 of 76 deaths in 11 attempts (2026-11-06), a 1.5 s cast. 1801820 (2 s cast) and 1801870 (1.5 s): Abyssal Wings Ketu, 25 and 20 of 197 deaths in 21 attempts (2026-11-07). 1802530 (1.5 s), 1802555 and 1802570 (3 s): the Central Abyss Fusion Reactor, 14 of 20 deaths in our kill (2026-11-07). Eternal Ludra (2026-11-13, 22 attempts, 407 deaths; her casts are 1.5 to 2.3 s, and the damage comes under the cast's ID plus a few, from helper mobs also named Eternal Ludra): 1803200 (2.3 s, 40 deaths in 42 casts), 1803210 (2 s, 40 in 69), 1803160 (1.7 s, 38 in 33), 1803230 (1.5 s, 34 in 25) and 1803250 (1.5 s, 33 in 30).",
+    "labels": "our own short names for boss skills the game's text only calls \"Attack\": what the move does, as our runs show it, shown where the boss's cast is named (warnings, timers, the target's cast). Never a name from the game: the game's, or one you give the skill, comes first. Raid-wide: it hit 5 or more of the 10 players on average; area: 2 to 5; else a strike on one. Heavy: half its hits were 30,000 or more (players had about 30,000 HP). Pulses: it hits again and again. Marked ground: the game marks where it lands, seconds ahead. From 22 attempts at Eternal Ludra (2026-11-13) and 23 at Ketu; only moves with 20 or more hits to go by (marked ground goes by the game's marks alone). 1801840 and 1801843 are Ketu's weapon smash (the mechanic below)."
+  },
+  "warn_casts": [1802730, 1801820, 1801870, 1802530, 1802555, 1802570, 1803200, 1803210, 1803160, 1803230, 1803250],
+  "labels": {
+    "1801820": "area blast",
+    "1801840": "weapon smash",
+    "1801843": "weapon smash",
+    "1801950": "strike",
+    "1803110": "heavy strike",
+    "1803120": "strike",
+    "1803130": "area blast",
+    "1803160": "heavy area blast",
+    "1803200": "raid-wide blast",
+    "1803210": "area blast",
+    "1803220": "marked ground",
+    "1803225": "marked ground",
+    "1803230": "raid-wide pulses",
+    "1803250": "area pulses",
+    "1803260": "marked ground"
   },
   "mechanics": [
     {
@@ -299,6 +319,48 @@
       "max_s": 15,
       "priority": 90,
       "seen": "2026-10-31"
+    },
+    {
+      "id": "ludra.rahu.wheel",
+      "bosses": [],
+      "when": { "kind": "cast", "skills": [1802900], "until": [1802900] },
+      "what": "Rahu · Wheel of Torment",
+      "say": "arena splits in four · stay together, don't cross the lines",
+      "max_s": 17,
+      "priority": 100,
+      "seen": "2026-11-06"
+    },
+    {
+      "id": "ludra.ludra.trial",
+      "bosses": [],
+      "when": { "kind": "cast", "skills": [1803010], "until": [1803000] },
+      "what": "Eternal Ludra · Ludra's Trial",
+      "say": "find the safe square · everyone in it",
+      "max_s": 45,
+      "priority": 100,
+      "seen": "2026-11-13"
+    },
+    {
+      "id": "ludra.ketu.smash",
+      "bosses": [2301007],
+      "when": { "kind": "cast", "skills": [1801840, 1801843], "until": [1801841, 1801842] },
+      "what": "Ketu · weapon smash",
+      "say": "dodge the dash · jump as it lands",
+      "due_s": 3,
+      "max_s": 4,
+      "priority": 95,
+      "seen": "2026-11-07"
+    },
+    {
+      "id": "ludra.ketu.mark",
+      "bosses": [2301007],
+      "when": { "kind": "effect", "effect": 18021302, "on": "player" },
+      "what": "Ketu · marked",
+      "say": "deadly blast follows · stay out of it",
+      "due_s": 4.3,
+      "max_s": 5,
+      "priority": 95,
+      "seen": "2026-11-07"
     }
   ]
 }

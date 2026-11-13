@@ -34,7 +34,23 @@
         </nav>
         <div class="side-head">
           <input id="search" class="side-search" type="search" placeholder="search a pet" title="Any pet, by name, genus or area (not only this map's)" autocomplete="off" spellcheck="false">
-          <button id="needed" type="button" aria-pressed="true" title="Only the pets you still need">[still needed]</button>
+        </div>
+        <!-- Which pets the list and the map show: by how far you've got with them, and by genus. -->
+        <div id="pet-filters" class="side-filters">
+          <span class="choice" role="radiogroup" aria-label="Which pets">
+            <button type="button" role="radio" data-show="all" title="Every pet">[all]</button>
+            <button type="button" role="radio" data-show="missing" title="Pets you have no copies of: never summoned">[missing]</button>
+            <button type="button" role="radio" data-show="needed" title="Pets you still need: not summoned, or below max level">[needed]</button>
+            <button type="button" role="radio" data-show="tracked" title="The pets you track (the pet tracker widget shows them)">[tracked]</button>
+          </span>
+          <span class="genus-filter" role="group" aria-label="Genus">
+            <button type="button" data-genus="Fera" aria-pressed="true"><span class="genus-dot"></span>Fera</button>
+            <button type="button" data-genus="Natura" aria-pressed="true"><span class="genus-dot"></span>Natura</button>
+            <button type="button" data-genus="Cogni" aria-pressed="true"><span class="genus-dot"></span>Cogni</button>
+            <button type="button" data-genus="Varian" aria-pressed="true"><span class="genus-dot"></span>Varian</button>
+            <button type="button" data-genus="Special" aria-pressed="true"><span class="genus-dot"></span>Special</button>
+          </span>
+          <p id="pets-unknown" class="note" hidden>Your pets aren't known yet: log in (or change character) with the meter open, or enter a dungeon.</p>
         </div>
         <ul id="pets" class="scroll side-list"></ul>
         <div id="areas" class="side-areas note" hidden></div>

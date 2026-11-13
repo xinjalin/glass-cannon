@@ -9,7 +9,11 @@ Theostone effects, dungeon mobs and pets. It isn't under the MIT licence: see
 [gamedata/README.md](../gamedata/README.md) for sources and how to update it.
 
 If skills show as numbers, check `meter.log` in `%APPDATA%\io.github.xinjalin.glass-cannon`.
-That folder also holds your settings, history and the names you typed.
+That folder also holds your settings, history and the names you typed. Each file is
+written whole or not at all (to `<name>.tmp`, then renamed). One that can't be read at
+start is set aside as `<name>.bad` rather than written over, and the app starts that
+file afresh. `history.jsonl` and the other `.jsonl` logs are added to a line at a time and
+rewritten when they hold much more than is kept.
 
 ## Building
 
@@ -19,8 +23,9 @@ Needs Rust (stable, MSVC) and [Npcap](https://npcap.com); no Npcap SDK.
 cargo build --release
 ```
 
-`scripts/package.ps1` builds the release zip. CI builds every push; pushing a `vX.Y.Z`
-tag (after bumping `Cargo.toml` and writing `docs/releases/vX.Y.Z.md`) publishes a release.
+`scripts/package.ps1` builds the release zip (Windows PowerShell 5.1 or PowerShell 7).
+CI lints, tests and builds every push; pushing a `vX.Y.Z` tag (after bumping
+`Cargo.toml` and writing `docs/releases/vX.Y.Z.md`) publishes a release.
 
 ## packet-lab
 
@@ -62,10 +67,10 @@ what your game sends is encrypted. The window has:
   marked in the message.
 
 What each opcode is comes from [docs/opcodes.md](opcodes.md), built in: of the 428
-opcodes in our recordings, 52 are decoded by the meter and 49 more understood. These include
+opcodes in our recordings, 53 are decoded by the meter and 49 more understood. These include
 other players' and mobs' movement, targets, skill acknowledgements, chain skills, loot and
-the login lists. 109 are named by other projects but not checked yet, and 218 rare ones
-(0.26 % of the traffic) are unknown. Learn something new? Fix its row in the notes and
+the login lists. 110 are named by other projects but not checked yet, and 216 rare ones
+(0.25 % of the traffic) are unknown. Learn something new? Fix its row in the notes and
 rebuild; the window shows it from then on. It uses Glass Cannon's launcher colours, and
 `--hidden` starts it without a window, for scripted checks.
 

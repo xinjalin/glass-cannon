@@ -1,5 +1,5 @@
 // The fight history in its own window: dungeon runs (open one for its fights), single
-// fights, bosses only, PvP sessions, or training dummy runs. Clicking a fight shows it on
+// fights, raids, bosses only, PvP sessions, or training dummy runs. Clicking a fight shows it on
 // the meter; right-clicking opens its analysis. Dummy runs: click two to compare them.
 
 const POLL_MS = 2000;
@@ -13,10 +13,18 @@ let runsSeen = false;
 // PvP sessions shown open (by when they started).
 const openPvp = new Set();
 
-function endTag(end, deaths) {
+// A share of a boss's HP: 72.9%, 0.4%.
+const pct = (x) => `${(x * 100).toFixed(1)}%`;
+
+// Raids are what the game calls Sanctuaries (Abyssal Forge: Ludra…).
+const RAID_KIND = "Sanctuary";
+const isRaid = (place) => !!place && place.kind === RAID_KIND;
+
+function endTag(end, deaths, lowHp) {
   const parts = [];
   if (end === "kill") parts.push("✓ kill");
-  if (end === "wipe") parts.push("✗ wipe");
+  // A wipe says how far it got: the boss's lowest HP.
+  if (end === "wipe") parts.push(lowHp != null ? `✗ wipe at ${pct(lowHp)}` : "✗ wipe");
   if (deaths) parts.push(`☠${deaths > 1 ? deaths : ""}`);
   if (!parts.length) return null;
   return el("span", `end-tag ${end || ""}`, ` · ${parts.join(" ")}`);
@@ -30,12 +38,13 @@ function fightItem(f, i, inRun) {
   const players = `${f.players} ${f.players === 1 ? "player" : "players"}`;
   const where = !inRun && f.dungeon ? `${f.dungeon.name} · ` : "";
   const meta = el("span", "fight-meta", `${where}${dayAndTime(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
-  const end = endTag(f.end, f.deaths);
+  const end = endTag(f.end, f.deaths, f.low_hp);
   if (end) meta.append(end);
-  // Your best against this boss: highest DPS, fastest kill.
+  // Your best against this boss: highest DPS, fastest kill, the wipe that got furthest.
   for (const [on, text, title] of [
     [f.best_dps, "best dps", "Your best DPS against this boss"],
     [f.fastest, "fastest", "Your fastest kill of this boss"],
+    [f.best_try, "best try", "Your best wipe against this boss: it got lowest"],
   ]) {
     if (!on) continue;
     const tag = el("span", "best-tag", ` · ★ ${text}`);
@@ -64,7 +73,7 @@ function runItem(run) {
   const item = el("li", "run-item" + (open ? " open" : ""));
   const text = el("span", "fight-text");
   const when = el("span", "fight-what");
-  const tag = [run.place.kind, run.place.mode].filter(Boolean).join(" · ");
+  const tag = [isRaid(run.place) ? "Raid" : run.place.kind, run.place.mode].filter(Boolean).join(" · ");
   if (tag) when.append(el("span", "run-tag", tag));
   when.append(el("span", "fight-meta", dayAndTime(run.started_ms)));
   if (run.clear_s != null) {
@@ -322,6 +331,8 @@ function draw(force) {
         }
         return;
       }
+      // Raids: their runs, and their fights outside a run.
+      if (tab === "raids" && !(f.run != null ? isRaid(runs[f.run].place) : isRaid(f.dungeon))) return;
       if (f.run != null) {
         const run = runs[f.run];
         if (shownRun !== f.run) {
@@ -330,7 +341,7 @@ function draw(force) {
           shown++;
         }
         if (openRuns.has(run.started_ms)) list.append(fightItem(f, i, true));
-      } else if (tab === "all") {
+      } else if (tab === "all" || tab === "raids") {
         list.append(fightItem(f, i, false));
         shown++;
       }
@@ -340,6 +351,7 @@ function draw(force) {
   const empty = {
     all: "no finished fights yet",
     runs: "no dungeon runs yet",
+    raids: "no raid fights yet: Abyssal Forge: Ludra and the other Sanctuaries show here",
     bosses: "no boss fights yet",
     pvp: "no PvP yet: fights with players outside your party show here",
     dummy: "no dummy runs yet: hit a Training Scarecrow for a whole run",
@@ -354,11 +366,13 @@ let clearAskTimer = null;
 function askClear(on) {
   clearTimeout(clearAskTimer);
   $("clear").hidden = on;
+  $("open-attempts").hidden = on;
   $("hint").hidden = on;
   $("clear-ask").hidden = !on;
   if (on) clearAskTimer = setTimeout(() => askClear(false), CLEAR_ASK_MS);
 }
 $("clear").addEventListener("click", () => askClear(true));
+$("open-attempts").addEventListener("click", () => invoke("open_attempts").catch(() => {}));
 $("clear-no").addEventListener("click", () => askClear(false));
 $("clear-yes").addEventListener("click", async () => {
   askClear(false);

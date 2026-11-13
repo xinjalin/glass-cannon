@@ -66,11 +66,23 @@ pub fn parse_hp(p: &[u8]) -> Option<HpUpdate> {
 }
 
 /// Your u32 stats in `0x8d00` (mask `0x01`), as worked out on our captures (2026-10-30,
-/// your own entity in five sessions): 1 your MP, 8 your max MP (it moves with buffs, and
-/// stat 1 tops out at it), 3 flight energy (counts down by about 500 a tick from about
-/// 120,000), 4 and 6 not known.
+/// your own entity in five sessions; 2026-11-08, the Ludra raid): each value's max is its
+/// stat plus 7. 1 your MP, 8 its max (it moves with buffs, and stat 1 tops out at it).
+/// 3 stamina, 10 its max (155,600 in the raid): it runs down about 4,600 a second while
+/// sprinting, drops 30,000 at once (a dodge), and comes back 6,500 a second; GT Companion
+/// shows it in hundredths (1,505 for 150,500). 6 flight power, 13 its max (650,000): down
+/// 7,500 a second in short runs, back 4,000 a second; also shown in hundredths. 4 (max 11,
+/// 150,000) rises by 30 or 40 at a time and drops to 0, and 5 (max 12) stays 100,000: not
+/// known.
 pub const STAT_MP: u8 = 1;
 pub const STAT_MP_MAX: u8 = 8;
+pub const STAT_STAMINA: u8 = 3;
+pub const STAT_STAMINA_MAX: u8 = 10;
+pub const STAT_FLIGHT: u8 = 6;
+pub const STAT_FLIGHT_MAX: u8 = 13;
+/// The u64 stat 7 of `0x8d00` (mask `0x02`) is your max HP, as stat 0 is your HP: it
+/// moves with buffs (16,274 to 32,049 in the raid), and stat 0 tops out at it.
+pub const STAT_HP_MAX: u8 = 7;
 
 /// The u32 stats of a `0x8d00`: (entity, [(stat, value)]); empty when it has none.
 pub fn parse_u32_stats(p: &[u8]) -> Option<(u64, Vec<(u8, u32)>)> {
@@ -85,6 +97,28 @@ pub fn parse_u32_stats(p: &[u8]) -> Option<(u64, Vec<(u8, u32)>)> {
         for k in 0..n {
             let at = i + k * 5;
             out.push((*p.get(at)?, u32::from_le_bytes(p.get(at + 1..at + 5)?.try_into().ok()?)));
+        }
+    }
+    Some((entity, out))
+}
+
+/// The u64 stats of a `0x8d00` (mask `0x02`, after any u32 ones): (entity, [(stat,
+/// value)]); empty when it has none.
+pub fn parse_u64_stats(p: &[u8]) -> Option<(u64, Vec<(u8, u64)>)> {
+    let mut i = 0;
+    let entity = read_varint(p, &mut i)?;
+    let mask = *p.get(i)?;
+    i += 1;
+    if mask & 0x01 != 0 {
+        i += 1 + *p.get(i)? as usize * 5;
+    }
+    let mut out = Vec::new();
+    if mask & 0x02 != 0 {
+        let n = *p.get(i)? as usize;
+        i += 1;
+        for k in 0..n {
+            let at = i + k * 9;
+            out.push((*p.get(at)?, u64::from_le_bytes(p.get(at + 1..at + 9)?.try_into().ok()?)));
         }
     }
     Some((entity, out))

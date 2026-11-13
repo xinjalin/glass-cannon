@@ -343,9 +343,21 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
         let mut held: [Option<Keys>; 2] = [None; 2];
         let mut refused: [Option<(Keys, Instant)>; 2] = [None; 2];
         let mut msg = Msg { hwnd: 0, message: 0, wparam: 0, lparam: 0, time: 0, pt: [0; 2], private: 0 };
+        // The bindings as last read and what they parse to, read again only when the
+        // settings' change (this loop runs a hundred times a second); and what the
+        // settings were last told about each.
+        let mut bindings: Option<Bindings> = None;
+        let mut parsed: [Option<Keys>; 2] = [None; 2];
+        let mut told: [&'static str; 2] = [""; 2];
         loop {
             thread::sleep(POLL);
-            let bindings = lock(&app.settings).hotkeys.clone();
+            {
+                let s = lock(&app.settings);
+                if bindings.as_ref() != Some(&s.hotkeys) {
+                    parsed = ACTIONS.map(|(action, _, _)| parse(s.hotkeys.get(action)));
+                    bindings = Some(s.hotkeys.clone());
+                }
+            }
             // While a new key is being picked in the settings, nothing goes off (for a while
             // at most, should the settings close in the middle).
             let paused = app.hotkeys_paused.load(Ordering::SeqCst);
@@ -355,7 +367,7 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
             }
             let game = app.game_found.load(Ordering::SeqCst);
             for (k, (action, _, _)) in ACTIONS.iter().enumerate() {
-                let keys = parse(bindings.get(action));
+                let keys = parsed[k];
                 let id = k as i32 + 1;
                 let want = keys.filter(|k| !k.tap && game && !paused);
                 if held[k] != want {
@@ -380,7 +392,10 @@ pub fn start(handle: AppHandle, app: Arc<AppState>) {
                     Some(_) if refused[k].is_some() => "taken by another app (trying again)",
                     _ => "waiting for the game",
                 };
-                lock(&app.hotkey_states).insert(action, state);
+                if told[k] != state {
+                    told[k] = state;
+                    lock(&app.hotkey_states).insert(action, state);
+                }
                 // A lone modifier, tapped.
                 if let Some(t) = keys.filter(|k| k.tap) {
                     if watches[k].fired(t, Instant::now(), &down) && !paused {
@@ -418,7 +433,15 @@ pub fn close_with_game(handle: AppHandle, app: Arc<AppState>) {
             } else if seen {
                 let since = *gone.get_or_insert_with(Instant::now);
                 if since.elapsed() >= GAME_GONE && lock(&app.settings).close_with_game {
-                    handle.exit(0);
+                    // On the main thread, after the last fights are saved.
+                    let (h, a) = (handle.clone(), Arc::clone(&app));
+                    let sent = handle.run_on_main_thread(move || {
+                        crate::flush(&a);
+                        h.exit(0);
+                    });
+                    if sent.is_err() {
+                        handle.exit(0);
+                    }
                     return;
                 }
             }

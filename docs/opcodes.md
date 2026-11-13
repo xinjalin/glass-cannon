@@ -233,7 +233,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x8d2f` | 8 | 4 | 646.0 |  |  | a2_protocol-research: notice |
 | `0xe282` | 8 | 1 | 36.0 |  |  | Aion DPS Meter: a friend or legion member online / offline |
 | `0x3626` | 5 | 2 | 7891.2 |  |  | Aion DPS Meter: character list (back at character select) |
-| `0x568e` | 5 | 2 | 115.0 |  |  | Aion DPS Meter: purchase counters on opening a shop |
+| `0x568e` | 5 | 2 | 115.0 |  |  | Aion DPS Meter: purchase counters on opening a shop; read (2026-11-08): u16 0, u8 n, n × (u32 counter, u32 bought, u64 reset ms). Counter 100134 is the weekly Odyle Energy buy (20 bought in the 2026-10-24 capture; resets Wednesday 07:00 UTC) |
 | `0x381b` | 4 | 1 | 6.0 |  |  | Aion DPS Meter: charging starts (status, skill) |
 | `0x381e` | 4 | 1 | 15.0 |  |  | Aion DPS Meter: charging let go |
 | `0x8d46` | 4 | 1 | 11.0 |  | ServerMsg_NT |  |

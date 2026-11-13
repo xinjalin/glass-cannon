@@ -13,16 +13,18 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `skill-details.json` (cooldowns, costs, descriptions, specialties) | [aion2.app](https://aion2.app/db/skills), compiled from NCSOFT's data | none: used without a licence |
 | `theostones.json` (Theostone grades, effects, cooldowns) | a scraped item database collected from public fan databases (the bundle names no sites) | none: used without a licence |
 | `dungeons.json` (each dungeon mob's dungeon and mode) | the same bundle's monsters and dungeons | none: used without a licence |
+| `places.json` (which Sealed Dungeon, Stronghold or Dimensional Invasion each of their bosses is in, which `dungeons.json` doesn't have) | written by hand from [Legaeon](https://legaeon.co.uk/guides/sealed-dungeons.html)'s Sealed Dungeons list, [aion2data.com](https://aion2data.com/bosses)'s Stronghold Commanders and [ExpCarry](https://expcarry.com/aion-2-dimensional-invasion-guide)'s Dimensional Invasion guide, matched by name to the boss types in `npcs.json` | none (the names are NCSOFT's) |
 | `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
 | `gear.json` (weapon, armour and accessory names, grades and item levels, for the gear players wear) | the same bundle's items | none: used without a licence |
 | `npc-names.json` (NPCs' names: quest givers, merchants and the like, which the mob lists don't have) | the same bundle's NPCs | none: used without a licence |
 | `pet-spawns.json` (which mob types give which pet's souls, and where each pet is found, for the pet tracker) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Client/assets/aion2/pets/`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json` (where the mobs that give each pet's souls spawn on the world and Abyss maps, in metres, for the pet map) | the same (`spawns.json`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
+| `boss-skills.json` (the game's own names for 1,125 boss and mob skills: 928 `skills.json` only calls "Attack" or doesn't have, and 197 it names differently, where the game's wins; for the boss warnings, cast marks and death recaps) | the same (`Backend/src/data/aion2/skill_names.json`, read from the game's text tables) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json`'s zones and `petmap_<map>.jpg` (the pet map's zones and pictures) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getRegions`, its map images) | no licence (NCSOFT's artwork) |
 | `gather-map.json` (where each material and collectable is on the world and Abyss maps, in metres, for the map's gathering side) and `gather_<icon>.png` (their icons) | [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map (`map.getMarkers`, its item icons) | no licence (NCSOFT's names and artwork) |
 | `field-bosses.json` (world-map field boss IDs to map and mob type) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) (`field_boss_timer.rs`) | GPL-3.0 |
 | `field-bosses.json` (field bosses' level and location) | the same bundle's monsters | none: used without a licence |
-| `boss-mechanics.json` (dungeon bosses' mechanics for the boss warnings: which buff, debuff, cue cast, stagger gauge or ground hit means what, and what to do) | written by hand; which effect and skill IDs go with which mechanic came from [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110) as leads, the wording is ours | none (the IDs are NCSOFT's) |
+| `boss-mechanics.json` (dungeon bosses' mechanics for the boss warnings: which buff, debuff, cue cast, stagger gauge or ground hit means what, and what to do; the casts that always warn; and `labels`, our own short names for moves the game only calls "Attack") | written by hand; which effect and skill IDs go with which mechanic came from [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110) as leads, the Ludra raid's from our own runs and two guides to it ([aion2tierlist.com](https://aion2tierlist.com/guides/aion-2-ludra-raid-guide)'s and [dbaion2.ru](https://dbaion2.ru/en/guides/mekhaniki-rudra/)'s), the labels from what each move did in our runs; the wording is ours | none (the IDs are NCSOFT's) |
 | `pet_<id>.png` (pet portraits, for the pet tracker) | NCSOFT's game asset server, by the bundle's pets' icon names | NCSOFT's artwork, used without a licence |
 | `Icon_Item_Usable_*.png` and `item-icons.json` (icons for scroll, potion and food buffs) | NCSOFT's game asset server (`assets.playnccdn.com`), matched to skills by the bundle's item names | NCSOFT's artwork, used without a licence |
 
@@ -55,6 +57,9 @@ sources aren't named; they're here on the same terms and will be removed on requ
   icon names), downloaded from NCSOFT's asset server at 64 px.
 - Pet spawns: `packet-lab pet-spawns <pets.json> <regions.json> --commit <sha>` from Aion DPS
   Meter's `Client/assets/aion2/pets/` at that commit.
+- Boss skill names: `packet-lab boss-skills <skill_names.json> --commit <sha>` from Aion DPS
+  Meter's `Backend/src/data/aion2/skill_names.json` (after `update-data`: it leaves out the
+  skills `skills.json` already gives the same name).
 - Pet map: `packet-lab pet-map <spawns.json> --regions <regions.json> --images <dir> --commit <sha>`
   from the same folder, after `pet-spawns` (it takes which mobs give which pet from
   `pet-spawns.json`). `regions.json` is Questlog's

@@ -31,6 +31,8 @@ use meter_core::recorder::Side;
 use meter_core::session;
 
 mod analysis;
+mod attempts;
+mod checklist;
 mod dummy;
 mod fonts;
 mod game_window;
@@ -57,6 +59,8 @@ const SETTINGS: &str = "settings";
 const ANALYSIS: &str = "analysis";
 const HISTORY: &str = "history";
 const PET_MAP: &str = "petmap";
+const ATTEMPTS: &str = "attempts";
+const CHECKLIST: &str = "checklist";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -174,12 +178,18 @@ pub struct AppState {
     field_bosses: Mutex<store::FieldBosses>,
     /// Your best against each boss.
     bests: Mutex<store::Bests>,
+    /// Every boss kill and wipe, per character (the attempts window).
+    attempts: Mutex<store::Attempts>,
     pets: Mutex<store::PetBook>,
     /// Content tickets and Abyss artifacts, as last sent.
     contents: Mutex<store::KnownContents>,
     /// The history window has been placed once.
     history_placed: AtomicBool,
     pet_map_placed: AtomicBool,
+    attempts_placed: AtomicBool,
+    checklist_placed: AtomicBool,
+    /// Each character's weekly Odyle sources (the checklist window).
+    checklist: Mutex<checklist::Checklist>,
     /// Where every window was last (saved as they move, at most once a second).
     placements: Mutex<placement::Placements>,
     /// Your training dummy runs, and dummy mode's state on the meter.
@@ -331,18 +341,23 @@ fn boss_casts_to_show(
     BossAhead { cast_danger, upcoming }
 }
 
-/// The current meter with names filled in. Also moves finished fights into the history.
-/// Skill lists come only for the players in `expanded` (the rows open in the overlay):
-/// the rest would only be thrown away, several times a second.
-#[tauri::command]
-fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
+/// Keeps the app's records up with the meter: ends a fight that has gone quiet, moves
+/// finished fights into the history (and the bests, attempts and dummy runs), and saves
+/// what the game sent since the last time (dungeon runs, PvP sessions, field bosses,
+/// tickets, pets, players' names).
+///
+/// It used to be part of `snapshot`, so it only happened while the overlay's meter was
+/// asking: with the overlay off, or hidden behind another program (where the page's timers
+/// slow to a crawl), fights waited in memory, and closing the app lost them. Now it also
+/// runs once a second ([`keep_records`]) and before the app closes ([`flush`]). Always on
+/// the main thread, as the commands are, so it never runs in the middle of one.
+fn pump(app: &AppState) {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
-    let mechanics_on = lock(&app.settings).boss_mechanics;
-    let (mut snap, finished, known, entered, ping_ms, pvp, field_bosses, contents, cubes, souls, boss_mechanics) = {
+    let (finished, known, entered, pvp, field_bosses, contents) = {
         let mut meter = app.engine.meter();
         meter.tick(now);
-        let known = remember_players(&app, &mut meter);
+        let known = remember_players(app, &mut meter);
         // Whose damage counts follows your party, unless chosen by hand: the party now, or
         // the one in the fight shown (it still shows them after the party breaks up).
         // A fight on a training dummy counts your damage only (dummy mode).
@@ -353,21 +368,17 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         if meter.scope() != scope {
             meter.set_scope(scope);
         }
-        let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let contents = meter.take_contents();
-        let cubes = meter.cubes(now);
         // Your pets as last saved, until the game sends its list (and saved as they change).
         let name = meter.registry().self_name().map(str::to_string).or_else(|| lock(&app.profile).name.clone());
         if let Some(name) = name {
             lock(&app.pets).sync(&name, meter.pets());
+            widgets::untrack_maxed(app, &name, meter.pets());
         }
-        let souls = meter.take_soul_gains();
-        let pvp_now = meter.pvp();
-        let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
-        (meter.snapshot(), meter.take_finished(), known, meter.take_instances(), ping, meter.take_pvp(), meter.take_field_bosses(), contents, cubes, (souls, pvp_now), mechanics)
+        (meter.take_finished(), known, meter.take_instances(), meter.take_pvp(), meter.take_field_bosses(), contents)
     };
-    let (mut souls, pvp_now) = souls;
     lock(&app.field_bosses).update(field_bosses);
+    checklist::take(app, &contents);
     lock(&app.contents).update(contents);
     if !pvp.is_empty() {
         let mut log = lock(&app.pvp);
@@ -381,18 +392,15 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             instances.record(i);
         }
     }
-    if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
-        let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
-        for row in rows.filter(|r| !open.contains(&r.id)) {
-            row.skills.clear();
-        }
-    }
     if let Some(k) = known {
         k.save(&app.config_dir);
     }
+    if finished.is_empty() {
+        return;
+    }
     let mut data = lock(&app.data);
     data.reload_if_empty();
-    let mut profile = lock(&app.profile);
+    let profile = lock(&app.profile);
     let mut history = lock(&app.history);
     for f in finished {
         let mut view = f.view;
@@ -403,7 +411,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         }
         let ended_ms = view.end_us / 1000;
         if let Some(analysis) = &f.analysis {
-            app.details.save(ended_ms, analysis);
+            app.details.save(ended_ms, analysis, view.target_boss);
             let s = lock(&app.settings);
             if s.dummy_mode && view.target_type.is_some_and(|t| data.is_dummy(t)) {
                 if let Some(run) = dummy::DummyRun::from_fight(analysis, s.dummy_run_s, ended_ms, self_name.clone(), &s.dummy_label) {
@@ -412,8 +420,73 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
             }
         }
         lock(&app.bests).record(&view, ended_ms, self_name.as_deref());
+        lock(&app.attempts).record(&view, ended_ms, self_name.as_deref());
         history.push(Fight { ended_ms, self_name, view });
     }
+}
+
+/// Runs [`pump`] on the main thread once a second, whatever the windows are doing.
+fn keep_records(handle: AppHandle, app: Arc<AppState>) {
+    thread::Builder::new()
+        .name("records".into())
+        .spawn(move || {
+            // One waiting at a time: a busy main thread doesn't get a queue of them.
+            let queued = Arc::new(AtomicBool::new(false));
+            loop {
+                thread::sleep(Duration::from_secs(1));
+                if queued.swap(true, Ordering::SeqCst) {
+                    continue;
+                }
+                let (app, flag) = (Arc::clone(&app), Arc::clone(&queued));
+                let sent = handle.run_on_main_thread(move || {
+                    flag.store(false, Ordering::SeqCst);
+                    pump(&app);
+                });
+                if sent.is_err() {
+                    queued.store(false, Ordering::SeqCst);
+                }
+            }
+        })
+        .expect("starting the records thread");
+}
+
+/// Before the app closes: the fight going on ends here, and it and anything else not yet
+/// saved goes to the history. On the main thread, as [`pump`].
+pub fn flush(app: &AppState) {
+    let now = app.engine.now();
+    app.engine.meter().end_fight(now);
+    pump(app);
+}
+
+/// The current meter with names filled in. Skill lists come only for the players in
+/// `expanded` (the rows open in the overlay): the rest would only be thrown away, several
+/// times a second.
+#[tauri::command]
+fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
+    // Finished fights reach the history before the meter is drawn.
+    pump(&app);
+    let now = app.engine.now();
+    let auto_scope = !lock(&app.settings).manual_scope;
+    let mechanics_on = lock(&app.settings).boss_mechanics;
+    let (mut snap, ping_ms, cubes, mut souls, pvp_now, boss_mechanics) = {
+        let mut meter = app.engine.meter();
+        let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
+        let cubes = meter.cubes(now);
+        let souls = meter.take_soul_gains();
+        let pvp_now = meter.pvp();
+        let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
+        (meter.snapshot(), ping, cubes, souls, pvp_now, mechanics)
+    };
+    if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
+        let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
+        for row in rows.filter(|r| !open.contains(&r.id)) {
+            row.skills.clear();
+        }
+    }
+    let mut data = lock(&app.data);
+    data.reload_if_empty();
+    let mut profile = lock(&app.profile);
+    let history = lock(&app.history);
     data.annotate(&mut snap);
     // Your best against the boss you're fighting (a boss once named above).
     let best = snap
@@ -431,7 +504,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let mut boss_next = None;
     let mut boss_ahead = BossAhead::default();
     if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
-        let marks = lock(&app.settings).boss_skill_alerts.clone();
+        let mut marks = lock(&app.settings).boss_skill_alerts.clone();
+        for &skill in data.warn_casts() {
+            marks.entry(skill).or_insert(true);
+        }
         boss_ahead = boss_casts_to_show(&history, &data, &marks, enc);
         boss_next = boss_ahead.upcoming.first().map(|c| NextCast {
             skill: c.skill,
@@ -444,6 +520,10 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
+    // The boss turning to you, for the boss warnings (settings → boss on you).
+    if let Some(enc) = snap.encounter.as_mut().filter(|_| !settings.boss_on_you) {
+        enc.boss_on_you_us = None;
+    }
     let dummy = snap
         .encounter
         .as_ref()
@@ -607,6 +687,12 @@ fn history_list(app: State<'_, Arc<AppState>>) -> runs::HistoryList {
         }
     }
     drop(bests);
+    let attempts = lock(&app.attempts);
+    for f in fights.iter_mut().filter(|f| f.end == Some(meter_core::meter::FightEnd::Wipe)) {
+        let character = history.fight(f.index).and_then(|x| x.self_name.as_deref());
+        f.best_try = f.target_type.and_then(|t| attempts.get(character, t)).is_some_and(|a| a.best_wipe_ms == f.ended_ms);
+    }
+    drop(attempts);
     drop(history);
     runs::history_list(fights, &lock(&app.data), &lock(&app.instances))
 }
@@ -705,6 +791,7 @@ fn run_live(app: &AppState, record: bool) {
         duration: None,
         record,
         decode: true,
+        follow_adapter: true,
     };
     let stop = AtomicBool::new(false);
     loop {
@@ -726,7 +813,11 @@ fn run_live(app: &AppState, record: bool) {
             LiveEvent::Finished { .. } => {}
         });
         match result {
-            Ok(_) => return,
+            // The game moved to another network adapter: start again on that one.
+            Ok(_) => {
+                engine.set_status(Phase::Starting, "starting again…");
+                thread::sleep(Duration::from_secs(1));
+            }
             Err(e) => {
                 engine.set_status(Phase::Error, format!("{e:#}"));
                 thread::sleep(RETRY_AFTER);
@@ -810,6 +901,11 @@ fn main() {
     let known_players = KnownPlayers::load(&config_dir);
     let placements = placement::Placements::load(&config_dir);
     let config_dir_for_pvp = config_dir.clone();
+    // Boss fights from before their lowest HP was kept get it from their saved analysis,
+    // before their tries are first counted.
+    let mut history = History::load(&config_dir);
+    history.fill_low_hp(&FightDetails::new(&config_dir));
+    let attempts = store::Attempts::load(&config_dir, &history);
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
             meter: Mutex::new({
@@ -828,7 +924,7 @@ fn main() {
             changed: (Mutex::new(false), Condvar::new()),
         }),
         data: Mutex::new(data),
-        history: Mutex::new(History::load(&config_dir)),
+        history: Mutex::new(history),
         details: FightDetails::new(&config_dir),
         instances: Mutex::new(Instances::load(&config_dir)),
         analysis_selection: Mutex::new(analysis::Selection::default()),
@@ -855,9 +951,13 @@ fn main() {
         field_bosses: Mutex::new(store::FieldBosses::load(&config_dir_for_pvp)),
         contents: Mutex::new(store::KnownContents::load(&config_dir_for_pvp)),
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
+        attempts: Mutex::new(attempts),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
         pet_map_placed: AtomicBool::new(false),
+        attempts_placed: AtomicBool::new(false),
+        checklist_placed: AtomicBool::new(false),
+        checklist: Mutex::new(checklist::Checklist::load(&config_dir_for_pvp)),
         placements: Mutex::new(placements),
         dummy: Mutex::new(dummy::DummyBook::load(&config_dir_for_pvp)),
         dummy_tracker: Mutex::new(dummy::DummyTracker::default()),
@@ -917,6 +1017,7 @@ fn main() {
             widgets::set_boss_hp,
             widgets::set_boss_casts,
             widgets::set_boss_mechanics,
+            widgets::set_boss_on_you,
             widgets::set_party_cooldowns_by_class,
             widgets::set_pet_souls,
             widgets::dummy_runs,
@@ -941,6 +1042,12 @@ fn main() {
             widgets::gather_map,
             widgets::gather_icon,
             settings::open_pet_map,
+            settings::open_attempts,
+            attempts::attempts_list,
+            attempts::clear_attempts,
+            settings::open_checklist,
+            checklist::checklist,
+            checklist::step_checklist,
             settings::fit_pet_map,
             settings::reset_settings,
             settings::set_hotkey,
@@ -975,6 +1082,7 @@ fn main() {
             hotkeys::start(app.handle().clone(), Arc::clone(&state));
             hotkeys::close_with_game(app.handle().clone(), Arc::clone(&state));
             notify_changes(app.handle().clone(), Arc::clone(&state));
+            keep_records(app.handle().clone(), Arc::clone(&state));
             save_placements(Arc::clone(&state));
             Ok(())
         })
@@ -996,6 +1104,8 @@ fn main() {
                         }
                         placements.save_if_changed();
                         drop(placements);
+                        // The fight going on, and any not saved yet, go to the history.
+                        flush(&app);
                         window.app_handle().exit(0);
                     }
                     // Closing any other window only tucks it away.
@@ -1031,7 +1141,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST] {
         if Some(label) == skip {
             continue;
         }

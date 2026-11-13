@@ -23,6 +23,15 @@ const MIN_LENGTH: u64 = LENGTH_BIAS + 2;
 const MAX_MESSAGE: u64 = 1 << 20;
 const MAX_BUNDLE: usize = 16 << 20;
 const MAX_BUNDLE_DEPTH: u32 = 4;
+/// After framing was lost (or a stream was joined part-way), the framer is wary until this
+/// many messages have framed cleanly: bytes that only look like messages don't last that
+/// long.
+const WARY_FOR: u32 = 64;
+/// While wary, a "message" longer than this is taken for a wrong start (a length read out
+/// of the middle of a message can say anything up to [`MAX_MESSAGE`], and waiting for a
+/// megabyte that isn't coming stalls the stream for as long as it takes to arrive). Of the
+/// 1.5 million messages in our recordings the longest is 20,369 bytes.
+const WARY_MAX_MESSAGE: u64 = 64 << 10;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
@@ -54,12 +63,17 @@ enum Frame {
 }
 
 fn frame_at(buf: &[u8]) -> Frame {
+    frame_up_to(buf, MAX_MESSAGE)
+}
+
+/// As [`frame_at`], with the longest message allowed.
+fn frame_up_to(buf: &[u8], max: u64) -> Frame {
     let mut pos = 0;
     let Some(len) = read_varint(buf, &mut pos) else {
         // A varint longer than 5 bytes can't be a sane length.
         return if buf.len() >= 5 { Frame::Invalid } else { Frame::Incomplete };
     };
-    if !(MIN_LENGTH..=MAX_MESSAGE).contains(&len) {
+    if !(MIN_LENGTH..=max).contains(&len) {
         return Frame::Invalid;
     }
     let total = pos + (len - LENGTH_BIAS) as usize;
@@ -124,6 +138,9 @@ pub struct Framer {
     bad_bundles: u64,
     /// Set after a gap or lost framing, until a message decodes cleanly again.
     resyncing: bool,
+    /// Messages still to frame cleanly before the framer trusts the stream again (0: it
+    /// does). See [`WARY_FOR`].
+    wary: u32,
 }
 
 impl Framer {
@@ -147,14 +164,17 @@ impl Framer {
         }
         let produced = out.len();
         let mut start = 0;
+        let mut frames = 0u32;
+        let max = if self.wary > 0 { WARY_MAX_MESSAGE } else { MAX_MESSAGE };
         let result = loop {
-            match frame_at(&self.buf[start..]) {
+            match frame_up_to(&self.buf[start..], max) {
                 Frame::Complete { header, total } => {
                     // A broken bundle loses only that bundle; framing is still intact.
                     if decode_body(&self.buf[start + header..start + total], out, 0).is_err() {
                         self.bad_bundles += 1;
                     }
                     start += total;
+                    frames += 1;
                 }
                 Frame::Incomplete => break Ok(()),
                 Frame::Invalid => break Err(start),
@@ -166,21 +186,39 @@ impl Framer {
                 if out.len() > produced {
                     self.resyncing = false;
                 }
+                // A bundle's messages each count: one clean bundle is proof enough.
+                let messages = (out.len() - produced).max(frames as usize);
+                self.wary = self.wary.saturating_sub(messages.min(u32::MAX as usize) as u32);
                 Ok(())
             }
             Err(at) => {
                 let pending = self.buf.len() - at;
-                self.buf.clear();
-                self.resyncing = true;
+                self.lose_step();
                 bail!("lost message framing ({pending} bytes dropped)")
             }
         }
     }
 
-    /// Forgets partial data, e.g. after a gap in the capture.
+    /// Forgets partial data, e.g. after a gap in the capture, or before the first bytes
+    /// of a stream joined part-way. The framer then looks for a message boundary, and
+    /// stays wary for the next [`WARY_FOR`] messages.
     pub fn reset(&mut self) {
+        self.lose_step();
+    }
+
+    /// A connection starts here (its SYN): forgets partial data from the one before, and
+    /// trusts the stream from its first byte. A login's first messages can be long, and
+    /// nothing before them could have put the framer out of step.
+    pub fn start(&mut self) {
         self.buf.clear();
         self.resyncing = true;
+        self.wary = 0;
+    }
+
+    fn lose_step(&mut self) {
+        self.buf.clear();
+        self.resyncing = true;
+        self.wary = WARY_FOR;
     }
 
     pub fn bad_bundles(&self) -> u64 {
@@ -286,6 +324,67 @@ pub(crate) mod tests {
         assert_eq!(f.bad_bundles(), 1);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].payload, b"ok");
+    }
+
+    #[test]
+    fn a_long_message_is_waited_on_in_a_stream_that_is_in_step() {
+        // From the start of a connection: a 20 KB message over 14 packets, as at login.
+        let mut stream = frame(0x3600, b"hello");
+        stream.extend(frame(0x9a00, &[5u8; 20_000]));
+        stream.extend(frame(0x3600, b"after"));
+        let mut f = Framer::default();
+        let mut out = Vec::new();
+        for chunk in stream.chunks(1460) {
+            f.push(chunk, &mut out).unwrap();
+        }
+        assert_eq!(out.iter().map(|m| m.payload.len()).collect::<Vec<_>>(), [5, 20_000, 5]);
+    }
+
+    #[test]
+    fn a_long_message_at_the_start_of_a_connection_is_waited_on() {
+        // A recording's SYN, then a 20 KB login list as the second message.
+        let mut stream = frame(0x3600, b"hello");
+        stream.extend(frame(0x9a00, &[5u8; 20_000]));
+        let mut f = Framer::default();
+        let mut out = Vec::new();
+        f.start();
+        for chunk in stream.chunks(1460) {
+            f.push(chunk, &mut out).unwrap();
+        }
+        assert_eq!(out.iter().map(|m| m.payload.len()).collect::<Vec<_>>(), [5, 20_000]);
+    }
+
+    #[test]
+    fn a_wrong_start_after_a_resync_is_not_waited_on() {
+        let mut f = Framer::default();
+        let mut out = Vec::new();
+        f.reset();
+        // Bytes from the middle of a message that read as one small message, then the
+        // start of a 100 KB one that will never come.
+        let mut wrong = frame(0x1111, b"xx");
+        wrong.extend([0xa0, 0x8d, 0x06, 0x01, 0x02, 0x03]);
+        assert!(f.push(&wrong, &mut out).is_err(), "100 KB, just after a resync: not a message");
+        // The real stream goes on, read as it is from the next packet.
+        for i in 0..8u8 {
+            f.push(&frame(0x3600, &[i]), &mut out).unwrap();
+        }
+        assert_eq!(out.iter().skip(1).map(|m| m.payload[0]).collect::<Vec<_>>(), [0, 1, 2, 3, 4, 5, 6, 7]);
+        // Still wary, but in step: the longest real messages are waited on (20 KB, over
+        // 14 packets).
+        let n = out.len();
+        for chunk in frame(0x9a00, &[5u8; 20_000]).chunks(1460) {
+            f.push(chunk, &mut out).unwrap();
+        }
+        assert_eq!((out.len(), out.last().unwrap().payload.len()), (n + 1, 20_000));
+        // Trusted again after enough clean messages, the megabyte limit is back.
+        for i in 0..WARY_FOR as u8 {
+            f.push(&frame(0x3600, &[i]), &mut out).unwrap();
+        }
+        let n = out.len();
+        for chunk in frame(0x9a00, &[5u8; 200_000]).chunks(1460) {
+            f.push(chunk, &mut out).unwrap();
+        }
+        assert_eq!((out.len(), out.last().unwrap().payload.len()), (n + 1, 200_000));
     }
 
     #[test]

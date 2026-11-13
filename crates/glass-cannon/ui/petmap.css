@@ -55,6 +55,17 @@
 .side-search::placeholder { color: var(--faint); }
 .side-search:focus { border-color: var(--accent); }
 .side-head button { flex: none; color: var(--accent); font-size: 0.85em; }
+/* The pet filters: which (all, missing, needed, tracked), then each genus on or off. */
+.side-filters { display: flex; flex-direction: column; gap: 0.2em; font-size: 0.85em; }
+.side-filters .choice { display: flex; flex-wrap: wrap; gap: 0.2em; }
+.side-filters button { padding: 0 0.15em; border-radius: 0.25em; color: var(--accent); }
+.side-filters button:hover { background: var(--line-faint); }
+.side-filters [data-show][aria-checked="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
+.genus-filter { display: flex; flex-wrap: wrap; gap: 0.1em 0.45em; }
+.genus-filter button { display: inline-flex; align-items: center; gap: 0.3em; color: var(--text); }
+.genus-filter button[aria-pressed="false"] { color: var(--faint); text-decoration: line-through; }
+.genus-filter button[aria-pressed="false"] .genus-dot { opacity: 0.3; }
+.side-filters .note { margin: 0.1em 0 0; }
 .side-head button[aria-pressed="false"] { color: var(--muted); }
 
 .side-list { list-style: none; margin: 0; padding: 0; }
@@ -86,6 +97,7 @@
   line-height: 1;
 }
 .map-track:hover { background: var(--line-faint); }
+.map-track:disabled { opacity: 0.35; cursor: default; background: none; }
 .map-track[aria-pressed="true"] { color: var(--ink); background: var(--ok); border-color: var(--ok); text-shadow: none; }
 .genus-dot { flex: none; width: 0.55em; height: 0.55em; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
 

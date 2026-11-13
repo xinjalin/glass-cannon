@@ -503,6 +503,8 @@ function sendBoss(view) {
         // For casts with no name: whose they are.
         name: enc.target || "",
         ahead: view.boss_ahead,
+        // When it turned to attack you, while it's on you (settings → boss on you).
+        onYou: enc.boss_on_you_us || 0,
         sound: view.alert_sound,
       }
     : null;

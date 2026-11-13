@@ -3,7 +3,7 @@
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use meter_core::meter::Scope;
@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, CHECKLIST, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -27,6 +27,8 @@ const MIN_SETTINGS: (f64, f64) = (420.0, 320.0);
 /// The same for the history window.
 const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
 const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
+const MIN_ATTEMPTS: (f64, f64) = (360.0, 260.0);
+const MIN_CHECKLIST: (f64, f64) = (320.0, 240.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
@@ -57,6 +59,10 @@ pub struct SettingsStatus {
     boss_hp: bool,
     boss_casts: bool,
     boss_mechanics: bool,
+    boss_on_you: bool,
+    /// The world timers' region and how long before an event its alert shows.
+    timer_region: String,
+    alert_lead_min: u32,
     party_cooldowns_by_class: bool,
     pet_souls: bool,
     /// The overlay's widgets that show, and whether they're being arranged.
@@ -153,6 +159,13 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         boss_hp: s.boss_hp,
         boss_casts: s.boss_casts,
         boss_mechanics: s.boss_mechanics,
+        boss_on_you: s.boss_on_you,
+        timer_region: if crate::store::TIMER_REGIONS.contains(&s.timer_region.as_str()) {
+            s.timer_region.clone()
+        } else {
+            crate::store::TIMER_REGIONS[0].to_string()
+        },
+        alert_lead_min: s.alert_lead_min,
         party_cooldowns_by_class: s.party_cooldowns_by_class,
         pet_souls: s.pet_souls,
         widgets: s.widgets,
@@ -261,6 +274,13 @@ pub fn set_record(app: State<'_, Arc<AppState>>, record: bool) {
     s.save(&app.config_dir);
 }
 
+/// Windows' own PowerShell by its full path: never one that happens to sit beside the
+/// program, in the folder it was started from, or earlier on the PATH.
+fn powershell() -> PathBuf {
+    let windows = std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+    windows.join(r"System32\WindowsPowerShell\v1.0\powershell.exe")
+}
+
 /// Adds "Glass Cannon" to the Desktop and the Start menu.
 #[tauri::command]
 pub async fn create_shortcuts() -> Result<String, String> {
@@ -279,7 +299,7 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
 }
 "#;
     let output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new("powershell.exe")
+        Command::new(powershell())
             .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT])
             .env("GLASS_CANNON_EXE", &exe)
             .creation_flags(CREATE_NO_WINDOW)
@@ -294,20 +314,19 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
     Ok("added to Desktop and Start menu".into())
 }
 
-/// Shows the fight history (the first time where you left it, else beside the launcher),
-/// or hides it if it's showing.
-#[tauri::command]
-pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
-    let w = handle.get_webview_window(HISTORY).ok_or("no history window")?;
+/// Shows one of the side windows (the history, the map, the attempts, the checklist), or
+/// hides it if it's showing. The first time it goes where you last left it, else beside the
+/// launcher; and beside the launcher again whenever it's off every screen.
+fn toggle_window(handle: &AppHandle, app: &AppState, label: &str, placed: &AtomicBool, min: (f64, f64)) -> Result<(), String> {
+    let w = handle.get_webview_window(label).ok_or_else(|| format!("no {label} window"))?;
     if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
         return w.hide().map_err(|e| e.to_string());
     }
-    let first = !app.history_placed.swap(true, Ordering::SeqCst);
-    let restored = first && lock(&app.placements).get(HISTORY).is_some_and(|p| crate::placement::restore(&w, p, true));
-    // Placed the first time (unless restored), and again whenever it's off every screen.
+    let first = !placed.swap(true, Ordering::SeqCst);
+    let restored = first && lock(&app.placements).get(label).is_some_and(|p| crate::placement::restore(&w, p, true));
     if (first && !restored) || !fully_on_screen(&w) {
         if let Ok(size) = w.outer_size() {
-            place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_HISTORY, &SIDES);
+            place_beside(handle, &w, (size.width as i32, size.height as i32), min, &SIDES);
         }
     }
     w.show().map_err(|e| e.to_string())?;
@@ -315,23 +334,28 @@ pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<
     w.set_focus().map_err(|e| e.to_string())
 }
 
+/// Shows the fight history, or hides it if it's showing.
+#[tauri::command]
+pub fn open_history(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    toggle_window(&handle, &app, HISTORY, &app.history_placed, MIN_HISTORY)
+}
+
 /// Shows the pet map, or hides it if it's already showing (as the history).
 #[tauri::command]
 pub fn open_pet_map(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
-    let w = handle.get_webview_window(PET_MAP).ok_or("no pet map window")?;
-    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
-        return w.hide().map_err(|e| e.to_string());
-    }
-    let first = !app.pet_map_placed.swap(true, Ordering::SeqCst);
-    let restored = first && lock(&app.placements).get(PET_MAP).is_some_and(|p| crate::placement::restore(&w, p, true));
-    if (first && !restored) || !fully_on_screen(&w) {
-        if let Ok(size) = w.outer_size() {
-            place_beside(&handle, &w, (size.width as i32, size.height as i32), MIN_PET_MAP, &SIDES);
-        }
-    }
-    w.show().map_err(|e| e.to_string())?;
-    let _ = w.unminimize();
-    w.set_focus().map_err(|e| e.to_string())
+    toggle_window(&handle, &app, PET_MAP, &app.pet_map_placed, MIN_PET_MAP)
+}
+
+/// Shows the attempts window, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_attempts(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    toggle_window(&handle, &app, ATTEMPTS, &app.attempts_placed, MIN_ATTEMPTS)
+}
+
+/// Shows the checklist window, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_checklist(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    toggle_window(&handle, &app, CHECKLIST, &app.checklist_placed, MIN_CHECKLIST)
 }
 
 /// Shows the settings beside the launcher, or hides them if they're already open.

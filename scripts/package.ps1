@@ -15,13 +15,21 @@ $Name = 'glass-cannon'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$meta = cargo metadata --format-version 1 --locked | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed' }
+# Cargo reports its progress on stderr. When the output is captured (a CI log, another
+# tool), Windows PowerShell 5.1 turns each of those lines into an error, and 'Stop' would
+# end the script at the first one: so cargo runs with 'Continue', and its exit code says
+# whether it worked.
+function Invoke-Cargo {
+  $ErrorActionPreference = 'Continue'
+  & cargo @args
+  if ($LASTEXITCODE -ne 0) { throw "cargo $($args[0]) failed" }
+}
+
+$meta = Invoke-Cargo metadata --format-version 1 --locked | ConvertFrom-Json
 $version = ($meta.packages | Where-Object { $_.name -eq 'glass-cannon' }).version
 
 if (-not $NoBuild) {
-  cargo build --release --locked --workspace
-  if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+  Invoke-Cargo build --release --locked --workspace
 }
 
 $stem = "$Name-v$version-windows-x64"
@@ -67,6 +75,8 @@ $npcNames = Get-Content -Raw (Join-Path $data 'npc-names.json') | ConvertFrom-Js
   "  from public fan databases ($($stones.source.scraped)); removed on request."
   "- dungeons.json (dungeon mobs and modes), from the same kind of scraped monster database"
   "  ($($dungeons.source.scraped)); removed on request."
+  '- places.json (Sealed Dungeon, Stronghold and Dimensional Invasion bosses), written by hand from'
+  '  community guides (Legaeon, aion2data.com, ExpCarry) and matched by name to the bosses in npcs.json.'
   "- pets.json (pets' names and genus) and npc-names.json (NPCs' names), from the same kind"
   "  of scraped pet and NPC databases ($($pets.source.scraped), $($npcNames.source.scraped)); removed on request."
   '- Icon_Item_Usable_*.png (scroll, potion and food icons), NCSOFT artwork from its game asset'
@@ -74,11 +84,10 @@ $npcNames = Get-Content -Raw (Join-Path $data 'npc-names.json') | ConvertFrom-Js
 ) | Set-Content -Encoding utf8 (Join-Path $data 'SOURCES.txt')
 
 # Every Rust crate built into the meter, with its licence.
-$lines = cargo tree -p glass-cannon -e normal,build --prefix none --locked --format '{p}  {l}  {r}' |
+$lines = Invoke-Cargo tree -p glass-cannon -e 'normal,build' --prefix none --locked --format '{p}  {l}  {r}' |
   ForEach-Object { $_ -replace ' \(\*\)$', '' } |
   Where-Object { $_ -and $_ -notmatch '^(glass-cannon|meter-core) ' } |
   Sort-Object -Unique
-if ($LASTEXITCODE -ne 0) { throw 'cargo tree failed' }
 @(
   "Rust crates used by $Name v$version (name, version, licence, source)."
   'Generated from Cargo.lock by scripts/package.ps1; some are only used at build time.'
