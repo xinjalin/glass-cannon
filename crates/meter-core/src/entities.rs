@@ -145,6 +145,8 @@ pub struct Registry {
     /// gauge: bosses, as far as we can tell (a raid boss stays up through every wipe, so
     /// it may never spawn again).
     unseen_bosses: HashSet<u64>,
+    /// Combat power by entity, as players' spawns (and yours) give it.
+    combat_power: HashMap<u64, u32>,
 }
 
 /// Someone leaving the party: what the HP-sent members are forgotten on even when the
@@ -240,6 +242,11 @@ impl Registry {
             return self.self_id;
         }
         self.players.iter().find(|(_, n)| n.as_str() == name).map(|(id, _)| *id)
+    }
+
+    /// A player's combat power (or yours), from their spawn.
+    pub fn combat_power(&self, id: u64) -> Option<u32> {
+        self.combat_power.get(&id).copied()
     }
 
     pub fn mob_type(&self, id: u64) -> Option<u32> {
@@ -346,7 +353,12 @@ impl Registry {
             }
             OPCODE_SELF_SPAWN => {
                 let (id, name) = parse_named_spawn(payload)?;
-                if let Some(change) = self.set_self(id) {
+                let cp = parse_self_combat_power(payload);
+                let change = self.set_self(id);
+                if let Some(cp) = cp {
+                    self.combat_power.insert(id, cp);
+                }
+                if let Some(change) = change {
                     self.self_name = Some(name);
                     return Some(change);
                 }
@@ -360,6 +372,9 @@ impl Registry {
             }
             OPCODE_PLAYER_SPAWN => {
                 let (id, name) = parse_named_spawn(payload)?;
+                if let Some(cp) = parse_spawn_combat_power(payload) {
+                    self.combat_power.insert(id, cp);
+                }
                 if self.is_self(id) || self.players.get(&id) == Some(&name) {
                     return None;
                 }
@@ -573,6 +588,43 @@ pub fn parse_named_spawn(p: &[u8]) -> Option<(u64, String)> {
         return None;
     }
     Some((id, name.to_string()))
+}
+
+/// Combat power as players have it now (level-cap characters 100K-400K; new ones less).
+/// Where a spawn's could be read two ways, the one in this band is taken.
+const LIKELY_COMBAT_POWER: std::ops::RangeInclusive<u64> = 40_000..=2_000_000;
+
+/// A player's combat power in their spawn (`0x3645`): a u64 just before the message's end,
+/// followed by a byte (how they died) and maybe one more. Its last flag is a bit packed
+/// into an earlier flag byte when one has a bit free, else a byte of its own, so the u64
+/// is 9 or 10 bytes from the end. Checked on our captures (2026-11-07, the Abyss;
+/// 2026-11-13, the Ludra raid; 46,526 spawns): one of the two reads is a combat power in
+/// all but 2; both are in 279, each the other shifted a byte (×256), and the one in
+/// [`LIKELY_COMBAT_POWER`] is right (the party roster's agrees). The field's place is
+/// Questlog's lead (its CharAppear_NT); the offsets and the check are ours.
+pub fn parse_spawn_combat_power(p: &[u8]) -> Option<u32> {
+    let at = |from_end: usize| -> Option<u64> {
+        let start = p.len().checked_sub(from_end)?;
+        Some(u64::from_le_bytes(p.get(start..start + 8)?.try_into().ok()?))
+    };
+    let ok = |v: &u64| (*v as u32 as u64) == *v && COMBAT_POWER.contains(&(*v as u32));
+    let (nine, ten) = (at(9).filter(ok), at(10).filter(ok));
+    let v = match (nine, ten) {
+        (Some(a), Some(b)) => [a, b].into_iter().find(|v| LIKELY_COMBAT_POWER.contains(v))?,
+        (a, b) => a.or(b)?,
+    };
+    Some(v as u32)
+}
+
+/// Your combat power in your own spawn (`0x3633`): a u64 81 bytes from the end, then your
+/// highest combat power (a u64, never lower). Checked on our captures: 115 of 118 (the
+/// other 3 read as nothing, not as a wrong number).
+pub fn parse_self_combat_power(p: &[u8]) -> Option<u32> {
+    let start = p.len().checked_sub(81)?;
+    let now = u64::from_le_bytes(p.get(start..start + 8)?.try_into().ok()?);
+    let best = u64::from_le_bytes(p.get(start + 8..start + 16)?.try_into().ok()?);
+    let cp = u32::try_from(now).ok().filter(|c| COMBAT_POWER.contains(c))?;
+    (best >= now && best <= u64::from(*COMBAT_POWER.end())).then_some(cp)
 }
 
 /// `0x8d04`: varint mob, u32 skill, varint player, varint server, u8 length, UTF-8 name.
@@ -839,6 +891,40 @@ pub(crate) mod tests {
     const ROBI_UPDATE: &str = "a7 de 03 00 00 00 df 05 1d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 10 07 00 00 00 00 00 00 00 01 73 47 01 00 00 00 00 00 00";
     const CHANDRA_UPDATE: &str = "5b 3c 03 00 00 00 e1 05 22 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 57 06 00 00 0c 45 74 65 72 6e 61 6c 57 69 6e 47 73 01 00 00 00 01 1a 39 01 00 00 00 00 00 00";
     const AJA_COPY: &str = "b3 d1 05 1c 00 01 03 41 6a 61 ac 8f 2c 00 00 02 39 ba 80 46 f5 af 7f 46 00 52 1c 47";
+
+    #[test]
+    fn combat_power_from_a_players_spawn() {
+        // The ends of real spawns (the raid, 2026-11-13), behind some made-up start.
+        let with_end = |end: &str| [vec![0x55; 40], hex(end)].concat();
+        // The last flag packed into an earlier byte: the u64 9 from the end.
+        assert_eq!(parse_spawn_combat_power(&with_end("00 0a 00 00 00 ab c6 02 00 00 00 00 00 00")), Some(181_931));
+        // The last flag a byte of its own: 10 from the end.
+        assert_eq!(parse_spawn_combat_power(&with_end("0a 00 00 00 99 bc 02 00 00 00 00 00 00 01")), Some(179_353));
+        // Both read as a combat power (1,016 or 260,309): the likely one.
+        assert_eq!(parse_spawn_combat_power(&with_end("00 00 d5 f8 03 00 00 00 00 00 00 00")), Some(260_309));
+        // Neither.
+        assert_eq!(parse_spawn_combat_power(&with_end("ff ff ff ff ff ff ff ff ff ff ff ff")), None);
+        assert_eq!(parse_spawn_combat_power(&[1, 2, 3]), None);
+    }
+
+    #[test]
+    fn your_combat_power_from_your_spawn() {
+        let spawn = |now: u64, best: u64| [vec![0x55; 30], now.to_le_bytes().to_vec(), best.to_le_bytes().to_vec(), vec![0; 65]].concat();
+        assert_eq!(parse_self_combat_power(&spawn(152_973, 152_973)), Some(152_973));
+        assert_eq!(parse_self_combat_power(&spawn(148_497, 148_598)), Some(148_497));
+        // Not a combat power and its best: nothing.
+        assert_eq!(parse_self_combat_power(&spawn(152_973, 5)), None);
+        assert_eq!(parse_self_combat_power(&spawn(3, 3)), None);
+    }
+
+    #[test]
+    fn spawns_give_each_player_their_combat_power() {
+        let mut r = Registry::default();
+        let mut p = with_name("fd 63 15 b0 a4 00 07", "Silke", "");
+        p.extend(hex("00 0a 00 00 00 ab c6 02 00 00 00 00 00 00"));
+        r.observe(OPCODE_PLAYER_SPAWN, &p);
+        assert_eq!(r.combat_power(r.entity_named("Silke").unwrap()), Some(181_931));
+    }
 
     #[test]
     fn group_rosters_carry_gear_score_and_combat_power() {

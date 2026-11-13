@@ -84,8 +84,15 @@ finishes. The widgets:
   MP with your flight power inside it, each filling from the bottom with its value by its
   top end, and your cast on a small arc under your feet. It starts in the middle of the
   screen; arrange it around your character (wider than tall), and the arcs take its box.
-  HP glows below 30%. Stamina and flight power come with their maximums now and then (at
-  login, a new character or zone), so they can be missing until then.
+  HP glows below 30%. Stamina and flight power show full until they change (the game
+  sends them only then). Its look is in the settings (overlay → vitals arcs): **solid**,
+  **thin** (glowing lines) or **segmented** arcs; how round they are, from straight to
+  very round; how wide; **always show arcs**, which keeps their tracks up with nothing to
+  fill them; the numbers (kept clear of the arcs, and never resizing them) as value and
+  max, percent, or both; their size; what's behind
+  them (an outline, a shadow, a dark plate or nothing); whether they go by the arcs' top
+  or bottom ends; and the cast (on or off) as an arc or a thin straight bar with its time
+  left and whole time at its ends.
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
   "dead" when they are.
@@ -149,8 +156,9 @@ meter looks at a small square there (8.5% of the game's height a side) for that 
 arrow, and steps aside only when one is there. Once seen, they stay aside until the cursor
 goes (a pop-up over a menu dims its X past seeing; closing the menu hides the cursor). The square is only looked at:
 it's never saved or sent, and nothing is read while the cursor is hidden, the setting is
-off or the game isn't in front. Keep widgets off that corner (one there hides the X). The
-setting's tooltip shows the last checks. With the classic controls, where the cursor
+off or the game isn't in front. Keep widgets off that corner (one there hides the X; the
+meter leaves its own widgets out of what it looks at, so one there is never taken for
+a menu). The setting's tooltip shows the last checks. With the classic controls, where the cursor
 always shows, the corner is simply looked at every half second.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
@@ -167,7 +175,16 @@ background, Windows lightly blurs the game behind each widget.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
   gear score, and a ✓ for who's readied up in the party finder. A line under the meter says
-  who joins, leaves or readies up.
+  who joins, leaves or readies up. In a party-finder lobby (before the group starts), when
+  a game menu opens and the other widgets step aside, the meter stays and shows the party,
+  so everyone's combat power and gear score can be checked from the lobby screen.
+- Each player's **combat power** shows by their name (settings → meter → combat power):
+  your party's from its roster, anyone else's from when they came into view, yours from
+  your login or zone change. **Odyle energy** (settings → meter; charged in brackets) shows
+  on the strip at the meter's top, as the game last sent it (at login and as it changes).
+- The rows show each player's share as a strip of **blocks**, or as **bars**: the row
+  itself filled that far (settings → appearance → rows). **See-through highlight** makes
+  the filled rows as see-through as the tint.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live

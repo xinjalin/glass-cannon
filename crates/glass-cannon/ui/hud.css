@@ -26,6 +26,8 @@ body {
 #widgets { position: absolute; inset: 0; }
 /* Out of the way for the world map (hud.js). */
 .map-hidden #widgets { visibility: hidden; }
+/* …but the meter over a party-finder lobby's menu (it shows the party then). */
+.map-hidden.keep-meter [data-widget="meter"] { visibility: visible; }
 
 .widget { position: absolute; box-sizing: border-box; }
 /* A boss warning is never under another widget. */

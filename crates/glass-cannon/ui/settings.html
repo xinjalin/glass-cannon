@@ -82,6 +82,16 @@
                 <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
               </span>
             </div>
+            <div class="line" data-keywords="row bars blocks fill style meter">
+              <span class="key">rows</span>
+              <span class="choice" role="radiogroup" aria-label="How the meter's rows show each player's share">
+                <button type="button" data-row-style-choice="blocks" title="A strip of blocks beside the numbers">[blocks]</button>
+                <button type="button" data-row-style-choice="fill" title="Each row filled as far as its share of the top player's, the highlighted ones stronger">[bars]</button>
+              </span>
+            </div>
+            <button id="fill-tint" data-keywords="highlight opacity transparent see-through fill" type="button" class="opt" aria-pressed="false" title="The rows' fill as see-through as the tint (background → tint), not solid">
+              <span class="key">see-through highlight</span><span class="state">[off]</span>
+            </button>
           </fieldset>
           <fieldset class="box">
             <legend>text</legend>
@@ -192,6 +202,81 @@
             <p class="note ab-head">buffs on you · those of the last hour</p>
             <div id="ab-buffs" class="ab-picks"></div>
           </fieldset>
+          <fieldset class="box" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
+            <legend>vitals arcs</legend>
+            <div class="line" data-keywords="look style thin segmented solid">
+              <span class="key">look</span>
+              <span class="choice" role="radiogroup" aria-label="How the vitals arcs look">
+                <button type="button" data-vt="style" data-vt-value="solid" title="Thick arcs on a dark track">[solid]</button>
+                <button type="button" data-vt="style" data-vt-value="thin" title="Thin glowing lines on a faint track">[thin]</button>
+                <button type="button" data-vt="style" data-vt-value="segmented" title="Arcs cut into cells">[segmented]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="roundness curve bend straight round">
+              <span class="key">roundness</span>
+              <span class="stepper">
+                <button id="vt-round-down" type="button" title="Straighter">[−]</button>
+                <span id="vt-round-value" class="step-value"></span>
+                <button id="vt-round-up" type="button" title="Rounder">[+]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="width thickness thick thin bar arc">
+              <span class="key">width</span>
+              <span class="stepper">
+                <button id="vt-width-down" type="button" title="Thinner arcs">[−]</button>
+                <span id="vt-width-value" class="step-value"></span>
+                <button id="vt-width-up" type="button" title="Thicker arcs">[+]</button>
+              </span>
+            </div>
+            <button id="vt-always" type="button" class="opt" data-keywords="always show arcs tracks empty" aria-pressed="false" title="The arcs' tracks always show, empty until there's something to fill them (your stamina and flight power before the game sends them, the cast between casts)">
+              <span class="key">always show arcs</span><span class="state">[off]</span>
+            </button>
+            <div class="line" data-keywords="numbers value percent both">
+              <span class="key">numbers</span>
+              <span class="choice" role="radiogroup" aria-label="The numbers by the arcs">
+                <button type="button" data-vt="numbers" data-vt-value="value" title="Value and max (5,130/5,130)">[value]</button>
+                <button type="button" data-vt="numbers" data-vt-value="percent" title="How full, in percent">[percent]</button>
+                <button type="button" data-vt="numbers" data-vt-value="both" title="The percent by each arc's end, the values beside">[both]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="text size font numbers bigger smaller">
+              <span class="key">number size</span>
+              <span class="stepper">
+                <button id="vt-text-down" type="button" title="Smaller">[−]</button>
+                <span id="vt-text-value" class="step-value"></span>
+                <button id="vt-text-up" type="button" title="Bigger">[+]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="text shadow outline background plate">
+              <span class="key">behind numbers</span>
+              <span class="choice" role="radiogroup" aria-label="What's behind the numbers">
+                <button type="button" data-vt="text_backing" data-vt-value="outline" title="A dark outline">[outline]</button>
+                <button type="button" data-vt="text_backing" data-vt-value="shadow" title="A soft shadow">[shadow]</button>
+                <button type="button" data-vt="text_backing" data-vt-value="plate" title="A dark background">[plate]</button>
+                <button type="button" data-vt="text_backing" data-vt-value="none" title="Nothing">[none]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="text position top bottom end">
+              <span class="key">numbers at</span>
+              <span class="choice" role="radiogroup" aria-label="Which end of the arcs the numbers go by">
+                <button type="button" data-vt="text_at" data-vt-value="top" title="By the arcs' top ends">[top]</button>
+                <button type="button" data-vt="text_at" data-vt-value="bottom" title="Under the arcs' bottom ends">[bottom]</button>
+              </span>
+            </div>
+            <button id="vt-cast" type="button" class="opt" data-keywords="cast bar casting show hide" aria-pressed="true" title="Your cast under your feet, while you cast">
+              <span class="key">cast bar</span><span class="state">[on]</span>
+            </button>
+            <div class="line" data-keywords="cast bar arc">
+              <span class="key">cast</span>
+              <span class="choice" role="radiogroup" aria-label="How your cast shows">
+                <button type="button" data-vt="cast" data-vt-value="arc" title="Along an arc under your feet, its name and time under it">[arc]</button>
+                <button type="button" data-vt="cast" data-vt-value="bar" title="A thin straight bar under your feet: its name over it, the time left and the whole time at its ends">[bar]</button>
+              </span>
+            </div>
+            <button id="vt-reset" type="button" class="opt" data-keywords="reset default" title="The vitals arcs as they were at first">
+              <span class="key">reset</span><span class="state">[ reset ]</span>
+            </button>
+          </fieldset>
           <fieldset class="box">
             <legend>over the game</legend>
             <button id="hide-on-world-map" data-keywords="map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
@@ -294,6 +379,12 @@
             </button>
             <button id="info-bar" data-keywords="clock latency ms strip" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
               <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
+            </button>
+            <button id="show-cp" data-keywords="combat power cp players names" type="button" class="opt" aria-pressed="true" title="Each player's combat power by their name: your party's from its roster, others' from when they came into view">
+              <span class="key">combat power</span><span class="state">[on]</span>
+            </button>
+            <button id="show-odyle" data-keywords="odyle energy tickets strip" type="button" class="opt" aria-pressed="true" title="Your Odyle energy (charged in brackets) on the meter's top strip, as the game last sent it">
+              <span class="key">odyle energy</span><span class="state">[on]</span>
             </button>
           </fieldset>
           <fieldset class="box">

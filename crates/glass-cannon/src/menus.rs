@@ -77,6 +77,25 @@ pub struct Corner {
 }
 
 impl Corner {
+    /// The square's side, in pixels.
+    pub fn side(&self) -> usize {
+        self.side
+    }
+
+    /// Blanks boxes of the square, (left, top, right, bottom) in its pixels: what's there
+    /// isn't the game's (our own widgets over it). Blank is black, which neither the X's
+    /// strokes nor the arrow's head can be.
+    pub fn blank(&mut self, boxes: &[(f64, f64, f64, f64)]) {
+        let side = self.side as f64;
+        for &(l, t, r, b) in boxes {
+            let (l, t) = (l.max(0.0).floor() as usize, t.max(0.0).floor() as usize);
+            let (r, b) = (r.min(side).ceil() as usize, b.min(side).ceil() as usize);
+            for y in t..b {
+                self.luma[y * self.side + l.min(r)..y * self.side + r].fill(0);
+            }
+        }
+    }
+
     fn at(&self, x: f64, y: f64) -> f32 {
         let (x, y) = (x.round(), y.round());
         if x < 0.0 || y < 0.0 || x >= self.side as f64 || y >= self.side as f64 {
@@ -360,6 +379,21 @@ mod tests {
         assert!(c.arrow_score(1440.0) >= ARROW_SCORE, "{}", c.arrow_score(1440.0));
         assert!(c.has_menu_mark(1440.0));
         assert!(corner(None).arrow_score(1440.0) < ARROW_SCORE);
+    }
+
+    #[test]
+    fn our_own_widget_in_the_corner_is_no_x() {
+        // A widget's X-like glyph (its close button, say) in the corner: an X to the eye…
+        let mut c = corner(Some((48.0, 19.0)));
+        assert!(c.has_close_x(1440.0));
+        // …but it's ours, so it's blanked and not taken for a menu.
+        let side = c.side() as f64;
+        c.blank(&[(side - 80.0, -8.0, side + 8.0, 80.0)]);
+        assert!(!c.has_menu_mark(1440.0));
+        // A box past the square changes nothing; one partly in only blanks its part.
+        let mut c = corner(Some((48.0, 19.0)));
+        c.blank(&[(side + 10.0, 0.0, side + 50.0, 40.0), (-30.0, -30.0, 5.0, 5.0)]);
+        assert!(c.has_close_x(1440.0));
     }
 
     #[test]

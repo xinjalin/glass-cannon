@@ -504,12 +504,18 @@ fn artifact_name(id: u32) -> &'static str {
     }
 }
 
+/// Your Odyle energy as the game last sent it: basic and charged.
+pub fn odyle(app: &AppState) -> Option<(u32, u32)> {
+    let c = lock(&app.contents);
+    c.tickets.get(&meter_core::contents::ODYLE_ENERGY).map(|t| (t.count.unwrap_or(0), t.charged.unwrap_or(0)))
+}
+
 #[tauri::command]
 pub fn contents(app: State<'_, Arc<AppState>>) -> ContentsView {
     use meter_core::contents::{ASMODIANS, ELYOS, ODYLE_ENERGY};
     let dungeon = app.engine.meter().dungeon_clock();
+    let odyle = odyle(&app);
     let c = lock(&app.contents);
-    let odyle = c.tickets.get(&ODYLE_ENERGY).map(|t| (t.count.unwrap_or(0), t.charged.unwrap_or(0)));
     let tickets = c
         .tickets
         .values()

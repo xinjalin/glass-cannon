@@ -111,10 +111,13 @@ function reportRects() {
   const panels = shown
     .filter((el) => el.querySelector("iframe") && el.dataset.bare === undefined && !(faded && el.classList.contains("fades")))
     .map(box);
-  const key = JSON.stringify([rects, panels].map((l) => l.map((r) => Object.values(r).map(Math.round))));
+  // Every widget on screen, bare ones too: the menu check leaves them out of the corner
+  // it reads, so a widget there isn't taken for a menu's close X.
+  const drawn = shown.map(box);
+  const key = JSON.stringify([rects, panels, drawn].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
-  invoke("hud_rects", { rects, panels }).catch(() => {});
+  invoke("hud_rects", { rects, panels, drawn }).catch(() => {});
 }
 
 async function loadLayout() {
@@ -338,6 +341,8 @@ tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
 // The world map is open (settings → hide on the world map): every widget steps aside at
 // once, and comes back at once.
 tauri.event.listen("hud-map", (e) => document.documentElement.classList.toggle("map-hidden", !!e.payload));
+// A menu over a party-finder lobby: the meter stays (showing the party), the rest step aside.
+tauri.event.listen("hud-keep-meter", (e) => document.documentElement.classList.toggle("keep-meter", !!e.payload));
 
 $("edit-done").addEventListener("click", () => invoke("hud_edit", { on: false }));
 $("edit-reset").addEventListener("click", () => {

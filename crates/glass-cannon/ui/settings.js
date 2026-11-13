@@ -124,6 +124,13 @@ function drawAppearance(a) {
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
   setToggle("info-bar", a.info_bar);
+  setToggle("show-cp", a.combat_power !== false);
+  setToggle("show-odyle", a.odyle !== false);
+  setToggle("fill-tint", !!a.fill_tint);
+  for (const b of document.querySelectorAll("[data-row-style-choice]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.rowStyleChoice === (a.row_style || "blocks")));
+  }
   fitWindow();
 }
 
@@ -329,6 +336,12 @@ for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }
 $("info-bar").addEventListener("click", () => setAppearance({ infoBar: !state.appearance.info_bar }));
+$("show-cp").addEventListener("click", () => setAppearance({ combatPower: state.appearance.combat_power === false }));
+$("show-odyle").addEventListener("click", () => setAppearance({ odyle: state.appearance.odyle === false }));
+$("fill-tint").addEventListener("click", () => setAppearance({ fillTint: !state.appearance.fill_tint }));
+for (const b of document.querySelectorAll("[data-row-style-choice]")) {
+  b.addEventListener("click", () => setAppearance({ rowStyle: b.dataset.rowStyleChoice }));
+}
 
 for (const b of document.querySelectorAll("[data-scope-choice]")) {
   b.addEventListener("click", async () => {
@@ -611,6 +624,72 @@ loadActionBar();
 setInterval(() => {
   if (!document.hidden) loadActionBar();
 }, 3000);
+
+// ---------------------------------------------------------------- vitals arcs
+
+// How the vitals arcs look (vitals.rs); the widget follows each change at once.
+let vitals = null;
+const VT_ROUND_STEP = 10;
+const VT_TEXT = { min: 50, max: 200, step: 10 };
+const VT_WIDTH = { min: 50, max: 300, step: 25 };
+
+function drawVitals() {
+  const v = vitals;
+  if (!v) return;
+  for (const b of document.querySelectorAll("[data-vt]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(v[b.dataset.vt] === b.dataset.vtValue));
+  }
+  $("vt-round-value").textContent = v.roundness === 0 ? "straight" : `${v.roundness}%`;
+  $("vt-round-down").disabled = v.roundness <= 0;
+  $("vt-round-up").disabled = v.roundness >= 100;
+  $("vt-text-value").textContent = `${v.text_size}%`;
+  $("vt-text-down").disabled = v.text_size <= VT_TEXT.min;
+  $("vt-text-up").disabled = v.text_size >= VT_TEXT.max;
+  $("vt-width-value").textContent = `${v.width}%`;
+  $("vt-width-down").disabled = v.width <= VT_WIDTH.min;
+  $("vt-width-up").disabled = v.width >= VT_WIDTH.max;
+  setToggle("vt-always", v.always_show);
+  setToggle("vt-cast", v.show_cast);
+  // Its look only matters while it shows.
+  for (const b of document.querySelectorAll('[data-vt="cast"]')) b.disabled = !v.show_cast;
+}
+
+async function setVitals(change) {
+  try {
+    vitals = await invoke("set_vitals", { change });
+  } catch {
+    // Unchanged, then.
+  }
+  drawVitals();
+}
+
+for (const b of document.querySelectorAll("[data-vt]")) {
+  const key = { style: "style", numbers: "numbers", text_backing: "textBacking", text_at: "textAt", cast: "cast" }[b.dataset.vt];
+  b.addEventListener("click", () => setVitals({ [key]: b.dataset.vtValue }));
+}
+$("vt-round-down").addEventListener("click", () => vitals && setVitals({ roundness: vitals.roundness - VT_ROUND_STEP }));
+$("vt-round-up").addEventListener("click", () => vitals && setVitals({ roundness: vitals.roundness + VT_ROUND_STEP }));
+$("vt-text-down").addEventListener("click", () => vitals && setVitals({ textSize: vitals.text_size - VT_TEXT.step }));
+$("vt-text-up").addEventListener("click", () => vitals && setVitals({ textSize: vitals.text_size + VT_TEXT.step }));
+$("vt-width-down").addEventListener("click", () => vitals && setVitals({ width: vitals.width - VT_WIDTH.step }));
+$("vt-width-up").addEventListener("click", () => vitals && setVitals({ width: vitals.width + VT_WIDTH.step }));
+$("vt-always").addEventListener("click", () => vitals && setVitals({ alwaysShow: !vitals.always_show }));
+$("vt-cast").addEventListener("click", () => vitals && setVitals({ showCast: !vitals.show_cast }));
+$("vt-reset").addEventListener("click", async () => {
+  try {
+    vitals = await invoke("reset_vitals");
+  } catch {
+    // Unchanged, then.
+  }
+  drawVitals();
+});
+invoke("vitals_setup")
+  .then((v) => {
+    vitals = v;
+    drawVitals();
+  })
+  .catch(() => {});
 
 for (const b of document.querySelectorAll("[data-party-cd-choice]")) {
   b.addEventListener("click", async () => {
