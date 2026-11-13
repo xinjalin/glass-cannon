@@ -292,7 +292,9 @@ name in the game data, so double-click one there to name it.
 ## Windows
 
 The launcher, settings, history, attempts, checklist, black market, map and analysis are windows, with the same lights at
-the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
+the top right of their title bars (keep on top, and close; each with a small mark). The
+launcher also has minimise; the other windows don't, since they have no taskbar button to
+come back from: close one, and its button brings it back. Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
 analysis windows stay tinted enough to read).
