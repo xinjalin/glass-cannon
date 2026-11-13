@@ -8,7 +8,7 @@
   min-width: 0;
   border: 1px solid var(--line-faint);
   border-radius: 0.35em;
-  background: rgba(var(--tint-rgb), 0.35);
+  background: rgba(var(--win-rgb), 0.35);
   overflow: hidden;
   cursor: grab;
 }

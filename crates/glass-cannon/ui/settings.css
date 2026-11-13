@@ -33,7 +33,7 @@ body {
   height: 100%;
   padding: 0 0.8em 0.6em;
   /* Like the analysis window: frosted or clear as chosen, but always tinted enough to read. */
-  background: rgba(var(--tint-rgb), max(var(--alpha), 0.9));
+  background: rgb(var(--win-rgb));
 }
 
 #bar {
@@ -315,7 +315,7 @@ legend {
   padding: 0.35em;
   border: 1px solid var(--line-faint);
   border-radius: 3px;
-  background: rgba(var(--tint-rgb), 0.97);
+  background: rgba(var(--win-rgb), 0.97);
   box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.5);
 }
 .menu-filter {
