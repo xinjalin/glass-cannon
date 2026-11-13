@@ -163,11 +163,12 @@ fn darker(rgb: u32) -> u32 {
     to(rgb >> 16 & 0xff) << 16 | to(rgb >> 8 & 0xff) << 8 | to(rgb & 0xff)
 }
 
-/// Styles a window for the given appearance: its background (frosted, tinted or clear),
-/// small rounded corners, a shadow, and a border in the theme's colour.
+/// Styles a window (settings, history, analysis…) for the given appearance: solid (its
+/// page has its own background, as the launcher's, whatever the background chosen for the
+/// overlay), small rounded corners, a shadow, and a border in the theme's colour.
 pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
     let _ = window.set_shadow(true);
-    frame(window, a.backdrop == "frosted", DWMWCP_ROUNDSMALL, colorref(border_rgb(&a.theme)));
+    frame(window, false, DWMWCP_ROUNDSMALL, colorref(border_rgb(&a.theme)));
 }
 
 /// A blur plate under an overlay widget: Windows' light blur (through the accent API; the

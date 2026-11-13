@@ -37,7 +37,7 @@ body {
   padding: 0 0.9em 0.7em;
   /* Charts need a steady background, so this window stays well tinted whatever the
      background chosen ("clear" only turns off the frosting). */
-  background: rgba(var(--tint-rgb), max(var(--alpha), 0.9));
+  background: rgb(var(--win-rgb));
 }
 
 /* ---------------------------------------------------------------- title bar */
@@ -224,7 +224,7 @@ table.grid {
   padding: 0.4em 0.6em;
   border: 1px solid var(--line-faint);
   border-radius: 3px;
-  background: rgba(var(--tint-rgb), 0.97);
+  background: rgba(var(--win-rgb), 0.97);
   box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.45);
   font-size: 0.9em;
   font-variant-numeric: tabular-nums;
@@ -252,7 +252,7 @@ table.grid {
   padding: 0 0.4em;
   border: 1px solid var(--accent);
   border-radius: 0.25em;
-  background: rgb(var(--tint-rgb));
+  background: rgb(var(--win-rgb));
   color: var(--text);
   font: inherit;
 }
@@ -271,7 +271,7 @@ table.grid {
   padding: 0.55em 0.7em;
   border: 1px solid var(--line);
   border-radius: 0.45em;
-  background: rgba(var(--tint-rgb), 0.98);
+  background: rgba(var(--win-rgb), 0.98);
   box-shadow: 0 0.3em 1.2em rgba(0, 0, 0, 0.5);
   font-size: 0.9em;
   line-height: 1.35;

@@ -114,10 +114,13 @@ function reportRects() {
   // Every widget on screen, bare ones too: the menu check leaves them out of the corner
   // it reads, so a widget there isn't taken for a menu's close X.
   const drawn = shown.map(box);
-  const key = JSON.stringify([rects, panels, drawn].map((l) => l.map((r) => Object.values(r).map(Math.round))));
+  // The meter's own panel: its plate stays while it shows over a party-finder lobby.
+  const meterEl = shown.find((el) => el.dataset.widget === "meter");
+  const meter = meterEl ? box(meterEl) : null;
+  const key = JSON.stringify([rects, panels, drawn, meter ? [meter] : []].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
-  invoke("hud_rects", { rects, panels, drawn }).catch(() => {});
+  invoke("hud_rects", { rects, panels, drawn, meter }).catch(() => {});
 }
 
 async function loadLayout() {

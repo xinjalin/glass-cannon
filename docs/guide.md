@@ -332,8 +332,9 @@ the top right of their title bars (keep on top, and close; each with a small mar
 launcher also has minimise; the other windows don't, since they have no taskbar button to
 come back from: close one, and its button brings it back. Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
-middle of the screen), and takes the background chosen in the settings (the settings and
-analysis windows stay tinted enough to read).
+middle of the screen). Like the launcher, the windows have a solid background of their own
+whatever the theme, tint or background chosen (those are for the overlay's widgets over
+the game); the theme gives their accents.
 
 ## Map
 

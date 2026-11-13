@@ -159,6 +159,8 @@ pub struct AppState {
     hud_panels: Mutex<Vec<hud::HitRect>>,
     /// Every widget on screen (the menu check leaves them out of what it reads).
     hud_drawn: Mutex<Vec<hud::HitRect>>,
+    /// The meter widget's box, when it shows.
+    hud_meter: Mutex<Option<hud::HitRect>>,
     /// The widgets stepped aside for a menu over a party-finder lobby: the meter stays,
     /// showing the party.
     lobby_menu: AtomicBool,
@@ -957,6 +959,7 @@ fn main() {
         hud_rects: Mutex::new(Vec::new()),
         hud_panels: Mutex::new(Vec::new()),
         hud_drawn: Mutex::new(Vec::new()),
+        hud_meter: Mutex::new(None),
         lobby_menu: AtomicBool::new(false),
         hud_editing: AtomicBool::new(false),
         hotkeys_paused: AtomicBool::new(false),

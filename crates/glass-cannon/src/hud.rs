@@ -48,10 +48,11 @@ impl HitRect {
 /// the mouse, every widget's panel (for its frosted plate), and every widget on screen
 /// (left out of the corner the menu check reads).
 #[tauri::command]
-pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>, panels: Option<Vec<HitRect>>, drawn: Option<Vec<HitRect>>) {
+pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>, panels: Option<Vec<HitRect>>, drawn: Option<Vec<HitRect>>, meter: Option<HitRect>) {
     *lock(&app.hud_rects) = rects;
     *lock(&app.hud_panels) = panels.unwrap_or_default();
     *lock(&app.hud_drawn) = drawn.unwrap_or_default();
+    *lock(&app.hud_meter) = meter;
 }
 
 /// How far past its box a widget's glow and shadow can reach, in physical pixels.
@@ -231,7 +232,14 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                     lobby_sent = Some(lobby);
                 }
                 let frosted = lock(&app.settings).appearance.backdrop == "frosted";
-                let wanted: Vec<HitRect> = if shown && frosted && !map { lock(&app.hud_panels).clone() } else { Vec::new() };
+                // Over a lobby's menu only the meter shows, and keeps its plate (without it, a
+                // frosted meter is only its light tint, and looks like another theme).
+                let wanted: Vec<HitRect> = match () {
+                    _ if !shown || !frosted => Vec::new(),
+                    _ if !map => lock(&app.hud_panels).clone(),
+                    _ if lobby => lock(&app.hud_meter).iter().copied().collect(),
+                    _ => Vec::new(),
+                };
                 plates.update(&handle, &w, &wanted);
                 if shown {
                     // The map takes every click while it's open.

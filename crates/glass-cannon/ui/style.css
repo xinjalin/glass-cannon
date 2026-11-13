@@ -29,6 +29,11 @@ body {
   user-select: none;
 }
 
+/* The rows' and the target line's text starts 0.35em in from the panel's edge; the lines in
+   smaller text (the strip on top, the boss, dummy and PvP lines) take the same, in their
+   own size, so their text lines up with it at both ends. */
+:root { --edge-small: calc(0.35em / 0.85); }
+
 /* The bottom padding leaves room for the notice line under the last row. */
 #panel {
   position: relative;
@@ -51,7 +56,7 @@ body {
   gap: 1em;
   height: 1.7em;
   margin: -0.2em 0 0;
-  padding: 0 0.2em;
+  padding: 0 var(--edge-small);
   color: var(--muted);
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
@@ -175,7 +180,7 @@ svg {
   display: flex;
   align-items: center;
   gap: 0.5em;
-  padding: 0 0.3em 0.35em;
+  padding: 0 var(--edge-small) 0.35em;
   margin-top: -0.15em;
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
@@ -194,7 +199,7 @@ svg {
   align-items: center;
   gap: 0.5em;
   height: 1.4em;
-  padding: 0 0.3em 0.35em;
+  padding: 0 var(--edge-small) 0.35em;
   margin-top: -0.15em;
   font-size: 0.85em;
   line-height: 1.4em;
@@ -218,7 +223,7 @@ svg {
   grid-template-columns: minmax(0, 46%) minmax(0, 1fr) 11ch;
   align-items: center;
   gap: 0.5em;
-  padding: 0 0.3em 0.35em;
+  padding: 0 var(--edge-small) 0.35em;
   margin-top: -0.15em;
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
@@ -234,7 +239,7 @@ svg {
   display: flex;
   justify-content: space-between;
   gap: 0.6em;
-  padding: 0 0.3em 0.35em;
+  padding: 0 var(--edge-small) 0.35em;
   margin-top: -0.15em;
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
@@ -357,6 +362,10 @@ svg {
 [data-highlight="all"] .row .class-icon.blank { background: var(--row-ink); }
 
 /* Combat power by the name (settings → combat power), when known. */
+/* On the name's baseline: centred, its digits (taller than most of a name's letters) sat
+   high. */
+.who:has(.cp:not(:empty)) { align-items: baseline; }
+.who:has(.cp:not(:empty)) > .class-icon { align-self: center; }
 .cp { display: none; flex: none; font-size: 0.78em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .show-cp .cp:not(:empty) { display: inline; }
 .cp::after { content: " cp"; font-size: 0.85em; opacity: 0.7; }

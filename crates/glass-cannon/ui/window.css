@@ -1,11 +1,19 @@
-/* The windows' shared frame (settings, history, analysis), in the launcher's style: a
-   raised title bar with the window lights at its right, in Windows' order (minimise, keep
-   on top, close), flat panels and
-   small corners. Loaded after each window's own stylesheet; colours follow the theme. */
+/* The windows' shared frame (settings, history, analysis, attempts, checklist, black
+   market, map), in the launcher's style: a raised title bar with the window lights at its
+   right, flat panels and small corners. Loaded after each window's own stylesheet.
 
-:root {
+   Their background is their own, as the launcher's: solid and the same whatever the
+   theme, tint or background chosen (those are for the overlay over the game; a window
+   is read on its own, and a see-through or blurred one was hard to read). The theme gives
+   their accents. More specific than theme.css's theme and background rules, so it wins
+   over them. */
+html:not(.widget) {
+  --win-rgb: 16, 19, 23;
+  --tint: rgb(var(--win-rgb));
+  --tint-strong: rgb(var(--win-rgb));
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   /* A step lighter than the window, for the title and footer bars. */
-  --raised: color-mix(in srgb, rgb(var(--tint-rgb)) 91%, white);
+  --raised: #15181c;
   --frame-x: 0.9em;
 }
 
