@@ -8,7 +8,7 @@
 //!   skills.json    { "skills": { "18010340": { "name": "…", "icon": "1801.png" } } }
 //!   npcs.json      { "npcs":   { "2400009":  { "name": "…", "boss": true } } }
 //!   npc-names.json { "npcs":   { "2950865": "Elvida" } }   NPCs the mob lists don't name
-//!   boss-skills.json { "skills": { "1801969": "Abyssal Gaze" } }  boss skills skills.json calls "Attack"
+//!   boss-skills.json { "skills": { "1801969": "Abyssal Gaze" } }  the game's names for boss and mob skills
 //!   1801.png …     skill icons
 //!   class_18.webp  class icons, by class code
 //!   skill-details.json  { "skills": { "18010000": { "cooldown_s": 15, "specs": […] } } }
@@ -164,17 +164,16 @@ struct BossSkillFile {
     skills: BTreeMap<u32, String>,
 }
 
-/// Names a mob skill the data has no name for, or only "Attack". A skill not in the data
-/// keeps the icon its base skill would have given it (as [`GameData::resolve_skill`] finds it).
+/// Gives a mob skill the game's own name (boss-skills.json has them only where skills.json
+/// has none, only "Attack", or another: its names are NOIA2's, and "Purple Bolt" was the
+/// game's "Ludra's Trial"). A skill not in the data keeps the icon its base skill would
+/// have given it (as [`GameData::resolve_skill`] finds it).
 fn name_mob_skill(skills: &mut BTreeMap<u32, Entry>, id: u32, name: String) {
     if id >= PLAYER_SKILL_MIN || name.is_empty() {
         return;
     }
     let icon = [id - id % 100, id - id % 10_000].iter().find_map(|k| skills.get(k)).and_then(|e| e.icon.clone());
-    let e = skills.entry(id).or_insert_with(|| Entry { icon, ..Entry::default() });
-    if e.name.is_empty() || e.name == "Attack" {
-        e.name = name;
-    }
+    skills.entry(id).or_insert_with(|| Entry { icon, ..Entry::default() }).name = name;
 }
 
 /// A training dummy (the Training Scarecrow).
@@ -411,7 +410,8 @@ impl GameData {
                             e.name = name;
                         }
                     }
-                    // Boss and mob skills' names fill in the ones the data only calls "Attack".
+                    // The game's own names for boss and mob skills, where the data has none,
+                    // only "Attack", or another.
                     let boss_skills = read_json::<BossSkillFile>(&dir.join(BOSS_SKILLS_FILE)).unwrap_or_default();
                     for (id, name) in boss_skills.skills {
                         name_mob_skill(&mut self.skills.skills, id, name);
@@ -489,14 +489,22 @@ impl GameData {
         &self.dir
     }
 
-    /// A skill's entry: its exact ID first, then its base skill (variants differ in the
-    /// last digits, e.g. 11100048 -> 11100000). Theostones come in as 7 digits (3001015)
-    /// but the data lists them by their effect ID, one digit longer (30010151).
+    /// A skill's entry: its exact ID first, then, for a player's skill, its base skill
+    /// (variants differ in the last digits, e.g. 11100048 -> 11100000). Theostones come in
+    /// as 7 digits (3001015) but the data lists them by their effect ID, one digit longer
+    /// (30010151).
+    ///
+    /// A mob's skill is only ever its own entry: its neighbours are other moves, not
+    /// variants. Going by the base, every cast of the Central Abyss Fusion Reactor (1802510
+    /// to 1802580, none in the data) was named after 1802500, "Shatter Ground", and Eternal
+    /// Ludra's 1803050 to 1803090 "Supply Eldritch Energy" (1803000), in the boss warnings
+    /// and death recaps of the Ludra raid (2026-11-13).
     fn resolve_skill(&self, id: u32) -> Option<(u32, &Entry)> {
         let theostone = THEOSTONE_SKILLS.contains(&id).then(|| id * 10 + 1);
-        [Some(id), Some(id - id % 100), Some(id - id % 10_000), theostone]
-            .into_iter()
-            .flatten()
+        let bases = (id >= PLAYER_SKILL_MIN).then_some([id - id % 100, id - id % 10_000]);
+        std::iter::once(id)
+            .chain(bases.into_iter().flatten())
+            .chain(theostone)
             .find_map(|k| self.skills.skills.get(&k).map(|e| (k, e)))
     }
 
@@ -719,9 +727,13 @@ impl GameData {
     }
 
     /// A boss skill's name: the data names most mob skills only "Attack", which says
-    /// nothing, so that counts as no name (yours from names.json still does).
+    /// nothing, so that counts as no name (yours from names.json still does). For those,
+    /// our own label for the move when we have one (boss-mechanics.json's `labels`).
     pub fn boss_skill_name(&self, skill: u32) -> Option<String> {
-        self.skill_meta(skill).0.filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
+        self.skill_meta(skill)
+            .0
+            .filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
+            .or_else(|| self.mechanics.labels.get(&skill).cloned())
     }
 
     /// Names a skill (an empty name goes back to the data's name). Saved to names.json.
@@ -980,17 +992,18 @@ mod tests {
     }
 
     #[test]
-    fn boss_skill_names_fill_in_attack() {
+    fn boss_skills_take_the_games_names() {
         let dir = temp_dir("boss-skills");
         fs::write(
             dir.join(SKILLS_FILE),
             r#"{ "skills": { "11100000": { "name": "Ruinous Blow" }, "1801900": { "name": "Attack", "icon": "1801.png" },
-                 "1801840": { "name": "Attack" }, "1218170": { "name": "Claw Swipe" } } }"#,
+                 "1801840": { "name": "Attack" }, "1218170": { "name": "Claw Swipe" }, "1803010": { "name": "Purple Bolt" } } }"#,
         )
         .unwrap();
         fs::write(
             dir.join(BOSS_SKILLS_FILE),
-            r#"{ "skills": { "1801969": "Abyssal Gaze", "1801840": "Smash", "1218170": "Rake", "11100000": "Not this" } }"#,
+            r#"{ "skills": { "1801969": "Abyssal Gaze", "1801840": "Smash", "1218170": "Rake", "1803010": "Ludra's Trial",
+                             "11100000": "Not this" } }"#,
         )
         .unwrap();
         let d = GameData::load_first(vec![dir.clone()]);
@@ -998,9 +1011,46 @@ mod tests {
         assert_eq!(d.boss_skill_name(1_801_969).as_deref(), Some("Abyssal Gaze"));
         assert_eq!(d.skill_meta(1_801_969).1, Some(1_801_969));
         assert_eq!(d.boss_skill_name(1_801_840).as_deref(), Some("Smash"));
-        // A name the skill data has stays, and player skills are never renamed.
-        assert_eq!(d.boss_skill_name(1_218_170).as_deref(), Some("Claw Swipe"));
+        // Where the skill data had another name, the game's (NCSOFT's notes say "Ludra's Trial").
+        assert_eq!(d.boss_skill_name(1_218_170).as_deref(), Some("Rake"));
+        assert_eq!(d.boss_skill_name(1_803_010).as_deref(), Some("Ludra's Trial"));
+        // Player skills are never renamed.
         assert_eq!(d.skill_meta(11_100_000).0.as_deref(), Some("Ruinous Blow"));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_boss_skill_is_never_named_after_its_neighbour() {
+        let dir = temp_dir("boss-neighbours");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": { "1802500": { "name": "Shatter Ground", "icon": "1802.png" }, "1803000": { "name": "Supply Eldritch Energy" },
+                 "11100000": { "name": "Ruinous Blow" } } }"#,
+        )
+        .unwrap();
+        fs::write(dir.join("1802.png"), b"png").unwrap();
+        fs::write(
+            dir.join(MECHANICS_FILE),
+            r#"{ "labels": { "1803200": "raid-wide blast", "1802500": "not this: the game names it" } }"#,
+        )
+        .unwrap();
+        let mut d = GameData::load_first(vec![dir.clone()]);
+        // The Fusion Reactor's casts and Eternal Ludra's (2026-11-13): none in the data. They
+        // were "Shatter Ground" and "Supply Eldritch Energy", after 1802500 and 1803000.
+        for skill in [1_802_510, 1_802_555, 1_802_580, 1_803_050, 1_803_080] {
+            assert_eq!((d.skill_meta(skill).0, d.boss_skill_name(skill)), (None, None), "{skill}");
+        }
+        // They still get their family's icon.
+        assert!(d.skill_icon(1_802_510).is_some());
+        // The ones the data does name keep their names; a player skill's variant its base's.
+        assert_eq!(d.boss_skill_name(1_802_500).as_deref(), Some("Shatter Ground"));
+        assert_eq!(d.skill_meta(11_100_048).0.as_deref(), Some("Ruinous Blow"));
+        // A move the game doesn't name takes our label, until you name it yourself.
+        assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("raid-wide blast"));
+        assert_eq!(d.skill_meta(1_803_200).0, None, "a label is for the boss's casts only");
+        d.names_path = Some(dir.join("names.json"));
+        d.rename_skill(1_803_200, "Big Boom").unwrap();
+        assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("Big Boom"));
         fs::remove_dir_all(dir).ok();
     }
 

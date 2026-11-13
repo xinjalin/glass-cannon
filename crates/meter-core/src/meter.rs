@@ -42,6 +42,12 @@ const TELEGRAPH_WINDOW_US: u64 = 5_000_000;
 const AFTER_DEATH_US: u64 = 10_000_000;
 /// Deaths remembered this long, then forgotten (entity IDs get reused).
 const DEATHS_KEPT_US: u64 = 120_000_000;
+/// After a wipe, what still lands on the boss doesn't start another try: a hit already on
+/// its way for this long, damage over time still ticking for this long. (In the Ludra raid
+/// on 2026-11-13, a tick a second after a wipe on Ketu made a one-hit "fight" that ended as
+/// a second wipe, and counted as a try.)
+const AFTER_WIPE_HIT_US: u64 = 5_000_000;
+const AFTER_WIPE_TICK_US: u64 = 30_000_000;
 /// A death recap lists this many of the last hits.
 const RECAP_HITS: usize = 12;
 /// Pings kept for the median.
@@ -859,6 +865,8 @@ pub struct Meter {
     combat: HashMap<u64, (bool, u64)>,
     /// When things died (pruned after [`DEATHS_KEPT_US`]).
     died: HashMap<u64, u64>,
+    /// Bosses that just wiped you, and when (kept [`AFTER_WIPE_TICK_US`]).
+    wiped: HashMap<u64, u64>,
     /// When bosses go berserk (ms since 1970).
     berserk: HashMap<u64, u64>,
     /// The game's pings coming back: (arrival, when the client sent it on its clock).
@@ -935,6 +943,7 @@ impl Meter {
             bosses: HashSet::new(),
             combat: HashMap::new(),
             died: HashMap::new(),
+            wiped: HashMap::new(),
             berserk: HashMap::new(),
             pings: VecDeque::new(),
             cooldowns: Cooldowns::default(),
@@ -1446,6 +1455,7 @@ impl Meter {
                 self.hp = HpLog::default();
                 self.combat.clear();
                 self.died.clear();
+                self.wiped.clear();
                 self.berserk.clear();
                 self.aggro.clear();
                 self.stagger.clear();
@@ -1602,8 +1612,13 @@ impl Meter {
         // join a fight it wasn't in either: in Fire Temple a hit landing just after Black
         // Smoke Murute died made it look alive in the next fight.
         let corpse = self.died.get(&ev.target).is_some_and(|d| ts_us.saturating_sub(*d) < AFTER_DEATH_US);
+        // Nor does what still lands on a boss that has just wiped you start another try.
+        let after_wipe = self
+            .wiped
+            .get(&ev.target)
+            .is_some_and(|at| ts_us.saturating_sub(*at) < if ev.is_dot { AFTER_WIPE_TICK_US } else { AFTER_WIPE_HIT_US });
         match &self.current {
-            None if dmg <= 1 || corpse || !player => return,
+            None if dmg <= 1 || corpse || after_wipe || !player => return,
             Some(enc) if corpse && !enc.targets.contains_key(&ev.target) => return,
             _ => {}
         }
@@ -1891,6 +1906,11 @@ impl Meter {
                 self_name: self.registry.self_name().map(str::to_string),
                 analysis: self.analyse(enc, false, now_us),
             });
+        }
+        if end == FightEnd::Wipe {
+            let bosses: Vec<u64> = self.counted_targets(enc).into_iter().filter(|t| self.is_boss(*t)).collect();
+            self.wiped.retain(|_, at| now_us.saturating_sub(*at) < AFTER_WIPE_TICK_US);
+            self.wiped.extend(bosses.into_iter().map(|b| (b, now_us)));
         }
         self.last = self.current.take();
         self.completed += 1;
@@ -3124,6 +3144,34 @@ mod tests {
         assert!(ends(&mut m).is_empty());
         m.feed(5 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
         assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+    }
+
+    #[test]
+    fn what_still_lands_after_a_wipe_is_not_another_try() {
+        let mut m = meter_with_boss();
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(BOSS, 71_643));
+        m.feed(5 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
+        assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+        // A second later: your damage over time ticks on it, and a hit already on its way
+        // lands. Then its HP is sent again, still full.
+        let mut tick = encode_varint(BOSS);
+        tick.push(0x0a);
+        tick.extend(encode_varint(ME));
+        tick.extend(encode_varint(1));
+        tick.extend(0u32.to_le_bytes());
+        tick.extend(encode_varint(328));
+        tick.extend(18_730_002u32.to_le_bytes());
+        m.feed(6 * S, OPCODE_DOT, &tick);
+        m.feed(6 * S + 200_000, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 900));
+        m.feed(7 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_000));
+        m.feed(8 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
+        assert!(ends(&mut m).is_empty(), "no one-hit fight, no second wipe");
+        // A tick 20 s on still doesn't; the next pull's first hit does.
+        m.feed(26 * S, OPCODE_DOT, &tick);
+        assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+        m.feed(27 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        assert!(m.snapshot().encounter.is_some_and(|e| e.active && e.total_damage == 5000));
     }
 
     #[test]

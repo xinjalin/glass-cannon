@@ -26,6 +26,11 @@ pub struct Book {
     /// the settings still win.
     #[serde(default)]
     pub warn_casts: Vec<u32>,
+    /// Our own short labels for boss skills the game itself only calls "Attack" (what the
+    /// move does, from our runs: "raid-wide blast"). A name from the game, or one you gave
+    /// the skill, always comes first.
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<u32, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
