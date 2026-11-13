@@ -146,6 +146,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             let mut show_wanted = false;
             // What the page was last told about the world map.
             let mut map_sent: Option<bool> = None;
+            // What it was last told about keeping the meter over a lobby.
+            let mut lobby_sent: Option<bool> = None;
             let mut plates = Plates::default();
             let mut tick = 0u32;
             // The game itself in front (not one of our windows), for the menu check.
@@ -221,6 +223,13 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);
                 }
+                // A menu over a party-finder lobby (its group not started): the meter stays,
+                // showing the party, to check everyone's combat power and gear score there.
+                let lobby = map && !hidden && !world_map && menu && in_lobby(&app);
+                app.lobby_menu.store(lobby, Ordering::SeqCst);
+                if lobby_sent != Some(lobby) && handle.emit_to(HUD, "hud-keep-meter", lobby).is_ok() {
+                    lobby_sent = Some(lobby);
+                }
                 let frosted = lock(&app.settings).appearance.backdrop == "frosted";
                 let wanted: Vec<HitRect> = if shown && frosted && !map { lock(&app.hud_panels).clone() } else { Vec::new() };
                 plates.update(&handle, &w, &wanted);
@@ -244,6 +253,12 @@ pub fn on_world_map(app: &AppState) -> bool {
     // settings, so holding both here the other way round could deadlock.
     let hide = lock(&app.settings).hide_on_world_map;
     hide && app.engine.meter().world_map_open(app.engine.now())
+}
+
+/// In a party-finder group that hasn't started: someone in it has a ready mark (the game
+/// sends them only then).
+pub fn in_lobby(app: &AppState) -> bool {
+    app.engine.meter().registry().party().iter().any(|m| m.ready.is_some())
 }
 
 /// Replaying: the launcher's screen stands in for the game's picture.

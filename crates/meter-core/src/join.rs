@@ -126,6 +126,7 @@ fn join_rows<'a>(lists: impl Iterator<Item = &'a Vec<PlayerRow>>, duration_s: f6
         }
         r.is_self |= row.is_self;
         r.class_code = r.class_code.or(row.class_code);
+        r.combat_power = r.combat_power.or(row.combat_power);
         if r.class_name.is_none() {
             r.class_name.clone_from(&row.class_name);
         }
@@ -200,6 +201,7 @@ mod tests {
             hits: 2,
             max_hit: damage / 2,
             outcomes: Outcomes { crits: 1, ..Outcomes::default() },
+            combat_power: None,
             skills: vec![SkillRow {
                 skill,
                 name: None,

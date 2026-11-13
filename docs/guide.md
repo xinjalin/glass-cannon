@@ -175,7 +175,16 @@ background, Windows lightly blurs the game behind each widget.
 - **dmg / heal / taken / party**: damage dealt, healing done (heals over time and
   self-heals), damage taken from mobs, or your party with each member's combat power and
   gear score, and a ✓ for who's readied up in the party finder. A line under the meter says
-  who joins, leaves or readies up.
+  who joins, leaves or readies up. In a party-finder lobby (before the group starts), when
+  a game menu opens and the other widgets step aside, the meter stays and shows the party,
+  so everyone's combat power and gear score can be checked from the lobby screen.
+- Each player's **combat power** shows by their name (settings → meter → combat power):
+  your party's from its roster, anyone else's from when they came into view, yours from
+  your login or zone change. **Odyle energy** (settings → meter; charged in brackets) shows
+  on the strip at the meter's top, as the game last sent it (at login and as it changes).
+- The rows show each player's share as a strip of **blocks**, or as **bars**: the row
+  itself filled that far (settings → appearance → rows). **See-through highlight** makes
+  the filled rows as see-through as the tint.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live

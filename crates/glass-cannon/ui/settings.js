@@ -124,6 +124,13 @@ function drawAppearance(a) {
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
   setToggle("info-bar", a.info_bar);
+  setToggle("show-cp", a.combat_power !== false);
+  setToggle("show-odyle", a.odyle !== false);
+  setToggle("fill-tint", !!a.fill_tint);
+  for (const b of document.querySelectorAll("[data-row-style-choice]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.rowStyleChoice === (a.row_style || "blocks")));
+  }
   fitWindow();
 }
 
@@ -329,6 +336,12 @@ for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }
 $("info-bar").addEventListener("click", () => setAppearance({ infoBar: !state.appearance.info_bar }));
+$("show-cp").addEventListener("click", () => setAppearance({ combatPower: state.appearance.combat_power === false }));
+$("show-odyle").addEventListener("click", () => setAppearance({ odyle: state.appearance.odyle === false }));
+$("fill-tint").addEventListener("click", () => setAppearance({ fillTint: !state.appearance.fill_tint }));
+for (const b of document.querySelectorAll("[data-row-style-choice]")) {
+  b.addEventListener("click", () => setAppearance({ rowStyle: b.dataset.rowStyleChoice }));
+}
 
 for (const b of document.querySelectorAll("[data-scope-choice]")) {
   b.addEventListener("click", async () => {

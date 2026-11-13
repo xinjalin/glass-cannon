@@ -262,7 +262,9 @@ function rowFor(id) {
   const who = el("span", "who");
   const badge = el("span", "class-icon blank");
   const name = el("span", "name");
-  who.append(badge, name);
+  const cp = el("span", "cp");
+  cp.title = "Combat power";
+  who.append(badge, name, cp);
   const meter = el("span", "meter");
   const segs = Array.from({ length: SEGMENTS }, () => el("span", "seg"));
   meter.append(...segs);
@@ -276,7 +278,7 @@ function rowFor(id) {
     e.preventDefault();
     openAnalysis(id);
   });
-  r = { row, rank, badge, name, segs, dps, share, skills: null, shown: {} };
+  r = { row, rank, badge, name, cp, segs, dps, share, skills: null, shown: {} };
   rowCache.set(id, r);
   return r;
 }
@@ -312,8 +314,11 @@ function drawRows(enc) {
       if (n) r.name.dataset.deaths = n > 1 ? String(n) : "";
       else delete r.name.dataset.deaths;
     });
+    update(r, "cp", p.combat_power ? fmt(p.combat_power) : "", (v) => (r.cp.textContent = v));
     const lit = Math.max(1, Math.round((p.dps / top) * SEGMENTS));
     update(r, "lit", lit, (v) => r.segs.forEach((seg, s) => seg.classList.toggle("on", s < v)));
+    // How far the row fills, with rows as bars.
+    update(r, "pct", `${Math.min(100, (p.dps / top) * 100).toFixed(1)}%`, (v) => r.row.style.setProperty("--pct", v));
     update(r, "dps", fmtRate(p.dps), (v) => (r.dps.textContent = v));
     update(r, "share", `${(p.share * 100).toFixed(0)}%`, (v) => (r.share.textContent = v));
     // The skill list, when open: rebuilt only when something in it changed.
@@ -391,6 +396,7 @@ function drawParty(party) {
     const meter = el("span", "meter");
     const lit = m.combat_power ? Math.max(1, Math.round((m.combat_power / top) * SEGMENTS)) : 0;
     for (let s = 0; s < SEGMENTS; s++) meter.append(el("span", s < lit ? "seg on" : "seg"));
+    row.style.setProperty("--pct", `${m.combat_power ? ((m.combat_power / top) * 100).toFixed(1) : 0}%`);
     const who = el("span", "who");
     who.append(classBadge(m), el("span", "name", m.name));
     if (m.leader) {
@@ -606,7 +612,8 @@ let lastCombatAt = Date.now();
 let fadedSent = null;
 function fadeOutsideCombat(view) {
   const enc = view.meter.encounter;
-  if (view.meter.in_combat || (enc && enc.active) || mode !== "live") lastCombatAt = Date.now();
+  // Over a party-finder lobby the meter is there to be read: not faded.
+  if (view.meter.in_combat || (enc && enc.active) || mode !== "live" || view.lobby_menu) lastCombatAt = Date.now();
   const after = (view.hide_after_s || 0) * 1000;
   const faded = after > 0 && Date.now() - lastCombatAt > after;
   if (faded === fadedSent) return;
@@ -897,7 +904,8 @@ const bossBarRoom = () => !!(lastView && lastView.boss_hp);
 const bossCastRoom = () => bossBarRoom() && !!lastView.boss_casts;
 
 function fitHeight(a) {
-  const key = `${a.font_size}|${a.font}|${a.info_bar}|${bossBarRoom()}|${bossCastRoom()}`;
+  const strip = a.info_bar || (a.odyle !== false && !!(lastView && lastView.odyle));
+  const key = `${a.font_size}|${a.font}|${strip}|${bossBarRoom()}|${bossCastRoom()}`;
   if (key === fitFor) return;
   fitFor = key;
   requestAnimationFrame(() => {
@@ -913,6 +921,17 @@ function fitHeight(a) {
 function drawStatus(view) {
   const { status, meter } = view;
   drawScope(meter, view.auto_scope);
+
+  // Your Odyle energy on the strip (shown for it even with the time & ping bar off).
+  const od = view.appearance.odyle !== false ? view.odyle : null;
+  document.documentElement.classList.toggle("odyle-strip", !!od);
+  const odyle = $("info-odyle");
+  const odKey = od ? od.join("/") : "";
+  if (odyle.dataset.shown !== odKey) {
+    odyle.dataset.shown = odKey;
+    odyle.replaceChildren();
+    if (od) odyle.append(el("span", "stat-tag", "odyle"), fmt(od[0]), " ", el("span", "charged", `(+${fmt(od[1])})`));
+  }
 
   const ms = view.ping_ms;
   const infoPing = $("info-ping");
@@ -956,7 +975,9 @@ function redraw() {
   if (lastView) drawStatus(lastView);
 
   const party = (lastView && lastView.meter.party) || [];
-  if (live && meterView() === "party") {
+  // The party view as chosen, or over a party-finder lobby's menu (the other widgets step
+  // aside then; the meter stays to show everyone's combat power and gear score).
+  if (live && (meterView() === "party" || (lastView && lastView.lobby_menu && party.length))) {
     $("totals").hidden = true;
     $("boss-bar").hidden = true;
     $("boss-cast").hidden = true;

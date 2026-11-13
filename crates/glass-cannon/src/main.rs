@@ -159,6 +159,9 @@ pub struct AppState {
     hud_panels: Mutex<Vec<hud::HitRect>>,
     /// Every widget on screen (the menu check leaves them out of what it reads).
     hud_drawn: Mutex<Vec<hud::HitRect>>,
+    /// The widgets stepped aside for a menu over a party-finder lobby: the meter stays,
+    /// showing the party.
+    lobby_menu: AtomicBool,
     hud_editing: AtomicBool,
     /// A hotkey is being picked in the settings: none go off meanwhile.
     hotkeys_paused: AtomicBool,
@@ -257,6 +260,10 @@ struct View {
     dummy: Option<dummy::DummyLive>,
     /// World PvP: the PvP session going on (fights with players outside your party).
     pvp: Option<meter_core::pvp::PvpSession>,
+    /// Your Odyle energy as the game last sent it: basic and charged.
+    odyle: Option<(u32, u32)>,
+    /// A menu over a party-finder lobby: the meter stays up and shows the party.
+    lobby_menu: bool,
 }
 
 /// A boss's next cast, as it came the last time you fought it.
@@ -573,6 +580,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         souls,
         dummy,
         pvp: pvp_now,
+        odyle: widgets::odyle(&app),
+        lobby_menu: app.lobby_menu.load(Ordering::SeqCst),
     }
 }
 
@@ -948,6 +957,7 @@ fn main() {
         hud_rects: Mutex::new(Vec::new()),
         hud_panels: Mutex::new(Vec::new()),
         hud_drawn: Mutex::new(Vec::new()),
+        lobby_menu: AtomicBool::new(false),
         hud_editing: AtomicBool::new(false),
         hotkeys_paused: AtomicBool::new(false),
         hotkey_states: Mutex::new(std::collections::BTreeMap::new()),

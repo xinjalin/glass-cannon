@@ -617,6 +617,21 @@ All 1,333 in the Vakron capture parse this way and match the roster's numbers. S
 member, leave) and in the expedition capture (several groups joined and left). A `0x9702`
 without your own name is someone else's group and is ignored.
 
+## Combat power in spawns (confirmed)
+
+- **`0x3645`** (a player comes into view): their combat power is a u64 just before the
+  end, then a byte (how they died) and maybe one more. Its last flag is a bit in an
+  earlier flag byte when one has a bit free, else a byte of its own, so the u64 is 9 or
+  10 bytes from the end. On our captures (2026-11-07, the Abyss; 2026-11-13, the Ludra
+  raid; 46,526 spawns): one of the two reads is a combat power in all but 2; both are in
+  279, each the other shifted a byte, and the one between 40,000 and 2,000,000 is right
+  (the party roster agrees).
+- **`0x3633`** (you): your combat power is a u64 81 bytes from the end, then your highest
+  (a u64, never lower): 115 of 118; the other 3 read as nothing.
+
+The field's place came from Questlog (its CharAppear_NT and MyCharAppear_NT); the offsets
+and checks are ours.
+
 ## HP: opcode `0x8d00` (confirmed)
 
 NOIA2's notes call this "remaining HP of an entity". Worked out again from our captures:

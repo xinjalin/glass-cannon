@@ -57,7 +57,14 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.info-bar #info { display: flex; }
+.info-bar #info,
+.odyle-strip #info { display: flex; }
+/* Only Odyle energy (the time & ping bar off): on its own at the left. */
+html:not(.info-bar) #info-time,
+html:not(.info-bar) #info-ping { display: none; }
+#info-odyle { color: var(--text); }
+#info-odyle .charged { color: var(--accent-2); }
+#info-odyle .stat-tag { margin-right: 0.4em; }
 #info-ping { color: var(--accent-2); }
 #info-ping.good { color: var(--ok); }
 #info-ping.high { color: var(--warn); }
@@ -348,6 +355,54 @@ svg {
 [data-highlight="all"] .row .class-icon { filter: none; }
 [data-highlight="self"] .row.self .class-icon.blank,
 [data-highlight="all"] .row .class-icon.blank { background: var(--row-ink); }
+
+/* Combat power by the name (settings → combat power), when known. */
+.cp { display: none; flex: none; font-size: 0.78em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.show-cp .cp:not(:empty) { display: inline; }
+.cp::after { content: " cp"; font-size: 0.85em; opacity: 0.7; }
+[data-highlight="self"] .row.self .cp,
+[data-highlight="all"] .row .cp { color: var(--row-ink); opacity: 0.85; }
+
+/* See-through highlight (settings → see-through highlight): the filled rows as see-through
+   as the tint. Below half, the text on them is the usual light text. */
+.fill-tint[data-highlight="self"] .row.self .line,
+.fill-tint[data-highlight="self"] .row.self:hover .line,
+.fill-tint[data-highlight="all"] .row .line { background: color-mix(in srgb, var(--row) calc(var(--alpha) * 100%), transparent); }
+.thin-fill[data-highlight="self"] .row.self .line,
+.thin-fill[data-highlight="all"] .row .line { color: var(--text); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85); }
+.thin-fill[data-highlight="self"] .row.self :is(.dps, .rank),
+.thin-fill[data-highlight="all"] .row :is(.dps, .rank) { color: var(--accent-2); }
+.thin-fill[data-highlight="self"] .row.self :is(.share, .cp),
+.thin-fill[data-highlight="all"] .row :is(.share, .cp) { color: var(--muted); }
+.thin-fill[data-highlight="self"] .row.self .seg.on,
+.thin-fill[data-highlight="all"] .row .seg.on { background: var(--text); }
+
+/* Rows as bars (settings → rows): no blocks; each row is filled as far as its share of the
+   top player's (--pct, set by app.js), the highlighted ones stronger. The text is the
+   usual light text over both parts. */
+[data-row-style="fill"] .row { --fill: 32%; }
+[data-row-style="fill"][data-highlight="self"] .row.self,
+[data-row-style="fill"][data-highlight="all"] .row { --fill: 62%; }
+.fill-tint[data-row-style="fill"] .row { --fill: calc(var(--alpha) * 50%); }
+.fill-tint[data-row-style="fill"][data-highlight="self"] .row.self,
+.fill-tint[data-row-style="fill"][data-highlight="all"] .row { --fill: calc(var(--alpha) * 100%); }
+[data-row-style="fill"] .meter { display: none; }
+[data-row-style="fill"] .line { grid-template-columns: 1.3em minmax(0, 1fr) 4.2em 3.3em; }
+[data-row-style="fill"] .party-row .line { grid-template-columns: 1.3em minmax(0, 1fr) 4.6em 4.4em; }
+[data-row-style="fill"][data-highlight] .row .line,
+[data-row-style="fill"][data-highlight] .row:hover .line {
+  background: linear-gradient(to right, color-mix(in srgb, var(--row) var(--fill), transparent) var(--pct, 0%), var(--line-faint) var(--pct, 0%));
+  color: var(--text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  filter: none;
+}
+[data-row-style="fill"][data-highlight] .row .dps { color: var(--accent-2); }
+[data-row-style="fill"][data-highlight] .row .share,
+[data-row-style="fill"][data-highlight] .row .cp { color: var(--muted); opacity: 1; }
+[data-row-style="fill"][data-highlight] .row .rank { color: var(--faint); }
+[data-row-style="fill"][data-highlight] .row.self .rank::before { color: var(--accent-2); }
+[data-row-style="fill"][data-highlight] .row .class-icon.blank { background: var(--row); }
+[data-row-style="fill"][data-highlight] .row .name[data-deaths]::after { color: var(--bad); }
 
 /* ---------------------------------------------------------------- skill breakdown */
 

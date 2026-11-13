@@ -278,6 +278,9 @@ pub const DEFAULT_REFRESH_MS: u32 = 500;
 pub const THEMES: [&str; 7] = ["night", "rose", "lavender", "mint", "sky", "amber", "mono"];
 pub const HIGHLIGHTS: [&str; 3] = ["self", "all", "off"];
 pub const BACKDROPS: [&str; 3] = ["frosted", "tinted", "clear"];
+/// How the meter's rows show each player's share: a strip of blocks beside the numbers, or
+/// the row itself filled that far.
+pub const ROW_STYLES: [&str; 2] = ["blocks", "fill"];
 /// Bar colours: follow the theme, each player's class, or one of the theme colours.
 pub const BAR_COLORS: [&str; 8] = ["theme", "class", "rose", "lavender", "mint", "sky", "amber", "mono"];
 pub const FONT_SIZES: std::ops::RangeInclusive<u8> = 10..=18;
@@ -316,6 +319,18 @@ pub struct Appearance {
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
+    /// One of [`ROW_STYLES`].
+    #[serde(default = "default_row_style")]
+    pub row_style: String,
+    /// The rows' fill as see-through as the tint (else solid).
+    #[serde(default)]
+    pub fill_tint: bool,
+    /// Each player's combat power by their name on the meter.
+    #[serde(default = "default_true")]
+    pub combat_power: bool,
+    /// Your Odyle energy on the meter's top strip.
+    #[serde(default = "default_true")]
+    pub odyle: bool,
 }
 
 /// A colour picked by hand: `#` and six hex digits.
@@ -344,6 +359,9 @@ fn default_opacity() -> u8 {
 fn default_backdrop() -> String {
     "frosted".into()
 }
+fn default_row_style() -> String {
+    ROW_STYLES[0].into()
+}
 
 impl Default for Appearance {
     fn default() -> Self {
@@ -357,6 +375,10 @@ impl Default for Appearance {
             opacity: default_opacity(),
             backdrop: default_backdrop(),
             info_bar: false,
+            row_style: default_row_style(),
+            fill_tint: false,
+            combat_power: true,
+            odyle: true,
         }
     }
 }
@@ -375,6 +397,10 @@ pub struct AppearanceChange {
     pub opacity: Option<i64>,
     pub backdrop: Option<String>,
     pub info_bar: Option<bool>,
+    pub row_style: Option<String>,
+    pub fill_tint: Option<bool>,
+    pub combat_power: Option<bool>,
+    pub odyle: Option<bool>,
 }
 
 impl Appearance {
@@ -404,6 +430,18 @@ impl Appearance {
         if let Some(v) = c.info_bar {
             self.info_bar = v;
         }
+        if let Some(r) = c.row_style.filter(|r| ROW_STYLES.contains(&r.as_str())) {
+            self.row_style = r;
+        }
+        if let Some(v) = c.fill_tint {
+            self.fill_tint = v;
+        }
+        if let Some(v) = c.combat_power {
+            self.combat_power = v;
+        }
+        if let Some(v) = c.odyle {
+            self.odyle = v;
+        }
     }
 
     /// Repairs values from a hand-edited or older settings file.
@@ -432,6 +470,9 @@ impl Appearance {
         }
         if !BACKDROPS.contains(&self.backdrop.as_str()) {
             self.backdrop = fixed.backdrop;
+        }
+        if !ROW_STYLES.contains(&self.row_style.as_str()) {
+            self.row_style = fixed.row_style;
         }
         self
     }
@@ -1510,11 +1551,22 @@ mod tests {
             opacity: Some(0),
             backdrop: Some("clear".into()),
             info_bar: Some(true),
+            row_style: Some("fill".into()),
+            fill_tint: Some(true),
+            combat_power: Some(false),
+            odyle: Some(false),
         });
+        assert_eq!((s.appearance.row_style.as_str(), s.appearance.fill_tint, s.appearance.combat_power, s.appearance.odyle), ("fill", true, false, false));
+        // An unknown row style is ignored.
+        s.appearance.update(AppearanceChange { row_style: Some("wavy".into()), ..Default::default() });
+        assert_eq!(s.appearance.row_style, "fill");
         s.save(&dir);
         let again = Settings::load(&dir);
         assert!(again.record);
         assert_eq!(again.appearance, s.appearance);
+        // Older settings files: combat power and Odyle energy on, rows as blocks.
+        let old: Appearance = serde_json::from_str("{}").unwrap();
+        assert_eq!((old.row_style.as_str(), old.fill_tint, old.combat_power, old.odyle), ("blocks", false, true, true));
         fs::remove_dir_all(dir).ok();
     }
 

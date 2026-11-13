@@ -368,6 +368,9 @@ pub struct PlayerRow {
     #[serde(default)]
     pub outcomes: Outcomes,
     pub skills: Vec<SkillRow>,
+    /// Their combat power: the party roster's, else their spawn's (players in view).
+    #[serde(default)]
+    pub combat_power: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -2529,7 +2532,16 @@ impl Meter {
             max_hit: p.max_hit,
             outcomes: p.outcomes,
             skills,
+            combat_power: self.combat_power_of(id),
         }
+    }
+
+    /// A player's combat power: the party roster's (the game keeps it current there), else
+    /// the one their spawn gave.
+    fn combat_power_of(&self, id: u64) -> Option<u32> {
+        let name = self.registry.player_name(id);
+        let roster = name.and_then(|n| self.registry.party().iter().find(|m| m.name == n)).and_then(|m| m.combat_power);
+        roster.or_else(|| self.registry.combat_power(id))
     }
 }
 

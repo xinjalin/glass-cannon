@@ -81,6 +81,12 @@ function applyAppearance(a) {
     root.style.removeProperty("--bar-ink");
   }
   root.classList.toggle("info-bar", a.info_bar);
+  // The meter's rows: blocks beside the numbers, or the row filled as far as its share;
+  // the fill solid or as see-through as the tint; combat power by the names.
+  root.dataset.rowStyle = a.row_style || "blocks";
+  root.classList.toggle("fill-tint", !!a.fill_tint);
+  root.classList.toggle("thin-fill", !!a.fill_tint && a.opacity < 50);
+  root.classList.toggle("show-cp", a.combat_power !== false);
   root.style.setProperty("--fs", `${a.font_size}px`);
   // A chosen font goes first, with the built-in monospace behind it. The app only
   // accepts names without quotes or other CSS syntax; this checks again.

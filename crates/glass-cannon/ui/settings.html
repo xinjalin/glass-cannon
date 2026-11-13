@@ -82,6 +82,16 @@
                 <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
               </span>
             </div>
+            <div class="line" data-keywords="row bars blocks fill style meter">
+              <span class="key">rows</span>
+              <span class="choice" role="radiogroup" aria-label="How the meter's rows show each player's share">
+                <button type="button" data-row-style-choice="blocks" title="A strip of blocks beside the numbers">[blocks]</button>
+                <button type="button" data-row-style-choice="fill" title="Each row filled as far as its share of the top player's, the highlighted ones stronger">[bars]</button>
+              </span>
+            </div>
+            <button id="fill-tint" data-keywords="highlight opacity transparent see-through fill" type="button" class="opt" aria-pressed="false" title="The rows' fill as see-through as the tint (background → tint), not solid">
+              <span class="key">see-through highlight</span><span class="state">[off]</span>
+            </button>
           </fieldset>
           <fieldset class="box">
             <legend>text</legend>
@@ -369,6 +379,12 @@
             </button>
             <button id="info-bar" data-keywords="clock latency ms strip" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
               <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
+            </button>
+            <button id="show-cp" data-keywords="combat power cp players names" type="button" class="opt" aria-pressed="true" title="Each player's combat power by their name: your party's from its roster, others' from when they came into view">
+              <span class="key">combat power</span><span class="state">[on]</span>
+            </button>
+            <button id="show-odyle" data-keywords="odyle energy tickets strip" type="button" class="opt" aria-pressed="true" title="Your Odyle energy (charged in brackets) on the meter's top strip, as the game last sent it">
+              <span class="key">odyle energy</span><span class="state">[on]</span>
             </button>
           </fieldset>
           <fieldset class="box">
