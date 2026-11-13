@@ -10,7 +10,7 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 ## Features
 
 - **Meter**: damage, healing and damage taken for you, your party or everyone nearby, with
-  each player's skills.
+  each player's skills and combat power.
 - **Overlay**: the meter, target frame, boss warnings and timers, player bars, party
   frames, an action bar of your cooldowns and buffs, and world timers as widgets over the
   game. Arrange them freely; they
