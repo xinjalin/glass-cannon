@@ -23,6 +23,9 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 - The same bundle's monsters and dungeons, **no licence**: `dungeons.json` (which dungeon
   and mode each of 1,536 dungeon mobs is in, for the history's dungeon runs). Only those
   entries are used; same terms.
+- The same bundle's items, **no licence**: `shop-items.json` (1,984 pets, skins and
+  Theostones: name, and what a skin is for, for the black market window). Only those
+  entries are used; same terms.
 - `places.json` (which Sealed Dungeon, Stronghold or Dimensional Invasion each of 96
   bosses is in, which the scrape doesn't have) is written by hand from community guides
   (Legaeon's Sealed Dungeons list, aion2data.com's Stronghold Commanders, ExpCarry's

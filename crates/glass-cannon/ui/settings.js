@@ -516,6 +516,102 @@ $("pet-souls").addEventListener("click", async () => {
   refresh();
 });
 
+// ---------------------------------------------------------------- action bar
+
+// Your class's bar as last read: what can go on it, and what's on it.
+let abChoices = null;
+
+// Skill and effect icons by the data's icon key, loaded once each.
+const abIcons = new Map();
+function abIcon(choice) {
+  const key = choice.icon_key;
+  if (key != null && !abIcons.has(key)) {
+    abIcons.set(key, null);
+    invoke("skill_icon", { skill: key })
+      .then((url) => {
+        abIcons.set(key, url);
+        if (url) drawActionBar();
+      })
+      .catch(() => {});
+  }
+  const url = key != null ? abIcons.get(key) : null;
+  if (!url) return el("span", "icon blank", (choice.name || "?")[0]);
+  const img = el("img", "icon");
+  img.src = url;
+  img.alt = "";
+  return img;
+}
+
+function drawActionBar() {
+  const c = abChoices;
+  if (!c) return;
+  $("ab-class").textContent =
+    c.class == null ? "use a skill in game first: each class has its own bar" : c.skills.length ? "" : "use your skills in game (or log in): they show here to choose from";
+  for (const b of document.querySelectorAll("[data-ab-style]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.abStyle === c.style));
+  }
+  const picks = (list, kind) =>
+    list.map((choice) => {
+      const b = el("button", "ab-pick");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(choice.chosen));
+      b.title = `${choice.name || `#${choice.id}`}${choice.chosen ? " · on the bar: click to take it off" : " · click to put it on the bar"}`;
+      b.append(abIcon(choice));
+      if (choice.chosen) b.append(el("span", "ab-order", String(list.filter((x) => x.chosen).indexOf(choice) + 1)));
+      b.addEventListener("click", () => toggleActionBar(kind, choice.id));
+      return b;
+    });
+  $("ab-skills").replaceChildren(...picks(c.skills, "skills"));
+  $("ab-buffs").replaceChildren(...picks(c.buffs, "buffs"));
+  if (!c.buffs.length) $("ab-buffs").append(el("span", "note", "none on you in the last hour yet"));
+}
+
+async function loadActionBar() {
+  try {
+    const next = await invoke("action_bar_choices");
+    if (JSON.stringify(next) !== JSON.stringify(abChoices)) {
+      abChoices = next;
+      drawActionBar();
+    }
+  } catch {
+    // Next time, then.
+  }
+}
+
+async function saveActionBar(skills, buffs, style) {
+  try {
+    await invoke("set_action_bar", { skills, buffs, style });
+  } catch (e) {
+    $("ab-class").textContent = String(e);
+  }
+  loadActionBar();
+}
+
+function toggleActionBar(kind, id) {
+  const c = abChoices;
+  if (!c) return;
+  const chosen = (list) => list.filter((x) => x.chosen).map((x) => x.id);
+  const lists = { skills: chosen(c.skills), buffs: chosen(c.buffs) };
+  const list = lists[kind];
+  lists[kind] = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+  saveActionBar(lists.skills, lists.buffs, c.style);
+}
+
+for (const b of document.querySelectorAll("[data-ab-style]")) {
+  b.addEventListener("click", () => {
+    const c = abChoices;
+    if (!c) return;
+    const chosen = (list) => list.filter((x) => x.chosen).map((x) => x.id);
+    saveActionBar(chosen(c.skills), chosen(c.buffs), b.dataset.abStyle);
+  });
+}
+
+loadActionBar();
+setInterval(() => {
+  if (!document.hidden) loadActionBar();
+}, 3000);
+
 for (const b of document.querySelectorAll("[data-party-cd-choice]")) {
   b.addEventListener("click", async () => {
     await invoke("set_party_cooldowns_by_class", { on: b.dataset.partyCdChoice === "class" });

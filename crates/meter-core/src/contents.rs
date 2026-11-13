@@ -16,6 +16,23 @@
 //! The Abyss artifacts' layout is from A2Tools' notes (read against the in-game map); it
 //! isn't in any of our captures yet, so a message is only read when every byte of it falls
 //! into place.
+//!
+//! The Black Cloud Merchant (`0x5691`, Questlog's RandomShopInfo_NT): the game's black
+//! market, a shop in the H menu whose offers are different for each character and change
+//! every hour (on the hour UTC). Opening one of its three pages sends that page:
+//!
+//! ```text
+//! u8 page (201 Special, 204 Pets, 203 Skins), u8 n, n × offer, i64 next refresh (ms since
+//! 1970), i32 refreshes bought this hour
+//! offer = u32 slot, u32 item, i64 count, u8 discount step (0-3: 10, 20, 30, 50 % off),
+//!         u8 currency (93: Kinah), i64 price, i64 discounted price, flag discounted,
+//!         flag sold out
+//! ```
+//!
+//! The flags are bits: the first one takes a byte where it falls, and the next seven go in
+//! its bits (as in Questlog's reader). Confirmed on our capture of 2026-11-14: all three
+//! pages, 10 offers each, read to the last byte, every item named in the item data (pets,
+//! skins), and the prices as the game showed them (100,000 Kinah at 30 % off: 70,000).
 
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +50,107 @@ pub const OPCODE_SHOP_COUNTERS: u16 = 0x568e;
 /// The weekly Odyle Energy buy at the trade guild, and how many a week.
 pub const ODYLE_PURCHASE: u32 = 100_134;
 pub const ODYLE_PURCHASE_MAX: u32 = 20;
+
+/// The Black Cloud Merchant's page of offers: see the module's notes.
+pub const OPCODE_BLACK_MARKET: u16 = 0x5691;
+
+/// Its pages, as the game numbers them.
+pub const BLACK_MARKET_SPECIAL: u8 = 201;
+pub const BLACK_MARKET_SKINS: u8 = 203;
+pub const BLACK_MARKET_PETS: u8 = 204;
+
+/// One of the Black Cloud Merchant's offers.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BlackMarketOffer {
+    /// Which of the merchant's offers this is (each page numbers its own: 21xxxx, 22xxxx…).
+    pub slot: u32,
+    pub item: u32,
+    pub count: u64,
+    /// How far it's discounted: 0 to 3 (10, 20, 30 or 50 % off).
+    pub step: u8,
+    /// What it costs in (93: Kinah).
+    pub currency: u8,
+    pub price: u64,
+    pub discounted_price: u64,
+    pub discounted: bool,
+    pub sold_out: bool,
+}
+
+/// A page of the Black Cloud Merchant, as it was sent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BlackMarketPage {
+    pub page: u8,
+    pub offers: Vec<BlackMarketOffer>,
+    /// When the offers change (ms since 1970).
+    pub next_refresh_ms: u64,
+    /// Refreshes bought with Kinah this hour.
+    pub refreshes: u32,
+}
+
+/// Reads fields one after another, with flags packed eight to a byte.
+struct Fields<'a> {
+    p: &'a [u8],
+    at: usize,
+    /// The byte the flags are in now, and the next bit.
+    flags: Option<(usize, u8)>,
+}
+
+impl Fields<'_> {
+    fn bytes<const N: usize>(&mut self) -> Option<[u8; N]> {
+        let b = self.p.get(self.at..self.at + N)?.try_into().ok()?;
+        self.at += N;
+        Some(b)
+    }
+    fn u8(&mut self) -> Option<u8> {
+        Some(self.bytes::<1>()?[0])
+    }
+    fn u32(&mut self) -> Option<u32> {
+        Some(u32::from_le_bytes(self.bytes()?))
+    }
+    fn i64(&mut self) -> Option<i64> {
+        Some(i64::from_le_bytes(self.bytes()?))
+    }
+    fn flag(&mut self) -> Option<bool> {
+        let (byte, bit) = match self.flags {
+            Some(f) => f,
+            None => {
+                let at = self.at;
+                self.u8()?;
+                (at, 0)
+            }
+        };
+        self.flags = (bit < 7).then_some((byte, bit + 1));
+        Some(self.p[byte] >> bit & 1 != 0)
+    }
+}
+
+/// A page of the Black Cloud Merchant, when the message reads to its last byte.
+pub fn parse_black_market(p: &[u8]) -> Option<BlackMarketPage> {
+    let mut f = Fields { p, at: 0, flags: None };
+    let page = f.u8()?;
+    let n = f.u8()?;
+    let offers = (0..n)
+        .map(|_| {
+            let (slot, item, count, step, currency) = (f.u32()?, f.u32()?, f.i64()?, f.u8()?, f.u8()?);
+            let (price, discounted_price) = (f.i64()?, f.i64()?);
+            let (discounted, sold_out) = (f.flag()?, f.flag()?);
+            Some(BlackMarketOffer {
+                slot,
+                item,
+                count: u64::try_from(count).ok()?,
+                step,
+                currency,
+                price: u64::try_from(price).ok()?,
+                discounted_price: u64::try_from(discounted_price).ok()?,
+                discounted,
+                sold_out,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let next_refresh_ms = u64::try_from(f.i64()?).ok()?;
+    let refreshes = f.u32()?;
+    (f.at == p.len()).then_some(BlackMarketPage { page, offers, next_refresh_ms, refreshes })
+}
 
 /// A shop purchase limit: how many were bought, and when the count resets.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -188,6 +306,54 @@ mod tests {
         // Wednesday 2026-10-28 07:00 UTC.
         assert_eq!((odyle.bought, odyle.reset_ms), (20, 1_793_170_800_000));
         assert!(parse_shop_counters(&p[..p.len() - 1]).is_none());
+    }
+
+    #[test]
+    fn the_black_cloud_merchants_special_page() {
+        // Opening its Special page (2026-11-14): 10 offers, every byte read.
+        let p = hex(include_str!("../testdata/black-market.hex"));
+        let page = parse_black_market(&p).unwrap();
+        assert_eq!((page.page, page.offers.len(), page.refreshes), (BLACK_MARKET_SPECIAL, 10, 0));
+        // 2026-11-14 01:30 in Adelaide: the next hour, UTC.
+        assert_eq!(page.next_refresh_ms % 3_600_000, 0);
+        // Pet: Congealed Drana, 100,000 Kinah at 30 % off (as the game showed it).
+        let first = page.offers[0];
+        assert_eq!((first.slot, first.item, first.count), (211_085, 534_760_187, 1));
+        assert_eq!((first.step, first.currency, first.price, first.discounted_price), (2, 93, 100_000, 70_000));
+        assert!(first.discounted && !first.sold_out);
+        // Eternal Crest (a dagger skin), the last: the flags for offers 9 and 10 are in a third
+        // byte of flags, after offer 9.
+        let last = page.offers[9];
+        assert_eq!((last.item, last.step, last.price, last.discounted_price), (535_710_131, 0, 960_000, 864_000));
+        assert!(page.offers.iter().all(|o| o.discounted && !o.sold_out));
+        // A byte short, or one over: not read.
+        assert!(parse_black_market(&p[..p.len() - 1]).is_none());
+        let mut more = p.clone();
+        more.push(0);
+        assert!(parse_black_market(&more).is_none());
+    }
+
+    #[test]
+    fn flags_eight_to_a_byte_where_the_first_falls() {
+        // Two offers: the flags' byte comes after the first, and holds both offers' flags.
+        let offer = |slot: u32| {
+            let mut o = slot.to_le_bytes().to_vec();
+            o.extend(534_760_001u32.to_le_bytes());
+            o.extend(1i64.to_le_bytes());
+            o.extend([3, 93]);
+            o.extend(100_800i64.to_le_bytes());
+            o.extend(50_400i64.to_le_bytes());
+            o
+        };
+        let mut p = vec![BLACK_MARKET_SKINS, 2];
+        p.extend(offer(1));
+        p.push(0b0000_1101); // first: discounted, not sold out; second: discounted, sold out
+        p.extend(offer(2));
+        p.extend(1_794_574_800_000i64.to_le_bytes());
+        p.extend(3u32.to_le_bytes());
+        let page = parse_black_market(&p).unwrap();
+        assert_eq!(page.offers.iter().map(|o| (o.slot, o.discounted, o.sold_out)).collect::<Vec<_>>(), [(1, true, false), (2, true, true)]);
+        assert_eq!((page.next_refresh_ms, page.refreshes), (1_794_574_800_000, 3));
     }
 
     #[test]

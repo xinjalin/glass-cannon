@@ -701,6 +701,32 @@ our captures), but the game data lists them by their effect ID (`30010151` "Theo
 Santras's Secret"): in `…190034`, skill `3001015` applied effect `30010151` on 20644.
 Short IDs like `231` are system effects with no name.
 
+## The Black Cloud Merchant: opcode `0x5691` (confirmed 2026-11-14)
+
+The game's black market: a shop in the H menu whose offers are different for each
+character and change every hour, on the hour UTC. Opening one of its pages sends it
+(Questlog's RandomShopInfo_NT, which gave the field names):
+
+```text
+u8 page (201 Special, 204 Pets, 203 Skins), u8 n, n × offer,
+i64 next refresh (ms since 1970), i32 refreshes bought this hour
+offer = u32 slot, u32 item, i64 count, u8 discount step, u8 currency,
+        i64 price, i64 discounted price, flag discounted, flag sold out
+```
+
+**Flags are bits.** The first flag takes a whole byte where it falls, and the next seven
+flags go in that byte's bits, wherever they come; the ninth takes a new byte. With two
+flags an offer, ten offers' flags are three bytes: after the 1st, 5th and 9th offers. All
+three pages in our capture (10 offers each, 357 bytes) read to the last byte this way.
+
+Discount steps 0 to 3 are 10, 20, 30 and 50 % off; currency 93 is Kinah (every offer
+seen). The items are the game's item IDs: pets 534760xxx ("Pet: Fungie"), skins
+5357xxxxx to 5360xxxxx. Opening a page also sends `0x5693` (u16 0, u8 page).
+
+The skins you own come at login in `0x8d5b` (Questlog's SkinInfo_NT: varint n, n × (u32
+skin, u16 count, u16)), by skin IDs (10,000,077…) that aren't the shop's item IDs, and no
+data we have links the two.
+
 ## Skill IDs (guess)
 
 The 8-digit IDs look structured: `18 01 034 0`, `18 02 034 0`, `18 04 035 0`. Possibly

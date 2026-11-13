@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
-use crate::buffs::EffectTracker;
+use crate::buffs::{EffectSpan, EffectTracker};
 use crate::classes;
 use crate::damage::{self, DamageEvent, Position};
 use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
@@ -532,6 +532,8 @@ pub struct Contents {
     pub artifacts: Vec<crate::contents::Artifact>,
     /// Shop purchase limits sent (the weekly Odyle Energy buy among them).
     pub shop: Vec<crate::contents::ShopCounter>,
+    /// The Black Cloud Merchant's pages opened.
+    pub black_market: Vec<crate::contents::BlackMarketPage>,
 }
 
 /// A cast under way.
@@ -1161,6 +1163,35 @@ impl Meter {
         &self.effects
     }
 
+    /// The buffs and debuffs on you now (one with a set length only until it runs out,
+    /// should its removal be missed).
+    pub fn your_effects(&self, now_us: u64) -> Vec<EffectSpan> {
+        let Some(me) = self.registry.self_id() else { return Vec::new() };
+        self.effects
+            .active_on(me)
+            .filter(|s| s.duration_ms == 0 || s.start_us + u64::from(s.duration_ms) * 1000 > now_us)
+            .cloned()
+            .collect()
+    }
+
+    /// Every buff and debuff that's been on you in the last `within_us`: (effect, skill
+    /// behind it), each once.
+    pub fn effects_seen_on_you(&self, now_us: u64, within_us: u64) -> Vec<(u32, Option<u32>)> {
+        let Some(me) = self.registry.self_id() else { return Vec::new() };
+        let mut seen: Vec<(u32, Option<u32>)> =
+            self.effects.spans(now_us.saturating_sub(within_us), now_us).into_iter().filter(|s| s.target == me).map(|s| (s.effect, s.skill)).collect();
+        seen.sort_unstable();
+        seen.dedup_by_key(|(e, _)| *e);
+        seen
+    }
+
+    /// The skills you've cast since the meter started (base ids).
+    pub fn your_cast_skills(&self) -> Vec<u32> {
+        let mut s: Vec<u32> = self.cooldowns.cast_skills().collect();
+        s.sort_unstable();
+        s
+    }
+
     /// Feeds one game message.
     pub fn feed(&mut self, ts_us: u64, opcode: u16, payload: &[u8]) {
         self.latest_us = self.latest_us.max(ts_us);
@@ -1361,6 +1392,11 @@ impl Meter {
                             self.contents.shop.retain(|x| x.id != c.id);
                             self.contents.shop.push(c);
                         }
+                    }
+                }
+                crate::contents::OPCODE_BLACK_MARKET => {
+                    if let Some(page) = crate::contents::parse_black_market(payload) {
+                        self.contents.black_market.push(page);
                     }
                 }
                 crate::contents::OPCODE_ABYSS_MAP | crate::contents::OPCODE_ABYSS_ENTERED => {

@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, CHECKLIST, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, BLACK_MARKET, CHECKLIST, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -29,6 +29,7 @@ const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
 const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
 const MIN_ATTEMPTS: (f64, f64) = (360.0, 260.0);
 const MIN_CHECKLIST: (f64, f64) = (320.0, 240.0);
+const MIN_BLACK_MARKET: (f64, f64) = (380.0, 300.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
@@ -356,6 +357,12 @@ pub fn open_attempts(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result
 #[tauri::command]
 pub fn open_checklist(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
     toggle_window(&handle, &app, CHECKLIST, &app.checklist_placed, MIN_CHECKLIST)
+}
+
+/// Shows the black market window, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_black_market(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    toggle_window(&handle, &app, BLACK_MARKET, &app.black_market_placed, MIN_BLACK_MARKET)
 }
 
 /// Shows the settings beside the launcher, or hides them if they're already open.
