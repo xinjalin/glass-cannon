@@ -38,7 +38,8 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   `pet-spawns.json` (which of 2,256 mob types give which pet's souls, and the areas 163
   pets are found in) and `pet-map.json` (where those mobs spawn on the world and Abyss
   maps: 16,028 points), from its `Client/assets/aion2/pets/` files, and `boss-skills.json`
-  (names for 928 boss and mob skills `skills.json` only calls "Attack"), from its
+  (the game's names for 1,125 boss and mob skills `skills.json` only calls "Attack" or
+  names differently), from its
   `Backend/src/data/aion2/skill_names.json` (commit 602d317). Its licence:
   `gamedata/LICENSE-MIT-AionDPSMeter.txt` (Copyright (c) 2026 SkeeveTV).
 - [Questlog](https://questlog.gg/aion-2/en/map)'s interactive map, **no licence**: the
@@ -52,8 +53,9 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   `boss-mechanics.json`, as leads. Nothing of its code or text is used: the file and its
   wording are ours, and each mechanic is checked against our own captures as runs show it.
 - [aion2tierlist.com](https://aion2tierlist.com/guides/aion-2-ludra-raid-guide)'s Ludra raid
-  guide (updated 2026-10-30), **no licence**: that Eternal Ludra's 15 s cast is the grid
-  that wipes the raid, for its warning in `boss-mechanics.json`. Nothing of its text is used.
+  guide (updated 2026-10-30) and [dbaion2.ru](https://dbaion2.ru/en/guides/mekhaniki-rudra/)'s,
+  **no licence**: what to do in Eternal Ludra's grid (Ludra's Trial) and when Rahu splits
+  the arena, for their warnings in `boss-mechanics.json`. Nothing of their text is used.
 - NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
   scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits
   (`pet_<id>.png`, 64 px) for the pet tracker. NCSOFT's artwork, like the

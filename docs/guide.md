@@ -49,10 +49,17 @@ finishes. The widgets:
   They go off on a buff on the boss (Lakshmi's reflect: stop attacking), a debuff on you
   (a bomb or pool to carry away from the party, then "out of the fire") or on an ally (who
   to free, with their name), the boss's cue casts, its stagger check (while the gauge can
-  be broken), and a pool you're standing in: 33 mechanics of 17 bosses in 9 dungeons and
+  be broken), and a pool you're standing in: 34 mechanics of 18 bosses in 9 dungeons and
   raids (`gamedata/boss-mechanics.json`). A few casts that killed the most in our runs
-  always warn, though short (in the Ludra raid: Eternal Ludra's, Ketu's and the Fusion
-  Reactor's).
+  always warn, though short: in the Ludra raid, Rahu's, Ketu's, the Fusion Reactor's and
+  five of Eternal Ludra's (her casts are 1.5 to 2.3 s).
+  **What a move is called**: the game's own name for it when it has one (Ludra's Trial,
+  Abyssal Gaze, Wheel of Torment). The game calls most boss moves only "Attack"; for the
+  deadliest of those in the Ludra raid the card shows our own short label for what the
+  move does, from our runs: *raid-wide blast* (it hits most of the raid), *area blast*,
+  *strike* (one player), *heavy* (half a health bar or more), *pulses* (again and again),
+  *marked ground* (the game marks where it lands). Any other unnamed move shows the boss's
+  name. Name one yourself in the analysis window's [boss] tab and yours is used instead.
   When the boss you're fighting turns to attack you, the card says so for 3 s (its name
   over "on you", in amber; its mechanics and casts go first), with a lower chime (settings → boss
   on you). It counts once the boss has stayed on you for 0.3 s, since a boss can point at
