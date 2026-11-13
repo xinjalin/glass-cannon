@@ -176,6 +176,9 @@ pub struct Settings {
     /// Each class's action bar (by class code): its skills, buffs and look.
     #[serde(default)]
     pub action_bars: BTreeMap<String, crate::actionbar::ActionBarSetup>,
+    /// How the vitals arcs widget looks.
+    #[serde(default)]
+    pub vitals: crate::vitals::VitalsSetup,
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
@@ -438,6 +441,7 @@ impl Settings {
     pub fn load(dir: &Path) -> Self {
         let mut s: Settings = load(&dir.join("settings.json"));
         s.appearance = s.appearance.sanitized();
+        s.vitals = std::mem::take(&mut s.vitals).sanitized();
         if std::mem::take(&mut s.everyone) && s.scope == Scope::Mine {
             s.scope = Scope::Everyone;
         }

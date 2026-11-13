@@ -111,10 +111,13 @@ function reportRects() {
   const panels = shown
     .filter((el) => el.querySelector("iframe") && el.dataset.bare === undefined && !(faded && el.classList.contains("fades")))
     .map(box);
-  const key = JSON.stringify([rects, panels].map((l) => l.map((r) => Object.values(r).map(Math.round))));
+  // Every widget on screen, bare ones too: the menu check leaves them out of the corner
+  // it reads, so a widget there isn't taken for a menu's close X.
+  const drawn = shown.map(box);
+  const key = JSON.stringify([rects, panels, drawn].map((l) => l.map((r) => Object.values(r).map(Math.round))));
   if (key === rectsKey) return;
   rectsKey = key;
-  invoke("hud_rects", { rects, panels }).catch(() => {});
+  invoke("hud_rects", { rects, panels, drawn }).catch(() => {});
 }
 
 async function loadLayout() {

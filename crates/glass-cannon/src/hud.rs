@@ -45,11 +45,26 @@ impl HitRect {
 }
 
 /// Where the widgets are; the HUD reports it whenever its layout changes: those that take
-/// the mouse, and every widget's panel (for its frosted plate).
+/// the mouse, every widget's panel (for its frosted plate), and every widget on screen
+/// (left out of the corner the menu check reads).
 #[tauri::command]
-pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>, panels: Option<Vec<HitRect>>) {
+pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>, panels: Option<Vec<HitRect>>, drawn: Option<Vec<HitRect>>) {
     *lock(&app.hud_rects) = rects;
     *lock(&app.hud_panels) = panels.unwrap_or_default();
+    *lock(&app.hud_drawn) = drawn.unwrap_or_default();
+}
+
+/// How far past its box a widget's glow and shadow can reach, in physical pixels.
+const WIDGET_BLEED: f64 = 8.0;
+
+/// The widgets' boxes in the menu check's corner square (its top left at `corner_x` across
+/// the game's picture), each grown by its glow: (left, top, right, bottom).
+fn widgets_in_corner(drawn: &[HitRect], corner_x: f64, side: f64) -> Vec<(f64, f64, f64, f64)> {
+    drawn
+        .iter()
+        .map(|r| (r.x - WIDGET_BLEED - corner_x, r.y - WIDGET_BLEED, r.x + r.width + WIDGET_BLEED - corner_x, r.y + r.height + WIDGET_BLEED))
+        .filter(|&(l, t, r, b)| r > 0.0 && b > 0.0 && l < side && t < side)
+        .collect()
 }
 
 /// Arranging the widgets: the whole HUD takes the mouse (and the keyboard) until done.
@@ -173,8 +188,12 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 let menu = match placed.filter(|_| menu_check) {
                     Some(area) => {
                         let mut look = || {
-                            let Some(corner) = crate::menus::read_corner((area.left, area.top, area.width(), area.height())) else { return false };
+                            let Some(mut corner) = crate::menus::read_corner((area.left, area.top, area.width(), area.height())) else { return false };
                             let height = f64::from(area.height());
+                            // The screen there shows our own widgets over the game's: those
+                            // aren't the game's, so they're left out.
+                            let side = corner.side() as f64;
+                            corner.blank(&widgets_in_corner(&lock(&app.hud_drawn), f64::from(area.width()) - side, side));
                             let byte = |v: f32| v.clamp(0.0, 255.0).round() as u8;
                             let (x, _) = corner.x_score(height);
                             let arrow = corner.arrow_score(height);

@@ -8,20 +8,12 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body data-panel="vitals">
-  <!-- Round arcs either side of your character, with no box (the overlay puts no plate
-       behind this widget): HP with stamina inside it on the left, MP with flight power
-       inside it on the right, the cast under your feet. Laid out by vitals.js. -->
+  <!-- Arcs either side of your character, with no box (the overlay puts no plate behind
+       this widget): HP with stamina inside it on the left, MP with flight power inside it
+       on the right, the cast under your feet. Built and laid out by vitals.js, in the look
+       chosen in the settings. -->
   <main id="vitals">
-    <svg id="arcs" class="arcs" aria-hidden="true">
-      <path class="arc-track hp"/><path class="arc-fill hp" pathLength="100"/>
-      <path class="arc-track stamina"/><path class="arc-fill stamina" pathLength="100"/>
-      <path class="arc-track mp"/><path class="arc-fill mp" pathLength="100"/>
-      <path class="arc-track flight"/><path class="arc-fill flight" pathLength="100"/>
-      <path class="arc-track cast"/><path class="arc-fill cast" pathLength="100"/>
-      <text class="arc-text hp"></text><text class="arc-text stamina"></text>
-      <text class="arc-text mp"></text><text class="arc-text flight"></text>
-      <text class="arc-text cast"></text>
-    </svg>
+    <svg id="arcs" class="arcs" aria-hidden="true"></svg>
     <p id="empty" class="note">your HP and MP show once you're in game</p>
   </main>
   <script src="theme.js"></script>

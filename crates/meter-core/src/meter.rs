@@ -759,14 +759,39 @@ pub struct HpPoint {
     pub hp: u64,
 }
 
-/// Your stats from `0x8d00` besides HP and MP (see [`hp::STAT_STAMINA`]).
+/// Your stats from `0x8d00` besides HP and MP (see [`hp::STAT_STAMINA`]), with the
+/// highest stamina and flight power seen, standing in for their maxes until the game sends
+/// them.
 #[derive(Debug, Default, Clone, Copy)]
 struct SelfStats {
     stamina: Option<u32>,
     stamina_max: Option<u32>,
+    stamina_seen: u32,
     flight: Option<u32>,
     flight_max: Option<u32>,
+    flight_seen: u32,
     hp_max: Option<u64>,
+}
+
+impl SelfStats {
+    /// What's kept over a zone change, as entity IDs change: the stamina and flight power
+    /// maxes (the new zone sends them again, but only in its first second, which a capture
+    /// started late misses). Their values go back to unknown, which reads as full: see
+    /// [`gauge`]. Max HP isn't kept: the highest HP seen stands in for it.
+    fn carried_over(self) -> SelfStats {
+        SelfStats { stamina_max: self.stamina_max, flight_max: self.flight_max, ..SelfStats::default() }
+    }
+}
+
+/// A gauge's value and max for your bars. The game sends stamina and flight power only as
+/// they change: a full one isn't sent on entering a zone (checked on our captures,
+/// 2026-11-07, the Abyss: the first values after entering are drops from the max,
+/// 648,250 of 650,000 and 145,600 of 155,600), so one not sent is full. A value over a max
+/// from before a buff ended moves the max up to it; with no max sent, the highest seen
+/// stands in.
+fn gauge(value: Option<u32>, max: Option<u32>, seen: u32) -> (Option<u32>, Option<u32>) {
+    let max = max.map(|m| m.max(value.unwrap_or(0))).or((seen > 0).then_some(seen));
+    (value.or(max), max)
 }
 
 /// Every entity's HP over time (`0x8d00`), and its max HP when known.
@@ -1071,18 +1096,18 @@ impl Meter {
         let me = self.registry.self_id()?;
         let (mp, mp_max, mp_seen) = self.self_mp;
         let s = &self.self_stats;
-        // A value over a max from before a buff ended: the max moves up to it.
-        let max_of = |v: Option<u32>, m: Option<u32>| m.map(|m| m.max(v.unwrap_or(0)));
+        let (stamina, stamina_max) = gauge(s.stamina, s.stamina_max, s.stamina_seen);
+        let (flight, flight_max) = gauge(s.flight, s.flight_max, s.flight_seen);
         Some(SelfBars {
             hp: self.hp.last(me),
             // The game's max HP once it's sent it, else the highest HP seen.
             hp_max: s.hp_max.map(|m| m.max(self.hp.last(me).unwrap_or(0))).or(self.hp.max(me)),
             mp,
             mp_max: mp_max.or((mp_seen > 0).then_some(mp_seen)),
-            stamina: s.stamina,
-            stamina_max: max_of(s.stamina, s.stamina_max),
-            flight: s.flight,
-            flight_max: max_of(s.flight, s.flight_max),
+            stamina,
+            stamina_max,
+            flight,
+            flight_max,
             cast: self.casting.get(&me).and_then(|&(skill, start, cast_ms)| {
                 let end = start + u64::from(cast_ms) * 1000;
                 (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
@@ -1253,9 +1278,15 @@ impl Meter {
                             self.self_mp.2 = self.self_mp.2.max(value);
                         }
                         hp::STAT_MP_MAX => self.self_mp.1 = Some(value),
-                        hp::STAT_STAMINA => self.self_stats.stamina = Some(value),
+                        hp::STAT_STAMINA => {
+                            self.self_stats.stamina = Some(value);
+                            self.self_stats.stamina_seen = self.self_stats.stamina_seen.max(value);
+                        }
                         hp::STAT_STAMINA_MAX => self.self_stats.stamina_max = Some(value),
-                        hp::STAT_FLIGHT => self.self_stats.flight = Some(value),
+                        hp::STAT_FLIGHT => {
+                            self.self_stats.flight = Some(value);
+                            self.self_stats.flight_seen = self.self_stats.flight_seen.max(value);
+                        }
                         hp::STAT_FLIGHT_MAX => self.self_stats.flight_max = Some(value),
                         _ => {}
                     }
@@ -1501,7 +1532,7 @@ impl Meter {
                 self.cast_cooldowns.clear();
                 self.casting.clear();
                 self.self_mp = (None, None, 0);
-                self.self_stats = SelfStats::default();
+                self.self_stats = self.self_stats.carried_over();
                 self.party_vitals.clear();
                 self.boss_log.clear();
                 self.pulls.clear();
@@ -2718,6 +2749,44 @@ mod tests {
         other.extend(1u32.to_le_bytes());
         m.feed(2 * S, hp::OPCODE_HP, &other);
         assert_eq!(m.self_bars().unwrap().stamina, Some(150_500));
+    }
+
+    /// Your u32 stats in one `0x8d00`.
+    fn self_u32_stats(entity: u64, stats: &[(u8, u32)]) -> Vec<u8> {
+        let mut p = encode_varint(entity);
+        p.extend([0x01, stats.len() as u8]);
+        for &(stat, v) in stats {
+            p.push(stat);
+            p.extend(v.to_le_bytes());
+        }
+        p
+    }
+
+    #[test]
+    fn full_stamina_and_flight_power_show_though_the_game_never_sends_them() {
+        let mut m = meter_as_me();
+        // Entering a zone: the maxes come, stamina and flight power don't (they're full).
+        m.feed(S, hp::OPCODE_HP, &self_u32_stats(ME, &[(8, 1947), (10, 155_600), (11, 150_000), (13, 650_000)]));
+        let b = m.self_bars().unwrap();
+        assert_eq!((b.stamina, b.stamina_max, b.flight, b.flight_max), (Some(155_600), Some(155_600), Some(650_000), Some(650_000)));
+        // Taking off.
+        m.feed(2 * S, hp::OPCODE_HP, &self_u32_stats(ME, &[(6, 648_250)]));
+        assert_eq!(m.self_bars().unwrap().flight, Some(648_250));
+
+        // A zone whose first second was missed: the maxes carry over, and the values read
+        // full again until the game sends them.
+        let mut m = meter_as_me();
+        m.feed(S, hp::OPCODE_HP, &self_u32_stats(ME, &[(10, 155_600), (13, 650_000), (6, 1_000)]));
+        m.feed(2 * S, OPCODE_SELF_STATS, &encode_varint(ME + 1));
+        let b = m.self_bars().unwrap();
+        assert_eq!((b.flight, b.flight_max, b.stamina_max), (Some(650_000), Some(650_000), Some(155_600)));
+
+        // No max at all: the highest seen stands in.
+        let mut m = meter_as_me();
+        m.feed(S, hp::OPCODE_HP, &self_u32_stats(ME, &[(3, 120_000)]));
+        m.feed(2 * S, hp::OPCODE_HP, &self_u32_stats(ME, &[(3, 100_000)]));
+        let b = m.self_bars().unwrap();
+        assert_eq!((b.stamina, b.stamina_max, b.flight, b.flight_max), (Some(100_000), Some(120_000), None, None));
     }
 
     #[test]

@@ -627,7 +627,11 @@ u8      mask
 [0x01]  u8 n, n × (u8 stat, u32 value)     on you: each value's max is its stat + 7:
                                            1 MP (max 8); 3 stamina (max 10); 6 flight power
                                            (max 13), both in hundredths of what's shown;
-                                           4 (max 11) and 5 (max 12) unknown (2026-11-08)
+                                           4 (max 11) and 5 (max 12) unknown (2026-11-08).
+                                           Only changes are sent: entering a zone sends
+                                           the maxes but not a full stamina or flight
+                                           power (the Abyss, 2026-11-07: the first values
+                                           after are drops from the max)
 [0x02]  u8 n, n × (u8 stat, u64 value)     stat 0 = current HP; stat 7 = your max HP
 ```
 

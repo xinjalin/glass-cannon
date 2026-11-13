@@ -50,6 +50,7 @@ mod runs;
 mod settings;
 mod store;
 mod style;
+mod vitals;
 mod widgets;
 
 use gamedata::GameData;
@@ -156,6 +157,8 @@ pub struct AppState {
     /// The overlay's widgets' boxes, and whether they're being arranged.
     hud_rects: Mutex<Vec<hud::HitRect>>,
     hud_panels: Mutex<Vec<hud::HitRect>>,
+    /// Every widget on screen (the menu check leaves them out of what it reads).
+    hud_drawn: Mutex<Vec<hud::HitRect>>,
     hud_editing: AtomicBool,
     /// A hotkey is being picked in the settings: none go off meanwhile.
     hotkeys_paused: AtomicBool,
@@ -944,6 +947,7 @@ fn main() {
         recording_now: AtomicBool::new(false),
         hud_rects: Mutex::new(Vec::new()),
         hud_panels: Mutex::new(Vec::new()),
+        hud_drawn: Mutex::new(Vec::new()),
         hud_editing: AtomicBool::new(false),
         hotkeys_paused: AtomicBool::new(false),
         hotkey_states: Mutex::new(std::collections::BTreeMap::new()),
@@ -1061,6 +1065,9 @@ fn main() {
             actionbar::action_bar,
             actionbar::action_bar_choices,
             actionbar::set_action_bar,
+            vitals::vitals_setup,
+            vitals::set_vitals,
+            vitals::reset_vitals,
             blackmarket::black_market,
             settings::fit_pet_map,
             settings::reset_settings,
