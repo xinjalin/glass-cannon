@@ -14,7 +14,6 @@
       <span class="brand" data-tauri-drag-region>settings</span>
       <span id="version" class="version" data-tauri-drag-region></span>
       <span class="lights">
-        <button id="min" type="button" class="light yellow" title="Minimise" aria-label="Minimise"></button>
         <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
         <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
       </span>
@@ -153,6 +152,9 @@
               <button type="button" class="opt" data-widget="cooldowns" aria-pressed="false" title="Your skills' cooldowns">
                 <span class="key">cooldowns</span><span class="state">[off]</span>
               </button>
+              <button type="button" class="opt" data-widget="action-bar" data-keywords="skills cooldowns buffs hotbar bars icons" aria-pressed="false" title="The skills you choose, with their cooldowns and a glow when ready, and the buffs on you you choose, with their time left (choose them below)">
+                <span class="key">action bar</span><span class="state">[off]</span>
+              </button>
               <button type="button" class="opt" data-widget="party-cooldowns" aria-pressed="false" title="Your party's long cooldowns and party buffs: ready, or how long left">
                 <span class="key">party cooldowns</span><span class="state">[off]</span>
               </button>
@@ -173,6 +175,22 @@
             <button id="arrange-overlay" data-keywords="move resize layout position edit" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
               <span class="key">arrange</span><span class="state">[ arrange ]</span>
             </button>
+          </fieldset>
+          <fieldset class="box" id="ab-box" data-keywords="action bar hotbar skills cooldowns buffs icons round square bars">
+            <legend>action bar</legend>
+            <p id="ab-class" class="note"></p>
+            <div class="line" data-keywords="look style icons round square timer bars">
+              <span class="key">look</span>
+              <span class="choice" role="radiogroup" aria-label="How the action bar looks">
+                <button type="button" data-ab-style="square" title="Square icons, with the cooldown sweeping over them">[square]</button>
+                <button type="button" data-ab-style="round" title="Round icons">[round]</button>
+                <button type="button" data-ab-style="bars" title="A bar each, with its name and time left">[bars]</button>
+              </span>
+            </div>
+            <p class="note ab-head">skills · click to add or take off; on the bar in the order added</p>
+            <div id="ab-skills" class="ab-picks"></div>
+            <p class="note ab-head">buffs on you · those of the last hour</p>
+            <div id="ab-buffs" class="ab-picks"></div>
           </fieldset>
           <fieldset class="box">
             <legend>over the game</legend>

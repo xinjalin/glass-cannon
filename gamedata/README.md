@@ -13,6 +13,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `skill-details.json` (cooldowns, costs, descriptions, specialties) | [aion2.app](https://aion2.app/db/skills), compiled from NCSOFT's data | none: used without a licence |
 | `theostones.json` (Theostone grades, effects, cooldowns) | a scraped item database collected from public fan databases (the bundle names no sites) | none: used without a licence |
 | `dungeons.json` (each dungeon mob's dungeon and mode) | the same bundle's monsters and dungeons | none: used without a licence |
+| `shop-items.json` (the pets, skins and Theostones the Black Cloud Merchant sells, by item ID, for the black market window) | the same bundle's items | none: used without a licence |
 | `places.json` (which Sealed Dungeon, Stronghold or Dimensional Invasion each of their bosses is in, which `dungeons.json` doesn't have) | written by hand from [Legaeon](https://legaeon.co.uk/guides/sealed-dungeons.html)'s Sealed Dungeons list, [aion2data.com](https://aion2data.com/bosses)'s Stronghold Commanders and [ExpCarry](https://expcarry.com/aion-2-dimensional-invasion-guide)'s Dimensional Invasion guide, matched by name to the boss types in `npcs.json` | none (the names are NCSOFT's) |
 | `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
 | `gear.json` (weapon, armour and accessory names, grades and item levels, for the gear players wear) | the same bundle's items | none: used without a licence |
@@ -50,6 +51,8 @@ sources aren't named; they're here on the same terms and will be removed on requ
 - Dungeons: `packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>` from the
   same kind of scrape (monsters with their dungeon and mode, and the dungeon list).
 - Pets: `packet-lab pets <pets.json> --scraped <date>` from the same kind of scrape.
+- Black market items: `packet-lab shop-items <items.json> --scraped <date>` from the same
+  kind of scrape (after `pets`: it links each pet item to its pet).
 - NPC names: `packet-lab npc-names <npcs.json> --scraped <date>` from the same kind of
   scrape. They only name types the mob lists in `npcs.json` don't.
 - Gear: `packet-lab gear <items.json> --scraped <date>` from the same kind of scrape.

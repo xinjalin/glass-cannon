@@ -90,6 +90,15 @@ finishes. The widgets:
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
   "dead" when they are.
 - **cooldowns**: your skills that aren't ready, with time left and charges.
+- **action bar**: the skills you choose, each with its cooldown sweeping round its icon
+  and the time left, its charges, and a glow when it's ready again; then the buffs on you
+  that you choose to follow, with their time left (and how many, when more than one is on
+  you). Choose them in the settings (overlay → action bar): click a skill or buff to put it
+  on the bar or take it off; they go on in the order you add them. Its look: square icons,
+  round icons, or a bar each with its name and time. Each class has its own bar, picked
+  by the class you're playing. The skills to choose from are your class's, from the list
+  the game sends at login and the ones you've used; the buffs, those on you in the last
+  hour.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used). Settings' **party cooldowns by** lists
   them by player, or by class: each class's skills with who has them, ready first.
@@ -233,6 +242,17 @@ and the history's [clear] doesn't touch it: its own [clear] forgets one characte
 (it asks first). A boss the meter never saw spawn has no name to file it under, so it
 isn't counted.
 
+**Black market** (the shop icon on the launcher): what the Black Cloud Merchant offers each
+character this hour. Open it in the game's shop (H), on each of its pages (Special, Pets,
+Skins), with the meter open: each page's offers show here, named, with their price and
+discount, and whether they're bought. Pets you don't have yet (as the game last sent your
+pets) are marked; skins can't be yet (the game's list of your skins uses other numbers
+than the shop's). Each offer says how often you've seen it on offer: each page of each of
+your characters counts once an hour, so it's only what you've seen (the app never goes
+online). **[worth a look]** shows just the pets you don't have and what you've rarely
+seen. The offers change on the hour, and differ per character: a page from before the
+hour turned is dimmed until you open it again.
+
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when
 the week starts again (Wednesday 07:00 UTC, 16:00 in Korea). The weekly Kina buy of Odyle
@@ -271,8 +291,10 @@ name in the game data, so double-click one there to name it.
 
 ## Windows
 
-The launcher, settings, history, attempts, checklist, map and analysis are windows, with the same lights at
-the top right of their title bars (minimise, keep on top, close; each with a small mark). Each opens where you last left it
+The launcher, settings, history, attempts, checklist, black market, map and analysis are windows, with the same lights at
+the top right of their title bars (keep on top, and close; each with a small mark). The
+launcher also has minimise; the other windows don't, since they have no taskbar button to
+come back from: close one, and its button brings it back. Each opens where you last left it
 (the first time beside the launcher, or in game, or with the launcher minimised, in the
 middle of the screen), and takes the background chosen in the settings (the settings and
 analysis windows stay tinted enough to read).

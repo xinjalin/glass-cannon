@@ -30,8 +30,10 @@ use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIME
 use meter_core::recorder::Side;
 use meter_core::session;
 
+mod actionbar;
 mod analysis;
 mod attempts;
+mod blackmarket;
 mod checklist;
 mod dummy;
 mod fonts;
@@ -61,6 +63,7 @@ const HISTORY: &str = "history";
 const PET_MAP: &str = "petmap";
 const ATTEMPTS: &str = "attempts";
 const CHECKLIST: &str = "checklist";
+const BLACK_MARKET: &str = "blackmarket";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -188,6 +191,9 @@ pub struct AppState {
     pet_map_placed: AtomicBool,
     attempts_placed: AtomicBool,
     checklist_placed: AtomicBool,
+    black_market_placed: AtomicBool,
+    /// What the Black Cloud Merchant offers each character (the black market window).
+    black_market: Mutex<blackmarket::BlackMarket>,
     /// Each character's weekly Odyle sources (the checklist window).
     checklist: Mutex<checklist::Checklist>,
     /// Where every window was last (saved as they move, at most once a second).
@@ -379,6 +385,7 @@ fn pump(app: &AppState) {
     };
     lock(&app.field_bosses).update(field_bosses);
     checklist::take(app, &contents);
+    blackmarket::take(app, contents.black_market.clone());
     lock(&app.contents).update(contents);
     if !pvp.is_empty() {
         let mut log = lock(&app.pvp);
@@ -957,6 +964,8 @@ fn main() {
         pet_map_placed: AtomicBool::new(false),
         attempts_placed: AtomicBool::new(false),
         checklist_placed: AtomicBool::new(false),
+        black_market_placed: AtomicBool::new(false),
+        black_market: Mutex::new(blackmarket::BlackMarket::load(&config_dir_for_pvp)),
         checklist: Mutex::new(checklist::Checklist::load(&config_dir_for_pvp)),
         placements: Mutex::new(placements),
         dummy: Mutex::new(dummy::DummyBook::load(&config_dir_for_pvp)),
@@ -1048,6 +1057,11 @@ fn main() {
             settings::open_checklist,
             checklist::checklist,
             checklist::step_checklist,
+            settings::open_black_market,
+            actionbar::action_bar,
+            actionbar::action_bar_choices,
+            actionbar::set_action_bar,
+            blackmarket::black_market,
             settings::fit_pet_map,
             settings::reset_settings,
             settings::set_hotkey,
@@ -1141,7 +1155,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST, BLACK_MARKET] {
         if Some(label) == skip {
             continue;
         }

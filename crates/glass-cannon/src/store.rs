@@ -173,6 +173,9 @@ pub struct Settings {
     /// The party cooldowns widget grouped by class, then skill, then player (else by player).
     #[serde(default)]
     pub party_cooldowns_by_class: bool,
+    /// Each class's action bar (by class code): its skills, buffs and look.
+    #[serde(default)]
+    pub action_bars: BTreeMap<String, crate::actionbar::ActionBarSetup>,
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
@@ -1089,6 +1092,12 @@ impl PetBook {
         let path = dir.join("pets.json");
         let by_character = read_json(&path).unwrap_or_default();
         Self { path, by_character, saved: 0 }
+    }
+
+    /// A pet's level as your characters last had it, the highest of them (pets are a
+    /// collection your characters share): 0 when none has it.
+    pub fn level(&self, pet: u32) -> u32 {
+        self.by_character.values().filter_map(|s| s.levels.get(&pet).copied()).max().unwrap_or(0)
     }
 
     /// Hands a saved state to a meter that doesn't know your pets yet, and saves its state

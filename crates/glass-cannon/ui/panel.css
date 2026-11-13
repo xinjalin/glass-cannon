@@ -381,6 +381,60 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-text.cast { fill: var(--text); font-size: 0.8em; }
 #vitals #empty { position: absolute; inset: auto 0 0; margin: 0; text-align: center; }
 
+/* ---------------------------------------------------------------- action bar */
+
+body[data-panel="action-bar"] #panel { padding: 0.3em; }
+.ab-row { display: flex; flex-wrap: wrap; gap: 0.3em; margin: 0; padding: 0; list-style: none; }
+.ab-row.buffs { margin-top: 0.3em; }
+.ab-slot { position: relative; width: 2.6em; height: 2.6em; border-radius: 0.3em; overflow: hidden; background: var(--line-faint); }
+body[data-look="round"] .ab-slot { border-radius: 50%; }
+.ab-slot .icon { width: 100%; height: 100%; display: block; object-fit: cover; }
+.ab-slot .icon.blank { display: grid; place-items: center; color: var(--muted); }
+.ab-slot.buff { width: 2em; height: 2em; }
+/* The part of the cooldown still to go, dark, sweeping round clockwise as it comes back. */
+.ab-sweep { position: absolute; inset: 0; background: conic-gradient(transparent var(--done), rgba(0, 0, 0, 0.62) var(--done)); }
+.ab-slot.cooling .icon { filter: saturate(0.4); }
+.ab-time { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 0.95em; text-shadow: 0 0 3px #000, 0 0 3px #000; font-variant-numeric: tabular-nums; }
+.ab-slot.buff .ab-time { font-size: 0.8em; }
+.ab-charges { position: absolute; right: 0.15em; bottom: 0; color: #fff; font-size: 0.75em; font-weight: 700; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+/* Ready again: a glow for a moment. */
+.ab-slot.glow, .ab-bar-slot.glow { box-shadow: 0 0 0 2px var(--accent), 0 0 0.8em 0.1em var(--accent); animation: ab-glow 0.6s ease-in-out 2 alternate; }
+@keyframes ab-glow { to { box-shadow: 0 0 0 2px var(--accent-2), 0 0 1.2em 0.3em var(--accent-2); } }
+@media (prefers-reduced-motion: reduce) { .ab-slot.glow, .ab-bar-slot.glow { animation: none; } }
+/* Bars look: one row each. */
+body[data-look="bars"] .ab-row { flex-direction: column; flex-wrap: nowrap; }
+.ab-bar-slot { position: relative; display: flex; align-items: center; gap: 0.35em; border-radius: 0.25em; }
+.ab-bar-slot .icon { flex: none; width: 1.3em; height: 1.3em; border-radius: 0.2em; }
+.ab-bar { position: relative; flex: 1; height: 1.3em; border-radius: 0.2em; overflow: hidden; background: var(--line-faint); }
+.ab-fill { position: absolute; inset: 0 auto 0 0; background: var(--bar, var(--accent-fill)); opacity: 0.6; }
+.ab-bar-name, .ab-bar-time { position: relative; line-height: 1.3em; padding: 0 0.35em; white-space: nowrap; }
+.ab-bar-name { overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.ab-bar-time { position: absolute; right: 0; top: 0; font-variant-numeric: tabular-nums; }
+.ab-bar-slot.ready .ab-bar-time { color: var(--ok); }
+
+/* ---------------------------------------------------------------- black market */
+
+.bm-page.stale { opacity: 0.6; }
+.bm-list { margin: 0; padding: 0; list-style: none; }
+.bm-offer { display: flex; align-items: center; gap: 0.5em; padding: 0.25em 0.1em; }
+.bm-offer + .bm-offer { border-top: 1px solid var(--line-faint); }
+.bm-offer .icon { flex: none; width: 1.7em; height: 1.7em; border-radius: 0.25em; object-fit: cover; }
+.bm-offer .icon.blank { display: grid; place-items: center; background: var(--line-faint); color: var(--muted); font-size: 0.8em; text-transform: uppercase; }
+.bm-offer.worth { box-shadow: inset 2px 0 0 var(--accent); }
+.bm-offer.sold { opacity: 0.55; }
+.bm-what { flex: 1; min-width: 0; }
+.bm-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bm-offer.worth .bm-name { color: var(--accent-2); font-weight: 700; }
+.bm-count { color: var(--muted); }
+.bm-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15em 0.6em; font-size: 0.85em; }
+.bm-cost { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.bm-price { color: var(--text); }
+.bm-off { color: var(--ok); font-size: 0.85em; }
+.bm-tag { padding: 0 0.35em; border: 1px solid var(--line); border-radius: 0.25em; font-size: 0.85em; }
+.bm-tag.new { border-color: var(--accent); color: var(--accent); }
+.bm-tag.have { color: var(--muted); }
+.bm-tag.sold { color: var(--muted); }
+
 /* ---------------------------------------------------------------- checklist */
 
 .ck-box { margin-bottom: 0.7em; padding: 0.3em 0.45em 0.45em; border: 1px solid var(--line-faint); border-radius: 0.3em; background: rgba(0, 0, 0, 0.22); }

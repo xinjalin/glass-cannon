@@ -123,6 +123,23 @@
         "center": false
       },
       {
+        "label": "blackmarket",
+        "title": "Glass Cannon black market",
+        "width": 460,
+        "height": 560,
+        "minWidth": 380,
+        "minHeight": 300,
+        "url": "blackmarket.html",
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
+      },
+      {
         "label": "hud",
         "title": "Glass Cannon overlay",
         "url": "hud.html",

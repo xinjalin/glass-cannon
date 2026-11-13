@@ -48,6 +48,7 @@ const ACTIONS = {
   petMap: () => invoke("open_pet_map").catch(() => {}),
   attempts: () => invoke("open_attempts").catch(() => {}),
   checklist: () => invoke("open_checklist").catch(() => {}),
+  blackMarket: () => invoke("open_black_market").catch(() => {}),
 };
 
 // The list's rows: "key - value" on the left, something short on the right. Each is only
@@ -180,6 +181,7 @@ $("history").addEventListener("click", ACTIONS.history);
 $("pet-map").addEventListener("click", ACTIONS.petMap);
 $("attempts").addEventListener("click", ACTIONS.attempts);
 $("checklist").addEventListener("click", ACTIONS.checklist);
+$("black-market").addEventListener("click", ACTIONS.blackMarket);
 $("arrange").addEventListener("click", async () => {
   await invoke("hud_edit", { on: !(state && state.arranging) }).catch(() => {});
   refresh();

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon black market</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="window.css">
+</head>
+<body data-panel="blackmarket">
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>black market</span>
+      <span id="count" class="note" data-tauri-drag-region></span>
+      <span class="lights">
+        <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
+        <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
+      </span>
+    </header>
+    <!-- One tab per character, then which offers. -->
+    <nav id="characters" class="tabs" role="tablist" aria-label="Character"></nav>
+    <nav id="show" class="tabs" role="tablist" aria-label="Show">
+      <button type="button" role="tab" data-show="all">[all]</button>
+      <button type="button" role="tab" data-show="worth" title="Pets you don't have yet, and items you've seen on offer only once or twice">[worth a look]</button>
+    </nav>
+    <div class="scroll" id="pages"></div>
+    <p id="empty" class="empty" hidden></p>
+    <div class="history-foot">
+      <p id="hint" class="note">open the Black Cloud Merchant in the shop (H) with the meter open · offers change every hour, and differ per character</p>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="window.js"></script>
+  <script src="panel.js"></script>
+  <script src="blackmarket.js"></script>
+</body>
+</html>

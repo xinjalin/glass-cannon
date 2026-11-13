@@ -160,6 +160,11 @@ impl Cooldowns {
         &self.known
     }
 
+    /// The skills you've cast since the meter started (base ids), whether ready now or not.
+    pub fn cast_skills(&self) -> impl Iterator<Item = u32> + '_ {
+        self.by_base.keys().copied()
+    }
+
     /// Forgets the cooldowns, not the skill list: a login sends the list just before your
     /// character, which is what clears this.
     pub fn clear(&mut self) {

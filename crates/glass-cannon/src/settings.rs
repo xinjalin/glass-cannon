@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, CHECKLIST, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, BLACK_MARKET, CHECKLIST, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -29,6 +29,7 @@ const MIN_HISTORY: (f64, f64) = (320.0, 240.0);
 const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
 const MIN_ATTEMPTS: (f64, f64) = (360.0, 260.0);
 const MIN_CHECKLIST: (f64, f64) = (320.0, 240.0);
+const MIN_BLACK_MARKET: (f64, f64) = (380.0, 300.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
 
@@ -319,7 +320,7 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
 /// launcher; and beside the launcher again whenever it's off every screen.
 fn toggle_window(handle: &AppHandle, app: &AppState, label: &str, placed: &AtomicBool, min: (f64, f64)) -> Result<(), String> {
     let w = handle.get_webview_window(label).ok_or_else(|| format!("no {label} window"))?;
-    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
+    if showing(&w) {
         return w.hide().map_err(|e| e.to_string());
     }
     let first = !placed.swap(true, Ordering::SeqCst);
@@ -358,16 +359,31 @@ pub fn open_checklist(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Resul
     toggle_window(&handle, &app, CHECKLIST, &app.checklist_placed, MIN_CHECKLIST)
 }
 
+/// Shows the black market window, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_black_market(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    toggle_window(&handle, &app, BLACK_MARKET, &app.black_market_placed, MIN_BLACK_MARKET)
+}
+
 /// Shows the settings beside the launcher, or hides them if they're already open.
 #[tauri::command]
 pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
     let s = handle.get_webview_window(SETTINGS).ok_or("no settings window")?;
-    if s.is_visible().unwrap_or(false) {
+    // Minimised counts as visible to Windows, but you can't see it: and with no taskbar
+    // button there's nothing else to bring it back with. So only a window you can see is
+    // hidden; a minimised one comes back (it used to be hidden, minimised, for good).
+    if showing(&s) {
         return s.hide().map_err(|e| e.to_string());
     }
     place_settings(&handle, &s);
     s.show().map_err(|e| e.to_string())?;
+    let _ = s.unminimize();
     s.set_focus().map_err(|e| e.to_string())
+}
+
+/// The window is up where you can see it: visible, and not minimised.
+fn showing<R: Runtime>(w: &WebviewWindow<R>) -> bool {
+    w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false)
 }
 
 /// Keeps the pet map at least as big as its content needs at the font size (its list and
@@ -408,7 +424,8 @@ pub fn fit_settings(handle: AppHandle, width: f64, height: f64) -> Result<(), St
         None => (width, height),
     };
     s.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
-    if s.is_visible().unwrap_or(false) {
+    // Not while minimised: it would be placed from where Windows parks it.
+    if showing(&s) {
         place_settings(&handle, &s);
     }
     Ok(())

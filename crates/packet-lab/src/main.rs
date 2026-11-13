@@ -39,6 +39,7 @@ mod pet_spawns;
 mod boss_skills;
 mod item_icons;
 mod theostones;
+mod shop_items;
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -239,6 +240,20 @@ enum Cmd {
         /// The scrape's NPCs: a JSON object by NPC ID
         npcs: PathBuf,
         #[arg(long, default_value = "gamedata/npc-names.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
+    /// Build gamedata/shop-items.json (the pets, skins and Theostones the Black Cloud Merchant
+    /// sells, by item ID, for the black market window) from a scraped item database
+    ShopItems {
+        /// The scrape's items: a JSON object by item ID
+        items: PathBuf,
+        /// The pet names, to link each pet item to its pet
+        #[arg(long, default_value = "gamedata/pets.json")]
+        pets: PathBuf,
+        #[arg(long, default_value = "gamedata/shop-items.json")]
         out: PathBuf,
         /// When the scrape was made (recorded in the file)
         #[arg(long)]
@@ -504,6 +519,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
+        Cmd::ShopItems { items, pets, out, scraped } => shop_items::run(&items, &pets, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
             process,

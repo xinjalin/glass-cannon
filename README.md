@@ -12,7 +12,8 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 - **Meter**: damage, healing and damage taken for you, your party or everyone nearby, with
   each player's skills.
 - **Overlay**: the meter, target frame, boss warnings and timers, player bars, party
-  frames, cooldowns and world timers as widgets over the game. Arrange them freely; they
+  frames, an action bar of your cooldowns and buffs, and world timers as widgets over the
+  game. Arrange them freely; they
   step aside for the world map and full-screen menus.
 - **Boss warnings**: dangerous casts, dungeon and raid mechanics with what to do, and when
   the boss turns to you.
@@ -22,6 +23,8 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
   bests, and each character's attempts at every boss.
 - **Map and pets**: where each pet's mobs spawn and where to gather, and a tracker for the
   pets you're working on.
+- **Black market**: what the Black Cloud Merchant offers each character this hour, with the
+  pets you don't have yet marked.
 - **Weekly checklist**: each character's Odyle energy and its weekly sources.
 
 ## Screenshots

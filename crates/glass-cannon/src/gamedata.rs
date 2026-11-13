@@ -42,6 +42,8 @@ const BOSS_SKILLS_FILE: &str = "boss-skills.json";
 const PET_MAP_FILE: &str = "pet-map.json";
 const GATHER_MAP_FILE: &str = "gather-map.json";
 const GEAR_FILE: &str = "gear.json";
+/// What the Black Cloud Merchant sells (pets, skins, Theostones), by item ID.
+const SHOP_ITEMS_FILE: &str = "shop-items.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
@@ -144,6 +146,26 @@ struct PetEntry {
     name: String,
     #[serde(default)]
     genus: Option<String>,
+}
+
+/// The Black Cloud Merchant's items (optional; from a scraped item database, made with
+/// `packet-lab shop-items`).
+#[derive(Debug, Default, Deserialize)]
+struct ShopItemFile {
+    #[serde(default)]
+    items: BTreeMap<u32, ShopItem>,
+}
+
+/// One of them: a pet ("pet", with its pet's ID), a skin ("skin", with what it's for) or a
+/// Theostone.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ShopItem {
+    pub kind: String,
+    pub name: String,
+    #[serde(default)]
+    pub slot: Option<String>,
+    #[serde(default)]
+    pub pet: Option<u32>,
 }
 
 /// Which mob types give which pet's souls, and where each pet is found (optional; from
@@ -343,6 +365,7 @@ pub struct GameData {
     pets: PetFile,
     pet_spawns: PetSpawnFile,
     gear: GearFile,
+    shop_items: ShopItemFile,
     /// Dungeon bosses' mechanics, for the boss warnings (optional).
     mechanics: meter_core::mechanics::Book,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
@@ -368,6 +391,7 @@ impl GameData {
             pets: PetFile::default(),
             pet_spawns: PetSpawnFile::default(),
             gear: GearFile::default(),
+            shop_items: ShopItemFile::default(),
             mechanics: meter_core::mechanics::Book::default(),
             problem: None,
             last_attempt: None,
@@ -379,6 +403,12 @@ impl GameData {
     #[cfg(test)]
     fn load_first(candidates: Vec<PathBuf>) -> Self {
         Self::load(candidates, None)
+    }
+
+    /// The data in one folder, for other modules' tests.
+    #[cfg(test)]
+    pub fn load_for_tests(dir: PathBuf) -> Self {
+        Self::load(vec![dir], None)
     }
 
     /// Reads the files again.
@@ -400,6 +430,7 @@ impl GameData {
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
                     self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
+                    self.shop_items = read_json::<ShopItemFile>(&dir.join(SHOP_ITEMS_FILE)).unwrap_or_default();
                     self.mechanics = read_json(&dir.join(MECHANICS_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
@@ -704,6 +735,16 @@ impl GameData {
     /// A pet's name, by the ID its souls come with.
     pub fn pet_name(&self, pet: u32) -> Option<String> {
         self.pets.pets.get(&pet).map(|p| p.name.clone())
+    }
+
+    /// A pet's genus (Fera, Natura…).
+    pub fn pet_genus(&self, pet: u32) -> Option<String> {
+        self.pets.pets.get(&pet)?.genus.clone()
+    }
+
+    /// An item the Black Cloud Merchant sells, when the data has it.
+    pub fn shop_item(&self, item: u32) -> Option<&ShopItem> {
+        self.shop_items.items.get(&item)
     }
 
     /// Every pet in the data, by ID.
