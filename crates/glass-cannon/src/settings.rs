@@ -320,7 +320,7 @@ foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFo
 /// launcher; and beside the launcher again whenever it's off every screen.
 fn toggle_window(handle: &AppHandle, app: &AppState, label: &str, placed: &AtomicBool, min: (f64, f64)) -> Result<(), String> {
     let w = handle.get_webview_window(label).ok_or_else(|| format!("no {label} window"))?;
-    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
+    if showing(&w) {
         return w.hide().map_err(|e| e.to_string());
     }
     let first = !placed.swap(true, Ordering::SeqCst);
@@ -369,12 +369,21 @@ pub fn open_black_market(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Re
 #[tauri::command]
 pub fn toggle_settings(handle: AppHandle) -> Result<(), String> {
     let s = handle.get_webview_window(SETTINGS).ok_or("no settings window")?;
-    if s.is_visible().unwrap_or(false) {
+    // Minimised counts as visible to Windows, but you can't see it: and with no taskbar
+    // button there's nothing else to bring it back with. So only a window you can see is
+    // hidden; a minimised one comes back (it used to be hidden, minimised, for good).
+    if showing(&s) {
         return s.hide().map_err(|e| e.to_string());
     }
     place_settings(&handle, &s);
     s.show().map_err(|e| e.to_string())?;
+    let _ = s.unminimize();
     s.set_focus().map_err(|e| e.to_string())
+}
+
+/// The window is up where you can see it: visible, and not minimised.
+fn showing<R: Runtime>(w: &WebviewWindow<R>) -> bool {
+    w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false)
 }
 
 /// Keeps the pet map at least as big as its content needs at the font size (its list and
@@ -415,7 +424,8 @@ pub fn fit_settings(handle: AppHandle, width: f64, height: f64) -> Result<(), St
         None => (width, height),
     };
     s.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
-    if s.is_visible().unwrap_or(false) {
+    // Not while minimised: it would be placed from where Windows parks it.
+    if showing(&s) {
         place_settings(&handle, &s);
     }
     Ok(())
