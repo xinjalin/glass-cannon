@@ -134,12 +134,16 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
         break (procs, ips);
     };
 
-    // 2. Capture only on the adapter(s) the game actually uses.
+    // 2. Capture only on the adapter(s) the game actually uses: loopback too, when it goes
+    // through a relay on this PC (ExitLag and other ping reducers).
     let all = np.devices()?;
-    let chosen = pick_devices(&all, &opts.devices, &local_ips, &mut on_event)?;
-    // The addresses being captured, when the adapters were picked by the game's own.
-    let chosen_addrs: HashSet<IpAddr> = chosen.iter().flat_map(|d| d.addrs.iter().copied()).collect();
-    let follows = opts.follow_adapter && opts.devices.is_empty() && local_ips.iter().any(|ip| chosen_addrs.contains(ip));
+    let (chosen, matched) = pick_devices(&all, &opts.devices, &local_ips, &mut on_event)?;
+    let chosen_names: HashSet<String> = chosen.iter().map(|d| d.name.clone()).collect();
+    let follows = opts.follow_adapter && opts.devices.is_empty() && matched;
+    // The game's local addresses last looked at, and whether they wanted an adapter we
+    // aren't on (looked up again only when they change).
+    let mut seen_ips = local_ips.clone();
+    let mut moved = false;
 
     // 3. Session folder, if recording.
     let session_dir = opts
@@ -243,8 +247,14 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                 current = LiveMatcher::from_tables(&pids, &tcp, &udp);
                 matcher.merge(&current);
                 let ips = conns::local_ips_for(&pids, &tcp);
-                let moved = follows && !ips.is_empty() && !ips.iter().any(|ip| chosen_addrs.contains(ip));
-                elsewhere = if moved { elsewhere + 1 } else { 0 };
+                if follows && !ips.is_empty() && ips != seen_ips {
+                    // The game's connections moved (a new server, a VPN or ping reducer
+                    // turned on or off): is it on an adapter we aren't capturing?
+                    let (wanted, _) = devices_for(&np.devices()?, &ips, &conns::interface_guids());
+                    moved = wanted.iter().any(|d| !chosen_names.contains(&d.name));
+                    seen_ips = ips;
+                }
+                elsewhere = if follows && moved { elsewhere + 1 } else { 0 };
                 pipeline.set_matcher(Matcher::Live(matcher.clone()), now_us())
             })();
             if let Err(e) = refreshed {
@@ -252,7 +262,7 @@ pub fn run(opts: &LiveOptions, stop: &AtomicBool, mut on_event: impl FnMut(LiveE
                 break;
             }
             if elsewhere >= ADAPTER_CHECKS {
-                on_event(LiveEvent::Warning("the game is on another network adapter now: starting the capture again".into()));
+                on_event(LiveEvent::Warning("the game's connection moved to another network adapter: starting the capture again".into()));
                 break;
             }
             // Released held packets and skipped holes can produce data too.
@@ -325,26 +335,65 @@ fn emit_messages(pipeline: &mut Pipeline, game: &mut GameStreams, on_event: &mut
     }
 }
 
+/// What to say when the game goes through a relay on this PC and Npcap can't capture
+/// this PC's own (loopback) traffic.
+const NO_LOOPBACK: &str = "the game's connection goes through a relay on this PC (ExitLag or another ping reducer), and Npcap can't see this PC's own traffic: reinstall Npcap (npcap.com) with \"Support loopback traffic\" ticked";
+
+/// The adapters the game's local addresses are on, each once, and the addresses none is
+/// found for. A loopback address (a relay on this PC) is Npcap's loopback adapter; any
+/// other is the adapter Npcap lists it on, else the one Windows says it's on (by its GUID,
+/// in the adapter's name: Npcap lists some adapters without their addresses).
+pub fn devices_for(all: &[Device], ips: &HashSet<IpAddr>, guids: &[(IpAddr, String)]) -> (Vec<Device>, Vec<IpAddr>) {
+    let mut found: Vec<Device> = Vec::new();
+    let mut missing = Vec::new();
+    let mut ips: Vec<&IpAddr> = ips.iter().collect();
+    ips.sort();
+    for ip in ips {
+        let device = if ip.is_loopback() {
+            all.iter().find(|d| d.loopback)
+        } else {
+            all.iter().find(|d| !d.loopback && d.addrs.contains(ip)).or_else(|| {
+                let guid = guids.iter().find(|(a, _)| a == ip).map(|(_, g)| g.to_ascii_uppercase())?;
+                all.iter().find(|d| d.name.to_ascii_uppercase().ends_with(&guid))
+            })
+        };
+        match device {
+            Some(d) if !found.iter().any(|f| f.name == d.name) => found.push(d.clone()),
+            Some(_) => {}
+            None => missing.push(*ip),
+        }
+    }
+    (found, missing)
+}
+
+/// The adapters to capture on, and whether they were found from the game's own addresses
+/// (else chosen by hand, or every adapter as a fallback).
 fn pick_devices(
     all: &[Device],
     selectors: &[String],
     local_ips: &HashSet<IpAddr>,
     on_event: &mut impl FnMut(LiveEvent),
-) -> Result<Vec<Device>> {
+) -> Result<(Vec<Device>, bool)> {
     if !selectors.is_empty() {
         let chosen = select_devices(all, selectors);
         if chosen.is_empty() {
             bail!("no capture device matches {selectors:?} (run `packet-lab devices`)");
         }
-        return Ok(chosen);
+        return Ok((chosen, false));
     }
-    let matched: Vec<Device> = all
-        .iter()
-        .filter(|d| !d.loopback && d.addrs.iter().any(|a| local_ips.contains(a)))
-        .cloned()
-        .collect();
-    if !matched.is_empty() {
-        return Ok(matched);
+    let (found, missing) = devices_for(all, local_ips, &conns::interface_guids());
+    let relay_unseen = missing.iter().any(|ip| ip.is_loopback());
+    if !found.is_empty() {
+        if relay_unseen {
+            on_event(LiveEvent::Warning(NO_LOOPBACK.into()));
+        } else if !missing.is_empty() {
+            on_event(LiveEvent::Warning(format!("couldn't find the adapter for {}: capturing on the others", join(&missing))));
+        }
+        return Ok((found, true));
+    }
+    // Only through a relay we can't see: no adapter would show the game's messages.
+    if relay_unseen && missing.iter().all(|ip| ip.is_loopback()) {
+        bail!("{NO_LOOPBACK}");
     }
     on_event(LiveEvent::Warning(
         "couldn't match the game's local address to an adapter (VPN?); capturing on all adapters".into(),
@@ -357,7 +406,11 @@ fn pick_devices(
     if fallback.is_empty() {
         bail!("no usable capture devices found");
     }
-    Ok(fallback)
+    Ok((fallback, false))
+}
+
+fn join(ips: &[IpAddr]) -> String {
+    ips.iter().map(|ip| ip.to_string()).collect::<Vec<_>>().join(", ")
 }
 
 fn snapshot_matcher(pids: &HashSet<u32>) -> Result<LiveMatcher> {
@@ -401,5 +454,122 @@ fn sleep_unless_stopped(stop: &AtomicBool, total: Duration) {
     while waited < total && !stop.load(Ordering::Relaxed) {
         thread::sleep(step);
         waited += step;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conns::TcpConn;
+    use crate::decode::{self, linktype, tcp_flags};
+    use crate::game::GameStreams;
+    use crate::pipeline::{LiveMatcher, Matcher, Pipeline};
+    use crate::protocol::tests::frame;
+    use crate::testutil::ipv4_tcp;
+
+    fn device(name: &str, addrs: &[&str], loopback: bool) -> Device {
+        Device { name: name.into(), description: String::new(), addrs: addrs.iter().map(|a| a.parse().unwrap()).collect(), loopback }
+    }
+
+    fn ips(list: &[&str]) -> HashSet<IpAddr> {
+        list.iter().map(|a| a.parse().unwrap()).collect()
+    }
+
+    /// This PC's adapters, as Npcap lists them (2026-11-14).
+    fn adapters() -> Vec<Device> {
+        vec![
+            device(r"\Device\NPF_{E2965313-B9C2-4EAC-82E6-1534D115B86E}", &["172.21.192.1"], false),
+            device(r"\Device\NPF_{BB17D9E9-3D2D-4CF5-8166-07498586EFAB}", &["192.168.0.248"], false),
+            // A VPN's adapter, listed without its address.
+            device(r"\Device\NPF_{0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9}", &[], false),
+            device(r"\Device\NPF_Loopback", &[], true),
+        ]
+    }
+
+    #[test]
+    fn the_game_straight_to_its_server_is_captured_on_its_adapter() {
+        let (found, missing) = devices_for(&adapters(), &ips(&["192.168.0.248"]), &[]);
+        assert_eq!(found.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), [r"\Device\NPF_{BB17D9E9-3D2D-4CF5-8166-07498586EFAB}"]);
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn the_game_through_a_relay_on_this_pc_is_captured_on_loopback() {
+        // ExitLag: the game talks to its relay on 127.0.0.1, and keeps a direct connection
+        // or two (the launcher's, a web one).
+        let (found, missing) = devices_for(&adapters(), &ips(&["127.0.0.1", "192.168.0.248"]), &[]);
+        let names: Vec<&str> = found.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, [r"\Device\NPF_Loopback", r"\Device\NPF_{BB17D9E9-3D2D-4CF5-8166-07498586EFAB}"]);
+        assert!(missing.is_empty());
+        // Npcap installed without loopback support: the relay can't be seen.
+        let without: Vec<Device> = adapters().into_iter().filter(|d| !d.loopback).collect();
+        let (found, missing) = devices_for(&without, &ips(&["127.0.0.1"]), &[]);
+        assert!(found.is_empty());
+        assert_eq!(missing, ["127.0.0.1".parse::<IpAddr>().unwrap()]);
+    }
+
+    #[test]
+    fn an_adapter_listed_without_its_address_is_found_by_its_guid() {
+        let guids = [("10.8.0.2".parse().unwrap(), "{0a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9}".to_string())];
+        let (found, missing) = devices_for(&adapters(), &ips(&["10.8.0.2"]), &guids);
+        assert_eq!(found.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), [r"\Device\NPF_{0A1B2C3D-4E5F-6071-8293-A4B5C6D7E8F9}"]);
+        assert!(missing.is_empty());
+        // Nothing has it: said so.
+        let (found, missing) = devices_for(&adapters(), &ips(&["10.9.9.9"]), &guids);
+        assert!(found.is_empty() && missing.len() == 1);
+    }
+
+    #[test]
+    fn game_messages_read_off_loopback_through_a_relay() {
+        // The game (pid 7) talks to ExitLag's relay (pid 99) on this PC; the relay has its
+        // own end of that connection, and a tunnel out of its own.
+        let (game, relay) = (7, 99);
+        let conn = |pid, local: &str, remote: &str| TcpConn { pid, local: local.parse().unwrap(), remote: remote.parse().unwrap(), state: TcpConn::ESTABLISHED };
+        let tcp = [
+            conn(game, "127.0.0.1:50001", "127.0.0.1:61000"),
+            conn(relay, "127.0.0.1:61000", "127.0.0.1:50001"),
+            conn(relay, "192.168.0.248:52000", "45.60.1.2:443"),
+        ];
+        let pids = HashSet::from([game]);
+        assert_eq!(conns::local_ips_for(&pids, &tcp), ips(&["127.0.0.1"]));
+        let mut p = Pipeline::new(Matcher::Live(LiveMatcher::from_tables(&pids, &tcp, &[])), None);
+        p.collect_streams();
+        // Npcap's loopback adapter: DLT_NULL, a 4-byte address family before each packet.
+        let looped = |ip: Vec<u8>| {
+            let mut f = 2u32.to_le_bytes().to_vec();
+            f.extend(ip);
+            f
+        };
+        let (lo, game_port, relay_port) = ([127, 0, 0, 1], 50001, 61000);
+        let mut stream = frame(0x3600, b"hello");
+        stream.extend(frame(0x3804, &[7u8; 40]));
+        let mut seq = 1000;
+        let mut packets = vec![looped(ipv4_tcp(lo, game_port, lo, relay_port, 1, tcp_flags::ACK, b"login"))];
+        for chunk in stream.chunks(20) {
+            packets.push(looped(ipv4_tcp(lo, relay_port, lo, game_port, seq, tcp_flags::ACK, chunk)));
+            seq += chunk.len() as u32;
+        }
+        for (i, f) in packets.iter().enumerate() {
+            let ip = decode::link_payload(linktype::NULL, f).unwrap();
+            p.ingest(i as u64 + 1, ip).unwrap();
+        }
+        assert_eq!(p.stats().packets_matched, packets.len() as u64);
+        // Into game messages, as the meter reads them (the connection proves itself first).
+        let mut game_streams = GameStreams::default();
+        let mut out = Vec::new();
+        for c in p.take_streams() {
+            game_streams.push(c, &mut out);
+        }
+        let small = frame(0x3600, b"x");
+        for _ in 0..crate::game::CONFIRM_AFTER_SLIP {
+            let f = looped(ipv4_tcp(lo, relay_port, lo, game_port, seq, tcp_flags::ACK, &small));
+            p.ingest(99, decode::link_payload(linktype::NULL, &f).unwrap()).unwrap();
+            seq += small.len() as u32;
+        }
+        for c in p.take_streams() {
+            game_streams.push(c, &mut out);
+        }
+        assert!(game_streams.connected());
+        assert_eq!(out.iter().take(2).map(|m| m.opcode).collect::<Vec<_>>(), [0x3600, 0x3804]);
     }
 }

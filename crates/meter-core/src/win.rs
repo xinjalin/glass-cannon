@@ -38,6 +38,9 @@ extern "system" {
 
 #[link(name = "iphlpapi")]
 extern "system" {
+    pub fn GetIpAddrTable(table: *mut c_void, size: *mut u32, order: i32) -> u32;
+    pub fn ConvertInterfaceIndexToLuid(index: u32, luid: *mut u64) -> u32;
+    pub fn ConvertInterfaceLuidToGuid(luid: *const u64, guid: *mut [u8; 16]) -> u32;
     pub fn GetExtendedTcpTable(
         table: *mut c_void,
         size: *mut u32,

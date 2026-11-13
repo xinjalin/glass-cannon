@@ -289,6 +289,25 @@ boss's pull, so they line up from one fight to the next; its routine skills are 
 The analysis window's **[boss]** tab lists every cast of a fight; most boss skills have no
 name in the game data, so double-click one there to name it.
 
+## When the meter shows no fights
+
+The launcher's status line says how far the meter got: waiting for the game, waiting for
+it to connect, capturing on an adapter (named), or an error. Settings → general shows
+whether Npcap and the game data loaded.
+
+**Ping reducers and VPNs** (ExitLag, GearUP, WTFast, NoPing…): these reroute the game's
+connection, often through a relay on your own PC, which passes it on in a tunnel of its
+own. The meter follows the game's connection wherever it goes: to the relay, it reads it
+off your PC's loopback traffic (where the game's messages still are); to a VPN's adapter, on
+that adapter. Reading loopback needs Npcap's "Support loopback traffic" (ticked by
+default): if it was unticked, the launcher says so; reinstall Npcap with it ticked. If the
+game's connection moves while you play (a ping reducer turned on or off), the capture
+starts again on the right adapter within a few seconds.
+
+**Npcap for administrators only**: with "Restrict Npcap driver's access to Administrators
+only" ticked when it was installed, the meter (which runs without admin rights) can't
+capture. Reinstall Npcap with it unticked.
+
 ## Windows
 
 The launcher, settings, history, attempts, checklist, black market, map and analysis are windows, with the same lights at
