@@ -2,6 +2,7 @@
 //! roundness and thickness, whether they always show, their numbers (what, how big, on what, at which end) and the cast's look.
 //! Each change is saved and sent to the widget at once.
 
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -10,8 +11,10 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::{lock, AppState};
 
-/// The arcs' looks: thick with a dark track; thin lines with a glow; cut into cells.
-pub const STYLES: [&str; 3] = ["solid", "thin", "segmented"];
+/// The arcs' looks: thick with a dark track; thin lines with a glow; cut into cells; thick,
+/// dark at the bottom and bright at the fill's end; a light frame with the fill inside it;
+/// thin with notches outside them at a quarter, half and three quarters.
+pub const STYLES: [&str; 6] = ["solid", "thin", "segmented", "gradient", "framed", "ticks"];
 /// What's behind the numbers: a dark outline, a soft shadow, a dark plate, nothing.
 pub const TEXT_BACKINGS: [&str; 4] = ["outline", "shadow", "plate", "none"];
 /// Which end of the arcs the numbers go by.
@@ -25,6 +28,8 @@ pub const CASTS: [&str; 2] = ["arc", "bar"];
 pub const TEXT_SIZES: RangeInclusive<u16> = 50..=200;
 /// How round the arcs are, in percent: 0 straight, 50 as they were, 100 the roundest.
 pub const ROUNDNESS: RangeInclusive<u16> = 0..=100;
+/// The arcs (and the shield over the HP arc) that can have a colour of their own.
+pub const COLOURED: [&str; 6] = ["hp", "stamina", "mp", "flight", "cast", "shield"];
 /// How thick the arcs are, in percent of each look's own.
 pub const WIDTHS: RangeInclusive<u16> = 50..=300;
 
@@ -43,6 +48,10 @@ pub struct VitalsSetup {
     pub always_show: bool,
     /// Your cast shows under your feet.
     pub show_cast: bool,
+    /// Colours of your own ("#rrggbb"), by arc (see [`COLOURED`]); the rest keep theirs.
+    pub colours: BTreeMap<String, String>,
+    /// HP lost stays as a pale trail for a moment, then shrinks away.
+    pub trail: bool,
 }
 
 impl Default for VitalsSetup {
@@ -58,6 +67,8 @@ impl Default for VitalsSetup {
             width: 100,
             always_show: false,
             show_cast: true,
+            colours: BTreeMap::new(),
+            trail: false,
         }
     }
 }
@@ -77,6 +88,18 @@ pub struct VitalsChange {
     pub width: Option<i64>,
     pub always_show: Option<bool>,
     pub show_cast: Option<bool>,
+    /// The colours of your own, all of them (an empty map: the built-in ones).
+    pub colours: Option<BTreeMap<String, String>>,
+    pub trail: Option<bool>,
+}
+
+fn is_hex_colour(c: &str) -> bool {
+    c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// The colours kept: known arcs, real colours.
+fn valid_colours(c: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    c.into_iter().filter(|(k, v)| COLOURED.contains(&k.as_str()) && is_hex_colour(v)).map(|(k, v)| (k, v.to_ascii_lowercase())).collect()
 }
 
 fn pick(choices: &[&str], v: Option<String>, now: &mut String) {
@@ -108,8 +131,14 @@ impl VitalsSetup {
         if let Some(a) = c.always_show {
             self.always_show = a;
         }
-        if let Some(c) = c.show_cast {
-            self.show_cast = c;
+        if let Some(s) = c.show_cast {
+            self.show_cast = s;
+        }
+        if let Some(c) = c.colours {
+            self.colours = valid_colours(c);
+        }
+        if let Some(t) = c.trail {
+            self.trail = t;
         }
     }
 
@@ -129,6 +158,7 @@ impl VitalsSetup {
         if !WIDTHS.contains(&self.width) {
             self.width = fixed.width;
         }
+        self.colours = valid_colours(self.colours);
         self
     }
 }
@@ -179,6 +209,15 @@ mod tests {
         assert!(v.show_cast, "the cast shows unless turned off");
         v.update(VitalsChange { show_cast: Some(false), ..Default::default() });
         assert!(!v.show_cast);
+        // Colours: known arcs and real colours only, all at once.
+        let colours = [("hp", "#FF0000"), ("shield", "#ffffff"), ("wings", "#00ff00"), ("mp", "blue")];
+        v.update(VitalsChange { colours: Some(colours.iter().map(|(k, c)| ((*k).into(), (*c).into())).collect()), ..Default::default() });
+        assert_eq!(v.colours.iter().map(|(k, c)| (k.as_str(), c.as_str())).collect::<Vec<_>>(), [("hp", "#ff0000"), ("shield", "#ffffff")]);
+        v.update(VitalsChange { colours: Some(BTreeMap::new()), ..Default::default() });
+        assert!(v.colours.is_empty());
+        // The newer looks, and the trail.
+        v.update(VitalsChange { style: Some("framed".into()), trail: Some(true), ..Default::default() });
+        assert_eq!((v.style.as_str(), v.trail), ("framed", true));
     }
 
     #[test]

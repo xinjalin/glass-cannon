@@ -76,6 +76,7 @@ pub struct SettingsStatus {
     hide_for_menus: bool,
     click_through: bool,
     meter_fit: bool,
+    black_market_auto: bool,
     party_sort: String,
     /// The menu check's last results (how X-like and arrow-like the corner was) and their bars.
     menu_checks: Vec<(u8, u8)>,
@@ -181,6 +182,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         hide_for_menus: s.hide_for_menus,
         click_through: s.click_through,
         meter_fit: s.meter_fit,
+        black_market_auto: s.black_market_auto,
         party_sort: s.party_sort.clone(),
         menu_checks: lock(&app.menu_checks).iter().copied().collect(),
         menu_share: (crate::menus::X_SCORE as u8, crate::menus::ARROW_SCORE as u8),
@@ -339,6 +341,33 @@ fn toggle_window(handle: &AppHandle, app: &AppState, label: &str, placed: &Atomi
     w.show().map_err(|e| e.to_string())?;
     let _ = w.unminimize();
     w.set_focus().map_err(|e| e.to_string())
+}
+
+/// How long after it last came up by itself (or was closed) the black market window
+/// doesn't come up again: going through the merchant's pages after closing it doesn't
+/// bring it back.
+const BLACK_MARKET_AGAIN_MS: u64 = 120_000;
+
+/// The merchant opened in game: shows the black market window (settings → general), beside
+/// the game and without taking the focus from it, unless it's showing or came up lately.
+pub fn black_market_opened(handle: &AppHandle, app: &AppState) {
+    if !lock(&app.settings).black_market_auto {
+        return;
+    }
+    let Some(w) = handle.get_webview_window(BLACK_MARKET) else { return };
+    let now = crate::hotkeys::now_ms();
+    let last = app.black_market_auto_at.swap(now, Ordering::SeqCst);
+    if showing(&w) || (last != 0 && now.saturating_sub(last) < BLACK_MARKET_AGAIN_MS) {
+        return;
+    }
+    let first = !app.black_market_placed.swap(true, Ordering::SeqCst);
+    let restored = first && lock(&app.placements).get(BLACK_MARKET).is_some_and(|p| crate::placement::restore(&w, p, true));
+    if (first && !restored) || !fully_on_screen(&w) {
+        if let Ok(size) = w.outer_size() {
+            place_beside(handle, &w, (size.width as i32, size.height as i32), MIN_BLACK_MARKET, &SIDES);
+        }
+    }
+    crate::style::show_quietly(&w);
 }
 
 /// Shows the fight history, or hides it if it's showing.

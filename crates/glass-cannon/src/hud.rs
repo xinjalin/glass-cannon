@@ -223,10 +223,19 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                             // A reward screen (a Monster Cube's, Shugo's…): no mark in the
                             // corner, a gold Confirm button at the bottom middle.
                             let (w, h) = (area.width(), area.height());
-                            let Some(mut strip) = crate::menus::read_bottom((area.left, area.top, w, h)) else { return false };
-                            let (ox, oy) = crate::menus::bottom_origin(w, h);
-                            strip.blank(&widgets_in_strip(&lock(&app.hud_drawn), ox, oy));
-                            strip.has_confirm_button(height)
+                            if let Some(mut strip) = crate::menus::read_bottom((area.left, area.top, w, h)) {
+                                let (ox, oy) = crate::menus::bottom_origin(w, h);
+                                strip.blank(&widgets_in_strip(&lock(&app.hud_drawn), ox, oy));
+                                if strip.has_confirm_button(height) {
+                                    return true;
+                                }
+                            }
+                            // A window that isn't full screen (Attendance…): its close X on
+                            // its title bar, wherever it is in the top of the screen.
+                            let Some(mut top) = crate::menus::read_top((area.left, area.top, w, h)) else { return false };
+                            let (ox, _, _) = crate::menus::top_box(w, h);
+                            top.blank(&widgets_in_strip(&lock(&app.hud_drawn), f64::from(ox), 0.0));
+                            top.has_window_close(height)
                         };
                         menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing(), &mut look)
                     }

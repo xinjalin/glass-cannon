@@ -407,6 +407,23 @@ function cyclePartySort(col) {
   redraw();
 }
 
+// A party-finder group's slots per party: a Sanctuary's room of ten is two parties of
+// five (slots 1-5 and 6-10), as the game's room list shows them.
+const PARTY_SLOTS = 5;
+
+// The group split into its parties, when it has more than one (a raid's room); else one
+// list, unlabelled.
+function partiesOf(party) {
+  if (!party.some((m) => m.slot > PARTY_SLOTS)) return [{ n: 0, members: party }];
+  const by = new Map();
+  for (const m of party) {
+    const n = m.slot ? Math.ceil(m.slot / PARTY_SLOTS) : 1;
+    if (!by.has(n)) by.set(n, []);
+    by.get(n).push(m);
+  }
+  return [...by.entries()].sort(([a], [b]) => a - b).map(([n, members]) => ({ n, members }));
+}
+
 function drawParty(party) {
   loadPartyGear();
   const list = $("rows");
@@ -414,7 +431,23 @@ function drawParty(party) {
   rowCache.clear();
   const top = Math.max(1, ...party.map((m) => m.combat_power || 0));
   const sort = (lastView && lastView.party_sort) || "roster";
-  sortedParty(party).forEach((m, i) => {
+  for (const { n, members } of partiesOf(party)) {
+    if (n) {
+      // Its line: the party, how full, its average combat power, who's ready.
+      const cps = members.map((m) => m.combat_power).filter(Boolean);
+      const head = el("li", "party-head");
+      head.append(el("span", "party-head-name", `party ${n}`), el("span", "party-head-count", `${members.length}/${PARTY_SLOTS}`));
+      if (cps.length) head.append(el("span", "party-head-cp", `avg cp ${fmt(cps.reduce((s, v) => s + v, 0) / cps.length)}`));
+      const ready = readyCount(members);
+      if (ready) head.append(el("span", "party-head-ready", `ready ${ready}`));
+      list.append(head);
+    }
+    drawPartyRows(list, members, top, sort);
+  }
+}
+
+function drawPartyRows(list, members, top, sort) {
+  sortedParty(members).forEach((m, i) => {
     const row = el("li", "row party-row" + (m.is_self ? " self" : "") + (m.class_code ? ` c${m.class_code}` : ""));
     row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ") + "\n\n" + gearText(m.name);
     const line = el("div", "line");
@@ -945,6 +978,30 @@ function fitHeight() {
   });
 }
 
+// Dropped packets: the capture's count is since it started, so the warning goes by the
+// drops since it last had none for a while: shown from a drop until this long without
+// another, with how many came in that time.
+const DROPS_SHOWN_MS = 60_000;
+let drops = { seen: null, from: 0, at: 0 };
+function recentDrops(total) {
+  const now = Date.now();
+  if (drops.seen == null || total < drops.seen) drops = { seen: total, from: total, at: 0 };
+  if (total > drops.seen) {
+    // A new run of drops counts from where the last one ended.
+    if (now - drops.at >= DROPS_SHOWN_MS) drops.from = drops.seen;
+    drops.at = now;
+    drops.seen = total;
+  }
+  return now - drops.at < DROPS_SHOWN_MS ? total - drops.from : 0;
+}
+// Checked again now and then, so the warning goes even while nothing else redraws.
+setInterval(() => {
+  if (!lastView) return;
+  drawStatus(lastView);
+  // The line coming or going changes a fitted meter's height.
+  fitHeight();
+}, 5000);
+
 function drawStatus(view) {
   const { status, meter } = view;
   drawScope(meter, view.auto_scope);
@@ -973,8 +1030,9 @@ function drawStatus(view) {
     kind = "error";
   } else if (view.skills_loaded === 0) {
     problem = "no game data: extract the whole release zip (the gamedata folder goes next to the exe)";
-  } else if (status.dropped > 0) {
-    problem = `${status.dropped} packets dropped: numbers may be low`;
+  } else {
+    const recent = recentDrops(status.dropped || 0);
+    if (recent > 0) problem = `${recent} packets dropped just now: numbers may be low`;
   }
   const line = $("status");
   line.hidden = !problem;

@@ -523,6 +523,18 @@ pub struct TargetView {
     pub selected: bool,
     /// What it's casting, if the cast has a cast time and hasn't gone off yet.
     pub cast: Option<CastBar>,
+    /// A player: their class (from their spawn, else their skills), rank and combat power.
+    pub player: Option<TargetPlayer>,
+}
+
+/// A player you're targeting, as far as the game has said.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct TargetPlayer {
+    pub class_code: Option<u32>,
+    pub class_name: Option<String>,
+    /// 1 the highest, 19 the lowest.
+    pub rank: Option<u32>,
+    pub combat_power: Option<u32>,
 }
 
 /// Tickets and Abyss artifacts the game sent (see [`crate::contents`]).
@@ -563,6 +575,10 @@ pub struct SelfBars {
     pub flight: Option<u32>,
     pub flight_max: Option<u32>,
     pub cast: Option<CastBar>,
+    /// The damage your shields can still take (filled by the app, which knows which skills
+    /// give shields: see [`Meter::shields_on`]).
+    #[serde(default)]
+    pub shield: Option<u64>,
 }
 
 /// Why a fight ended.
@@ -664,6 +680,12 @@ pub struct PartyFrame {
     pub mp_max: Option<u32>,
     /// How long ago the party's update for them came (ms).
     pub age_ms: Option<u64>,
+    /// Their entity, when known (for the app to fill in their shield).
+    #[serde(skip)]
+    pub entity: Option<u64>,
+    /// The damage their shields can still take (filled by the app).
+    #[serde(default)]
+    pub shield: Option<u64>,
 }
 
 /// A fight that has ended, as it looked at the end.
@@ -929,6 +951,8 @@ pub struct Meter {
     gear: crate::gear::GearBook,
     /// Party members' HP and MP (`0x921b`), and when each was sent.
     party_vitals: HashMap<u64, (hp::Vitals, u64)>,
+    /// The shields on everyone in view.
+    shields: crate::shields::Shields,
     /// Hidden cubes in view.
     cubes: crate::cubes::Cubes,
     /// Your pets' souls.
@@ -989,6 +1013,7 @@ impl Meter {
             self_mp: (None, None, 0),
             self_stats: SelfStats::default(),
             party_vitals: HashMap::new(),
+            shields: crate::shields::Shields::default(),
             gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
             pets: crate::pets::Pets::default(),
@@ -1094,6 +1119,12 @@ impl Meter {
         self.world_map_us.is_some_and(|t| now_us.saturating_sub(t) < WORLD_MAP_GONE_US)
     }
 
+    /// The damage an entity's shields can still take; `is_shield` says which skills give
+    /// shields (the game data knows).
+    pub fn shields_on(&self, entity: u64, is_shield: &dyn Fn(u32) -> bool) -> u64 {
+        self.shields.on(entity, is_shield)
+    }
+
     /// Your HP, MP and cast now (the player bars widget).
     pub fn self_bars(&self) -> Option<SelfBars> {
         let me = self.registry.self_id()?;
@@ -1115,6 +1146,7 @@ impl Meter {
                 let end = start + u64::from(cast_ms) * 1000;
                 (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
             }),
+            shield: None,
         })
     }
 
@@ -1263,6 +1295,7 @@ impl Meter {
                 }
             }
         }
+        self.shields.feed(opcode, payload);
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }
@@ -1537,6 +1570,7 @@ impl Meter {
                 self.self_mp = (None, None, 0);
                 self.self_stats = self.self_stats.carried_over();
                 self.party_vitals.clear();
+                self.shields.clear();
                 self.boss_log.clear();
                 self.pulls.clear();
                 self.cubes.clear();
@@ -2036,7 +2070,7 @@ impl Meter {
             .map(|view| {
                 let entity = if view.is_self { me } else { self.registry.entity_named(&view.member.name) };
                 let sent = entity.and_then(|e| self.party_vitals.get(&e));
-                let mut f = PartyFrame { view, hp: None, hp_max: None, mp: None, mp_max: None, age_ms: None };
+                let mut f = PartyFrame { view, hp: None, hp_max: None, mp: None, mp_max: None, age_ms: None, entity, shield: None };
                 if let Some((v, at)) = sent {
                     (f.hp, f.hp_max, f.mp, f.mp_max) = (Some(v.hp), Some(v.hp_max), Some(v.mp), Some(v.mp_max));
                     f.age_ms = Some(self.latest_us.saturating_sub(*at) / 1000);
@@ -2069,7 +2103,7 @@ impl Meter {
                 PartyView {
                     member: m.clone(),
                     is_self: me == Some(m.name.as_str()),
-                    class_code: entity.and_then(|id| self.classes.get(&id).copied()),
+                    class_code: m.roster_class.or_else(|| entity.and_then(|id| self.classes.get(&id).copied())),
                 }
             })
             .collect()
@@ -2416,6 +2450,16 @@ impl Meter {
                     cast_ms,
                     remaining_ms: ((end - self.latest_us) / 1000) as u32,
                 })
+            }),
+            player: self.registry.player_name(entity).map(|_| {
+                let info = self.registry.spawn_info(entity);
+                let class_code = info.class_code.or_else(|| self.classes.get(&entity).copied());
+                TargetPlayer {
+                    class_code,
+                    class_name: class_code.and_then(classes::class_name).map(str::to_string),
+                    rank: info.rank,
+                    combat_power: self.combat_power_of(entity),
+                }
             }),
         })
     }

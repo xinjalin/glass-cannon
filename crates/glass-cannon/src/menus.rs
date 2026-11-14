@@ -29,6 +29,18 @@
 //! lowest 22 % of it) is read too and looked over for a solid gold bar of about that size
 //! anywhere in it, with no gold just around it. Kept only for that look, as the corner.
 //!
+//! Windows that aren't full screen (Attendance, …) have their close X at their own top
+//! right, wherever the window is, on its title bar. So the top of the screen (its top 60 %,
+//! from 30 % across to the right) is looked over for an X-like mark (a little fainter than
+//! the corner's: 125, its strokes 150, each point the brightest a pixel up or down, as a
+//! window's X can be thin and not quite square) that sits on a title bar: a long straight
+//! edge above it and one below it, running 40 % of the screen's height to its left, one
+//! along 90 % of that, the other (the line under a title bar can fade at its ends) 70 %.
+//! On a screenshot of the Attendance window its X scores 145, with edges 30 px above and 29
+//! below; Force Settings' 138, edges along 100 % and 84 %; 294 gameplay screenshots have
+//! 57 X-like marks, none with an edge along even 60 %. Kept only for that look, as the
+//! corner.
+//!
 //! A pop-up over a menu dims the screen, its mark too, past telling, so once seen the menu
 //! stays open until the cursor hides (closing the menu hides it).
 //!
@@ -302,6 +314,162 @@ impl Strip {
         }
         best
     }
+}
+
+/// The top of the screen looked over for a window's close X: from this share of its width
+/// across to the right, and this share of its height down.
+const WINDOW_LEFT: f64 = 0.3;
+const WINDOW_DOWN: f64 = 0.6;
+/// A window's X: its score and strokes (see [`Corner::x_score`]), its arms' half-length as
+/// shares of the screen's height.
+const WINDOW_X_SCORE: f32 = 125.0;
+const WINDOW_X_BRIGHT: f32 = 150.0;
+const WINDOW_ARM: (f64, f64) = (0.006, 0.02);
+/// Its strokes may be thin and a little off the diagonal (a window's X is narrower or taller
+/// than square): each point along them is the brightest within this many pixels up or down.
+const WINDOW_X_SLACK: i32 = 1;
+/// The most the window check may take: past it, no window is taken to be there (it's
+/// looked for again in a moment). It runs where the overlay decides whether a widget takes
+/// the mouse, so it mustn't hold that up.
+const WINDOW_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
+/// Its title bar: straight edges (a step of this much brightness two rows apart, along at
+/// least this share of their length, the fainter one at least the second share: a line
+/// under a title bar may fade at its ends) within this share of the height above and
+/// below the X, this long (as a share of the height) to its left.
+const BAR_STEP: i32 = 15;
+const BAR_STRAIGHT: f64 = 0.9;
+const BAR_STRAIGHT_FAINTER: f64 = 0.7;
+const BAR_REACH: f64 = 0.04;
+const BAR_SPAN: f64 = 0.4;
+
+/// The top of the screen's brightness, row by row.
+pub struct Area {
+    w: usize,
+    h: usize,
+    luma: Vec<u8>,
+}
+
+impl Area {
+    fn at(&self, x: f64, y: f64) -> f32 {
+        let (x, y) = (x.round(), y.round());
+        if x < 0.0 || y < 0.0 || x >= self.w as f64 || y >= self.h as f64 {
+            return 0.0;
+        }
+        f32::from(self.luma[y as usize * self.w + x as usize])
+    }
+
+    /// Blanks boxes of the area, (left, top, right, bottom) in its pixels: our widgets.
+    pub fn blank(&mut self, boxes: &[(f64, f64, f64, f64)]) {
+        let (w, h) = (self.w as f64, self.h as f64);
+        for &(l, t, r, b) in boxes {
+            let (l, t) = (l.max(0.0).floor() as usize, t.max(0.0).floor() as usize);
+            let (r, b) = (r.min(w).ceil() as usize, b.min(h).ceil() as usize);
+            for y in t..b {
+                self.luma[y * self.w + l.min(r)..y * self.w + r].fill(0);
+            }
+        }
+    }
+
+    /// How much of row `y`, from `x0` to `x1`, is a straight edge (a step in brightness to
+    /// the row two below).
+    fn straight(&self, y: usize, x0: usize, x1: usize) -> f64 {
+        if y + 2 >= self.h || x1 <= x0 {
+            return 0.0;
+        }
+        let (a, b) = (&self.luma[y * self.w..(y + 1) * self.w], &self.luma[(y + 2) * self.w..(y + 3) * self.w]);
+        let n = (x0..x1).filter(|&x| (i32::from(a[x]) - i32::from(b[x])).abs() >= BAR_STEP).count();
+        n as f64 / (x1 - x0) as f64
+    }
+
+    /// A title bar around (cx, cy): a straight edge above and one below, near, long to the
+    /// left.
+    fn on_title_bar(&self, cx: usize, cy: usize, s: usize, height: f64) -> bool {
+        let span = (BAR_SPAN * height) as usize;
+        let reach = (BAR_REACH * height) as usize;
+        let Some(x0) = cx.checked_sub(2 * s + span) else { return false };
+        let x1 = cx - 2 * s;
+        let best = |y: &dyn Fn(usize) -> Option<usize>| (s..=reach).filter_map(y).map(|y| self.straight(y, x0, x1)).fold(0.0, f64::max);
+        let above = best(&|d| cy.checked_sub(d));
+        let below = best(&|d| Some(cy + d));
+        above.max(below) >= BAR_STRAIGHT && above.min(below) >= BAR_STRAIGHT_FAINTER
+    }
+
+    /// The brightest within [`WINDOW_X_SLACK`] pixels up or down.
+    fn near(&self, x: f64, y: f64) -> f32 {
+        (-WINDOW_X_SLACK..=WINDOW_X_SLACK).map(|k| self.at(x, y + f64::from(k))).fold(0.0, f32::max)
+    }
+
+    /// A window's close X anywhere in the area: an X-like mark on a title bar. `height`: the
+    /// game picture's height.
+    pub fn has_window_close(&self, height: f64) -> bool {
+        let (lo, hi) = (((WINDOW_ARM.0 * height).round() as usize).max(5), (WINDOW_ARM.1 * height).round() as usize);
+        let q = lo as f64 * 0.6;
+        // Between an X's arms it's dark: at most this bright, for its strokes (255 at most)
+        // to stand the score above it.
+        let dark = 255.0 - WINDOW_X_SCORE;
+        let g0 = lo as f64 * 0.75;
+        let started = std::time::Instant::now();
+        for cy in 4..self.h.saturating_sub(4) {
+            // Not in tests, which run many at once unoptimised: they check the looking itself.
+            if !cfg!(test) && started.elapsed() > WINDOW_BUDGET {
+                return false;
+            }
+            for cx in 4..self.w.saturating_sub(4) {
+                let (x, y) = (cx as f64, cy as f64);
+                // A cheap first look: a bright crossing, bright a little out along both
+                // diagonals, dark a little out straight up, down and to the sides (bright
+                // ground passes the rest everywhere).
+                if self.at(x, y) < 130.0
+                    || [(g0, 0.0), (-g0, 0.0), (0.0, g0), (0.0, -g0)].iter().any(|(dx, dy)| self.at(x + dx, y + dy) > dark)
+                    || [(q, q), (-q, -q), (q, -q), (-q, q)].iter().any(|(dx, dy)| self.near(x + dx, y + dy) < 120.0)
+                {
+                    continue;
+                }
+                for s in lo..=hi.max(lo) {
+                    let g = s as f64 * 0.75;
+                    let gap = [(g, 0.0), (-g, 0.0), (0.0, g), (0.0, -g)].iter().map(|(dx, dy)| self.at(x + dx, y + dy)).fold(0.0, f32::max);
+                    if gap > dark {
+                        continue;
+                    }
+                    let (mut on, mut n) = (0.0, 0.0);
+                    for t in -(s as i32)..=s as i32 {
+                        if t.abs() < 2 {
+                            continue;
+                        }
+                        let t = f64::from(t);
+                        on += self.near(x + t, y + t) + self.near(x + t, y - t);
+                        n += 2.0;
+                    }
+                    let on = on / n;
+                    if on - gap >= WINDOW_X_SCORE && on >= WINDOW_X_BRIGHT {
+                        if self.on_title_bar(cx, cy, s, height) {
+                            return true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        false
+    }
+}
+
+/// Reads the top of a screen area (left, top, width, height) for [`Area::has_window_close`].
+pub fn read_top(area: (i32, i32, i32, i32)) -> Option<Area> {
+    let (left, top, width, height) = area;
+    let (x, w, h) = top_box(width, height);
+    if w < 64 || h < 64 {
+        return None;
+    }
+    let px = read_screen(left + x, top, w, h)?;
+    let luma = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
+    Some(Area { w: w as usize, h: h as usize, luma })
+}
+
+/// The top area's left edge within the game's picture, its width and height.
+pub fn top_box(width: i32, height: i32) -> (i32, i32, i32) {
+    let x = (f64::from(width) * WINDOW_LEFT).round() as i32;
+    (x, width - x, (f64::from(height) * WINDOW_DOWN).round() as i32)
 }
 
 /// Decides, a few times a second, whether a menu is open.
@@ -627,6 +795,82 @@ mod tests {
         assert!(!s.has_confirm_button(1125.0));
     }
 
+    /// The top of a 1125-high, 2000-wide screen (from 30 % across): a dark scene, maybe a
+    /// window's title bar (a lighter band with straight edges) and an X on it.
+    fn top(bar: bool, x: bool) -> Area {
+        let (w, h) = (1400usize, 675usize);
+        let mut luma: Vec<u8> = (0..w * h).map(|i| (20 + (i * 37 % 41)) as u8).collect();
+        // The window: its title bar from 400 to 1350 across, rows 205-266.
+        if bar {
+            for y in 205..267 {
+                for px in 400..1350 {
+                    luma[y * w + px] = if y <= 207 || y >= 264 { 110 } else { 60 };
+                }
+            }
+        }
+        if x {
+            // Near the bar's right end, as a window's close X.
+            let (cx, cy) = (1320i64, 237i64);
+            // An X 2 px thick, arms 9 px.
+            for t in -9i64..=9 {
+                for (dx, dy) in [(t, t), (t, -t)] {
+                    for wdt in 0..2 {
+                        let (px, py) = ((cx + dx + wdt) as usize, (cy + dy) as usize);
+                        luma[py * w + px] = 230;
+                    }
+                }
+            }
+        }
+        Area { w, h, luma }
+    }
+
+    #[test]
+    fn a_windows_close_x_on_its_title_bar() {
+        assert!(top(true, true).has_window_close(1125.0));
+        // An X-like mark with no title bar (an icon in the world), or a bar with no X.
+        assert!(!top(false, true).has_window_close(1125.0));
+        assert!(!top(true, false).has_window_close(1125.0));
+        // Our own widget over it: left out.
+        let mut a = top(true, true);
+        a.blank(&[(1300.0, 200.0, 1400.0, 280.0)]);
+        assert!(!a.has_window_close(1125.0));
+    }
+
+    #[test]
+    fn a_thin_tall_x_over_a_line_that_fades() {
+        // As Force Settings': strokes 1 px, arms 6 px down for 5 across, and the line under
+        // its title bar faint at its left end.
+        let mut a = top(true, false);
+        let (cx, cy) = (1320i64, 237i64);
+        for t in -12i64..=12 {
+            let dx = (t as f64 * 5.0 / 6.0).round() as i64;
+            for px in [cx + dx, cx - dx] {
+                a.luma[(cy + t) as usize * a.w + px as usize] = 210;
+            }
+        }
+        for y in 264..267 {
+            a.luma[y * a.w + 400..y * a.w + 950].fill(60);
+        }
+        assert!(a.has_window_close(1125.0));
+        // No line under it at all: no window.
+        for y in 264..267 {
+            a.luma[y * a.w + 400..y * a.w + 1350].fill(60);
+        }
+        assert!(!a.has_window_close(1125.0));
+    }
+
+    #[test]
+    fn bright_ground_is_looked_over_quickly() {
+        // The top of a 3440×1440 screen over bright ground (snow, white stone): nearly
+        // everything is bright enough to start an X, and once took a minute to look over.
+        let (w, h) = (2408usize, 864usize);
+        let luma: Vec<u8> = (0..w * h).map(|i| (190 + ((i as u32).wrapping_mul(2_654_435_761) >> 27)) as u8).collect();
+        let a = Area { w, h, luma };
+        let t = std::time::Instant::now();
+        assert!(!a.has_window_close(1440.0));
+        assert!(t.elapsed() < std::time::Duration::from_secs(1), "took {:?}", t.elapsed());
+    }
+
     #[test]
     fn a_bright_patch_is_no_x() {
         let mut c = corner(None);
@@ -652,5 +896,3 @@ mod tests {
         assert!(!m.update(5400, false, &mut || unreachable!()));
     }
 }
-
-

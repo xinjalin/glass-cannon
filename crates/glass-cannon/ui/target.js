@@ -5,6 +5,33 @@
 
 const POLL_MS = 250;
 
+// Class icons, loaded once each (null while loading or missing).
+const classIcons = new Map();
+function classIconUrl(code) {
+  if (code == null) return null;
+  if (!classIcons.has(code)) {
+    classIcons.set(code, null);
+    invoke("class_icon", { code })
+      .then((url) => classIcons.set(code, url))
+      .catch(() => {});
+  }
+  return classIcons.get(code);
+}
+
+// A player you target: their class (in its colour), rank and combat power.
+function drawPlayer(p) {
+  $("tf-player").hidden = !p;
+  $("frame").className = p && p.class_code ? `c${p.class_code}` : "";
+  if (!p) return;
+  const icon = classIconUrl(p.class_code);
+  $("tf-class-icon").hidden = !icon;
+  if (icon && $("tf-class-icon").src !== icon) $("tf-class-icon").src = icon;
+  $("tf-class").textContent = p.class_name || "class not known yet";
+  $("tf-rank").textContent = p.rank != null ? `rank ${p.rank}` : "";
+  $("tf-rank").title = p.rank != null ? "Their rank as the game sends it: 1 the highest, 19 the lowest" : "";
+  $("tf-cp").textContent = p.combat_power != null ? `CP ${fmt(p.combat_power)}` : "";
+}
+
 async function refresh() {
   let t = null;
   try {
@@ -18,6 +45,7 @@ async function refresh() {
   $("tf-boss").hidden = !t.boss;
   $("tf-name").textContent = t.name;
   $("tf-name").title = (t.selected ? "Your target" : "What you're fighting") + (t.mob_type ? ` · mob ${t.mob_type}` : "");
+  drawPlayer(t.player);
   const known = t.max_hp && t.hp != null;
   const pct = known ? Math.max(0, Math.min(1, t.hp / t.max_hp)) : null;
   $("tf-pct").textContent = pct == null ? "" : `${(pct * 100).toFixed(1)}%`;

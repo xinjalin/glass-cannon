@@ -2,7 +2,8 @@
 // has them, with no box. On the left your HP (outer) with your stamina inside it, on the
 // right your MP with your flight power inside it, each filling from the bottom; your cast
 // under your feet. Drawn to the widget's size (arrange it around your character), in the
-// look chosen in the settings (overlay → vitals arcs): solid, thin or segmented arcs, how
+// look chosen in the settings (overlay → vitals arcs): solid, thin, segmented, gradient,
+// framed or ticked arcs, a damage trail on the HP arc, how
 // round and thick they are, whether their tracks always show, the numbers (value, percent or both; their size,
 // what's behind them, at the arcs' top or bottom ends), and the cast as an arc or a straight
 // bar with its time at each end. Max HP is the game's; until it sends it, the highest HP
@@ -19,7 +20,7 @@ const HUNDREDTHS = 100;
 // ---------------------------------------------------------------- the look
 
 // As the settings have it (vitals.rs); these until they're read.
-let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true };
+let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false };
 
 // At roundness 50 (as the arcs always were) each side arc bends this far either side of its
 // middle, and the cast's arc this far either side of straight down; at 100, twice as far;
@@ -31,6 +32,11 @@ const CAST_R = 0.42;
 // Segmented arcs: cells of this much of the arc (of 100), less the gap between them.
 const CELL = 5;
 const CELL_GAP = 1.2;
+// Ticks: marks across the side arcs at these shares.
+const TICKS = [0.25, 0.5, 0.75];
+// The damage trail: how long the HP lost stays before it shrinks away (the shrinking is
+// panel.css's).
+const TRAIL_HOLD_MS = 600;
 
 const SVG = "http://www.w3.org/2000/svg";
 const ARCS = ["hp", "stamina", "mp", "flight", "cast"];
@@ -45,31 +51,64 @@ function svgEl(tag, cls) {
 // cast bar's time left), and the cast bar's whole time; plates behind the numbers.
 const parts = {};
 let plates;
+let ticks;
 function build() {
   const svg = $("arcs");
   plates = svgEl("g");
+  const defs = svgEl("defs");
   const lines = svgEl("g");
+  ticks = svgEl("g", "arc-ticks");
   const texts = svgEl("g");
-  svg.replaceChildren(plates, lines, texts);
+  svg.replaceChildren(defs, plates, lines, ticks, texts);
   for (const k of ARCS) {
+    // The framed look's frame, under the track.
+    const frame = svgEl("path", `arc-frame ${k}`);
     const track = svgEl("path", `arc-track ${k}`);
     const fill = svgEl("path", `arc-fill ${k}`);
     fill.setAttribute("pathLength", "100");
     track.setAttribute("pathLength", "100");
+    lines.append(frame, track);
+    // The HP arc's damage trail, under its fill.
+    let trail = null;
+    if (k === "hp") {
+      trail = svgEl("path", "arc-trail hp");
+      trail.setAttribute("pathLength", "100");
+      lines.append(trail);
+    }
+    lines.append(fill);
+    // The gradient look's: dark at the arc's start, its colour where the fill ends (moved
+    // there as it fills).
+    const grad = svgEl("linearGradient", `arc-grad ${k}`);
+    grad.id = `grad-${k}`;
+    grad.setAttribute("gradientUnits", "userSpaceOnUse");
+    grad.append(svgEl("stop", "g0"), svgEl("stop", "g1"));
+    grad.lastChild.setAttribute("offset", "1");
+    defs.append(grad);
     const value = svgEl("text", `arc-text ${k}`);
     const pct = svgEl("text", `arc-text arc-pct ${k}`);
-    lines.append(track, fill);
     texts.append(value, pct);
-    parts[k] = { track, fill, value, pct };
+    parts[k] = { frame, track, trail, fill, grad, value, pct };
   }
+  // The shield, over the HP arc's fill.
+  parts.shield = svgEl("path", "arc-shield");
+  parts.shield.setAttribute("pathLength", "100");
+  lines.append(parts.shield);
   parts.castEnd = svgEl("text", "arc-text cast cast-end");
   texts.append(parts.castEnd);
 }
 
 function applySetup() {
   const svg = $("arcs");
-  svg.setAttribute("class", `arcs look-${setup.style} backing-${setup.text_backing}${svg.classList.contains("low") ? " low" : ""}`);
+  // Ticks are the thin look with marks.
+  const look = setup.style === "ticks" ? "look-thin look-ticks" : `look-${setup.style}`;
+  svg.setAttribute("class", `arcs ${look} backing-${setup.text_backing}${svg.classList.contains("low") ? " low" : ""}`);
   svg.style.setProperty("--vt", String(setup.text_size / 100));
+  // Colours of your own; the rest as built in (panel.css).
+  for (const k of ["hp", "stamina", "mp", "flight", "cast", "shield"]) {
+    const c = (setup.colours || {})[k];
+    if (isHexColor(c)) svg.style.setProperty(`--arc-${k}`, c);
+    else svg.style.removeProperty(`--arc-${k}`);
+  }
   layoutArcs();
   draw(lastBars);
 }
@@ -85,14 +124,15 @@ function geometry() {
   const h = svg.clientHeight;
   const fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 13;
   const ts = (fs * setup.text_size) / 100;
-  const thin = setup.style === "thin";
+  const thin = setup.style === "thin" || setup.style === "ticks";
   // The arcs' thickness, as the look has it times the width chosen.
   const k = (setup.width || 100) / 100;
   const outer = (thin ? Math.max(2, fs * 0.2) : Math.max(5, fs * 0.6)) * k;
   const inner = (thin ? Math.max(2, fs * 0.16) : Math.max(3, fs * 0.38)) * k;
   const gap = thin ? Math.max(4, fs * 0.5) : inner * 0.7;
   // Room past the glow.
-  const pad = outer / 2 + (thin ? 4 : 1);
+  // And past the ticks look's notches (see drawTicks).
+  const pad = outer / 2 + (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0);
   // Room for the numbers past the arcs' ends (the same at both, so the arcs stay centred),
   // from the overlay's text size alone: the numbers' own settings never move the arcs.
   const room = fs * 1.6;
@@ -165,13 +205,21 @@ function layoutArcs() {
   };
   const cast = castShape(g);
   arcs.cast = [cast, cast.bar ? Math.max(2, g.inner * 0.6) : g.inner];
+  const framed = setup.style === "framed";
+  // Framed: the fill inset in its track, the frame just outside it.
+  const fillWidth = (width) => (framed ? Math.max(1.5, width - Math.max(2, width * 0.3)) : width);
   for (const [k, [shape, width]] of Object.entries(arcs)) {
-    for (const p of [parts[k].track, parts[k].fill]) {
-      p.setAttribute("d", shape.d);
-      p.style.strokeWidth = `${width}px`;
-    }
-    parts[k].track.style.strokeDasharray = setup.style === "segmented" && k !== "cast" ? `${CELL - CELL_GAP} ${CELL_GAP}` : "";
+    const p = parts[k];
+    for (const e of [p.frame, p.track, p.trail, p.fill]) if (e) e.setAttribute("d", shape.d);
+    p.track.style.strokeWidth = `${width}px`;
+    p.fill.style.strokeWidth = `${fillWidth(width)}px`;
+    if (p.trail) p.trail.style.strokeWidth = `${fillWidth(width)}px`;
+    p.frame.style.strokeWidth = `${width + 3}px`;
+    p.track.style.strokeDasharray = setup.style === "segmented" && k !== "cast" ? `${CELL - CELL_GAP} ${CELL_GAP}` : "";
   }
+  parts.shield.setAttribute("d", arcs.hp[0].d);
+  parts.shield.style.strokeWidth = `${fillWidth(arcs.hp[1])}px`;
+  drawTicks(arcs, g);
 
   // The numbers, the outer arc's over the inner's, beside the chosen ends and inward of
   // both arcs' ends: the arcs bend outward from their ends, so nothing of them is further
@@ -225,19 +273,101 @@ function layoutArcs() {
   drawPlates();
 }
 
+// The ticks look's marks: notches like a ruler's on the outside of each side's outer arc
+// (HP, MP), clear of both arcs, at a quarter, half (longer) and three quarters of the way
+// up.
+function drawTicks(arcs, g) {
+  const marks = [];
+  if (setup.style === "ticks") {
+    for (const k of ["hp", "mp"]) {
+      const path = parts[k].track;
+      const len = path.getTotalLength();
+      const from = arcs[k][1] / 2 + Math.max(2, g.fs * 0.15);
+      for (const t of TICKS) {
+        const [a, b] = [path.getPointAtLength(len * t - 0.5), path.getPointAtLength(len * t + 0.5)];
+        // Across the arc (its direction there, turned a quarter), away from the middle.
+        const [dx, dy] = [b.x - a.x, b.y - a.y];
+        const n = Math.hypot(dx, dy) || 1;
+        const [mx, my] = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+        let [nx, ny] = [-dy / n, dx / n];
+        if ((mx + nx - g.cx) ** 2 < (mx - g.cx) ** 2) [nx, ny] = [-nx, -ny];
+        const long = g.fs * (t === 0.5 ? 0.75 : 0.45);
+        const line = svgEl("line", `arc-tick ${k}`);
+        line.dataset.at = String(t);
+        line.setAttribute("x1", (mx + nx * from).toFixed(1));
+        line.setAttribute("y1", (my + ny * from).toFixed(1));
+        line.setAttribute("x2", (mx + nx * (from + long)).toFixed(1));
+        line.setAttribute("y2", (my + ny * (from + long)).toFixed(1));
+        marks.push(line);
+      }
+    }
+  }
+  ticks.replaceChildren(...marks);
+}
+
+// The gradient look: an arc's gradient from its start to where its fill ends.
+function placeGradient(k, share) {
+  const p = parts[k];
+  const len = p.fill.getTotalLength();
+  if (!len) return;
+  const a = p.fill.getPointAtLength(0);
+  const b = p.fill.getPointAtLength(len * Math.max(0.02, Math.min(1, share)));
+  for (const [attr, v] of [["x1", a.x], ["y1", a.y], ["x2", b.x], ["y2", b.y]]) p.grad.setAttribute(attr, v.toFixed(1));
+}
+
+// The damage trail: the HP arc's fill as it was before a hit, held a moment, then let go
+// down to the HP now (panel.css shrinks it). Up again, it follows at once (the fill
+// covers it).
+let trailAt = null;
+let trailTimer = null;
+let hpNow = null;
+function drawTrail(pct) {
+  const t = parts.hp.trail;
+  hpNow = pct;
+  if (!setup.trail || pct == null) {
+    t.style.display = "none";
+    trailAt = null;
+    clearTimeout(trailTimer);
+    trailTimer = null;
+    return;
+  }
+  t.style.display = "";
+  if (trailAt == null || pct >= trailAt) {
+    trailAt = pct;
+    clearTimeout(trailTimer);
+    trailTimer = null;
+  } else if (!trailTimer) {
+    trailTimer = setTimeout(() => {
+      trailTimer = null;
+      if (hpNow != null && trailAt != null && hpNow < trailAt) {
+        trailAt = hpNow;
+        setTrail();
+      }
+    }, TRAIL_HOLD_MS);
+  }
+  setTrail();
+}
+
+function setTrail() {
+  parts.hp.trail.style.strokeDasharray = setup.style === "segmented" ? cells(0, trailAt) : `${trailAt.toFixed(2)} 100`;
+}
+
 // ---------------------------------------------------------------- drawing
 
-// A segmented arc's fill: whole cells up to the share, then the part of the next.
-function cells(pct) {
-  const dashes = [];
-  let at = 0;
-  while (at + CELL <= pct + 0.001) {
-    dashes.push(CELL - CELL_GAP, CELL_GAP);
-    at += CELL;
+// A segmented arc's fill from `from` to `to` (in hundredths of the arc): the cells' parts
+// in that stretch, so the gaps stay where the track's are. A dash of nothing first, so
+// the gaps and dashes alternate from there.
+function cells(from, to) {
+  const dashes = [0];
+  let pos = 0;
+  for (let at = Math.floor(from / CELL) * CELL; at < to - 0.001; at += CELL) {
+    const a = Math.max(from, at);
+    const b = Math.min(to, at + CELL - CELL_GAP);
+    if (b - a <= 0.05) continue;
+    dashes.push((a - pos).toFixed(2), (b - a).toFixed(2));
+    pos = b;
   }
-  const part = Math.min(pct - at, CELL - CELL_GAP);
-  if (part > 0.05) dashes.push(part.toFixed(2), CELL - part);
-  dashes.push(0, 100);
+  dashes.push(100);
   return dashes.join(" ");
 }
 
@@ -246,10 +376,13 @@ function arc(k, share, value, percent) {
   const known = share != null;
   // Always shown: the empty track stays up with nothing to fill it.
   p.track.style.display = known || setup.always_show ? "" : "none";
+  // The framed look's frame goes with its track.
+  p.frame.style.display = setup.style === "framed" ? p.track.style.display : "none";
   for (const e of [p.fill, p.value, p.pct]) e.style.display = known ? "" : "none";
   if (!known) return;
   const pct = Math.max(0, Math.min(1, share)) * 100;
-  p.fill.style.strokeDasharray = setup.style === "segmented" && k !== "cast" ? cells(pct) : `${pct.toFixed(2)} 100`;
+  p.fill.style.strokeDasharray = setup.style === "segmented" && k !== "cast" ? cells(0, pct) : `${pct.toFixed(2)} 100`;
+  if (setup.style === "gradient") placeGradient(k, share);
   p.value.textContent = setup.numbers === "percent" ? percent : value;
   p.pct.textContent = setup.numbers === "both" ? percent : "";
 }
@@ -265,6 +398,29 @@ function drawArcs(b) {
   };
   const hp = share(b && b.hp, b && b.hp_max);
   side("hp", b && b.hp, b && b.hp_max, 1);
+  drawTrail(hp != null ? Math.max(0, Math.min(1, hp)) * 100 : null);
+  // The shield: on along the arc from the HP's end (a dash after a gap the HP's length).
+  const span = b ? shieldSpan(b.hp, b.hp_max, b.shield) : null;
+  parts.shield.style.display = span ? "" : "none";
+  // The ticks look's HP notches beside the shield, in its colour.
+  for (const l of ticks.querySelectorAll(".arc-tick.hp")) {
+    const at = Number(l.dataset.at);
+    l.classList.toggle("shielded", !!span && at >= span[0] - 0.005 && at <= span[0] + span[1] + 0.005);
+  }
+  if (span) {
+    const [from, to] = [span[0] * 100, (span[0] + span[1]) * 100];
+    // Segmented: in the cells, as the HP is. Otherwise one dash, moved along to where it
+    // starts (a dash of nothing first would show as a dot with round ends).
+    const segmented = setup.style === "segmented";
+    parts.shield.style.strokeDasharray = segmented ? cells(from, to) : `${(to - from).toFixed(2)} 200`;
+    parts.shield.style.strokeDashoffset = segmented ? "" : (-from).toFixed(2);
+  }
+  // Its amount after your HP's, in its colour.
+  if (span && b.hp != null && setup.numbers !== "percent") {
+    const t = svgEl("tspan", "arc-shield-text");
+    t.textContent = ` +${Math.round(b.shield).toLocaleString("en-US")}`;
+    parts.hp.value.append(t);
+  }
   side("stamina", b && b.stamina, b && b.stamina_max, HUNDREDTHS);
   side("mp", b && b.mp, b && b.mp_max, 1);
   side("flight", b && b.flight, b && b.flight_max, HUNDREDTHS);
@@ -284,7 +440,7 @@ function drawArcs(b) {
   parts.castEnd.style.display = c && setup.cast === "bar" ? "" : "none";
   // The cast turned off: none of it, track included.
   if (setup.show_cast === false) {
-    for (const e of [parts.cast.track, parts.cast.fill, parts.cast.value, parts.cast.pct, parts.castEnd]) e.style.display = "none";
+    for (const e of [parts.cast.frame, parts.cast.track, parts.cast.fill, parts.cast.value, parts.cast.pct, parts.castEnd]) e.style.display = "none";
   }
 }
 

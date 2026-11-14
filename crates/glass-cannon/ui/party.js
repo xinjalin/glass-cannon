@@ -19,10 +19,19 @@ function tile(f) {
   const value = el("span", "fr-value", dead ? "dead" : hp != null ? `${Math.round(hp * 100)}%` : "");
   const mpBar = el("span", "fr-mp");
   mpBar.style.width = `${(mp ?? 0) * 100}%`;
-  li.append(fill, name, value, mpBar);
+  li.append(fill);
+  const span = dead ? null : shieldSpan(f.hp, f.hp_max, f.shield);
+  if (span) {
+    const sh = el("span", "fr-shield");
+    sh.style.left = `${span[0] * 100}%`;
+    sh.style.width = `${span[1] * 100}%`;
+    li.append(sh);
+  }
+  li.append(name, value, mpBar);
   li.title = [
     f.name + (f.is_self ? " (you)" : ""),
     f.hp != null ? `HP ${fmt(f.hp)} / ${fmt(f.hp_max || f.hp)}` : "HP not sent yet",
+    f.shield ? `shield ${fmt(f.shield)}` : "",
     f.mp != null ? `MP ${fmt(f.mp)} / ${fmt(f.mp_max || f.mp)}` : "",
   ]
     .filter(Boolean)

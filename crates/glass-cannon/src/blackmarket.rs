@@ -252,6 +252,8 @@ pub fn take(app: &AppState, pages: Vec<BlackMarketPage>) {
     }
     let me = lock(&app.profile).name.clone();
     lock(&app.black_market).update(me.as_deref(), pages, now_ms());
+    // The merchant was opened in game: its window comes up (settings), soon after.
+    app.black_market_opened.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 #[cfg(test)]

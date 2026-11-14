@@ -147,6 +147,20 @@ pub struct Registry {
     unseen_bosses: HashSet<u64>,
     /// Combat power by entity, as players' spawns (and yours) give it.
     combat_power: HashMap<u64, u32>,
+    /// Other players' class and rank, as their spawns give them.
+    spawn_info: HashMap<u64, SpawnInfo>,
+    /// In a dungeon (its state sent since the map last changed): a party-finder group's
+    /// ready marks are over then.
+    in_dungeon: bool,
+}
+
+/// What a player's spawn says of them, besides their name and combat power.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SpawnInfo {
+    /// Their class, as the meter's class codes (see [`crate::classes`]).
+    pub class_code: Option<u32>,
+    /// Their rank: 1 the highest, 19 the lowest (see [`parse_spawn_rank`]).
+    pub rank: Option<u32>,
 }
 
 /// Someone leaving the party: what the HP-sent members are forgotten on even when the
@@ -182,6 +196,14 @@ pub struct PartyMember {
     /// Leads the party or group (the first slot of a group, or named by a leader change).
     #[serde(default)]
     pub leader: bool,
+    /// Their place in a party-finder group (1 the leader's): a Sanctuary's room of ten has
+    /// two parties, slots 1 to 5 and 6 to 10. None outside such a group.
+    #[serde(default)]
+    pub slot: Option<u8>,
+    /// Their class, as a group's roster says it (see [`class_of_byte`]); the meter's party
+    /// view says it as `class_code`, this or what their skills say.
+    #[serde(default, skip_serializing)]
+    pub roster_class: Option<u32>,
 }
 
 impl Registry {
@@ -247,6 +269,11 @@ impl Registry {
     /// A player's combat power (or yours), from their spawn.
     pub fn combat_power(&self, id: u64) -> Option<u32> {
         self.combat_power.get(&id).copied()
+    }
+
+    /// Another player's class and rank, from their spawn.
+    pub fn spawn_info(&self, id: u64) -> SpawnInfo {
+        self.spawn_info.get(&id).copied().unwrap_or_default()
     }
 
     pub fn mob_type(&self, id: u64) -> Option<u32> {
@@ -326,6 +353,18 @@ impl Registry {
 
     /// Updates from one message. Returns what changed, if anything.
     pub fn observe(&mut self, opcode: u16, payload: &[u8]) -> Option<Change> {
+        // A new map; a dungeon's state comes after its map (a town's never does). In one, a
+        // group has started: nobody's readying up.
+        match opcode {
+            crate::dungeon::OPCODE_MAP_ENTERED => self.in_dungeon = false,
+            crate::dungeon::OPCODE_DUNGEON_STEP => {
+                self.in_dungeon = true;
+                for m in &mut self.party {
+                    m.ready = None;
+                }
+            }
+            _ => {}
+        }
         let change = self.observe_message(opcode, payload);
         // Joins only add to the party; anything else that changes it may have dropped someone.
         let join = matches!(opcode, OPCODE_GROUP_JOIN | OPCODE_PARTY_ADD_MEMBER | OPCODE_PARTY_RECONNECT);
@@ -375,6 +414,7 @@ impl Registry {
                 if let Some(cp) = parse_spawn_combat_power(payload) {
                     self.combat_power.insert(id, cp);
                 }
+                self.spawn_info.insert(id, SpawnInfo { class_code: parse_spawn_class(payload), rank: parse_spawn_rank(payload) });
                 if self.is_self(id) || self.players.get(&id) == Some(&name) {
                     return None;
                 }
@@ -403,6 +443,11 @@ impl Registry {
             }
             OPCODE_PARTY_ROSTER | OPCODE_GROUP_ROSTER => {
                 let mut members = parse_roster(payload, opcode == OPCODE_GROUP_ROSTER);
+                if self.in_dungeon {
+                    for m in &mut members {
+                        m.ready = None;
+                    }
+                }
                 // A roster without us is someone else's group (a party-finder post).
                 let ours = match &self.self_name {
                     Some(me) => members.iter().any(|m| &m.name == me),
@@ -418,6 +463,7 @@ impl Registry {
                         m.gear_score = m.gear_score.or(old.gear_score);
                         m.combat_power = m.combat_power.or(old.combat_power);
                         m.legion = m.legion.take().or_else(|| old.legion.clone());
+                        m.roster_class = m.roster_class.or(old.roster_class);
                         // Party rosters don't say; group rosters do.
                         if opcode == OPCODE_PARTY_ROSTER {
                             m.ready = old.ready;
@@ -434,7 +480,10 @@ impl Registry {
             }
             OPCODE_GROUP_JOIN | OPCODE_PARTY_ADD_MEMBER | OPCODE_PARTY_RECONNECT => {
                 let before = self.party.len();
-                for m in parse_roster(payload, opcode == OPCODE_GROUP_JOIN) {
+                for mut m in parse_roster(payload, opcode == OPCODE_GROUP_JOIN) {
+                    if self.in_dungeon {
+                        m.ready = None;
+                    }
                     if !self.party.iter().any(|o| o.character == m.character) {
                         self.party.push(m);
                     }
@@ -603,17 +652,59 @@ const LIKELY_COMBAT_POWER: std::ops::RangeInclusive<u64> = 40_000..=2_000_000;
 /// [`LIKELY_COMBAT_POWER`] is right (the party roster's agrees). The field's place is
 /// Questlog's lead (its CharAppear_NT); the offsets and the check are ours.
 pub fn parse_spawn_combat_power(p: &[u8]) -> Option<u32> {
-    let at = |from_end: usize| -> Option<u64> {
+    spawn_combat_power_at(p).map(|(_, cp)| cp)
+}
+
+/// Where a spawn's combat power starts, and it.
+fn spawn_combat_power_at(p: &[u8]) -> Option<(usize, u32)> {
+    let at = |from_end: usize| -> Option<(usize, u64)> {
         let start = p.len().checked_sub(from_end)?;
-        Some(u64::from_le_bytes(p.get(start..start + 8)?.try_into().ok()?))
+        Some((start, u64::from_le_bytes(p.get(start..start + 8)?.try_into().ok()?)))
     };
-    let ok = |v: &u64| (*v as u32 as u64) == *v && COMBAT_POWER.contains(&(*v as u32));
+    let ok = |(_, v): &(usize, u64)| (*v as u32 as u64) == *v && COMBAT_POWER.contains(&(*v as u32));
     let (nine, ten) = (at(9).filter(ok), at(10).filter(ok));
-    let v = match (nine, ten) {
-        (Some(a), Some(b)) => [a, b].into_iter().find(|v| LIKELY_COMBAT_POWER.contains(v))?,
+    let (start, v) = match (nine, ten) {
+        (Some(a), Some(b)) => [a, b].into_iter().find(|(_, v)| LIKELY_COMBAT_POWER.contains(v))?,
         (a, b) => a.or(b)?,
     };
-    Some(v as u32)
+    Some((start, v as u32))
+}
+
+/// The ranks a spawn can give: 1 the highest.
+pub const RANKS: std::ops::RangeInclusive<u32> = 1..=19;
+
+/// A player's rank in their spawn (`0x3645`): the u32 just before their combat power. 1 to
+/// 19, 19 the lowest: on our captures (2026-11-07, the Abyss; 2026-11-13, the Ludra raid;
+/// 4,090 players) 19 is the most common by far (1,232), and the lower the rank, the higher
+/// the players' combat power (a median of 225K at 5, 176K at 10, 119K at 19). Which of the
+/// game's ranks each number is hasn't been checked against the game.
+pub fn parse_spawn_rank(p: &[u8]) -> Option<u32> {
+    let (start, _) = spawn_combat_power_at(p)?;
+    u32_at(p, start.checked_sub(4)?).filter(|r| RANKS.contains(r))
+}
+
+/// The classes in a spawn's class byte, by (byte - 1) / 4 from 1 (its low bits are the
+/// player's faction and look).
+const SPAWN_CLASSES: [u32; 8] = [11, 12, 14, 13, 16, 15, 17, 18];
+
+/// A player's class in their spawn (`0x3645`): the byte right after their name (see
+/// [`class_of_byte`]). On the Abyss capture, against the classes the meter learnt from 335
+/// enemy players' skills, it agrees for 324 (97 %); on both captures, against the skills
+/// 2,600 players cast, each value's most common class (Templars' buffs aside) is its own.
+pub fn parse_spawn_class(p: &[u8]) -> Option<u32> {
+    let mut i = 0;
+    read_varint(p, &mut i)?;
+    i += SPAWN_NAME_SKIP;
+    let len = *p.get(i)? as usize;
+    class_of_byte(*p.get(i + 1 + len)?)
+}
+
+/// A class as spawns and group rosters give it (the byte after a name): 5 to 36, four to a
+/// class. A group roster's agrees with the same players' spawns for all 27 players in both
+/// captures (2026-11-07 and 11-13: expedition groups and Ludra rooms).
+pub fn class_of_byte(b: u8) -> Option<u32> {
+    let k = u32::from(b).checked_sub(1)? / 4;
+    SPAWN_CLASSES.get(usize::try_from(k.checked_sub(1)?).ok()?).copied()
 }
 
 /// Your combat power in your own spawn (`0x3633`): a u64 81 bytes from the end, then your
@@ -673,8 +764,10 @@ pub fn parse_death(p: &[u8]) -> Option<Death> {
 
 /// A roster: each member's entry is u32 character ID, 2 zero bytes, u16 server, u8 length
 /// and their name, then other fields. In `group` rosters (`0x9702`, `0x970b`) the entry
-/// starts two bytes earlier: u8 flags (`0x0c` always set, `0x02` ready, `0x10` inside the
-/// dungeon) and u8 slot (1 is the leader).
+/// starts two bytes earlier: u8 flags (`0x0c` always set, `0x02` ready, `0x10` an
+/// expedition's group started) and u8 slot (1 is the leader). A Sanctuary's room (slots up
+/// to 10) has `0x10` set all along, readying up included (the captures of 2026-11-07 and
+/// 11-13): its start is the dungeon's (see `Registry::observe`).
 pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
     // Where each entry starts and its name ends; an entry's other fields run to the next.
     let mut found: Vec<(usize, String, usize)> = Vec::new();
@@ -688,6 +781,9 @@ pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
             None => i += 1,
         }
     }
+    let head_at = |start: usize| start.checked_sub(2).map(|f| (p[f], p[f + 1])).filter(|(flags, _)| group && flags & 0x0c == 0x0c);
+    // A Sanctuary's room: more than one party's slots.
+    let room = found.iter().any(|(start, _, _)| head_at(*start).is_some_and(|(_, slot)| slot > 5));
     let mut members: Vec<PartyMember> = Vec::new();
     for (k, (start, name, end)) in found.iter().enumerate() {
         if members.iter().any(|m| &m.name == name) {
@@ -696,9 +792,9 @@ pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
         let next = found.get(k + 1).map_or(p.len(), |f| f.0);
         let server = u16::from_le_bytes([p[start + 6], p[start + 7]]);
         let (level, gear_score, combat_power) = roster_stats(&p[*end..next], server);
-        let head = start.checked_sub(2).map(|f| (p[f], p[f + 1])).filter(|(flags, _)| group && flags & 0x0c == 0x0c);
+        let head = head_at(*start);
         let leader = head.is_some_and(|(_, slot)| slot == 1);
-        let ready = head.filter(|(flags, slot)| flags & 0x10 == 0 && *slot > 1).map(|(flags, _)| flags & 0x02 != 0);
+        let ready = head.filter(|(flags, slot)| (room || flags & 0x10 == 0) && *slot > 1).map(|(flags, _)| flags & 0x02 != 0);
         members.push(PartyMember {
             character: u32_at(p, *start).expect("an entry has 9 bytes before its name"),
             name: name.clone(),
@@ -709,6 +805,9 @@ pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
             legion: None,
             ready,
             leader,
+            slot: head.map(|(_, slot)| slot),
+            // A group roster's entry: its class right after the name, as in a spawn.
+            roster_class: if group { p.get(*end).and_then(|b| class_of_byte(*b)) } else { None },
         });
     }
     members
@@ -771,6 +870,8 @@ pub fn parse_member_update(p: &[u8]) -> Option<PartyMember> {
         legion,
         ready: None,
         leader: false,
+        slot: None,
+        roster_class: None,
     })
 }
 
@@ -908,6 +1009,25 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn rank_from_a_players_spawn() {
+        let with_end = |end: &str| [vec![0x55; 40], hex(end)].concat();
+        // The u32 before the combat power, wherever that is.
+        assert_eq!(parse_spawn_rank(&with_end("0a 00 00 00 ab c6 02 00 00 00 00 00 00")), Some(10));
+        assert_eq!(parse_spawn_rank(&with_end("13 00 00 00 99 bc 02 00 00 00 00 00 00 01")), Some(19));
+        // Not a rank: none.
+        assert_eq!(parse_spawn_rank(&with_end("00 00 00 01 ab c6 02 00 00 00 00 00 00")), None);
+    }
+
+    #[test]
+    fn class_from_a_players_spawn() {
+        let spawn = |class: u8| [encode_varint(9463), vec![0; SPAWN_NAME_SKIP], vec![4], b"Name".to_vec(), vec![class, 0, 0, 0]].concat();
+        // Four values to a class, in the game's order.
+        assert_eq!([5, 8, 9, 13, 17, 21, 25, 29, 36].map(|v| parse_spawn_class(&spawn(v))), [11, 11, 12, 14, 13, 16, 15, 17, 18].map(Some));
+        assert_eq!(parse_spawn_class(&spawn(4)), None);
+        assert_eq!(parse_spawn_class(&spawn(37)), None);
+    }
+
+    #[test]
     fn your_combat_power_from_your_spawn() {
         let spawn = |now: u64, best: u64| [vec![0x55; 30], now.to_le_bytes().to_vec(), best.to_le_bytes().to_vec(), vec![0; 65]].concat();
         assert_eq!(parse_self_combat_power(&spawn(152_973, 152_973)), Some(152_973));
@@ -943,6 +1063,46 @@ pub(crate) mod tests {
             ]
         );
         assert_eq!((m[2].character, m[2].server), (253_528, 2503));
+        // Their slots in the group, and each one's class.
+        assert_eq!(m.iter().map(|m| m.slot).collect::<Vec<_>>(), (1..=5).map(Some).collect::<Vec<_>>());
+        assert!(m.iter().all(|m| m.roster_class.is_some()), "{:?}", m.iter().map(|m| m.roster_class).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_sanctuary_rooms_ready_marks_last_until_the_dungeon() {
+        // A room of ten as the captures have it: 0x10 set all along, 0x02 for ready.
+        let room = |ready_from: u8| -> Vec<u8> {
+            let mut p = vec![0; 6];
+            for slot in 1..=10u8 {
+                let flags = if slot >= ready_from { 0x1e } else { 0x1c };
+                p.extend([flags, slot]);
+                p.extend((1000 + u32::from(slot)).to_le_bytes());
+                p.extend([0, 0]);
+                p.extend(2503u16.to_le_bytes());
+                let name = format!("Member{slot}");
+                p.push(name.len() as u8);
+                p.extend(name.as_bytes());
+                p.extend([24, 0, 0, 0, 0, 0, 0, 0]);
+            }
+            p
+        };
+        let mut r = Registry::default();
+        r.observe(OPCODE_GROUP_ROSTER, &room(6));
+        let ready: Vec<_> = r.party().iter().map(|m| m.ready).collect();
+        assert_eq!(ready[0], None, "the leader doesn't ready up");
+        assert_eq!(ready[1..5], [Some(false); 4]);
+        assert_eq!(ready[5..], [Some(true); 5]);
+        assert_eq!(r.party().iter().map(|m| m.slot.unwrap()).collect::<Vec<_>>(), (1..=10).collect::<Vec<_>>());
+        // Started: into the dungeon, where the rosters keep coming.
+        r.observe(crate::dungeon::OPCODE_MAP_ENTERED, &[0x12, 0x27, 0x09, 0, 0]);
+        r.observe(crate::dungeon::OPCODE_DUNGEON_STEP, &[0x12, 0x27, 0x09, 0, 1]);
+        r.observe(OPCODE_GROUP_ROSTER, &room(2));
+        assert!(r.party().iter().all(|m| m.ready.is_none()));
+        // Back in town: readying up again.
+        r.observe(crate::dungeon::OPCODE_MAP_ENTERED, &[0x56, 0x04, 0, 0, 0]);
+        r.observe(OPCODE_GROUP_ROSTER, &room(3));
+        assert_eq!(r.party()[1].ready, Some(false));
+        assert_eq!(r.party()[2].ready, Some(true));
     }
 
     #[test]

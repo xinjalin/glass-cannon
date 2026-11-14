@@ -173,6 +173,9 @@ pub struct Settings {
     /// The party cooldowns widget grouped by class, then skill, then player (else by player).
     #[serde(default)]
     pub party_cooldowns_by_class: bool,
+    /// The black market window opens by itself when the merchant is opened in game.
+    #[serde(default = "default_true")]
+    pub black_market_auto: bool,
     /// The meter's height fits what it shows (its rows, boss lines, open skill lists); off,
     /// it's the height you give it while arranging.
     #[serde(default = "default_true")]
@@ -249,6 +252,7 @@ pub struct Settings {
     #[serde(default)]
     pub hotkeys: crate::hotkeys::Bindings,
 }
+
 
 /// The party view's orders.
 pub const PARTY_SORTS: [&str; 5] = ["roster", "cp_desc", "cp_asc", "gs_desc", "gs_asc"];

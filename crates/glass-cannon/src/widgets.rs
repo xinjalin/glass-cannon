@@ -370,6 +370,14 @@ pub fn set_hide_for_menus(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Whether the black market window comes up when the merchant is opened in game.
+#[tauri::command]
+pub fn set_black_market_auto(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.black_market_auto = on;
+    s.save(&app.config_dir);
+}
+
 /// Whether the widgets let every click through to the game (but while arranging).
 #[tauri::command]
 pub fn set_click_through(app: State<'_, Arc<AppState>>, on: bool) {
@@ -882,17 +890,28 @@ pub fn set_pet_tracker_nearest(app: State<'_, Arc<AppState>>, on: bool) {
 /// Your HP, MP and cast now (the player bars widget), the cast's skill named.
 #[tauri::command]
 pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::SelfBars> {
-    let mut bars = app.engine.meter().self_bars()?;
+    let meter = app.engine.meter();
+    let mut bars = meter.self_bars()?;
+    let data = lock(&app.data);
     if let Some(c) = bars.cast.as_mut() {
-        c.skill_name = lock(&app.data).skill_meta(c.skill).0;
+        c.skill_name = data.skill_meta(c.skill).0;
     }
+    // Your shields: the skills the game data says give one.
+    let me = meter.registry().self_id();
+    bars.shield = me.map(|e| meter.shields_on(e, &|s| data.is_shield_skill(s))).filter(|s| *s > 0);
     Some(bars)
 }
 
 /// Your party as frames (the party frames widget).
 #[tauri::command]
 pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<meter_core::meter::PartyFrame> {
-    app.engine.meter().party_frames()
+    let meter = app.engine.meter();
+    let data = lock(&app.data);
+    let mut frames = meter.party_frames();
+    for f in &mut frames {
+        f.shield = f.entity.map(|e| meter.shields_on(e, &|s| data.is_shield_skill(s))).filter(|s| *s > 0);
+    }
+    frames
 }
 
 /// A piece of a player's gear, named.

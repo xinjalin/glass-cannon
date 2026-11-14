@@ -75,10 +75,15 @@ finishes. The widgets:
   sends is encrypted).
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
-  boss HP, enrage and cast lines, so nothing is shown twice.
+  boss HP, enrage and cast lines, so nothing is shown twice. A player you target shows
+  their class (icon and name, in its colour), their rank (as the game sends it, 1 the
+  highest and 19 the lowest) and their combat power, from when they came into view.
 - **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. Your
   max HP is the game's (it moves with buffs); until it sends it, the highest HP seen
-  stands in.
+  stands in. A shield on you (a barrier, such as a Cleric's) shows striped white on from
+  your HP's end, with its amount after your HP (+1,215); when HP and shield together are
+  more than the bar holds, it covers the bar's last part. Shields show on the vitals arcs
+  and the party frames the same way.
 - **vitals arcs**: the same, round, like GT Companion's center HUD: arcs either side of
   your character with no box, on the left HP with your stamina inside it, on the right
   MP with your flight power inside it, each filling from the bottom with its value by its
@@ -86,7 +91,11 @@ finishes. The widgets:
   screen; arrange it around your character (wider than tall), and the arcs take its box.
   HP glows below 30%. Stamina and flight power show full until they change (the game
   sends them only then). Its look is in the settings (overlay → vitals arcs): **solid**,
-  **thin** (glowing lines) or **segmented** arcs; how round they are, from straight to
+  **thin** (glowing lines), **segmented** (cells), **gradient** (dark at the bottom, bright
+  where the fill ends), **framed** (a light frame like glass, the fill inside it) or **ticks**
+  (thin, with notches outside them like a ruler's, at a quarter, half and three quarters) arcs; a **damage trail**, where HP
+  you lose stays as a pale strip for a moment before shrinking away; each arc's colour (HP, stamina, MP,
+  flight power, cast, and the shield over HP), picked from a swatch; how round they are, from straight to
   very round; how wide; **always show arcs**, which keeps their tracks up with nothing to
   fill them; the numbers (kept clear of the arcs, and never resizing them) as value and
   max, percent, or both; their size; what's behind
@@ -95,7 +104,8 @@ finishes. The widgets:
   left and whole time at its ends.
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
-  "dead" when they are.
+  "dead" when they are. Shields show striped white past their HP, with the amount in the
+  tile's tooltip.
 - **cooldowns**: your skills that aren't ready, with time left and charges: as a **list**,
   or as a **timeline** (settings → overlay → cooldowns), a bar from Ready to 100% with each
   skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready
@@ -167,7 +177,9 @@ meter looks at a small square there (8.5% of the game's height a side) for that 
 arrow, and steps aside only when one is there. Reward screens (a Monster Cube's after
 content, Shugo's…) have no X there but a gold **Confirm** button at the bottom middle: the
 meter also looks at a strip there (30% of the game's height wide, its lowest 22%) for
-it. Once seen, they stay aside until the cursor goes (a pop-up over a menu dims its X past
+it. Windows that aren't full screen (Attendance…) have their close X at their own top
+right, on their title bar: the meter also looks over the top of the screen (its top 60%,
+from 30% across) for an X on a title bar. Once seen, they stay aside until the cursor goes (a pop-up over a menu dims its X past
 seeing; closing the menu hides the cursor). The square and the strip are only looked at:
 never saved or sent, and nothing is read while the cursor is hidden, the setting is off
 or the game isn't in front. Keep widgets off the corner and the button (one there hides
@@ -201,6 +213,9 @@ background, Windows lightly blurs the game behind each widget.
   so everyone's combat power and gear score can be checked from the lobby screen. The
   party's order: as the game lists it, or by combat power or gear score, highest or lowest
   first (settings → meter → party order, or click the cp or gs column to go through them).
+  A Sanctuary's room (Abyssal Forge: Ludra, ten players) shows as its two parties, as the
+  game's room list has them: each with how full it is, its average combat power and who's
+  ready, sorted within itself. Everyone's class comes from the room's list, before they fight.
 - The meter's height **fits what it shows** (settings → meter → fit height, on at first):
   its rows, open skill lists and the lines over them, up to 70% of the screen. Off, it's
   the height you give it while arranging the overlay.
@@ -303,7 +318,10 @@ than the shop's). Each offer says how often you've seen it on offer: each page o
 your characters counts once an hour, so it's only what you've seen (the app never goes
 online). **[worth a look]** shows just the pets you don't have and what you've rarely
 seen. The offers change on the hour, and differ per character: a page from before the
-hour turned is dimmed until you open it again.
+hour turned is dimmed until you open it again. When you open the merchant in game, this
+window opens by itself (without taking the focus from the game), at most once every two
+minutes; turn that off in the settings (general → **open the black market with the
+game's**).
 
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when
@@ -346,6 +364,10 @@ name in the game data, so double-click one there to name it.
 The launcher's status line says how far the meter got: waiting for the game, waiting for
 it to connect, capturing on an adapter (named), or an error. Settings → general shows
 whether Npcap and the game data loaded.
+
+**Packets dropped**: the meter's bottom line says so when the capture missed packets (the
+PC was busy), with how many: the fight's numbers may be a little low. It goes a minute after
+the last drop.
 
 **Ping reducers and VPNs** (ExitLag, GearUP, WTFast, NoPing…): these reroute the game's
 connection, often through a relay on your own PC, which passes it on in a tunnel of its

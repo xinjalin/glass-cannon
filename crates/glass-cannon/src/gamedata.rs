@@ -105,6 +105,19 @@ struct SkillFile {
     skills: BTreeMap<u32, Entry>,
 }
 
+/// The skills (bases) whose description grants a Protective Shield.
+fn shield_bases(details: &DetailsFile) -> std::collections::HashSet<u32> {
+    details
+        .skills
+        .iter()
+        .filter(|(_, v)| {
+            let text = ["desc", "desc_max"].iter().filter_map(|k| v.get(*k).and_then(|d| d.as_str())).collect::<Vec<_>>().join(" ");
+            text.contains("Protective Shield") && !text.contains("breaks Protective Shield")
+        })
+        .map(|(k, _)| *k)
+        .collect()
+}
+
 /// Skill details by base skill ID, kept as they are in the file (the page shows them).
 #[derive(Debug, Default, Deserialize)]
 struct DetailsFile {
@@ -355,6 +368,9 @@ pub struct GameData {
     npcs: NpcFile,
     /// Cooldowns, costs, descriptions and specialties by base skill ID (optional).
     details: DetailsFile,
+    /// The skills (bases) that give a shield: their description grants a Protective
+    /// Shield (and doesn't only break one).
+    shield_bases: std::collections::HashSet<u32>,
     /// Theostone effects and grades (optional).
     theostones: TheostoneFile,
     /// Dungeon mobs, for the history's dungeon runs (optional).
@@ -385,6 +401,7 @@ impl GameData {
             skills: SkillFile::default(),
             npcs: NpcFile::default(),
             details: DetailsFile::default(),
+            shield_bases: std::collections::HashSet::new(),
             theostones: TheostoneFile::default(),
             dungeons: DungeonFile::default(),
             field_bosses: FieldBossFile::default(),
@@ -423,6 +440,7 @@ impl GameData {
                     // Mob names and skill details are optional (older folders only have skills).
                     self.npcs = read_json::<NpcFile>(&dir.join(NPCS_FILE)).unwrap_or_default();
                     self.details = read_json::<DetailsFile>(&dir.join(DETAILS_FILE)).unwrap_or_default();
+                    self.shield_bases = shield_bases(&self.details);
                     self.theostones = read_json::<TheostoneFile>(&dir.join(THEOSTONES_FILE)).unwrap_or_default();
                     self.dungeons = read_json::<DungeonFile>(&dir.join(DUNGEONS_FILE)).unwrap_or_default();
                     self.dungeons.merge(read_json::<DungeonFile>(&dir.join(PLACES_FILE)).unwrap_or_default());
@@ -598,6 +616,11 @@ impl GameData {
     /// tens digits, smallest first: Onslaught 18010000 with specialties 3 and 4 is
     /// 18010340. The last digit tells apart parts of one skill (chains, extra hits).
     /// A Theostone gets its grade and effect instead.
+    /// Whether a skill gives a shield (by its base's description).
+    pub fn is_shield_skill(&self, skill: u32) -> bool {
+        self.shield_bases.contains(&(skill - skill % 10_000))
+    }
+
     pub fn skill_details(&self, skill: u32) -> Option<serde_json::Value> {
         // A Theostone: its grade and effect, in the shape the tooltips read (no specialties).
         if THEOSTONE_SKILLS.contains(&skill) {
