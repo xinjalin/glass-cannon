@@ -212,6 +212,10 @@ pub struct Settings {
     /// corner while the cursor shows).
     #[serde(default = "default_true")]
     pub hide_for_menus: bool,
+    /// No widget takes the mouse while you play, not even the meter, the world timers and
+    /// the pet tracker (the others never do); arranging them still does.
+    #[serde(default)]
+    pub click_through: bool,
     /// The hotkeys' keys (settings → keybinds).
     #[serde(default)]
     pub hotkeys: crate::hotkeys::Bindings,

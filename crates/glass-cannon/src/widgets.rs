@@ -290,6 +290,14 @@ pub fn set_hide_for_menus(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Whether the widgets let every click through to the game (but while arranging).
+#[tauri::command]
+pub fn set_click_through(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.click_through = on;
+    s.save(&app.config_dir);
+}
+
 /// Whether the app closes when the game does.
 #[tauri::command]
 pub fn set_close_with_game(app: State<'_, Arc<AppState>>, on: bool) {

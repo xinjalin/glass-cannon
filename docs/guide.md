@@ -153,13 +153,21 @@ cursor alone never hides the widgets. Every full-screen menu (the inventory, the
 menu…) has a close X at the top right, on the corner's diagonal whatever the UI scale (a
 few windows, like the Season Mission, a back arrow instead): while the cursor shows, the
 meter looks at a small square there (8.5% of the game's height a side) for that X or
-arrow, and steps aside only when one is there. Once seen, they stay aside until the cursor
-goes (a pop-up over a menu dims its X past seeing; closing the menu hides the cursor). The square is only looked at:
-it's never saved or sent, and nothing is read while the cursor is hidden, the setting is
-off or the game isn't in front. Keep widgets off that corner (one there hides the X; the
-meter leaves its own widgets out of what it looks at, so one there is never taken for
-a menu). The setting's tooltip shows the last checks. With the classic controls, where the cursor
-always shows, the corner is simply looked at every half second.
+arrow, and steps aside only when one is there. Reward screens (a Monster Cube's after
+content, Shugo's…) have no X there but a gold **Confirm** button at the bottom middle: the
+meter also looks at a strip there (30% of the game's height wide, its lowest 22%) for
+it. Once seen, they stay aside until the cursor goes (a pop-up over a menu dims its X past
+seeing; closing the menu hides the cursor). The square and the strip are only looked at:
+never saved or sent, and nothing is read while the cursor is hidden, the setting is off
+or the game isn't in front. Keep widgets off the corner and the button (one there hides
+them; the meter leaves its own widgets out of what it looks at, so one there is never
+taken for a menu). The setting's tooltip shows the last checks. With the classic controls,
+where the cursor always shows, they're simply looked at every half second.
+
+**Click-through** (settings → overlay, off by default): every click goes through the
+widgets to the game, the meter's, the world timers' and the pet tracker's too. The other
+widgets only show things and always let clicks through. Arranging the widgets still takes
+the mouse, so they can be moved and resized.
 
 **Fade outside combat** (settings) fades the fight widgets a while after the last fight;
 they come back with the next one (the meter under the mouse too). With the **frosted**

@@ -1062,6 +1062,7 @@ fn main() {
             widgets::set_hide_on_world_map,
             widgets::set_close_with_game,
             widgets::set_hide_for_menus,
+            widgets::set_click_through,
             widgets::pet_map,
             widgets::pet_map_me,
             widgets::pet_map_image,

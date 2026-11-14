@@ -68,6 +68,16 @@ fn widgets_in_corner(drawn: &[HitRect], corner_x: f64, side: f64) -> Vec<(f64, f
         .collect()
 }
 
+/// The widgets' boxes in the bottom strip the menu check reads (its top left at `ox`,
+/// `oy` in the game's picture), each grown by its glow. Blanking clips them to the strip.
+fn widgets_in_strip(drawn: &[HitRect], ox: f64, oy: f64) -> Vec<(f64, f64, f64, f64)> {
+    drawn
+        .iter()
+        .map(|r| (r.x - WIDGET_BLEED - ox, r.y - WIDGET_BLEED - oy, r.x + r.width + WIDGET_BLEED - ox, r.y + r.height + WIDGET_BLEED - oy))
+        .filter(|&(_, _, r, b)| r > 0.0 && b > 0.0)
+        .collect()
+}
+
 /// Arranging the widgets: the whole HUD takes the mouse (and the keyboard) until done.
 #[tauri::command]
 pub fn hud_edit<R: Runtime>(handle: AppHandle<R>, app: State<'_, Arc<AppState>>, on: bool) {
@@ -200,12 +210,23 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                             let byte = |v: f32| v.clamp(0.0, 255.0).round() as u8;
                             let (x, _) = corner.x_score(height);
                             let arrow = corner.arrow_score(height);
-                            let mut checks = lock(&app.menu_checks);
-                            checks.push_back((byte(x), byte(arrow)));
-                            while checks.len() > 6 {
-                                checks.pop_front();
+                            {
+                                let mut checks = lock(&app.menu_checks);
+                                checks.push_back((byte(x), byte(arrow)));
+                                while checks.len() > 6 {
+                                    checks.pop_front();
+                                }
                             }
-                            corner.has_menu_mark(height)
+                            if corner.has_menu_mark(height) {
+                                return true;
+                            }
+                            // A reward screen (a Monster Cube's, Shugo's…): no mark in the
+                            // corner, a gold Confirm button at the bottom middle.
+                            let (w, h) = (area.width(), area.height());
+                            let Some(mut strip) = crate::menus::read_bottom((area.left, area.top, w, h)) else { return false };
+                            let (ox, oy) = crate::menus::bottom_origin(w, h);
+                            strip.blank(&widgets_in_strip(&lock(&app.hud_drawn), ox, oy));
+                            strip.has_confirm_button(height)
                         };
                         menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing(), &mut look)
                     }
@@ -242,8 +263,10 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 };
                 plates.update(&handle, &w, &wanted);
                 if shown {
-                    // The map takes every click while it's open.
-                    let ignore = !editing && (map || !pointer_on_widget(&handle, &w, &app));
+                    // The map takes every click while it's open; so does the game with
+                    // click-through on (settings), but while arranging.
+                    let through = lock(&app.settings).click_through;
+                    let ignore = !editing && (map || through || !pointer_on_widget(&handle, &w, &app));
                     if ignoring != Some(ignore) && w.set_ignore_cursor_events(ignore).is_ok() {
                         ignoring = Some(ignore);
                     }
