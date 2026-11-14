@@ -88,7 +88,8 @@ Both hotkeys can be changed in the settings. The full guide is in
   game's top-right corner, a strip at its bottom middle (for reward screens' Confirm
   button) and the top of the screen (for a window's close X, as the Attendance window's),
   only while the cursor is showing. None of it is ever saved, and the setting can be
-  turned off.
+  turned off. While you're at the Black Cloud Merchant, the same corner tells when you've
+  left it, for the black market window to go (settings → general turns that off).
 - **Storage**: settings, history and attempts stay on your PC, in
   `%APPDATA%\io.github.xinjalin.glass-cannon`. Nothing is uploaded.
 

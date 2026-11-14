@@ -161,6 +161,12 @@ pub struct AppState {
     /// came up by itself.
     black_market_opened: AtomicBool,
     black_market_auto_at: std::sync::atomic::AtomicU64,
+    /// The black market window is up because the merchant opened, and you haven't clicked
+    /// into it: it goes again when you leave the merchant (see `hud::watch`).
+    black_market_auto_shown: AtomicBool,
+    /// You're at the merchant (its pages came in, and you haven't been seen leaving): its
+    /// window comes up once a visit.
+    black_market_visit: AtomicBool,
     /// Every widget on screen (the menu check leaves them out of what it reads).
     hud_drawn: Mutex<Vec<hud::HitRect>>,
     /// The meter widget's box, when it shows.
@@ -994,6 +1000,8 @@ fn main() {
         hud_drawn: Mutex::new(Vec::new()),
         black_market_opened: AtomicBool::new(false),
         black_market_auto_at: std::sync::atomic::AtomicU64::new(0),
+        black_market_auto_shown: AtomicBool::new(false),
+        black_market_visit: AtomicBool::new(false),
         hud_meter: Mutex::new(None),
         lobby_menu: AtomicBool::new(false),
         hud_editing: AtomicBool::new(false),
@@ -1172,6 +1180,10 @@ fn main() {
                     if let Some(p) = placement::current(window) {
                         lock(&app.placements).set(window.label(), p);
                     }
+                }
+                // Clicked into after it came up by itself: it's yours now, and stays.
+                WindowEvent::Focused(true) if window.label() == BLACK_MARKET => {
+                    app.black_market_auto_shown.store(false, Ordering::SeqCst);
                 }
                 WindowEvent::CloseRequested { api, .. } => match window.label() {
                     // Closing the launcher closes the app.
