@@ -112,6 +112,34 @@
               <button id="font-button" type="button" class="select-button" aria-haspopup="listbox"
                 aria-expanded="false" aria-controls="font-menu" title="Choose a font">[<span id="font-name"></span> ▾]</button>
             </div>
+            <!-- The text's colour, opacity and edge (theme.js's applyText): drawn by settings.js. -->
+            <div class="line" data-keywords="text font colour color white subtitle">
+              <span class="key">text colour</span>
+              <span id="text-colours" class="swatches" role="radiogroup" aria-label="Text colour"></span>
+            </div>
+            <div class="line" data-keywords="text font opacity transparent see-through">
+              <span class="key">text opacity</span>
+              <span class="stepper">
+                <button id="text-op-down" type="button" title="More see-through">[−]</button>
+                <span id="text-op-value" class="step-value"></span>
+                <button id="text-op-up" type="button" title="More solid">[+]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="text edge outline shadow raised depressed character subtitle">
+              <span class="key">text edge</span>
+              <span class="choice" role="radiogroup" aria-label="Text edge">
+                <button type="button" data-text-edge="theme" title="The theme's soft shadow">[theme]</button>
+                <button type="button" data-text-edge="none" title="No edge">[none]</button>
+                <button type="button" data-text-edge="shadow" title="A drop shadow">[shadow]</button>
+                <button type="button" data-text-edge="outline" title="An outline all round">[outline]</button>
+                <button type="button" data-text-edge="raised" title="Raised">[raised]</button>
+                <button type="button" data-text-edge="depressed" title="Depressed">[depressed]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="text edge colour color outline shadow">
+              <span class="key">edge colour</span>
+              <span id="edge-colours" class="swatches" role="radiogroup" aria-label="Edge colour"></span>
+            </div>
           </fieldset>
           <fieldset class="box">
             <legend>background</legend>

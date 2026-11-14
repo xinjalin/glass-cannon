@@ -124,6 +124,7 @@ function drawAppearance(a) {
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
   drawClassColours(a.class_palette || {});
+  drawTextStyle(a);
   setToggle("info-bar", a.info_bar);
   setToggle("show-cp", a.combat_power !== false);
   setToggle("show-odyle", a.odyle !== false);
@@ -328,6 +329,107 @@ function drawClassColours(palette) {
     if (input.value !== colour) input.value = colour;
   }
   classSwatches.reset.hidden = !Object.keys(palette).length;
+}
+
+// The text's colour and its edge's colour: preset swatches and one to pick. Made once and
+// updated in place (making them again closes a picker that's open).
+const TEXT_COLOURS = [
+  ["white", "#ffffff"],
+  ["yellow", "#ffe066"],
+  ["cyan", "#7fe3ff"],
+  ["green", "#9be89b"],
+  ["rose", "#f7b6b0"],
+  ["grey", "#c8c8c8"],
+];
+const EDGE_COLOURS = [
+  ["black", "#000000"],
+  ["dark grey", "#333333"],
+  ["white", "#ffffff"],
+  ["navy", "#10204a"],
+];
+const TEXT_OP = { min: 40, max: 100, step: 10 };
+const colourRows = {};
+
+// A row of colour swatches (with [theme] first when `theme` is given) and a picker.
+function makeColourRow(boxId, presets, theme, set) {
+  const items = [];
+  if (theme) {
+    const t = el("button", "chip", "[theme]");
+    t.type = "button";
+    t.title = "The theme's text colour";
+    t.dataset.value = "theme";
+    t.addEventListener("click", () => set("theme"));
+    items.push(t);
+  }
+  for (const [name, hex] of presets) {
+    const b = el("button", "swatch");
+    b.type = "button";
+    b.title = name;
+    b.dataset.value = hex;
+    b.style.setProperty("--swatch", hex);
+    b.style.boxShadow = "inset 0 0 0 1px rgba(127, 127, 127, 0.6)";
+    b.addEventListener("click", () => set(hex));
+    items.push(b);
+  }
+  const custom = el("button", "swatch custom");
+  custom.type = "button";
+  const input = el("input");
+  input.type = "color";
+  input.tabIndex = -1;
+  input.setAttribute("aria-label", "A colour of your own");
+  input.addEventListener("change", () => set(input.value));
+  custom.append(input);
+  custom.addEventListener("click", () => {
+    try {
+      input.showPicker();
+    } catch {
+      input.click();
+    }
+  });
+  items.push(custom);
+  $(boxId).replaceChildren(...items);
+  return { items, custom, input, presets: presets.map(([, h]) => h) };
+}
+
+function markColourRow(row, value) {
+  const preset = value === "theme" || row.presets.includes(value);
+  for (const b of row.items) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b === row.custom ? !preset : b.dataset.value === value));
+  }
+  if (!preset && isHexColor(value)) {
+    row.custom.style.setProperty("--swatch", value);
+    if (row.input.value !== value) row.input.value = value;
+    row.custom.title = `${value} · click to pick another colour`;
+  } else {
+    row.custom.style.removeProperty("--swatch");
+    row.custom.title = "Pick any colour";
+  }
+}
+
+function drawTextStyle(a) {
+  if (!colourRows.text) {
+    colourRows.text = makeColourRow("text-colours", TEXT_COLOURS, true, (v) => setAppearance({ textColor: v }));
+    colourRows.edge = makeColourRow("edge-colours", EDGE_COLOURS, false, (v) => setAppearance({ edgeColor: v }));
+  }
+  markColourRow(colourRows.text, a.text_color || "theme");
+  markColourRow(colourRows.edge, a.edge_color || "#000000");
+  const op = a.text_opacity || 100;
+  $("text-op-value").textContent = `${op}%`;
+  $("text-op-down").disabled = op <= TEXT_OP.min;
+  $("text-op-up").disabled = op >= TEXT_OP.max;
+  for (const b of document.querySelectorAll("[data-text-edge]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.textEdge === (a.text_edge || "theme")));
+  }
+  // The edge's colour only matters with an edge of your own.
+  for (const b of colourRows.edge.items) b.disabled = !a.text_edge || a.text_edge === "theme" || a.text_edge === "none";
+}
+
+$("text-op-down").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) - TEXT_OP.step }));
+$("text-op-up").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) + TEXT_OP.step }));
+for (const b of document.querySelectorAll("[data-text-edge]")) {
+  b.addEventListener("click", () => setAppearance({ textEdge: b.dataset.textEdge }));
 }
 
 function drawCustom(button, value) {

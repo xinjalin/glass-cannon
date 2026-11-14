@@ -401,6 +401,32 @@ pub struct Appearance {
     /// the built-in ones, wherever class colours show.
     #[serde(default)]
     pub class_palette: BTreeMap<String, String>,
+    /// The text's colour: "theme" (the theme's), or a colour of your own (`#rrggbb`).
+    #[serde(default = "default_theme_word")]
+    pub text_color: String,
+    /// How opaque the text is, in percent.
+    #[serde(default = "default_text_opacity")]
+    pub text_opacity: u8,
+    /// The text's edge: one of [`TEXT_EDGES`] ("theme": the theme's soft shadow).
+    #[serde(default = "default_theme_word")]
+    pub text_edge: String,
+    /// The edge's colour (`#rrggbb`).
+    #[serde(default = "default_edge_color")]
+    pub edge_color: String,
+}
+
+/// The text's edges: the theme's, none, a drop shadow, an outline, raised, depressed.
+pub const TEXT_EDGES: [&str; 6] = ["theme", "none", "shadow", "outline", "raised", "depressed"];
+pub const TEXT_OPACITIES: std::ops::RangeInclusive<u8> = 40..=100;
+
+fn default_theme_word() -> String {
+    "theme".into()
+}
+fn default_text_opacity() -> u8 {
+    100
+}
+fn default_edge_color() -> String {
+    "#000000".into()
 }
 
 /// The class codes a colour can be set for.
@@ -461,6 +487,10 @@ impl Default for Appearance {
             combat_power: true,
             odyle: true,
             class_palette: BTreeMap::new(),
+            text_color: default_theme_word(),
+            text_opacity: default_text_opacity(),
+            text_edge: default_theme_word(),
+            edge_color: default_edge_color(),
         }
     }
 }
@@ -485,6 +515,11 @@ pub struct AppearanceChange {
     pub odyle: Option<bool>,
     /// The whole set of class colours of your own (an empty one: the built-in colours).
     pub class_palette: Option<BTreeMap<String, String>>,
+    pub text_color: Option<String>,
+    /// Any number: clamped.
+    pub text_opacity: Option<i64>,
+    pub text_edge: Option<String>,
+    pub edge_color: Option<String>,
 }
 
 impl Appearance {
@@ -529,6 +564,18 @@ impl Appearance {
         if let Some(p) = c.class_palette {
             self.class_palette = valid_palette(p);
         }
+        if let Some(t) = c.text_color.filter(|t| t == "theme" || is_hex_color(t)) {
+            self.text_color = t.to_ascii_lowercase();
+        }
+        if let Some(o) = c.text_opacity {
+            self.text_opacity = o.clamp(i64::from(*TEXT_OPACITIES.start()), i64::from(*TEXT_OPACITIES.end())) as u8;
+        }
+        if let Some(e) = c.text_edge.filter(|e| TEXT_EDGES.contains(&e.as_str())) {
+            self.text_edge = e;
+        }
+        if let Some(e) = c.edge_color.filter(|e| is_hex_color(e)) {
+            self.edge_color = e.to_ascii_lowercase();
+        }
     }
 
     /// Repairs values from a hand-edited or older settings file.
@@ -562,6 +609,18 @@ impl Appearance {
             self.row_style = fixed.row_style;
         }
         self.class_palette = valid_palette(std::mem::take(&mut self.class_palette));
+        if self.text_color != "theme" && !is_hex_color(&self.text_color) {
+            self.text_color = fixed.text_color.clone();
+        }
+        if !TEXT_OPACITIES.contains(&self.text_opacity) {
+            self.text_opacity = fixed.text_opacity;
+        }
+        if !TEXT_EDGES.contains(&self.text_edge.as_str()) {
+            self.text_edge = fixed.text_edge.clone();
+        }
+        if !is_hex_color(&self.edge_color) {
+            self.edge_color = fixed.edge_color.clone();
+        }
         self
     }
 }
@@ -1645,7 +1704,12 @@ mod tests {
             combat_power: Some(false),
             odyle: Some(false),
             class_palette: None,
+            text_color: Some("#AABBCC".into()),
+            text_opacity: Some(10),
+            text_edge: Some("outline".into()),
+            edge_color: Some("not a colour".into()),
         });
+        assert_eq!((s.appearance.text_color.as_str(), s.appearance.text_opacity, s.appearance.text_edge.as_str(), s.appearance.edge_color.as_str()), ("#aabbcc", 40, "outline", "#000000"));
         assert_eq!((s.appearance.row_style.as_str(), s.appearance.fill_tint, s.appearance.combat_power, s.appearance.odyle), ("fill", true, false, false));
         // Class colours: only real classes and colours are kept.
         s.appearance.update(AppearanceChange {

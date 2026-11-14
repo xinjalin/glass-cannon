@@ -208,6 +208,11 @@ background, Windows lightly blurs the game behind each widget.
   your party's from its roster, anyone else's from when they came into view, yours from
   your login or zone change. **Odyle energy** (settings → meter; charged in brackets) shows
   on the strip at the meter's top, as the game last sent it (at login and as it changes).
+- **Text** (settings → appearance → text), as subtitles have it: the font and its size, the
+  text's colour (the theme's or any) and opacity, and its edge (the theme's soft shadow,
+  none, a drop shadow, an outline, raised or depressed) in a colour of your own. It shows
+  everywhere: the overlay and the windows. What's behind the text is the background and
+  tint (settings → appearance → background).
 - **Class colours** (settings → appearance): with the bars in class colours, each class's
   colour can be your own (click its swatch); the text on it stays readable, dark or
   light by the colour. They show wherever class colours do; **[reset]** brings back the

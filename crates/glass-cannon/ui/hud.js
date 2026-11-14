@@ -37,7 +37,8 @@ const SIDE_WIDGETS = {
   // No panel: no frosted plate behind it either.
   vitals: { page: "vitals.html", label: "vitals arcs", passive: true, bare: true },
   party: { page: "party.html", label: "party frames", passive: true },
-  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true },
+  // Always as tall as it shows: its list grows with the skills, its timeline is a bar.
+  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, grows: true },
   "action-bar": { page: "actionbar.html", label: "action bar", passive: true, grows: true },
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, grows: true },
   timers: { page: "timers.html", label: "world timers", passive: false },
