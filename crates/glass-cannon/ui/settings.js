@@ -172,6 +172,7 @@ async function refresh() {
     setToggle("hide-on-world-map", state.hide_on_world_map);
     setToggle("close-with-game", state.close_with_game);
     setToggle("hide-for-menus", state.hide_for_menus);
+    setToggle("click-through", state.click_through);
     // The last checks, on hover: how X-like and arrow-like the top-right corner was with the
     // cursor up.
     const menuBtn = $("hide-for-menus");
@@ -393,6 +394,11 @@ $("hide-on-world-map").addEventListener("click", async () => {
 
 $("hide-for-menus").addEventListener("click", async () => {
   await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
+  refresh();
+});
+
+$("click-through").addEventListener("click", async () => {
+  await invoke("set_click_through", { on: !(state && state.click_through) });
   refresh();
 });
 

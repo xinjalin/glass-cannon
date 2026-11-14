@@ -20,6 +20,15 @@
 //! scores 163-201; 880 squares elsewhere on them (the world, text, icons) at most 129. The
 //! Season Mission's arrow 149; 1,000 squares elsewhere at most 68.
 //!
+//! Reward screens (a Monster Cube's, Shugo's and others' after content) have neither: their
+//! top right has your currencies. They have a gold button at the bottom middle instead:
+//! **Confirm** once the cards are turned (on a 2000×1125 screenshot: 224×44 px, its middle
+//! 91 % of the way down, so about 20 % of the screen's height wide and 4 % tall), and
+//! before that **Complete Selection**, the same size, just right of the middle beside a dark
+//! **Cancel Selection**. So a strip at the bottom middle (70 % of the height wide, the
+//! lowest 22 % of it) is read too and looked over for a solid gold bar of about that size
+//! anywhere in it, with no gold just around it. Kept only for that look, as the corner.
+//!
 //! A pop-up over a menu dims the screen, its mark too, past telling, so once seen the menu
 //! stays open until the cursor hides (closing the menu hides it).
 //!
@@ -28,6 +37,16 @@
 
 /// The corner square's side, as a share of the game's height.
 const CORNER: f64 = 0.085;
+/// The strip at the bottom middle looked over for a reward screen's gold button: its
+/// width and height, as shares of the game's height (from the bottom up).
+const STRIP_W: f64 = 0.7;
+const STRIP_H: f64 = 0.22;
+/// The button's size, as shares of the game's height: its height and width may be
+/// between these (UI scales), and the share of each of its rows that must be gold (its
+/// white text and icons take some: 0.67 at the least on the screenshot).
+const BUTTON_H: (f64, f64) = (0.022, 0.07);
+const BUTTON_W: (f64, f64) = (0.1, 0.32);
+const BUTTON_GOLD: f64 = 0.5;
 /// Where the X's middle can be, in from the right and down from the top (the same), as a
 /// share of the game's height; and its arms' half-length as a share of that.
 const X_FROM: f64 = 0.022;
@@ -174,6 +193,117 @@ impl Corner {
     }
 }
 
+/// A strip of the screen, in colour, row by row.
+pub struct Strip {
+    w: usize,
+    h: usize,
+    rgb: Vec<[u8; 3]>,
+}
+
+/// The Confirm button's gold (and its lighter bottom edge), not the game's world or its
+/// white text.
+fn gold([r, g, b]: [u8; 3]) -> bool {
+    let (r, g, b) = (i32::from(r), i32::from(g), i32::from(b));
+    r >= 150 && g >= 100 && r - b >= 80 && g <= r + 10
+}
+
+impl Strip {
+    #[cfg(test)]
+    pub fn width(&self) -> usize {
+        self.w
+    }
+
+    /// Blanks boxes of the strip, (left, top, right, bottom) in its pixels: our own
+    /// widgets over the game.
+    pub fn blank(&mut self, boxes: &[(f64, f64, f64, f64)]) {
+        let (w, h) = (self.w as f64, self.h as f64);
+        for &(l, t, r, b) in boxes {
+            let (l, t) = (l.max(0.0).floor() as usize, t.max(0.0).floor() as usize);
+            let (r, b) = (r.min(w).ceil() as usize, b.min(h).ceil() as usize);
+            for y in t..b {
+                self.rgb[y * self.w + l.min(r)..y * self.w + r].fill([0, 0, 0]);
+            }
+        }
+    }
+
+    fn gold_share(&self, y: usize, from: usize, to: usize) -> f64 {
+        let row = &self.rgb[y * self.w..(y + 1) * self.w];
+        let n = row[from..to].iter().filter(|p| gold(**p)).count();
+        n as f64 / (to - from).max(1) as f64
+    }
+
+    /// A reward screen's gold button in the strip: rows of gold as wide as the button
+    /// (gaps of a few pixels are its text), starting and ending at the same places, as many
+    /// as it is tall, not at the strip's sides, and no gold just above, below or beside
+    /// them. `height`: the game picture's height, which the button's size goes by.
+    pub fn has_confirm_button(&self, height: f64) -> bool {
+        let (wide_lo, wide_hi) = (BUTTON_W.0 * height, BUTTON_W.1 * height);
+        let (tall_lo, tall_hi) = ((BUTTON_H.0 * height) as usize, (BUTTON_H.1 * height).ceil() as usize);
+        let gap = ((0.006 * height) as usize).max(2);
+        let margin = ((0.01 * height) as usize).max(2);
+        let slack = ((0.01 * height) as usize).max(2);
+        let mut y = margin;
+        while y + margin < self.h {
+            // A row whose longest gold run could be the button's top.
+            let Some((x0, x1)) = self.longest_run(y, gap) else {
+                y += 1;
+                continue;
+            };
+            let wide = (x1 - x0) as f64;
+            if wide < wide_lo || wide > wide_hi || x0 == 0 || x1 >= self.w {
+                y += 1;
+                continue;
+            }
+            // Down while the rows are gold across it.
+            let mut end = y + 1;
+            while end < self.h && self.gold_share(end, x0, x1) >= BUTTON_GOLD {
+                end += 1;
+            }
+            let tall = end - y;
+            // Its full width, from all its rows (the top row's ends can be faded).
+            let (mut x0, mut x1) = (x0, x1);
+            for yy in y..end {
+                if let Some((a, b)) = self.longest_run(yy, gap).filter(|&(a, b)| a < x1 && b > x0) {
+                    (x0, x1) = (x0.min(a), x1.max(b));
+                }
+            }
+            let wide = (x1 - x0) as f64;
+            let around_clear = wide <= wide_hi
+                && end + margin <= self.h
+                && self.gold_share(y - margin, x0, x1) < 0.2
+                && self.gold_share(end + margin - 1, x0, x1) < 0.2
+                && x0 >= slack
+                && x1 + slack <= self.w
+                && (y..end).all(|yy| !gold(self.rgb[yy * self.w + x0 - slack]) && !gold(self.rgb[yy * self.w + x1 + slack - 1]));
+            if (tall_lo..=tall_hi).contains(&tall) && around_clear {
+                return true;
+            }
+            y = end.max(y + 1);
+        }
+        false
+    }
+
+    /// The longest run of gold in a row, gaps of up to `gap` pixels bridged: [start, end).
+    fn longest_run(&self, y: usize, gap: usize) -> Option<(usize, usize)> {
+        let row = &self.rgb[y * self.w..(y + 1) * self.w];
+        let mut best: Option<(usize, usize)> = None;
+        let mut run: Option<(usize, usize)> = None; // start, last gold
+        for (x, p) in row.iter().enumerate() {
+            if gold(*p) {
+                run = Some(match run {
+                    Some((s, last)) if x - last <= gap + 1 => (s, x),
+                    _ => (x, x),
+                });
+                let (s, last) = run.unwrap();
+                if best.is_none_or(|(bs, be)| last + 1 - s > be - bs) {
+                    best = Some((s, last + 1));
+                }
+            }
+        }
+        best
+    }
+}
+
 /// Decides, a few times a second, whether a menu is open.
 #[derive(Debug, Default)]
 pub struct MenuDetector {
@@ -240,6 +370,38 @@ pub fn cursor_showing() -> bool {
 /// Reads the top-right corner square of a screen area (left, top, width, height): its
 /// brightness, nothing else kept.
 pub fn read_corner(area: (i32, i32, i32, i32)) -> Option<Corner> {
+    let (left, top, width, height) = area;
+    let side = (f64::from(height) * CORNER).round() as i32;
+    if side < 16 || width < side {
+        return None;
+    }
+    let px = read_screen(left + width - side, top, side, side)?;
+    let luma = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
+    Some(Corner { side: side as usize, luma })
+}
+
+/// Reads the strip at the bottom middle of a screen area (left, top, width, height), where
+/// a reward screen's Confirm button is.
+pub fn read_bottom(area: (i32, i32, i32, i32)) -> Option<Strip> {
+    let (left, top, width, height) = area;
+    let (w, h) = (((f64::from(height) * STRIP_W).round() as i32).min(width), (f64::from(height) * STRIP_H).round() as i32);
+    if w < 32 || h < 16 {
+        return None;
+    }
+    let x = left + (width - w) / 2;
+    let rgb = read_screen(x, top + height - h, w, h)?;
+    Some(Strip { w: w as usize, h: h as usize, rgb })
+}
+
+/// Where [`read_bottom`]'s strip is within the game's picture: (left, top), for blanking our
+/// widgets in it.
+pub fn bottom_origin(width: i32, height: i32) -> (f64, f64) {
+    let (w, h) = (((f64::from(height) * STRIP_W).round() as i32).min(width), (f64::from(height) * STRIP_H).round() as i32);
+    (f64::from((width - w) / 2), f64::from(height - h))
+}
+
+/// A rectangle of the screen's pixels as RGB, row by row.
+fn read_screen(x: i32, y: i32, w: i32, h: i32) -> Option<Vec<[u8; 3]>> {
     #[repr(C)]
     struct BitmapInfoHeader {
         size: u32,
@@ -270,11 +432,6 @@ pub fn read_corner(area: (i32, i32, i32, i32)) -> Option<Corner> {
         fn GdiFlush() -> i32;
     }
     const SRCCOPY: u32 = 0x00CC_0020;
-    let (left, top, width, height) = area;
-    let side = (f64::from(height) * CORNER).round() as i32;
-    if side < 16 || width < side {
-        return None;
-    }
     let mut out = None;
     // SAFETY: GDI calls on a screen DC and our own small bitmap, each released below; the
     // bits are read only while the bitmap is alive and after GDI has finished writing.
@@ -286,8 +443,8 @@ pub fn read_corner(area: (i32, i32, i32, i32)) -> Option<Corner> {
         let mem = CreateCompatibleDC(screen);
         let info = BitmapInfoHeader {
             size: std::mem::size_of::<BitmapInfoHeader>() as u32,
-            width: side,
-            height: -side, // top-down
+            width: w,
+            height: -h, // top-down
             planes: 1,
             bit_count: 32,
             compression: 0,
@@ -301,15 +458,11 @@ pub fn read_corner(area: (i32, i32, i32, i32)) -> Option<Corner> {
         let bmp = if mem != 0 { CreateDIBSection(mem, &info, 0, &mut bits, 0, 0) } else { 0 };
         if bmp != 0 && !bits.is_null() {
             let old = SelectObject(mem, bmp);
-            if BitBlt(mem, 0, 0, side, side, screen, left + width - side, top, SRCCOPY) != 0 {
+            if BitBlt(mem, 0, 0, w, h, screen, x, y, SRCCOPY) != 0 {
                 GdiFlush();
-                let n = (side * side) as usize;
+                let n = (w * h) as usize;
                 let px = std::slice::from_raw_parts(bits, n * 4);
-                let luma = px
-                    .chunks_exact(4)
-                    .map(|p| ((u32::from(p[2]) * 299 + u32::from(p[1]) * 587 + u32::from(p[0]) * 114) / 1000) as u8)
-                    .collect();
-                out = Some(Corner { side: side as usize, luma });
+                out = Some(px.chunks_exact(4).map(|p| [p[2], p[1], p[0]]).collect());
             }
             SelectObject(mem, old);
         }
@@ -394,6 +547,84 @@ mod tests {
         let mut c = corner(Some((48.0, 19.0)));
         c.blank(&[(side + 10.0, 0.0, side + 50.0, 40.0), (-30.0, -30.0, 5.0, 5.0)]);
         assert!(c.has_close_x(1440.0));
+    }
+
+    /// The bottom strip of a 1125-high screen: the dark world, maybe a reward screen's gold
+    /// Confirm button (224×44, its middle 91 % down) with white text, maybe other gold.
+    fn strip(button: bool, paint: impl Fn(usize, usize) -> Option<[u8; 3]>) -> Strip {
+        let height = 1125.0;
+        let (w, h) = ((height * STRIP_W).round() as usize, (height * STRIP_H).round() as usize);
+        let top = 1125 - h;
+        let mut rgb = vec![[0x30, 0x36, 0x3e]; w * h];
+        for y in 0..h {
+            for x in 0..w {
+                let (sx, sy) = (x as i64 - w as i64 / 2 + 1000, (y + top) as i64);
+                let on_button = button && (888..1112).contains(&sx) && (1003..1047).contains(&sy);
+                if on_button {
+                    // Gold, white letters in its middle rows, a lighter bottom edge.
+                    rgb[y * w + x] = if (1015..1035).contains(&sy) && sx % 9 < 3 && (950..1060).contains(&sx) {
+                        [0xff, 0xf7, 0xe4]
+                    } else if sy >= 1044 {
+                        [0xe7, 0xd5, 0x74]
+                    } else {
+                        [0xc9, 0x91, 0x10]
+                    };
+                }
+                if let Some(c) = paint(sx as usize, sy as usize) {
+                    rgb[y * w + x] = c;
+                }
+            }
+        }
+        Strip { w, h, rgb }
+    }
+
+    #[test]
+    fn a_reward_screens_confirm_button() {
+        assert!(strip(true, |_, _| None).has_confirm_button(1125.0));
+        // No button: the world.
+        assert!(!strip(false, |_, _| None).has_confirm_button(1125.0));
+        // Gold across the whole strip (a sunset, a gold floor): not a button.
+        let all_gold = |_: usize, y: usize| (y >= 1000).then_some([0xd0, 0x98, 0x20]);
+        assert!(!strip(false, all_gold).has_confirm_button(1125.0));
+        // A small gold icon in the middle: too narrow.
+        let icon = |x: usize, y: usize| ((985..1015).contains(&x) && (1003..1047).contains(&y)).then_some([0xd0, 0x98, 0x20]);
+        assert!(!strip(false, icon).has_confirm_button(1125.0));
+        // A gold bar too tall to be the button.
+        let tall = |x: usize, y: usize| ((900..1100).contains(&x) && (920..1100).contains(&y)).then_some([0xd0, 0x98, 0x20]);
+        assert!(!strip(false, tall).has_confirm_button(1125.0));
+        // A gold bar running off the strip's side (a boss's golden ground across the floor).
+        let floor = |_: usize, y: usize| ((1010..1050).contains(&y)).then_some([0xd0, 0x98, 0x20]);
+        assert!(!strip(false, floor).has_confirm_button(1125.0));
+    }
+
+    #[test]
+    fn a_reward_screen_before_its_cards_are_turned() {
+        // As a Monster Cube's "Not This Tile?" (measured on a 2000×1122 screenshot): a dark
+        // Cancel Selection left of the middle (771-997), the gold Selection Complete right of
+        // it (1003-1226, 1032-1082), with its key's F in a dark box, its text, and a key icon
+        // and its count on the gold.
+        let buttons = |x: usize, y: usize| {
+            let row = (1032..1082).contains(&y);
+            if row && (771..997).contains(&x) {
+                Some([0x2a, 0x3a, 0x5c])
+            } else if row && (1003..1226).contains(&x) {
+                let key_box = (1014..1030).contains(&x) && (1048..1066).contains(&y);
+                let text = (1036..1162).contains(&x) && (1048..1066).contains(&y) && x % 7 < 2;
+                let icon = (1180..1200).contains(&x) && (1042..1072).contains(&y);
+                Some(if key_box { [0x30, 0x2a, 0x20] } else if text || icon { [0xf0, 0xe8, 0xd8] } else { [0xe0, 0xa8, 0x20] })
+            } else {
+                None
+            }
+        };
+        assert!(strip(false, buttons).has_confirm_button(1125.0));
+    }
+
+    #[test]
+    fn our_own_widget_over_the_button_is_left_out() {
+        let mut s = strip(true, |_, _| None);
+        let w = s.width() as f64;
+        s.blank(&[(0.0, 0.0, w, 400.0)]);
+        assert!(!s.has_confirm_button(1125.0));
     }
 
     #[test]

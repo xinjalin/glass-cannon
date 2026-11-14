@@ -85,8 +85,9 @@ Both hotkeys can be changed in the settings. The full guide is in
   loopback traffic, when the game goes through a ping reducer's relay). Packets that aren't
   the game's are dropped as they arrive; nothing is saved unless you turn on recording.
 - **Screen**: to step aside for game menus, the overlay looks at a small square in the
-  game's top-right corner while the cursor is showing. It is never saved, and the setting
-  can be turned off.
+  game's top-right corner, and a strip at its bottom middle (for reward screens' Confirm
+  button), while the cursor is showing. Neither is ever saved, and the setting can be
+  turned off.
 - **Storage**: settings, history and attempts stay on your PC, in
   `%APPDATA%\io.github.xinjalin.glass-cannon`. Nothing is uploaded.
 
