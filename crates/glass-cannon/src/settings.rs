@@ -75,6 +75,8 @@ pub struct SettingsStatus {
     close_with_game: bool,
     hide_for_menus: bool,
     click_through: bool,
+    meter_fit: bool,
+    party_sort: String,
     /// The menu check's last results (how X-like and arrow-like the corner was) and their bars.
     menu_checks: Vec<(u8, u8)>,
     menu_share: (u8, u8),
@@ -178,6 +180,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         close_with_game: s.close_with_game,
         hide_for_menus: s.hide_for_menus,
         click_through: s.click_through,
+        meter_fit: s.meter_fit,
+        party_sort: s.party_sort.clone(),
         menu_checks: lock(&app.menu_checks).iter().copied().collect(),
         menu_share: (crate::menus::X_SCORE as u8, crate::menus::ARROW_SCORE as u8),
         hotkeys: crate::hotkeys::ACTIONS

@@ -74,6 +74,10 @@
                 </span>
               </span>
             </div>
+            <div class="line" data-keywords="class colours colors palette classes gladiator templar assassin ranger sorcerer elementalist cleric chanter fighter custom">
+              <span class="key">class colours</span>
+              <span id="class-colours" class="swatches class-swatches" role="group" aria-label="Each class's colour"></span>
+            </div>
             <div class="line" data-keywords="row fill self you">
               <span class="key">highlight</span>
               <span class="choice" role="radiogroup" aria-label="Highlight">
@@ -176,6 +180,53 @@
                 <span class="key">pet tracker</span><span class="state">[off]</span>
               </button>
             </div>
+            <button id="arrange-overlay" data-keywords="move resize layout position edit" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
+              <span class="key">arrange</span><span class="state">[ arrange ]</span>
+            </button>
+          </fieldset>
+          <!-- Each widget's own settings, a tab each (settings.js), so the page stays short;
+               while searching, every one shows. -->
+          <div id="subtabs" class="subtabs" role="tablist" aria-label="Widget settings">
+            <button type="button" role="tab" data-subtab="cooldowns" aria-selected="true">[cooldowns]</button>
+            <button type="button" role="tab" data-subtab="party-cooldowns" aria-selected="false" tabindex="-1">[party cooldowns]</button>
+            <button type="button" role="tab" data-subtab="action-bar" aria-selected="false" tabindex="-1">[action bar]</button>
+            <button type="button" role="tab" data-subtab="vitals" aria-selected="false" tabindex="-1">[vitals arcs]</button>
+          </div>
+          <div id="subpanels" class="subpanels">
+          <fieldset class="box subpanel" data-subtab="cooldowns" data-keywords="cooldowns timeline list">
+            <legend>cooldowns</legend>
+            <div class="line" data-keywords="cooldowns timeline list bar scroll slide look">
+              <span class="key">cooldowns</span>
+              <span class="choice" role="radiogroup" aria-label="How the cooldowns widget looks">
+                <button type="button" data-cd-look="list" title="A row each, soonest first, with the time left">[list]</button>
+                <button type="button" data-cd-look="timeline" title="A bar from Ready to 100%: each skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready as it runs down">[timeline]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="cooldowns timeline scale percent time marks seconds minutes">
+              <span class="key">timeline scale</span>
+              <span class="choice" role="radiogroup" aria-label="What the cooldowns timeline goes by">
+                <button type="button" data-cd-scale="percent" title="How much of each cooldown is left: Ready, 50%, 100%">[percent]</button>
+                <button type="button" data-cd-scale="time" title="The time left, marked 1, 10, 30, 1m, 2m, 5m (the last seconds get the most room)">[time]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="cooldowns timeline size bigger smaller icons readable">
+              <span class="key">timeline size</span>
+              <span class="stepper">
+                <button id="cd-size-down" type="button" title="Smaller">[−]</button>
+                <span id="cd-size-value" class="step-value"></span>
+                <button id="cd-size-up" type="button" title="Bigger">[+]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="cooldowns timeline ready left right direction">
+              <span class="key">timeline ready at</span>
+              <span class="choice" role="radiogroup" aria-label="Which end of the cooldowns timeline is Ready">
+                <button type="button" data-cd-ready="left" title="Ready on the left: icons slide left">[left]</button>
+                <button type="button" data-cd-ready="right" title="Ready on the right: icons slide right">[right]</button>
+              </span>
+            </div>
+          </fieldset>
+          <fieldset class="box subpanel" data-subtab="party-cooldowns" data-keywords="party cooldowns">
+            <legend>party cooldowns</legend>
             <div class="line" data-keywords="group sort class player">
               <span class="key">party cooldowns by</span>
               <span class="choice" role="radiogroup" aria-label="Group the party cooldowns">
@@ -183,11 +234,8 @@
                 <button type="button" data-party-cd-choice="class" title="Each class, then its skills, then who has them (ready first)">[class]</button>
               </span>
             </div>
-            <button id="arrange-overlay" data-keywords="move resize layout position edit" type="button" class="opt" title="Move and resize the overlay's widgets (the game must be in front)">
-              <span class="key">arrange</span><span class="state">[ arrange ]</span>
-            </button>
           </fieldset>
-          <fieldset class="box" id="ab-box" data-keywords="action bar hotbar skills cooldowns buffs icons round square bars">
+          <fieldset class="box subpanel" data-subtab="action-bar" id="ab-box" data-keywords="action bar hotbar skills cooldowns buffs icons round square bars">
             <legend>action bar</legend>
             <p id="ab-class" class="note"></p>
             <div class="line" data-keywords="look style icons round square timer bars">
@@ -198,12 +246,18 @@
                 <button type="button" data-ab-style="bars" title="A bar each, with its name and time left">[bars]</button>
               </span>
             </div>
+            <!-- The bars look's colours and background (actionbar.rs's BarLook): swatches drawn
+                 by settings.js. -->
+            <div id="ab-colours"></div>
+            <button id="ab-track" type="button" class="opt" data-keywords="action bar background track bars" aria-pressed="true" title="The faint track behind each bar (bars look): off, only what's filled shows">
+              <span class="key">bar background</span><span class="state">[on]</span>
+            </button>
             <p class="note ab-head">skills · click to add or take off; on the bar in the order added</p>
             <div id="ab-skills" class="ab-picks"></div>
             <p class="note ab-head">buffs on you · those of the last hour</p>
             <div id="ab-buffs" class="ab-picks"></div>
           </fieldset>
-          <fieldset class="box" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
+          <fieldset class="box subpanel" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
             <legend>vitals arcs</legend>
             <div class="line" data-keywords="look style thin segmented solid">
               <span class="key">look</span>
@@ -278,6 +332,7 @@
               <span class="key">reset</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
+          </div>
           <fieldset class="box">
             <legend>over the game</legend>
             <button id="hide-on-world-map" data-keywords="map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
@@ -291,9 +346,9 @@
             </button>
             <div class="line" data-keywords="hide idle out of combat auto-hide transparency">
               <span class="key">fade outside combat</span>
-              <span class="choice" role="radiogroup" aria-label="Fade the fight widgets outside combat">
+              <span class="choice" role="radiogroup" aria-label="Fade widgets outside combat (which ones: the arrange menu)">
                 <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
-                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight (the meter under the mouse too)">[10s]</button>
+                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight (the meter under the mouse too). Which widgets fade: the arrange menu&#39;s fade column">[10s]</button>
                 <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
                 <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
               </span>
@@ -384,6 +439,19 @@
             <button id="info-bar" data-keywords="clock latency ms strip" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
               <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
             </button>
+            <button id="meter-fit" data-keywords="meter height size fit rows auto resize" type="button" class="opt" aria-pressed="true" title="The meter's height fits what it shows: its rows, open skill lists and the lines over them. Off, it's the height you give it while arranging the overlay">
+              <span class="key">fit height</span><span class="state">[on]</span>
+            </button>
+            <div class="line" data-keywords="party expedition sort order combat power cp gear score gs ascending descending">
+              <span class="key">party order</span>
+              <span class="choice" role="radiogroup" aria-label="The party view's order">
+                <button type="button" data-party-sort="roster" title="As the game lists them">[roster]</button>
+                <button type="button" data-party-sort="cp_desc" title="Combat power, highest first">[cp ▾]</button>
+                <button type="button" data-party-sort="cp_asc" title="Combat power, lowest first">[cp ▴]</button>
+                <button type="button" data-party-sort="gs_desc" title="Gear score, highest first">[gs ▾]</button>
+                <button type="button" data-party-sort="gs_asc" title="Gear score, lowest first">[gs ▴]</button>
+              </span>
+            </div>
             <button id="show-cp" data-keywords="combat power cp players names" type="button" class="opt" aria-pressed="true" title="Each player's combat power by their name: your party's from its roster, others' from when they came into view">
               <span class="key">combat power</span><span class="state">[on]</span>
             </button>

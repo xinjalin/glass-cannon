@@ -28,21 +28,20 @@ const DEFAULTS = {
 };
 
 // The side widgets: their page, label, whether they take the mouse (the world timers have
-// buttons; the others only show), whether they fade outside combat (all but the world
-// timers, which you read between fights), and whether they're always as tall as what they
+// buttons; the others only show), and whether they're always as tall as what they
 // show (the target frame with its stagger gauge, the party cooldowns' whole party: never
 // cut off). A bare one (the vitals arcs) has no panel, so no frosted plate behind it.
 const SIDE_WIDGETS = {
-  target: { page: "target.html", label: "target", passive: true, fades: true, grows: true },
-  player: { page: "player.html", label: "player bars", passive: true, fades: false },
+  target: { page: "target.html", label: "target", passive: true, grows: true },
+  player: { page: "player.html", label: "player bars", passive: true },
   // No panel: no frosted plate behind it either.
-  vitals: { page: "vitals.html", label: "vitals arcs", passive: true, fades: false, bare: true },
-  party: { page: "party.html", label: "party frames", passive: true, fades: false },
-  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, fades: true },
-  "action-bar": { page: "actionbar.html", label: "action bar", passive: true, fades: false, grows: true },
-  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, fades: true, grows: true },
-  timers: { page: "timers.html", label: "world timers", passive: false, fades: false },
-  pets: { page: "pets.html", label: "pet tracker", passive: false, fades: false },
+  vitals: { page: "vitals.html", label: "vitals arcs", passive: true, bare: true },
+  party: { page: "party.html", label: "party frames", passive: true },
+  cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true },
+  "action-bar": { page: "actionbar.html", label: "action bar", passive: true, grows: true },
+  "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, grows: true },
+  timers: { page: "timers.html", label: "world timers", passive: false },
+  pets: { page: "pets.html", label: "pet tracker", passive: false },
 };
 // Every widget's name in the arrange menu, in the settings' order.
 const LABELS = [
@@ -147,19 +146,28 @@ function setEditing(on) {
   place();
 }
 
-// The arrange menu: a switch per widget, the grid sizes.
+// The arrange menu: per widget, its name, whether it shows, and whether it fades outside
+// combat (or always shows); then the grid sizes.
 function drawMenu() {
   if (!editing) return;
   $("menu-widgets").replaceChildren(
-    ...LABELS.map(([id, label]) => {
+    ...LABELS.flatMap(([id, label]) => {
+      const name = Object.assign(document.createElement("span"), { className: "menu-label", textContent: label });
       const b = document.createElement("button");
       b.type = "button";
       b.className = "menu-switch";
       b.setAttribute("aria-pressed", String(shown.has(id)));
-      b.append(Object.assign(document.createElement("span"), { textContent: label }));
       b.append(Object.assign(document.createElement("span"), { className: "state", textContent: shown.has(id) ? "[on]" : "[off]" }));
+      b.title = `Show or hide the ${label}`;
       b.addEventListener("click", () => invoke("toggle_widget", { name: id }).catch(() => {}));
-      return b;
+      const f = document.createElement("button");
+      f.type = "button";
+      f.className = "menu-fade";
+      f.setAttribute("aria-pressed", String(fading.has(id)));
+      f.textContent = fading.has(id) ? "[fades]" : "[stays]";
+      f.title = fading.has(id) ? `The ${label} fades outside combat: click to keep it shown` : `The ${label} always shows: click to have it fade outside combat`;
+      f.addEventListener("click", () => invoke("toggle_widget_fade", { name: id }).catch(() => {}));
+      return [name, b, f];
     }),
   );
   $("menu-grid").replaceChildren(
@@ -285,7 +293,8 @@ function setUp(el) {
       const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
       if (resizing) {
         p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
-        if (id !== "meter" && el.dataset.grows === undefined) p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
+        // The meter's height too, when it isn't fitted to what it shows (settings).
+        if ((id !== "meter" || !fitted.meter) && el.dataset.grows === undefined) p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
       } else {
         const at = lineUp(el, start.left + dx, start.top + dy, start.w, start.h);
         p.x = Math.max(0, at.left) / innerWidth;
@@ -322,7 +331,7 @@ function showWidgets(names) {
     const w = SIDE_WIDGETS[name];
     if (!w || document.querySelector(`.widget[data-widget="${name}"]`)) continue;
     const el = document.createElement("section");
-    el.className = `widget${w.passive ? " passive" : ""}${w.fades ? " fades" : ""}`;
+    el.className = `widget${w.passive ? " passive" : ""}`;
     el.dataset.widget = name;
     el.dataset.side = "";
     if (w.grows) el.dataset.grows = "";
@@ -335,11 +344,26 @@ function showWidgets(names) {
     $("widgets").append(el);
     setUp(el);
   }
+  applyFading();
   drawMenu();
   place();
 }
 
 tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
+
+// The widgets that fade outside combat (the arrange menu's fade column): each one's
+// "fades" class, which the faded overlay hides.
+let fading = new Set();
+function applyFading() {
+  for (const el of document.querySelectorAll(".widget")) el.classList.toggle("fades", fading.has(el.dataset.widget));
+}
+function setFading(names) {
+  fading = new Set(names || []);
+  applyFading();
+  drawMenu();
+  reportRects();
+}
+tauri.event.listen("hud-fading", (e) => setFading(e.payload));
 
 // The world map is open (settings → hide on the world map): every widget steps aside at
 // once, and comes back at once.
@@ -365,7 +389,9 @@ let bossAt = 0;
 window.addEventListener("message", (e) => {
   const m = e.data || {};
   if (m.type === "gc-fit" && m.widget) {
-    fitted[m.widget] = Math.ceil(m.height);
+    // No height: it's no longer fitted (the meter at the height given it while arranging).
+    if (m.height == null) delete fitted[m.widget];
+    else fitted[m.widget] = Math.ceil(m.height);
     place();
   } else if (m.type === "gc-cubes") {
     drawCubes(m.cubes || [], !!m.sound);
@@ -581,6 +607,7 @@ function frame() {
   if (a) applyAppearance(a);
   tauri.event.listen("appearance", (e) => applyAppearance(e.payload));
   await loadLayout();
+  fading = new Set(await invoke("widgets_fading").catch(() => []));
   showWidgets(await invoke("widgets_shown").catch(() => []));
   requestAnimationFrame(frame);
 })();

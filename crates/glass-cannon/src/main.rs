@@ -234,6 +234,10 @@ struct View {
     /// How often the overlay should ask again, in milliseconds.
     refresh_ms: u32,
     meter_view: store::MeterView,
+    /// The meter fits its height to what it shows (else the height given while arranging).
+    meter_fit: bool,
+    /// The party view's order (one of `store::PARTY_SORTS`).
+    party_sort: String,
     /// The game's own ping (live capture only).
     ping_ms: Option<u32>,
     /// For the alerts the overlay shows before events.
@@ -566,6 +570,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         appearance: settings.appearance,
         refresh_ms: settings.refresh_ms,
         meter_view: settings.meter_view,
+        meter_fit: settings.meter_fit,
+        party_sort: if store::PARTY_SORTS.contains(&settings.party_sort.as_str()) { settings.party_sort.clone() } else { store::PARTY_SORTS[0].into() },
         ping_ms,
         timer_region: settings.timer_region,
         alerts: settings.alerts,
@@ -623,6 +629,26 @@ fn set_meter_view(app: State<'_, Arc<AppState>>, view: store::MeterView) {
     let mut s = lock(&app.settings);
     s.meter_view = view;
     s.save(&app.config_dir);
+}
+
+/// Whether the meter fits its height to what it shows; saved for next time.
+#[tauri::command]
+fn set_meter_fit(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.meter_fit = on;
+    s.save(&app.config_dir);
+}
+
+/// The party view's order; saved for next time.
+#[tauri::command]
+fn set_party_sort(app: State<'_, Arc<AppState>>, sort: String) -> Result<(), String> {
+    if !store::PARTY_SORTS.contains(&sort.as_str()) {
+        return Err(format!("no such order: {sort}"));
+    }
+    let mut s = lock(&app.settings);
+    s.party_sort = sort;
+    s.save(&app.config_dir);
+    Ok(())
 }
 
 /// How often the overlay redraws (one of the set rates); saved for next time.
@@ -997,6 +1023,8 @@ fn main() {
             reset,
             end_fight,
             set_meter_view,
+            set_meter_fit,
+            set_party_sort,
             set_refresh,
             set_scope,
             skill_icon,
@@ -1029,6 +1057,10 @@ fn main() {
             widgets::widgets_shown,
             widgets::show_fight,
             widgets::cooldowns,
+            widgets::cooldowns_look,
+            widgets::widgets_fading,
+            widgets::toggle_widget_fade,
+            widgets::set_cooldowns_look,
             widgets::pvp_list,
             widgets::timer_region,
             widgets::set_timer_region,
@@ -1079,6 +1111,7 @@ fn main() {
             actionbar::action_bar,
             actionbar::action_bar_choices,
             actionbar::set_action_bar,
+            actionbar::set_action_bar_look,
             vitals::vitals_setup,
             vitals::set_vitals,
             vitals::reset_vitals,

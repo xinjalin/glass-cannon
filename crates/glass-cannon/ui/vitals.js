@@ -337,12 +337,12 @@ build();
 new ResizeObserver(layoutArcs).observe(document.documentElement);
 tauri.event.listen("appearance", () => requestAnimationFrame(layoutArcs));
 tauri.event.listen("vitals-setup", (e) => {
-  setup = e.payload;
+  if (e.payload) setup = e.payload;
   applySetup();
 });
 invoke("vitals_setup")
   .then((s) => {
-    setup = s;
+    if (s) setup = s;
     applySetup();
   })
   .catch(() => applySetup());

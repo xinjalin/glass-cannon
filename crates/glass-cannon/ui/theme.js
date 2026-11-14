@@ -93,4 +93,16 @@ function applyAppearance(a) {
   const font = a.font && !/["'\\;{}<>]/.test(a.font) ? `"${a.font}", ` : "";
   root.style.setProperty("--mono", `${font}"Cascadia Mono", "Cascadia Code", Consolas, monospace`);
   root.style.setProperty("--alpha", (a.opacity / 100).toFixed(2));
+  // Class colours of your own, and the text that reads on each.
+  const palette = a.class_palette || {};
+  for (let code = 11; code <= 19; code++) {
+    const c = palette[code];
+    if (isHexColor(c)) {
+      root.style.setProperty(`--class-${code}`, c);
+      root.style.setProperty(`--class-ink-${code}`, inkOn(c));
+    } else {
+      root.style.removeProperty(`--class-${code}`);
+      root.style.removeProperty(`--class-ink-${code}`);
+    }
+  }
 }

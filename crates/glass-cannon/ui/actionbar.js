@@ -31,17 +31,34 @@ function iconSlot(label, iconKey, remaining, duration, now) {
   return slot;
 }
 
-// A bar with the name and time left (bars look).
-function barSlot(label, iconKey, remaining, duration) {
+// A bar with the name and time left (bars look). A skill: full in the ready colour when
+// ready, else in the cooldown colour as far as its cooldown has left; a buff: in the
+// running colour as far as it has left (full with no set length).
+function barSlot(label, iconKey, remaining, duration, buff) {
   const slot = el("li", "ab-bar-slot");
   slot.append(iconFor(iconKey, label, () => (lastKey = "")));
   const bar = el("div", "ab-bar");
   const fill = el("span", "ab-fill");
-  fill.style.width = `${remaining > 0 && duration > 0 ? (remaining / duration) * 100 : 0}%`;
-  bar.append(fill, el("span", "ab-bar-name", label), el("span", "ab-bar-time", remaining > 0 ? seconds(remaining) : "ready"));
+  const share = remaining > 0 && duration > 0 ? remaining / duration : buff || remaining <= 0 ? 1 : 0;
+  fill.style.width = `${Math.min(1, share) * 100}%`;
+  const time = buff ? (remaining > 0 ? seconds(remaining) : "") : remaining > 0 ? seconds(remaining) : "ready";
+  bar.append(fill, el("span", "ab-bar-name", label), el("span", "ab-bar-time", time));
   slot.append(bar);
-  if (remaining <= 0) slot.classList.add("ready");
+  slot.classList.add(buff ? "running" : remaining > 0 ? "cooling" : "ready");
   return slot;
+}
+
+// The bars' colours (settings → action bar): a name, or a colour picked.
+const BAR_COLOURS = { green: "#79dcaa", blue: "#6aa8f0", red: "#f87070", amber: "#f1c073", lavender: "#c8b4f7", rose: "#f2a8a4", mono: "#dcdcdc" };
+const barColour = (c) => (c === "theme" ? "var(--bar, var(--accent-fill))" : BAR_COLOURS[c] || c);
+
+function applyBarLook(l) {
+  if (!l) return;
+  const s = document.body.style;
+  s.setProperty("--ab-ready", barColour(l.ready));
+  s.setProperty("--ab-running", barColour(l.running));
+  s.setProperty("--ab-cooling", barColour(l.cooling));
+  document.body.classList.toggle("ab-no-track", !l.background);
 }
 
 async function refresh() {
@@ -64,12 +81,13 @@ async function refresh() {
   lastKey = key;
   const bars = view.style === "bars";
   document.body.dataset.look = view.style;
+  applyBarLook(view.bar_look);
   $("ab-slots").replaceChildren(
     ...view.skills.map((s) => {
       const label = s.name || `#${s.skill}`;
       // Bars: the charges by the name; icons: in the corner.
       const shown = bars && s.charges != null ? `${label} ×${s.charges}` : label;
-      const slot = bars ? barSlot(shown, s.icon_key, s.remaining_ms, s.duration_ms) : iconSlot(label, s.icon_key, s.remaining_ms, s.duration_ms, now);
+      const slot = bars ? barSlot(shown, s.icon_key, s.remaining_ms, s.duration_ms, false) : iconSlot(label, s.icon_key, s.remaining_ms, s.duration_ms, now);
       if (!bars && s.charges != null) slot.append(el("span", "ab-charges", String(s.charges)));
       if (glow.includes(s.skill)) slot.classList.add("glow");
       slot.title = `${label}` + (s.remaining_ms > 0 ? `: ready in ${seconds(s.remaining_ms)} s` : ": ready") + (s.charges != null ? ` · ${s.charges} charge${s.charges === 1 ? "" : "s"}` : "");
@@ -81,7 +99,7 @@ async function refresh() {
       const label = b.name || `#${b.effect}`;
       const left = b.remaining_ms ?? 0;
       const shown = bars && b.stacks > 1 ? `${label} ×${b.stacks}` : label;
-      const slot = bars ? barSlot(shown, b.icon_key, left, b.duration_ms) : iconSlot(label, b.icon_key, left, b.duration_ms, now);
+      const slot = bars ? barSlot(shown, b.icon_key, left, b.duration_ms, true) : iconSlot(label, b.icon_key, left, b.duration_ms, now);
       slot.classList.add("buff");
       if (!bars && b.stacks > 1) slot.append(el("span", "ab-charges", String(b.stacks)));
       slot.title = label + (b.remaining_ms != null ? `: ${seconds(left)} s left` : "") + (b.stacks > 1 ? ` · ${b.stacks} on you` : "");

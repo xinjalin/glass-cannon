@@ -17,7 +17,6 @@ const DEFAULT_POLL_MS = 500;
 const REALTIME = 100;
 const HEARTBEAT_MS = 1000;
 const SEGMENTS = 12; // blocks in each meter bar
-const FIT_ROWS = 5; // the meter's height shows this many players
 
 // Whose damage counts; the button cycles through them in this order. "auto" follows your
 // party: your party's fight while you're in one, yours on your own.
@@ -383,13 +382,39 @@ function loadPartyGear() {
     .catch(() => {});
 }
 
+// The party view's order (settings → meter → party order, or a click on the cp or gs
+// column): the roster's, or by combat power or gear score, highest or lowest first. Those
+// not known yet go last.
+const PARTY_SORT_NEXT = { cp: { cp_desc: "cp_asc", cp_asc: "roster" }, gs: { gs_desc: "gs_asc", gs_asc: "roster" } };
+function sortedParty(party) {
+  const sort = (lastView && lastView.party_sort) || "roster";
+  if (sort === "roster") return party;
+  const field = sort.startsWith("cp") ? "combat_power" : "gear_score";
+  const sign = sort.endsWith("asc") ? 1 : -1;
+  return [...party].sort((a, b) => {
+    const x = a[field] || 0, y = b[field] || 0;
+    if (!x || !y) return (x ? 0 : 1) - (y ? 0 : 1);
+    return sign * (x - y);
+  });
+}
+
+// A click on the cp or gs column: highest first, then lowest first, then the roster's.
+function cyclePartySort(col) {
+  const now = (lastView && lastView.party_sort) || "roster";
+  const next = PARTY_SORT_NEXT[col][now] || `${col}_desc`;
+  if (lastView) lastView.party_sort = next;
+  invoke("set_party_sort", { sort: next }).catch(() => {});
+  redraw();
+}
+
 function drawParty(party) {
   loadPartyGear();
   const list = $("rows");
   list.replaceChildren();
   rowCache.clear();
   const top = Math.max(1, ...party.map((m) => m.combat_power || 0));
-  party.forEach((m, i) => {
+  const sort = (lastView && lastView.party_sort) || "roster";
+  sortedParty(party).forEach((m, i) => {
     const row = el("li", "row party-row" + (m.is_self ? " self" : "") + (m.class_code ? ` c${m.class_code}` : ""));
     row.title = [m.legion, m.level ? `level ${m.level}` : null, `server ${m.server}`].filter(Boolean).join(" · ") + "\n\n" + gearText(m.name);
     const line = el("div", "line");
@@ -410,8 +435,16 @@ function drawParty(party) {
       mark.title = m.ready ? "Ready" : "Not ready yet";
       who.append(mark);
     }
-    const cp = statCell("dps", "cp", m.combat_power ? fmt(m.combat_power) : "–", "Combat power");
-    const gs = statCell("share", "gs", m.gear_score ? m.gear_score.toLocaleString("en-US") : "–", "Gear score");
+    const arrow = (col) => (sort === `${col}_desc` ? "▾" : sort === `${col}_asc` ? "▴" : "");
+    const cp = statCell("dps", `cp${arrow("cp")}`, m.combat_power ? fmt(m.combat_power) : "–", "Combat power · click to sort by it (highest, lowest, then the roster's order)");
+    const gs = statCell("share", `gs${arrow("gs")}`, m.gear_score ? m.gear_score.toLocaleString("en-US") : "–", "Gear score · click to sort by it (highest, lowest, then the roster's order)");
+    for (const [cell, col] of [[cp, "cp"], [gs, "gs"]]) {
+      cell.classList.add("sortable");
+      cell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cyclePartySort(col);
+      });
+    }
     line.append(el("span", "rank", String(i + 1)), who, meter, cp, gs);
     row.append(line);
     list.append(row);
@@ -858,9 +891,14 @@ function placeFloat() {
   totals.style.paddingRight = `${pills}px`;
 }
 
-// How tall the meter must be to show `rows` players with the current font and layout:
-// lays out a hidden copy of the panel at its natural height.
-function heightFor(rows) {
+// The meter's height: fitted to what it shows (settings → meter → fit height, the
+// default): its rows, open skill lists, the lines over them, the strip on top; else the
+// height given it while arranging. Measured on a hidden copy of the panel at its natural
+// height, whenever what it shows changes (not as its numbers tick).
+const FIT_MAX_SHARE = 0.7; // never taller than this share of the screen
+let fitFor = null;
+
+function naturalHeight() {
   const panel = $("panel");
   const copy = panel.cloneNode(true);
   Object.assign(copy.style, {
@@ -871,50 +909,39 @@ function heightFor(rows) {
     width: `${panel.offsetWidth}px`,
     height: "auto",
   });
-  const part = (id) => copy.querySelector(`#${id}`);
-  part("box").style.flex = "none";
-  const list = part("rows");
-  Object.assign(list.style, { flex: "none", overflow: "visible" });
-  list.hidden = false;
-  list.replaceChildren(
-    ...Array.from({ length: rows }, () => {
-      const row = el("li", "row");
-      const line = el("div", "line");
-      line.append(el("span", "rank", "0"));
-      row.append(line);
-      return row;
-    }),
-  );
-  part("totals").hidden = false;
-  // Room for the boss's HP line when it's on, so a boss fight's rows still fit.
-  part("boss-bar").hidden = !bossBarRoom();
-  part("boss-cast").hidden = !bossCastRoom();
-  part("target").textContent = "x";
-  for (const id of ["empty", "status"]) part(id).hidden = true;
+  copy.querySelector("#box").style.flex = "none";
+  Object.assign(copy.querySelector("#rows").style, { flex: "none", overflow: "visible" });
   document.body.append(copy);
   const height = Math.ceil(copy.getBoundingClientRect().height);
   copy.remove();
   return height;
 }
 
-// The HUD fits the meter to FIT_ROWS players: told on start, and whenever the font, the
-// time bar or the boss lines change.
-let fitFor = null;
-const bossBarRoom = () => !!(lastView && lastView.boss_hp);
-const bossCastRoom = () => bossBarRoom() && !!lastView.boss_casts;
-
-function fitHeight(a) {
-  const strip = a.info_bar || (a.odyle !== false && !!(lastView && lastView.odyle));
-  const key = `${a.font_size}|${a.font}|${strip}|${bossBarRoom()}|${bossCastRoom()}`;
-  if (key === fitFor) return;
-  fitFor = key;
+function fitHeight() {
+  const v = lastView;
+  if (!v) return;
+  if (v.meter_fit === false) {
+    // The height given while arranging: the HUD stops fitting it.
+    if (fitFor !== "off") {
+      fitFor = "off";
+      toHud({ type: "gc-fit", widget: "meter", height: null });
+    }
+    return;
+  }
   requestAnimationFrame(() => {
+    const panel = $("panel");
     // A hidden meter (its widget turned off) has no width to measure at: it fits once shown.
-    if (!$("panel").offsetWidth) {
+    if (!panel.offsetWidth) {
       fitFor = null;
       return;
     }
-    toHud({ type: "gc-fit", widget: "meter", height: heightFor(FIT_ROWS) });
+    const shown = ["info", "totals", "boss-bar", "boss-cast", "dummy-bar", "pvp-bar", "empty", "status"].map((id) => ($(id).offsetParent ? 1 : 0)).join("");
+    const skills = [...$("rows").querySelectorAll(".skills")].map((s) => s.children.length).join(",");
+    const key = [panel.offsetWidth, appliedAppearance, $("rows").children.length, shown, skills].join("|");
+    if (key === fitFor) return;
+    fitFor = key;
+    const most = Math.round((window.parent.innerHeight || innerHeight) * FIT_MAX_SHARE);
+    toHud({ type: "gc-fit", widget: "meter", height: Math.min(naturalHeight(), most) });
   });
 }
 
@@ -967,6 +994,8 @@ function followFight() {
 
 function redraw() {
   requestAnimationFrame(placeFloat);
+  // Measured once drawn (it waits a frame): the height for what this shows.
+  fitHeight();
   followFight();
   drawViewSwitch();
   const live = mode === "live";
@@ -1043,7 +1072,6 @@ async function refresh() {
     applyAppearance(lastView.appearance);
     fadeOutsideCombat(lastView);
     snapSizes();
-    fitHeight(lastView.appearance);
     redraw();
   } catch (e) {
     showError(e);
@@ -1084,7 +1112,8 @@ tauri.event.listen("appearance", (e) => {
   if (lastView) lastView.appearance = e.payload;
   applyAppearance(e.payload);
   snapSizes();
-  fitHeight(e.payload);
+  fitFor = null;
+  fitHeight();
 });
 
 // ---------------------------------------------------------------- controls
@@ -1165,5 +1194,5 @@ window.addEventListener("resize", () => {
   if (innerWidth === fitWidth || !lastView) return;
   fitWidth = innerWidth;
   fitFor = null;
-  fitHeight(lastView.appearance);
+  fitHeight();
 });
