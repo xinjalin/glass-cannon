@@ -157,6 +157,10 @@ pub struct AppState {
     /// The overlay's widgets' boxes, and whether they're being arranged.
     hud_rects: Mutex<Vec<hud::HitRect>>,
     hud_panels: Mutex<Vec<hud::HitRect>>,
+    /// Black market pages came in (the merchant opened in game), and when its window last
+    /// came up by itself.
+    black_market_opened: AtomicBool,
+    black_market_auto_at: std::sync::atomic::AtomicU64,
     /// Every widget on screen (the menu check leaves them out of what it reads).
     hud_drawn: Mutex<Vec<hud::HitRect>>,
     /// The meter widget's box, when it shows.
@@ -460,10 +464,13 @@ fn keep_records(handle: AppHandle, app: Arc<AppState>) {
                 if queued.swap(true, Ordering::SeqCst) {
                     continue;
                 }
-                let (app, flag) = (Arc::clone(&app), Arc::clone(&queued));
+                let (app, flag, h) = (Arc::clone(&app), Arc::clone(&queued), handle.clone());
                 let sent = handle.run_on_main_thread(move || {
                     flag.store(false, Ordering::SeqCst);
                     pump(&app);
+                    if app.black_market_opened.swap(false, Ordering::SeqCst) {
+                        settings::black_market_opened(&h, &app);
+                    }
                 });
                 if sent.is_err() {
                     queued.store(false, Ordering::SeqCst);
@@ -985,6 +992,8 @@ fn main() {
         hud_rects: Mutex::new(Vec::new()),
         hud_panels: Mutex::new(Vec::new()),
         hud_drawn: Mutex::new(Vec::new()),
+        black_market_opened: AtomicBool::new(false),
+        black_market_auto_at: std::sync::atomic::AtomicU64::new(0),
         hud_meter: Mutex::new(None),
         lobby_menu: AtomicBool::new(false),
         hud_editing: AtomicBool::new(false),
@@ -1095,6 +1104,7 @@ fn main() {
             widgets::set_close_with_game,
             widgets::set_hide_for_menus,
             widgets::set_click_through,
+            widgets::set_black_market_auto,
             widgets::pet_map,
             widgets::pet_map_me,
             widgets::pet_map_image,

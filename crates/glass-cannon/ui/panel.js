@@ -42,6 +42,16 @@ function fmt(n) {
   return Math.round(n).toLocaleString("en-US");
 }
 
+// Where a shield sits on an HP bar, as shares of the bar: [start, length]. On from the
+// HP's end; when HP and shield together pass the end, over the bar's last part instead,
+// so it stays as long as it is. None without HP, a max, or a shield.
+function shieldSpan(hp, max, shield) {
+  if (hp == null || !max || !shield) return null;
+  const len = Math.min(1, shield / max);
+  const at = Math.max(0, Math.min(1, hp / max));
+  return [Math.min(at, 1 - len), len];
+}
+
 function clock(s) {
   const t = Math.max(0, Math.floor(s));
   const h = Math.floor(t / 3600);

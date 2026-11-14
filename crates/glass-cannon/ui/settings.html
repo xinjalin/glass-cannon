@@ -287,13 +287,20 @@
           </fieldset>
           <fieldset class="box subpanel" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
             <legend>vitals arcs</legend>
-            <div class="line" data-keywords="look style thin segmented solid">
+            <div class="line" data-keywords="look style thin segmented solid gradient framed glass ticks marks">
               <span class="key">look</span>
               <span class="choice" role="radiogroup" aria-label="How the vitals arcs look">
                 <button type="button" data-vt="style" data-vt-value="solid" title="Thick arcs on a dark track">[solid]</button>
                 <button type="button" data-vt="style" data-vt-value="thin" title="Thin glowing lines on a faint track">[thin]</button>
                 <button type="button" data-vt="style" data-vt-value="segmented" title="Arcs cut into cells">[segmented]</button>
+                <button type="button" data-vt="style" data-vt-value="gradient" title="Thick arcs, dark at the bottom and bright where the fill ends">[gradient]</button>
+                <button type="button" data-vt="style" data-vt-value="framed" title="A light frame, like glass, with the fill inside it">[framed]</button>
+                <button type="button" data-vt="style" data-vt-value="ticks" title="Thin glowing lines with notches on their outside, like a ruler's, at a quarter, half and three quarters">[ticks]</button>
               </span>
+            </div>
+            <div class="line" data-keywords="arc colours colors hp stamina mp flight cast shield custom">
+              <span class="key">colours</span>
+              <span id="vt-colours" class="swatches class-swatches" role="group" aria-label="Each arc's colour"></span>
             </div>
             <div class="line" data-keywords="roundness curve bend straight round">
               <span class="key">roundness</span>
@@ -311,6 +318,9 @@
                 <button id="vt-width-up" type="button" title="Thicker arcs">[+]</button>
               </span>
             </div>
+            <button id="vt-trail" type="button" class="opt" data-keywords="damage trail hit lost hp ghost" aria-pressed="false" title="HP you lose stays on the HP arc as a pale trail for a moment, then shrinks away: how big a hit was, at a glance">
+              <span class="key">damage trail</span><span class="state">[off]</span>
+            </button>
             <button id="vt-always" type="button" class="opt" data-keywords="always show arcs tracks empty" aria-pressed="false" title="The arcs' tracks always show, empty until there's something to fill them (your stamina and flight power before the game sends them, the cast between casts)">
               <span class="key">always show arcs</span><span class="state">[off]</span>
             </button>
@@ -366,7 +376,7 @@
             <button id="hide-on-world-map" data-keywords="map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
               <span class="key">hide on the world map</span><span class="state">[on]</span>
             </button>
-            <button id="hide-for-menus" data-keywords="inventory menu auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), and at a strip at its bottom middle for the gold Confirm button of reward screens (a Monster Cube's, Shugo's…), and steps aside only when one is there. They're only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over the corner or the button hides it from the meter">
+            <button id="hide-for-menus" data-keywords="inventory menu auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), at a strip at its bottom middle for the gold Confirm button of reward screens (a Monster Cube's, Shugo's…), and over the top of the screen for a window's close X on its title bar (Attendance…), and steps aside only when one is there. They're only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over the corner or the button hides it from the meter">
               <span class="key">hide for game menus</span><span class="state">[off]</span>
             </button>
             <button id="click-through" data-keywords="click through mouse pass input interact" type="button" class="opt" aria-pressed="false" title="Every click goes through the widgets to the game, the meter's, the world timers' and the pet tracker's too (the other widgets always let them through). Arranging the widgets still takes the mouse">
@@ -515,6 +525,9 @@
             <legend>app</legend>
             <button id="close-with-game" data-keywords="exit quit auto-close" type="button" class="opt" aria-pressed="false" title="Close Glass Cannon a few seconds after the game closes">
               <span class="key">close with the game</span><span class="state">[off]</span>
+            </button>
+            <button id="black-market-auto" data-keywords="black market cloud merchant shop open auto window" type="button" class="opt" aria-pressed="true" title="The black market window comes up when you open the Black Cloud Merchant in game (beside the game, without taking its keys). Closed, it stays closed for a couple of minutes while you go through the merchant's pages">
+              <span class="key">open the black market with the game's</span><span class="state">[on]</span>
             </button>
             <button id="shortcut" data-keywords="desktop icon start menu" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>

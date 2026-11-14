@@ -310,6 +310,10 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .tf-pct { color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .tf-hp { height: 0.8em; border-radius: 0.25em; background: var(--line-faint); overflow: hidden; }
 #tf-hp-fill { display: block; height: 100%; background: var(--bad); }
+.tf-player { display: flex; align-items: center; gap: 0.5em; font-size: 0.9em; font-variant-numeric: tabular-nums; color: var(--muted); }
+.tf-class-icon { width: 1.25em; height: 1.25em; object-fit: contain; }
+.tf-class { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--class, var(--text)); font-weight: 700; }
+.tf-cp { color: var(--text); font-weight: 700; }
 .tf-line { display: flex; justify-content: space-between; gap: 0.6em; color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
 #tf-attacking.you { color: var(--warn); font-weight: 700; }
 #tf-enrage { color: var(--warn); }
@@ -380,6 +384,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .pb-fill { position: absolute; inset: 0 auto 0 0; transition: width 0.15s linear; }
 .pb.hp .pb-fill { background: color-mix(in srgb, var(--bad) 75%, transparent); }
 .pb.mp .pb-fill { background: color-mix(in srgb, #5b8def 75%, transparent); }
+.pb-shield { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0 0.3em, rgba(255, 255, 255, 0.5) 0.3em 0.6em); transition: left 0.15s linear, width 0.15s linear; }
+.pb-shield-text { color: #ffffff; font-weight: 700; }
 .pb.cast .pb-fill { background: var(--accent-fill, var(--accent)); transition: none; }
 .pb-text { position: relative; padding: 0 0.5em; line-height: 1.15em; white-space: nowrap; color: var(--text); }
 .pb-time { position: absolute; right: 0.5em; top: 0; line-height: 1.15em; color: var(--text); }
@@ -391,6 +397,7 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .fr-name { position: absolute; left: 0.45em; right: 2.8em; top: 0.25em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 700; }
 .fr-value { position: absolute; right: 0.4em; top: 0.25em; color: var(--text); font-variant-numeric: tabular-nums; }
 .fr-mp { position: absolute; left: 0; bottom: 0; height: 0.22em; background: #5b8def; transition: width 0.2s linear; }
+.fr-shield { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0 0.3em, rgba(255, 255, 255, 0.38) 0.3em 0.6em); }
 .frame.self { box-shadow: inset 0 0 0 1px var(--accent); }
 .frame.dead .fr-hp { width: 0 !important; }
 .frame.dead .fr-name, .frame.dead .fr-value { color: var(--bad); }
@@ -438,7 +445,11 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-fill.stamina { stroke: var(--arc-stamina); }
 .arc-fill.mp { stroke: var(--arc-mp); }
 .arc-fill.flight { stroke: var(--arc-flight); }
-.arc-fill.cast { stroke: var(--accent-fill, var(--accent)); transition: none; }
+.arc-fill.cast { stroke: var(--arc-cast, var(--accent-fill, var(--accent))); transition: none; }
+.arcs { --arc-shield: #ffffff; }
+.arc-shield { fill: none; stroke: var(--arc-shield); stroke-linecap: round; transition: stroke-dasharray 0.15s linear, stroke-dashoffset 0.15s linear; }
+.look-thin .arc-shield { filter: drop-shadow(0 0 3px var(--arc-shield)); }
+.arc-text .arc-shield-text { fill: var(--arc-shield); }
 .arcs.low .arc-fill.hp { filter: drop-shadow(0 0 0.35em var(--arc-hp)); }
 /* Thin: hairline arcs that glow, on a faint track. */
 .look-thin .arc-track { stroke: rgba(255, 255, 255, 0.14); }
@@ -446,11 +457,36 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .look-thin .arc-fill.stamina { filter: drop-shadow(0 0 3px var(--arc-stamina)); }
 .look-thin .arc-fill.mp { filter: drop-shadow(0 0 3px var(--arc-mp)); }
 .look-thin .arc-fill.flight { filter: drop-shadow(0 0 3px var(--arc-flight)); }
-.look-thin .arc-fill.cast { filter: drop-shadow(0 0 3px var(--accent)); }
+.look-thin .arc-fill.cast { filter: drop-shadow(0 0 3px var(--arc-cast, var(--accent))); }
 .look-thin.low .arc-fill.hp { filter: drop-shadow(0 0 0.5em var(--arc-hp)); }
+/* Gradient: each fill dark at the arc's start, its own colour where it ends (vitals.js
+   moves each gradient's ends). */
+.arc-grad .g0 { stop-color: color-mix(in srgb, var(--arc-c) 30%, #000); }
+.arc-grad .g1 { stop-color: var(--arc-c); }
+.arc-grad.hp { --arc-c: var(--arc-hp); }
+.arc-grad.stamina { --arc-c: var(--arc-stamina); }
+.arc-grad.mp { --arc-c: var(--arc-mp); }
+.arc-grad.flight { --arc-c: var(--arc-flight); }
+.arc-grad.cast { --arc-c: var(--arc-cast, var(--accent-fill, var(--accent))); }
+.look-gradient .arc-fill.hp { stroke: url(#grad-hp); }
+.look-gradient .arc-fill.stamina { stroke: url(#grad-stamina); }
+.look-gradient .arc-fill.mp { stroke: url(#grad-mp); }
+.look-gradient .arc-fill.flight { stroke: url(#grad-flight); }
+.look-gradient .arc-fill.cast { stroke: url(#grad-cast); }
+/* Framed: a light frame like glass, a dark track in it, the fill inset. */
+.arc-frame { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-linecap: round; }
+.look-framed .arc-track { stroke: rgba(10, 10, 14, 0.82); }
+/* Ticks: thin, with notches outside the outer arcs, in their colours. */
+.arc-tick { stroke-width: 2px; stroke-linecap: round; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
+.arc-tick.hp { stroke: var(--arc-hp); }
+.arc-tick.mp { stroke: var(--arc-mp); }
+.arc-tick.shielded { stroke: var(--arc-shield); }
+/* The damage trail: HP just lost, pale, shrinking away after a moment. */
+.arc-trail { fill: none; stroke: color-mix(in srgb, var(--arc-hp) 45%, #fff); opacity: 0.8; stroke-linecap: round; transition: stroke-dasharray 0.45s ease-in; }
+.look-segmented .arc-trail { stroke-linecap: butt; }
 /* Segmented: cut into cells, square ended. */
-.look-segmented .arc-track, .look-segmented .arc-fill { stroke-linecap: butt; }
-.look-segmented .arc-fill { transition: none; }
+.look-segmented .arc-track, .look-segmented .arc-fill, .look-segmented .arc-shield { stroke-linecap: butt; }
+.look-segmented .arc-fill, .look-segmented .arc-shield { transition: none; }
 .arc-text { font-size: calc(0.75em * var(--vt)); font-variant-numeric: tabular-nums; }
 .arc-text.hp { fill: var(--arc-hp); }
 .arc-text.stamina { fill: var(--arc-stamina); font-size: calc(0.65em * var(--vt)); }

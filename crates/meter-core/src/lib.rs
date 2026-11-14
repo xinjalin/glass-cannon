@@ -33,6 +33,7 @@ pub mod state;
 pub mod reassembly;
 pub mod recorder;
 pub mod session;
+pub mod shields;
 mod win;
 
 #[cfg(test)]

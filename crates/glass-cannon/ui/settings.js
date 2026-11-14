@@ -176,6 +176,7 @@ async function refresh() {
     setToggle("hide-for-menus", state.hide_for_menus);
     setToggle("click-through", state.click_through);
     setToggle("meter-fit", state.meter_fit);
+    setToggle("black-market-auto", state.black_market_auto);
     for (const b of document.querySelectorAll("[data-party-sort]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(b.dataset.partySort === state.party_sort));
@@ -567,6 +568,12 @@ $("hide-on-world-map").addEventListener("click", async () => {
 
 $("hide-for-menus").addEventListener("click", async () => {
   await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
+  refresh();
+});
+
+
+$("black-market-auto").addEventListener("click", async () => {
+  await invoke("set_black_market_auto", { on: !(state && state.black_market_auto) });
   refresh();
 });
 
@@ -984,10 +991,69 @@ function drawVitals() {
   $("vt-width-value").textContent = `${v.width}%`;
   $("vt-width-down").disabled = v.width <= VT_WIDTH.min;
   $("vt-width-up").disabled = v.width >= VT_WIDTH.max;
+  drawArcColours(v.colours || {});
   setToggle("vt-always", v.always_show);
+  setToggle("vt-trail", v.trail);
   setToggle("vt-cast", v.show_cast);
   // Its look only matters while it shows.
   for (const b of document.querySelectorAll('[data-vt="cast"]')) b.disabled = !v.show_cast;
+}
+
+// The arcs' colours: a swatch each to pick another, made once and updated in place
+// (making them again closes a picker that's open). The built-in ones are panel.css's.
+const ARC_COLOURS = [
+  ["hp", "HP", "#ef6b4f"],
+  ["stamina", "stamina", "#6dd37b"],
+  ["mp", "MP", "#4ea2e6"],
+  ["flight", "flight power", "#f2c84b"],
+  ["cast", "cast", null],
+  ["shield", "shield", "#ffffff"],
+];
+let arcSwatches = null;
+
+function makeArcColours() {
+  const items = ARC_COLOURS.map(([key, name]) => {
+    const item = el("span", "class-swatch");
+    const b = el("button", "swatch");
+    b.type = "button";
+    const input = el("input");
+    input.type = "color";
+    input.tabIndex = -1;
+    input.setAttribute("aria-label", `The ${name} arc's colour`);
+    input.addEventListener("change", () => vitals && setVitals({ colours: { ...(vitals.colours || {}), [key]: input.value } }));
+    b.append(input);
+    b.addEventListener("click", () => {
+      try {
+        input.showPicker();
+      } catch {
+        input.click();
+      }
+    });
+    item.append(b, el("span", "class-swatch-name", key === "flight" ? "fly" : key === "stamina" ? "sta" : key === "shield" ? "shd" : name.toLowerCase()));
+    return { key, name, b, input, item };
+  });
+  const reset = el("button", "chip", "[reset]");
+  reset.type = "button";
+  reset.title = "Every arc back to its built-in colour";
+  reset.addEventListener("click", () => setVitals({ colours: {} }));
+  $("vt-colours").replaceChildren(...items.map((i) => i.item), reset);
+  return { items, reset };
+}
+
+function drawArcColours(colours) {
+  if (!arcSwatches) arcSwatches = makeArcColours();
+  // The cast's built-in colour is the theme's.
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  for (const { key, name, b, input } of arcSwatches.items) {
+    const builtIn = ARC_COLOURS.find(([k]) => k === key)[2] || (isHexColor(accent) ? accent : "#f2a8a4");
+    const own = isHexColor(colours[key]);
+    const colour = own ? colours[key] : builtIn;
+    b.style.setProperty("--swatch", colour);
+    b.classList.toggle("own", own);
+    b.title = `${name}: ${colour}${own ? " (yours)" : key === "cast" ? " (the theme's)" : ""} · click to pick another colour`;
+    if (input.value !== colour) input.value = colour;
+  }
+  arcSwatches.reset.hidden = !Object.keys(colours).length;
 }
 
 async function setVitals(change) {
@@ -1010,6 +1076,7 @@ $("vt-text-up").addEventListener("click", () => vitals && setVitals({ textSize: 
 $("vt-width-down").addEventListener("click", () => vitals && setVitals({ width: vitals.width - VT_WIDTH.step }));
 $("vt-width-up").addEventListener("click", () => vitals && setVitals({ width: vitals.width + VT_WIDTH.step }));
 $("vt-always").addEventListener("click", () => vitals && setVitals({ alwaysShow: !vitals.always_show }));
+$("vt-trail").addEventListener("click", () => vitals && setVitals({ trail: !vitals.trail }));
 $("vt-cast").addEventListener("click", () => vitals && setVitals({ showCast: !vitals.show_cast }));
 $("vt-reset").addEventListener("click", async () => {
   try {
