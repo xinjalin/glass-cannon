@@ -86,16 +86,17 @@
 [data-bars="amber"] { --bar: #f1c073; --bar-ink: #1b0f11; }
 [data-bars="mono"] { --bar: #dcdcdc; --bar-ink: #1b0f11; }
 
-/* Class colours (pastel, so dark text on them stays readable). */
-.c11 { --class: #f2b27c; } /* Gladiator */
-.c12 { --class: #f2908a; } /* Templar */
-.c13 { --class: #c6a9f4; } /* Assassin */
-.c14 { --class: #8fd0f2; } /* Ranger */
-.c15 { --class: #8fe0c4; } /* Sorcerer */
-.c16 { --class: #f3a6d1; } /* Elementalist */
-.c17 { --class: #e8dd8c; } /* Cleric */
-.c18 { --class: #abe39c; } /* Chanter */
-.c19 { --class: #f6aa6e; } /* Fighter */
+/* Class colours: pastel ones (dark text on them reads), or your own (settings → class
+   colours: theme.js sets --class-NN and the text that reads on it, --class-ink-NN). */
+.c11 { --class: var(--class-11, #f2b27c); --class-ink: var(--class-ink-11, #1b0f11); } /* Gladiator */
+.c12 { --class: var(--class-12, #f2908a); --class-ink: var(--class-ink-12, #1b0f11); } /* Templar */
+.c13 { --class: var(--class-13, #c6a9f4); --class-ink: var(--class-ink-13, #1b0f11); } /* Assassin */
+.c14 { --class: var(--class-14, #8fd0f2); --class-ink: var(--class-ink-14, #1b0f11); } /* Ranger */
+.c15 { --class: var(--class-15, #8fe0c4); --class-ink: var(--class-ink-15, #1b0f11); } /* Sorcerer */
+.c16 { --class: var(--class-16, #f3a6d1); --class-ink: var(--class-ink-16, #1b0f11); } /* Elementalist */
+.c17 { --class: var(--class-17, #e8dd8c); --class-ink: var(--class-ink-17, #1b0f11); } /* Cleric */
+.c18 { --class: var(--class-18, #abe39c); --class-ink: var(--class-ink-18, #1b0f11); } /* Chanter */
+.c19 { --class: var(--class-19, #f6aa6e); --class-ink: var(--class-ink-19, #1b0f11); } /* Fighter */
 
 /* ---------------------------------------------------------------- widgets in the overlay */
 

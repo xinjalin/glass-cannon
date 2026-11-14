@@ -123,6 +123,8 @@ function drawAppearance(a) {
   $("opacity-value").textContent = clear ? "none" : `${a.opacity}%`;
   $("opacity-down").disabled = clear || a.opacity <= OPACITY_MIN;
   $("opacity-up").disabled = clear || a.opacity >= OPACITY_MAX;
+  drawClassColours(a.class_palette || {});
+  drawTextStyle(a);
   setToggle("info-bar", a.info_bar);
   setToggle("show-cp", a.combat_power !== false);
   setToggle("show-odyle", a.odyle !== false);
@@ -173,6 +175,11 @@ async function refresh() {
     setToggle("close-with-game", state.close_with_game);
     setToggle("hide-for-menus", state.hide_for_menus);
     setToggle("click-through", state.click_through);
+    setToggle("meter-fit", state.meter_fit);
+    for (const b of document.querySelectorAll("[data-party-sort]")) {
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(b.dataset.partySort === state.party_sort));
+    }
     // The last checks, on hover: how X-like and arrow-like the top-right corner was with the
     // cursor up.
     const menuBtn = $("hide-for-menus");
@@ -259,6 +266,172 @@ $("opacity-up").addEventListener("click", () => {
   setAppearance({ opacity: Math.min(OPACITY_MAX, Math.floor(o / OPACITY_STEP) * OPACITY_STEP + OPACITY_STEP) });
 });
 // The last swatch of each row: a colour of your own, picked in the system's colour dialog.
+// Each class's colour (wherever class colours show: the meter's rows with class bars, the
+// party frames…): the built-in one, or one picked; [reset] puts the built-in ones back.
+const CLASSES = [
+  [11, "Gladiator", "#f2b27c"],
+  [12, "Templar", "#f2908a"],
+  [13, "Assassin", "#c6a9f4"],
+  [14, "Ranger", "#8fd0f2"],
+  [15, "Sorcerer", "#8fe0c4"],
+  [16, "Elementalist", "#f3a6d1"],
+  [17, "Cleric", "#e8dd8c"],
+  [18, "Chanter", "#abe39c"],
+  [19, "Fighter", "#f6aa6e"],
+];
+
+// The swatches are made once and then only updated in place: making them again replaces
+// the colour inputs, which closes a picker that's open (and the settings refresh every
+// few seconds).
+let classPalette = {};
+let classSwatches = null;
+
+function makeClassColours() {
+  const items = CLASSES.map(([code, name]) => {
+    const item = el("span", "class-swatch");
+    const b = el("button", "swatch");
+    b.type = "button";
+    const input = el("input");
+    input.type = "color";
+    input.tabIndex = -1;
+    input.setAttribute("aria-label", `${name}'s colour`);
+    // Picked (the picker closes with it): saved.
+    input.addEventListener("change", () => setAppearance({ classPalette: { ...classPalette, [code]: input.value } }));
+    b.append(input);
+    b.addEventListener("click", () => {
+      try {
+        input.showPicker();
+      } catch {
+        input.click();
+      }
+    });
+    item.append(b, el("span", "class-swatch-name", name.slice(0, 3)));
+    return { code, name, b, input, item };
+  });
+  const reset = el("button", "chip", "[reset]");
+  reset.type = "button";
+  reset.title = "Every class back to its built-in colour";
+  reset.addEventListener("click", () => setAppearance({ classPalette: {} }));
+  $("class-colours").replaceChildren(...items.map((i) => i.item), reset);
+  return { items, reset };
+}
+
+function drawClassColours(palette) {
+  classPalette = palette;
+  if (!classSwatches) classSwatches = makeClassColours();
+  for (const { code, name, b, input } of classSwatches.items) {
+    const builtIn = CLASSES.find(([c]) => c === code)[2];
+    const own = isHexColor(palette[code]);
+    const colour = own ? palette[code] : builtIn;
+    b.style.setProperty("--swatch", colour);
+    b.classList.toggle("own", own);
+    b.title = `${name}: ${colour}${own ? " (yours)" : ""} · click to pick another colour`;
+    if (input.value !== colour) input.value = colour;
+  }
+  classSwatches.reset.hidden = !Object.keys(palette).length;
+}
+
+// The text's colour and its edge's colour: preset swatches and one to pick. Made once and
+// updated in place (making them again closes a picker that's open).
+const TEXT_COLOURS = [
+  ["white", "#ffffff"],
+  ["yellow", "#ffe066"],
+  ["cyan", "#7fe3ff"],
+  ["green", "#9be89b"],
+  ["rose", "#f7b6b0"],
+  ["grey", "#c8c8c8"],
+];
+const EDGE_COLOURS = [
+  ["black", "#000000"],
+  ["dark grey", "#333333"],
+  ["white", "#ffffff"],
+  ["navy", "#10204a"],
+];
+const TEXT_OP = { min: 40, max: 100, step: 10 };
+const colourRows = {};
+
+// A row of colour swatches (with [theme] first when `theme` is given) and a picker.
+function makeColourRow(boxId, presets, theme, set) {
+  const items = [];
+  if (theme) {
+    const t = el("button", "chip", "[theme]");
+    t.type = "button";
+    t.title = "The theme's text colour";
+    t.dataset.value = "theme";
+    t.addEventListener("click", () => set("theme"));
+    items.push(t);
+  }
+  for (const [name, hex] of presets) {
+    const b = el("button", "swatch");
+    b.type = "button";
+    b.title = name;
+    b.dataset.value = hex;
+    b.style.setProperty("--swatch", hex);
+    b.style.boxShadow = "inset 0 0 0 1px rgba(127, 127, 127, 0.6)";
+    b.addEventListener("click", () => set(hex));
+    items.push(b);
+  }
+  const custom = el("button", "swatch custom");
+  custom.type = "button";
+  const input = el("input");
+  input.type = "color";
+  input.tabIndex = -1;
+  input.setAttribute("aria-label", "A colour of your own");
+  input.addEventListener("change", () => set(input.value));
+  custom.append(input);
+  custom.addEventListener("click", () => {
+    try {
+      input.showPicker();
+    } catch {
+      input.click();
+    }
+  });
+  items.push(custom);
+  $(boxId).replaceChildren(...items);
+  return { items, custom, input, presets: presets.map(([, h]) => h) };
+}
+
+function markColourRow(row, value) {
+  const preset = value === "theme" || row.presets.includes(value);
+  for (const b of row.items) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b === row.custom ? !preset : b.dataset.value === value));
+  }
+  if (!preset && isHexColor(value)) {
+    row.custom.style.setProperty("--swatch", value);
+    if (row.input.value !== value) row.input.value = value;
+    row.custom.title = `${value} · click to pick another colour`;
+  } else {
+    row.custom.style.removeProperty("--swatch");
+    row.custom.title = "Pick any colour";
+  }
+}
+
+function drawTextStyle(a) {
+  if (!colourRows.text) {
+    colourRows.text = makeColourRow("text-colours", TEXT_COLOURS, true, (v) => setAppearance({ textColor: v }));
+    colourRows.edge = makeColourRow("edge-colours", EDGE_COLOURS, false, (v) => setAppearance({ edgeColor: v }));
+  }
+  markColourRow(colourRows.text, a.text_color || "theme");
+  markColourRow(colourRows.edge, a.edge_color || "#000000");
+  const op = a.text_opacity || 100;
+  $("text-op-value").textContent = `${op}%`;
+  $("text-op-down").disabled = op <= TEXT_OP.min;
+  $("text-op-up").disabled = op >= TEXT_OP.max;
+  for (const b of document.querySelectorAll("[data-text-edge]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.textEdge === (a.text_edge || "theme")));
+  }
+  // The edge's colour only matters with an edge of your own.
+  for (const b of colourRows.edge.items) b.disabled = !a.text_edge || a.text_edge === "theme" || a.text_edge === "none";
+}
+
+$("text-op-down").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) - TEXT_OP.step }));
+$("text-op-up").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) + TEXT_OP.step }));
+for (const b of document.querySelectorAll("[data-text-edge]")) {
+  b.addEventListener("click", () => setAppearance({ textEdge: b.dataset.textEdge }));
+}
+
 function drawCustom(button, value) {
   const picked = isHexColor(value);
   button.setAttribute("role", "radio");
@@ -396,6 +569,18 @@ $("hide-for-menus").addEventListener("click", async () => {
   await invoke("set_hide_for_menus", { on: !(state && state.hide_for_menus) });
   refresh();
 });
+
+$("meter-fit").addEventListener("click", async () => {
+  await invoke("set_meter_fit", { on: !(state && state.meter_fit) });
+  refresh();
+});
+
+for (const b of document.querySelectorAll("[data-party-sort]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_party_sort", { sort: b.dataset.partySort }).catch(() => {});
+    refresh();
+  });
+}
 
 $("click-through").addEventListener("click", async () => {
   await invoke("set_click_through", { on: !(state && state.click_through) });
@@ -581,10 +766,97 @@ function drawActionBar() {
       b.addEventListener("click", () => toggleActionBar(kind, choice.id));
       return b;
     });
+  drawBarLook(c.bar_look);
   $("ab-skills").replaceChildren(...picks(c.skills, "skills"));
   $("ab-buffs").replaceChildren(...picks(c.buffs, "buffs"));
   if (!c.buffs.length) $("ab-buffs").append(el("span", "note", "none on you in the last hour yet"));
 }
+
+// The bars look's colours: a ready skill, a buff running, a skill on cooldown; each a
+// named colour, the theme's, or one picked.
+const AB_COLOURS = { green: "#79dcaa", blue: "#6aa8f0", red: "#f87070", amber: "#f1c073", lavender: "#c8b4f7", rose: "#f2a8a4", mono: "#dcdcdc" };
+const AB_KINDS = [
+  ["ready", "ready", "A skill that's ready"],
+  ["running", "buffs", "A buff that's running"],
+  ["cooling", "cooldown", "A skill on cooldown"],
+];
+
+// Drawn again only when the look changes (drawing replaces the colour inputs, which would
+// close a picker that's open).
+let barLookDrawn = null;
+function drawBarLook(l) {
+  if (!l) return;
+  const key = JSON.stringify(l);
+  if (key === barLookDrawn) return;
+  barLookDrawn = key;
+  setToggle("ab-track", l.background);
+  $("ab-colours").replaceChildren(
+    ...AB_KINDS.map(([field, key, what]) => {
+      const line = el("div", "line");
+      line.dataset.keywords = "action bar colour color bars ready buff cooldown";
+      line.append(el("span", "key", key));
+      const sw = el("span", "swatches");
+      sw.setAttribute("role", "radiogroup");
+      sw.setAttribute("aria-label", `${what}: its bar's colour`);
+      const theme = el("button", "chip", "[theme]");
+      theme.type = "button";
+      theme.title = "The bar colour (appearance)";
+      theme.setAttribute("role", "radio");
+      theme.setAttribute("aria-checked", String(l[field] === "theme"));
+      theme.addEventListener("click", () => setBarLook({ [field]: "theme" }));
+      sw.append(theme);
+      for (const [name, hex] of Object.entries(AB_COLOURS)) {
+        const b = el("button", "swatch");
+        b.type = "button";
+        b.title = name;
+        b.style.setProperty("--swatch", hex);
+        b.style.borderRadius = "0.2em";
+        b.setAttribute("role", "radio");
+        b.setAttribute("aria-checked", String(l[field] === name));
+        b.addEventListener("click", () => setBarLook({ [field]: name }));
+        sw.append(b);
+      }
+      const picked = /^#[0-9a-f]{6}$/i.test(l[field]);
+      const custom = el("button", "swatch custom");
+      custom.type = "button";
+      custom.style.borderRadius = "0.2em";
+      if (picked) custom.style.setProperty("--swatch", l[field]);
+      custom.title = picked ? `${l[field]} · click to pick another colour` : "Pick any colour";
+      custom.setAttribute("role", "radio");
+      custom.setAttribute("aria-checked", String(picked));
+      const input = el("input");
+      input.type = "color";
+      input.tabIndex = -1;
+      input.setAttribute("aria-label", `${what}: a colour of your own`);
+      input.value = picked ? l[field] : "#79dcaa";
+      input.addEventListener("change", () => setBarLook({ [field]: input.value }));
+      custom.append(input);
+      // The input takes no clicks itself: the swatch opens its picker.
+      custom.addEventListener("click", () => {
+        try {
+          input.showPicker();
+        } catch {
+          input.click();
+        }
+      });
+      sw.append(custom);
+      line.append(sw);
+      return line;
+    }),
+  );
+}
+
+async function setBarLook(change) {
+  try {
+    const l = await invoke("set_action_bar_look", { change });
+    if (abChoices) abChoices.bar_look = l;
+    drawBarLook(l);
+  } catch {
+    // Unchanged, then.
+  }
+}
+
+$("ab-track").addEventListener("click", () => abChoices && setBarLook({ background: !abChoices.bar_look.background }));
 
 async function loadActionBar() {
   try {
@@ -630,6 +902,63 @@ loadActionBar();
 setInterval(() => {
   if (!document.hidden) loadActionBar();
 }, 3000);
+
+// ---------------------------------------------------------------- cooldowns look
+
+// The cooldowns widget: a list, or a timeline with Ready on the left or the right, and its
+// size.
+let cdLook = null;
+const CD_SIZE = { min: 70, max: 250, step: 10 };
+
+function drawCdLook() {
+  if (!cdLook) return;
+  for (const b of document.querySelectorAll("[data-cd-look]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.cdLook === cdLook.look));
+  }
+  for (const b of document.querySelectorAll("[data-cd-ready]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String((b.dataset.cdReady === "right") === cdLook.ready_right));
+    // Only the timeline has a Ready end.
+    b.disabled = cdLook.look !== "timeline";
+  }
+  const timeline = cdLook.look === "timeline";
+  for (const b of document.querySelectorAll("[data-cd-scale]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(b.dataset.cdScale === cdLook.scale));
+    b.disabled = !timeline;
+  }
+  $("cd-size-value").textContent = `${cdLook.size}%`;
+  $("cd-size-down").disabled = !timeline || cdLook.size <= CD_SIZE.min;
+  $("cd-size-up").disabled = !timeline || cdLook.size >= CD_SIZE.max;
+}
+
+async function setCdLook(next) {
+  try {
+    cdLook = await invoke("set_cooldowns_look", { look: next.look, readyRight: next.ready_right, size: next.size, scale: next.scale });
+  } catch {
+    // Unchanged, then.
+  }
+  drawCdLook();
+}
+
+for (const b of document.querySelectorAll("[data-cd-look]")) {
+  b.addEventListener("click", () => cdLook && setCdLook({ ...cdLook, look: b.dataset.cdLook }));
+}
+for (const b of document.querySelectorAll("[data-cd-ready]")) {
+  b.addEventListener("click", () => cdLook && setCdLook({ ...cdLook, ready_right: b.dataset.cdReady === "right" }));
+}
+for (const b of document.querySelectorAll("[data-cd-scale]")) {
+  b.addEventListener("click", () => cdLook && setCdLook({ ...cdLook, scale: b.dataset.cdScale }));
+}
+$("cd-size-down").addEventListener("click", () => cdLook && setCdLook({ ...cdLook, size: cdLook.size - CD_SIZE.step }));
+$("cd-size-up").addEventListener("click", () => cdLook && setCdLook({ ...cdLook, size: cdLook.size + CD_SIZE.step }));
+invoke("cooldowns_look")
+  .then((l) => {
+    cdLook = l;
+    drawCdLook();
+  })
+  .catch(() => {});
 
 // ---------------------------------------------------------------- vitals arcs
 
@@ -939,6 +1268,46 @@ function showTab(name, focus = false) {
   }
 }
 
+// The overlay tab's widget settings: a tab each (cooldowns, party cooldowns, action bar,
+// vitals arcs), the last one chosen remembered.
+const SUBTAB_KEY = "settings-subtab";
+const subtabButtons = [...document.querySelectorAll("#subtabs [role=tab]")];
+const subpanels = [...document.querySelectorAll(".subpanel")];
+
+function showSubtab(name, focus = false) {
+  if (!subpanels.some((p) => p.dataset.subtab === name)) name = subpanels[0].dataset.subtab;
+  for (const b of subtabButtons) {
+    const on = b.dataset.subtab === name;
+    b.setAttribute("aria-selected", String(on));
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  }
+  for (const p of subpanels) p.classList.toggle("active", p.dataset.subtab === name);
+  try {
+    localStorage.setItem(SUBTAB_KEY, name);
+  } catch {
+    // Not remembered, then.
+  }
+}
+
+for (const b of subtabButtons) {
+  b.addEventListener("click", () => showSubtab(b.dataset.subtab));
+  // Arrow keys move along them, as along the tabs.
+  b.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const i = subtabButtons.indexOf(b);
+    const next = subtabButtons[(i + (e.key === "ArrowRight" ? 1 : -1) + subtabButtons.length) % subtabButtons.length];
+    showSubtab(next.dataset.subtab, true);
+  });
+}
+try {
+  showSubtab(localStorage.getItem(SUBTAB_KEY));
+} catch {
+  showSubtab(null);
+}
+
 function currentTab() {
   const b = tabButtons.find((x) => x.getAttribute("aria-selected") === "true");
   return b ? b.dataset.tab : panels[0].dataset.tab;
@@ -1179,9 +1548,11 @@ function runSearch() {
 // view.
 function clearSearch(followFocus = true) {
   const focused = document.activeElement && document.activeElement.closest(".tab-panel");
+  const sub = document.activeElement && document.activeElement.closest(".subpanel");
   $("search").value = "";
   runSearch();
   if (followFocus && focused) showTab(focused.dataset.tab);
+  if (followFocus && sub) showSubtab(sub.dataset.subtab);
 }
 
 // The control to go to for a row: the row itself when it's a button, else its first one.

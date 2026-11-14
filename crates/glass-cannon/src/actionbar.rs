@@ -33,6 +33,63 @@ pub struct ActionBarSetup {
     pub style: String,
 }
 
+/// The colours a bar can take: a name here, or a colour of your own (`#rrggbb`).
+pub const BAR_COLOURS: [&str; 8] = ["green", "blue", "red", "amber", "lavender", "rose", "mono", "theme"];
+
+/// How the bars look (the bars look; the same for every class): the track behind each bar,
+/// and the colour of a ready skill, a buff that's running, and a skill on cooldown.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct BarLook {
+    pub background: bool,
+    pub ready: String,
+    pub running: String,
+    pub cooling: String,
+}
+
+impl Default for BarLook {
+    fn default() -> Self {
+        Self { background: true, ready: "green".into(), running: "blue".into(), cooling: "red".into() }
+    }
+}
+
+fn is_colour(c: &str) -> bool {
+    BAR_COLOURS.contains(&c) || (c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|h| h.is_ascii_hexdigit()))
+}
+
+/// Changes to the bars' look; `None` leaves it as it is.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct BarLookChange {
+    pub background: Option<bool>,
+    pub ready: Option<String>,
+    pub running: Option<String>,
+    pub cooling: Option<String>,
+}
+
+impl BarLook {
+    pub fn update(&mut self, c: BarLookChange) {
+        if let Some(b) = c.background {
+            self.background = b;
+        }
+        for (now, new) in [(&mut self.ready, c.ready), (&mut self.running, c.running), (&mut self.cooling, c.cooling)] {
+            if let Some(v) = new.filter(|v| is_colour(v)) {
+                *now = v.to_ascii_lowercase();
+            }
+        }
+    }
+
+    /// Repairs a hand-edited settings file.
+    pub fn sanitized(mut self) -> Self {
+        let fixed = Self::default();
+        for (now, d) in [(&mut self.ready, fixed.ready), (&mut self.running, fixed.running), (&mut self.cooling, fixed.cooling)] {
+            if !is_colour(now) {
+                *now = d;
+            }
+        }
+        self
+    }
+}
+
 /// A skill on the bar, as it stands now.
 #[derive(Debug, Serialize, PartialEq)]
 pub struct SlotView {
@@ -64,6 +121,7 @@ pub struct ActionBarView {
     /// Your class, when known (each has its own bar).
     pub class: Option<u32>,
     pub style: String,
+    pub bar_look: BarLook,
     pub skills: Vec<SlotView>,
     /// Only the ones on you now.
     pub buffs: Vec<BuffView>,
@@ -84,6 +142,7 @@ pub struct Choice {
 pub struct Choices {
     pub class: Option<u32>,
     pub style: String,
+    pub bar_look: BarLook,
     /// Your class's skills (from the game's list of them, and what you've cast), the chosen
     /// first, in their order.
     pub skills: Vec<Choice>,
@@ -163,7 +222,8 @@ pub fn action_bar(app: State<'_, Arc<AppState>>) -> ActionBarView {
             stacks: on.len() as u32,
         });
     }
-    ActionBarView { class, style: style_of(&setup), skills, buffs, unset: setup.skills.is_empty() && setup.buffs.is_empty() }
+    let bar_look = lock(&app.settings).action_bar_look.clone();
+    ActionBarView { class, style: style_of(&setup), bar_look, skills, buffs, unset: setup.skills.is_empty() && setup.buffs.is_empty() }
 }
 
 /// What can go on your class's bar, for the settings.
@@ -201,7 +261,8 @@ pub fn action_bar_choices(app: State<'_, Arc<AppState>>) -> Choices {
             }
         })
         .collect();
-    Choices { class, style: style_of(&setup), skills: skill_choices, buffs: buff_choices }
+    let bar_look = lock(&app.settings).action_bar_look.clone();
+    Choices { class, style: style_of(&setup), bar_look, skills: skill_choices, buffs: buff_choices }
 }
 
 /// The list without repeats, first kept, at most 24.
@@ -230,9 +291,29 @@ pub fn set_action_bar(app: State<'_, Arc<AppState>>, skills: Vec<u32>, buffs: Ve
     Ok(())
 }
 
+/// Changes how the bars look (every class's); saved.
+#[tauri::command]
+pub fn set_action_bar_look(app: State<'_, Arc<AppState>>, change: BarLookChange) -> BarLook {
+    let mut s = lock(&app.settings);
+    s.action_bar_look.update(change);
+    s.save(&app.config_dir);
+    s.action_bar_look.clone()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bar_colours_stay_valid() {
+        let mut l = BarLook::default();
+        l.update(BarLookChange { ready: Some("#A0FF10".into()), cooling: Some("purple-ish".into()), background: Some(false), ..Default::default() });
+        assert_eq!((l.ready.as_str(), l.running.as_str(), l.cooling.as_str(), l.background), ("#a0ff10", "blue", "red", false));
+        let junk = BarLook { ready: "nope".into(), ..BarLook::default() }.sanitized();
+        assert_eq!(junk.ready, "green");
+        let old: BarLook = serde_json::from_str("{}").unwrap();
+        assert_eq!(old, BarLook::default());
+    }
 
     #[test]
     fn the_chosen_come_first_in_their_order() {

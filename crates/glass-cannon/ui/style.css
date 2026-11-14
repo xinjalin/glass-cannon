@@ -282,8 +282,7 @@ svg {
 /* Each row's colour: the bar colour (the theme's accent unless chosen), or its class colour;
    and the text drawn on it when the row is filled. */
 .row { --row: var(--bar, var(--accent-fill)); --row-ink: var(--bar-ink, var(--ink)); cursor: pointer; }
-[data-bars="class"] .row { --row: var(--class, var(--accent-fill)); --row-ink: var(--ink); }
-[data-bars="class"] .row[class*=" c1"] { --row-ink: #1b0f11; }
+[data-bars="class"] .row { --row: var(--class, var(--accent-fill)); --row-ink: var(--class-ink, var(--ink)); }
 /* Row height and spacing are whole pixels (set by app.js) so every gap is the same. */
 .row + .row { margin-top: var(--row-gap, 2px); }
 
@@ -309,6 +308,9 @@ svg {
 /* The party view's combat power and gear score: wider, each with its label. */
 .party-row .line { grid-template-columns: 1.3em minmax(0, 1fr) var(--meter-w, 4.5em) 4.6em 4.4em; }
 .stat-tag { margin-right: 0.35em; font-size: 0.78em; opacity: 0.65; }
+/* The party view's cp and gs: a click sorts by them. */
+.party-row .sortable { cursor: pointer; }
+.party-row .sortable:hover .stat-tag { opacity: 1; text-decoration: underline; }
 
 .class-icon {
   flex: none;

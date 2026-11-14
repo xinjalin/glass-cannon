@@ -96,13 +96,24 @@ finishes. The widgets:
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
   "dead" when they are.
-- **cooldowns**: your skills that aren't ready, with time left and charges.
+- **cooldowns**: your skills that aren't ready, with time left and charges: as a **list**,
+  or as a **timeline** (settings → overlay → cooldowns), a bar from Ready to 100% with each
+  skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready
+  as it runs down, its time left on it, and a flash when it's ready. Ready can be on the
+  left or the right, its size (70–250%: its icons, times and labels), and its scale: by
+  **percent** of each cooldown left, or by **time** left, marked 1, 10, 30, 1m, 2m, 5m
+  (the last seconds get the most room; longer cooldowns wait at the end). Icons that
+  overlap take turns going see-through, so those under them show; clear of the others,
+  they're solid.
 - **action bar**: the skills you choose, each with its cooldown sweeping round its icon
   and the time left, its charges, and a glow when it's ready again; then the buffs on you
   that you choose to follow, with their time left (and how many, when more than one is on
   you). Choose them in the settings (overlay → action bar): click a skill or buff to put it
   on the bar or take it off; they go on in the order you add them. Its look: square icons,
-  round icons, or a bar each with its name and time. Each class has its own bar, picked
+  round icons, or a bar each with its name and time. The bars' colours are yours to pick:
+  a ready skill's (full, green at first), a running buff's (blue) and a skill on
+  cooldown's (red), each a colour of the list, the bar colour, or any colour; and the
+  faint track behind them can be turned off. Each class has its own bar, picked
   by the class you're playing. The skills to choose from are your class's, from the list
   the game sends at login and the ones you've used; the buffs, those on you in the last
   hour.
@@ -169,8 +180,10 @@ widgets to the game, the meter's, the world timers' and the pet tracker's too. T
 widgets only show things and always let clicks through. Arranging the widgets still takes
 the mouse, so they can be moved and resized.
 
-**Fade outside combat** (settings) fades the fight widgets a while after the last fight;
-they come back with the next one (the meter under the mouse too). With the **frosted**
+**Fade outside combat** (settings) fades widgets a while after the last fight; they come
+back with the next one (the meter under the mouse too). Which ones fade is up to you: the
+arrange menu has a column for it, **[fades]** or **[stays]** for each widget (at first the
+meter, boss timers, target frame, cooldowns and party cooldowns fade). With the **frosted**
 background, Windows lightly blurs the game behind each widget.
 
 ## The meter
@@ -185,11 +198,25 @@ background, Windows lightly blurs the game behind each widget.
   gear score, and a ✓ for who's readied up in the party finder. A line under the meter says
   who joins, leaves or readies up. In a party-finder lobby (before the group starts), when
   a game menu opens and the other widgets step aside, the meter stays and shows the party,
-  so everyone's combat power and gear score can be checked from the lobby screen.
+  so everyone's combat power and gear score can be checked from the lobby screen. The
+  party's order: as the game lists it, or by combat power or gear score, highest or lowest
+  first (settings → meter → party order, or click the cp or gs column to go through them).
+- The meter's height **fits what it shows** (settings → meter → fit height, on at first):
+  its rows, open skill lists and the lines over them, up to 70% of the screen. Off, it's
+  the height you give it while arranging the overlay.
 - Each player's **combat power** shows by their name (settings → meter → combat power):
   your party's from its roster, anyone else's from when they came into view, yours from
   your login or zone change. **Odyle energy** (settings → meter; charged in brackets) shows
   on the strip at the meter's top, as the game last sent it (at login and as it changes).
+- **Text** (settings → appearance → text), as subtitles have it: the font and its size, the
+  text's colour (the theme's or any) and opacity, and its edge (the theme's soft shadow,
+  none, a drop shadow, an outline, raised or depressed) in a colour of your own. It shows
+  everywhere: the overlay and the windows. What's behind the text is the background and
+  tint (settings → appearance → background).
+- **Class colours** (settings → appearance): with the bars in class colours, each class's
+  colour can be your own (click its swatch); the text on it stays readable, dark or
+  light by the colour. They show wherever class colours do; **[reset]** brings back the
+  built-in ones.
 - The rows show each player's share as a strip of **blocks**, or as **bars**: the row
   itself filled that far (settings → appearance → rows). **See-through highlight** makes
   the filled rows as see-through as the tint.

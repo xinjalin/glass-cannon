@@ -9,9 +9,18 @@
 </head>
 <body data-panel="cooldowns" data-fit>
   <main id="panel">
-    <div class="scroll">
+    <!-- A row each (the list), or icons along a bar from Ready to 100% (the timeline): as
+         the settings have it (cooldowns.js). -->
+    <div id="list-view" class="scroll">
       <ol id="list" class="list"></ol>
       <p id="empty" class="empty">all your skills are ready</p>
+    </div>
+    <div id="timeline" class="timeline" hidden>
+      <div class="tl-scale" aria-hidden="true">
+        <span class="tl-ready">Ready</span><span class="tl-half">50%</span><span class="tl-full">100%</span>
+      </div>
+      <div id="tl-ticks" class="tl-ticks" aria-hidden="true"></div>
+      <div id="tl-track" class="tl-track idle"></div>
     </div>
   </main>
   <script src="theme.js"></script>

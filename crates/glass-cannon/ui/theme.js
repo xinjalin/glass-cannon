@@ -61,6 +61,36 @@ function customTheme(root, picked) {
   root.style.setProperty("--tint-rgb", rgb.map((c) => Math.round(c * 0.09)).join(", "));
 }
 
+// The text as chosen (settings → appearance → text): its colour (the theme's, or your
+// own) and how opaque, with the dimmer text (hints, labels) in the same colour, fainter;
+// and its edge: the theme's soft shadow, none, a drop shadow, an outline, raised or
+// depressed, in the edge colour.
+const TEXT_THEME = { night: "#d4d4d5" };
+const TEXT_DEFAULT = "#fff7f3";
+const EDGES = {
+  none: () => "none",
+  shadow: (c) => `1px 2px 2px ${c}`,
+  outline: (c) => `-1px 0 0 ${c}, 1px 0 0 ${c}, 0 -1px 0 ${c}, 0 1px 0 ${c}, 0 0 2px ${c}`,
+  raised: (c) => `1px 1px 0 ${c}, -1px -1px 0 rgba(255, 255, 255, 0.25)`,
+  depressed: (c) => `-1px -1px 0 ${c}, 1px 1px 0 rgba(255, 255, 255, 0.25)`,
+};
+
+function applyText(root, a) {
+  const own = isHexColor(a.text_color);
+  const opacity = (a.text_opacity || 100) / 100;
+  for (const v of ["--text", "--muted", "--faint", "--shadow"]) root.style.removeProperty(v);
+  if (own || opacity < 1) {
+    const hex = own ? a.text_color : TEXT_THEME[root.dataset.theme] || TEXT_DEFAULT;
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const at = (k) => `rgba(${r}, ${g}, ${b}, ${(opacity * k).toFixed(3)})`;
+    root.style.setProperty("--text", at(1));
+    root.style.setProperty("--muted", at(0.78));
+    root.style.setProperty("--faint", at(0.55));
+  }
+  const edge = EDGES[a.text_edge];
+  if (edge) root.style.setProperty("--shadow", edge(isHexColor(a.edge_color) ? a.edge_color : "#000000"));
+}
+
 function applyAppearance(a) {
   if (!a) return;
   const key = JSON.stringify(a);
@@ -93,4 +123,17 @@ function applyAppearance(a) {
   const font = a.font && !/["'\\;{}<>]/.test(a.font) ? `"${a.font}", ` : "";
   root.style.setProperty("--mono", `${font}"Cascadia Mono", "Cascadia Code", Consolas, monospace`);
   root.style.setProperty("--alpha", (a.opacity / 100).toFixed(2));
+  applyText(root, a);
+  // Class colours of your own, and the text that reads on each.
+  const palette = a.class_palette || {};
+  for (let code = 11; code <= 19; code++) {
+    const c = palette[code];
+    if (isHexColor(c)) {
+      root.style.setProperty(`--class-${code}`, c);
+      root.style.setProperty(`--class-ink-${code}`, inkOn(c));
+    } else {
+      root.style.removeProperty(`--class-${code}`);
+      root.style.removeProperty(`--class-ink-${code}`);
+    }
+  }
 }

@@ -54,6 +54,30 @@ pub fn widgets_shown(app: State<'_, Arc<AppState>>) -> Vec<String> {
     lock(&app.settings).widgets.clone()
 }
 
+/// The widgets that fade outside combat.
+#[tauri::command]
+pub fn widgets_fading(app: State<'_, Arc<AppState>>) -> Vec<String> {
+    lock(&app.settings).fading.clone()
+}
+
+/// Makes a widget fade outside combat, or always show (the arrange menu's fade column).
+#[tauri::command]
+pub fn toggle_widget_fade(handle: AppHandle, app: State<'_, Arc<AppState>>, name: String) -> Result<(), String> {
+    if !WIDGETS.contains(&name.as_str()) {
+        return Err(format!("no widget called {name}"));
+    }
+    let mut s = lock(&app.settings);
+    let fade = !s.fading.contains(&name);
+    s.fading.retain(|w| w != &name);
+    if fade {
+        s.fading.push(name);
+    }
+    s.save(&app.config_dir);
+    let list = s.fading.clone();
+    drop(s);
+    handle.emit_to(hud::HUD, "hud-fading", list).map_err(|e| e.to_string())
+}
+
 /// Shows a saved fight on the meter (picked in the history window).
 #[tauri::command]
 pub fn show_fight(handle: AppHandle, index: usize) -> Result<(), String> {
@@ -69,6 +93,62 @@ pub struct CooldownRow {
     pub remaining_ms: u32,
     pub duration_ms: u32,
     pub charges: Option<u8>,
+}
+
+/// The cooldowns widget's look, as the settings have it.
+#[derive(Serialize, Clone)]
+pub struct CooldownsLook {
+    pub look: String,
+    pub ready_right: bool,
+    /// The timeline's size, in percent.
+    pub size: u16,
+    /// "percent" or "time".
+    pub scale: String,
+}
+
+fn cooldowns_look_of(s: &crate::store::Settings) -> CooldownsLook {
+    let look = if crate::store::COOLDOWNS_LOOKS.contains(&s.cooldowns_look.as_str()) { s.cooldowns_look.clone() } else { "list".into() };
+    let sizes = crate::store::COOLDOWNS_SIZES;
+    let scales = crate::store::COOLDOWNS_SCALES;
+    let scale = if scales.contains(&s.cooldowns_scale.as_str()) { s.cooldowns_scale.clone() } else { scales[0].to_string() };
+    CooldownsLook { look, ready_right: s.cooldowns_ready_right, size: s.cooldowns_size.clamp(*sizes.start(), *sizes.end()), scale }
+}
+
+#[tauri::command]
+pub fn cooldowns_look(app: State<'_, Arc<AppState>>) -> CooldownsLook {
+    cooldowns_look_of(&lock(&app.settings))
+}
+
+/// Sets the cooldowns widget's look ("list" or "timeline"), which end of the timeline is
+/// Ready, its size (percent, clamped) and its scale ("percent" or "time"); saved, and sent
+/// to the widget.
+#[tauri::command]
+pub fn set_cooldowns_look(
+    handle: tauri::AppHandle,
+    app: State<'_, Arc<AppState>>,
+    look: String,
+    ready_right: bool,
+    size: Option<i64>,
+    scale: Option<String>,
+) -> Result<CooldownsLook, String> {
+    if !crate::store::COOLDOWNS_LOOKS.contains(&look.as_str()) {
+        return Err(format!("no such look: {look}"));
+    }
+    let mut s = lock(&app.settings);
+    if let Some(scale) = scale.filter(|v| crate::store::COOLDOWNS_SCALES.contains(&v.as_str())) {
+        s.cooldowns_scale = scale;
+    }
+    if let Some(size) = size {
+        let sizes = crate::store::COOLDOWNS_SIZES;
+        s.cooldowns_size = size.clamp(i64::from(*sizes.start()), i64::from(*sizes.end())) as u16;
+    }
+    s.cooldowns_look = look;
+    s.cooldowns_ready_right = ready_right;
+    s.save(&app.config_dir);
+    let out = cooldowns_look_of(&s);
+    drop(s);
+    let _ = tauri::Emitter::emit(&handle, "cooldowns-look", out.clone());
+    Ok(out)
 }
 
 /// Your skills that aren't ready, soonest first, with names and icons.

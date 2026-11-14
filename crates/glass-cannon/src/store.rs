@@ -173,6 +173,35 @@ pub struct Settings {
     /// The party cooldowns widget grouped by class, then skill, then player (else by player).
     #[serde(default)]
     pub party_cooldowns_by_class: bool,
+    /// The meter's height fits what it shows (its rows, boss lines, open skill lists); off,
+    /// it's the height you give it while arranging.
+    #[serde(default = "default_true")]
+    pub meter_fit: bool,
+    /// The party view's order: the roster's, or by combat power or gear score, highest or
+    /// lowest first (one of [`PARTY_SORTS`]).
+    #[serde(default = "default_party_sort")]
+    pub party_sort: String,
+    /// The widgets that fade outside combat (settings → fade outside combat; the arrange
+    /// menu's fade column picks them). The others always show.
+    #[serde(default = "default_fading")]
+    pub fading: Vec<String>,
+    /// The cooldowns widget's look: "list" (a row each) or "timeline" (icons sliding along a
+    /// bar to Ready as their cooldowns run down).
+    #[serde(default = "default_cooldowns_look")]
+    pub cooldowns_look: String,
+    /// The timeline's Ready end on the right (else the left).
+    #[serde(default)]
+    pub cooldowns_ready_right: bool,
+    /// The timeline's size, in percent (its icons, times and labels).
+    #[serde(default = "default_cooldowns_size")]
+    pub cooldowns_size: u16,
+    /// The timeline's scale: "percent" (how much of each cooldown is left) or "time" (the
+    /// time left, marked 1, 10, 30, 1m, 2m, 5m).
+    #[serde(default = "default_cooldowns_scale")]
+    pub cooldowns_scale: String,
+    /// How the action bars' bars look (the bars look): their background and colours.
+    #[serde(default)]
+    pub action_bar_look: crate::actionbar::BarLook,
     /// Each class's action bar (by class code): its skills, buffs and look.
     #[serde(default)]
     pub action_bars: BTreeMap<String, crate::actionbar::ActionBarSetup>,
@@ -219,6 +248,39 @@ pub struct Settings {
     /// The hotkeys' keys (settings → keybinds).
     #[serde(default)]
     pub hotkeys: crate::hotkeys::Bindings,
+}
+
+/// The party view's orders.
+pub const PARTY_SORTS: [&str; 5] = ["roster", "cp_desc", "cp_asc", "gs_desc", "gs_asc"];
+
+fn default_party_sort() -> String {
+    PARTY_SORTS[0].into()
+}
+
+/// The widgets that fade outside combat unless chosen otherwise: those of the fight.
+fn default_fading() -> Vec<String> {
+    ["meter", "boss-timers", "target", "cooldowns", "party-cooldowns"].map(String::from).to_vec()
+}
+
+/// The cooldowns widget's looks.
+pub const COOLDOWNS_LOOKS: [&str; 2] = ["list", "timeline"];
+
+fn default_cooldowns_look() -> String {
+    COOLDOWNS_LOOKS[0].into()
+}
+
+/// The timeline's sizes, in percent.
+pub const COOLDOWNS_SIZES: std::ops::RangeInclusive<u16> = 70..=250;
+
+fn default_cooldowns_size() -> u16 {
+    100
+}
+
+/// The timeline's scales.
+pub const COOLDOWNS_SCALES: [&str; 2] = ["percent", "time"];
+
+fn default_cooldowns_scale() -> String {
+    COOLDOWNS_SCALES[0].into()
 }
 
 fn default_dummy_run_s() -> u32 {
@@ -335,6 +397,47 @@ pub struct Appearance {
     /// Your Odyle energy on the meter's top strip.
     #[serde(default = "default_true")]
     pub odyle: bool,
+    /// Colours of your own for classes (by class code, "11" to "19": `#rrggbb`), in place of
+    /// the built-in ones, wherever class colours show.
+    #[serde(default)]
+    pub class_palette: BTreeMap<String, String>,
+    /// The text's colour: "theme" (the theme's), or a colour of your own (`#rrggbb`).
+    #[serde(default = "default_theme_word")]
+    pub text_color: String,
+    /// How opaque the text is, in percent.
+    #[serde(default = "default_text_opacity")]
+    pub text_opacity: u8,
+    /// The text's edge: one of [`TEXT_EDGES`] ("theme": the theme's soft shadow).
+    #[serde(default = "default_theme_word")]
+    pub text_edge: String,
+    /// The edge's colour (`#rrggbb`).
+    #[serde(default = "default_edge_color")]
+    pub edge_color: String,
+}
+
+/// The text's edges: the theme's, none, a drop shadow, an outline, raised, depressed.
+pub const TEXT_EDGES: [&str; 6] = ["theme", "none", "shadow", "outline", "raised", "depressed"];
+pub const TEXT_OPACITIES: std::ops::RangeInclusive<u8> = 40..=100;
+
+fn default_theme_word() -> String {
+    "theme".into()
+}
+fn default_text_opacity() -> u8 {
+    100
+}
+fn default_edge_color() -> String {
+    "#000000".into()
+}
+
+/// The class codes a colour can be set for.
+pub const CLASS_CODES: std::ops::RangeInclusive<u32> = 11..=19;
+
+/// Keeps the class colours that are a class and a colour.
+fn valid_palette(p: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    p.into_iter()
+        .filter(|(k, v)| k.parse::<u32>().is_ok_and(|c| CLASS_CODES.contains(&c)) && is_hex_color(v))
+        .map(|(k, v)| (k, v.to_ascii_lowercase()))
+        .collect()
 }
 
 /// A colour picked by hand: `#` and six hex digits.
@@ -383,6 +486,11 @@ impl Default for Appearance {
             fill_tint: false,
             combat_power: true,
             odyle: true,
+            class_palette: BTreeMap::new(),
+            text_color: default_theme_word(),
+            text_opacity: default_text_opacity(),
+            text_edge: default_theme_word(),
+            edge_color: default_edge_color(),
         }
     }
 }
@@ -405,6 +513,13 @@ pub struct AppearanceChange {
     pub fill_tint: Option<bool>,
     pub combat_power: Option<bool>,
     pub odyle: Option<bool>,
+    /// The whole set of class colours of your own (an empty one: the built-in colours).
+    pub class_palette: Option<BTreeMap<String, String>>,
+    pub text_color: Option<String>,
+    /// Any number: clamped.
+    pub text_opacity: Option<i64>,
+    pub text_edge: Option<String>,
+    pub edge_color: Option<String>,
 }
 
 impl Appearance {
@@ -446,6 +561,21 @@ impl Appearance {
         if let Some(v) = c.odyle {
             self.odyle = v;
         }
+        if let Some(p) = c.class_palette {
+            self.class_palette = valid_palette(p);
+        }
+        if let Some(t) = c.text_color.filter(|t| t == "theme" || is_hex_color(t)) {
+            self.text_color = t.to_ascii_lowercase();
+        }
+        if let Some(o) = c.text_opacity {
+            self.text_opacity = o.clamp(i64::from(*TEXT_OPACITIES.start()), i64::from(*TEXT_OPACITIES.end())) as u8;
+        }
+        if let Some(e) = c.text_edge.filter(|e| TEXT_EDGES.contains(&e.as_str())) {
+            self.text_edge = e;
+        }
+        if let Some(e) = c.edge_color.filter(|e| is_hex_color(e)) {
+            self.edge_color = e.to_ascii_lowercase();
+        }
     }
 
     /// Repairs values from a hand-edited or older settings file.
@@ -478,6 +608,19 @@ impl Appearance {
         if !ROW_STYLES.contains(&self.row_style.as_str()) {
             self.row_style = fixed.row_style;
         }
+        self.class_palette = valid_palette(std::mem::take(&mut self.class_palette));
+        if self.text_color != "theme" && !is_hex_color(&self.text_color) {
+            self.text_color = fixed.text_color.clone();
+        }
+        if !TEXT_OPACITIES.contains(&self.text_opacity) {
+            self.text_opacity = fixed.text_opacity;
+        }
+        if !TEXT_EDGES.contains(&self.text_edge.as_str()) {
+            self.text_edge = fixed.text_edge.clone();
+        }
+        if !is_hex_color(&self.edge_color) {
+            self.edge_color = fixed.edge_color.clone();
+        }
         self
     }
 }
@@ -487,6 +630,7 @@ impl Settings {
         let mut s: Settings = load(&dir.join("settings.json"));
         s.appearance = s.appearance.sanitized();
         s.vitals = std::mem::take(&mut s.vitals).sanitized();
+        s.action_bar_look = std::mem::take(&mut s.action_bar_look).sanitized();
         if std::mem::take(&mut s.everyone) && s.scope == Scope::Mine {
             s.scope = Scope::Everyone;
         }
@@ -1559,8 +1703,20 @@ mod tests {
             fill_tint: Some(true),
             combat_power: Some(false),
             odyle: Some(false),
+            class_palette: None,
+            text_color: Some("#AABBCC".into()),
+            text_opacity: Some(10),
+            text_edge: Some("outline".into()),
+            edge_color: Some("not a colour".into()),
         });
+        assert_eq!((s.appearance.text_color.as_str(), s.appearance.text_opacity, s.appearance.text_edge.as_str(), s.appearance.edge_color.as_str()), ("#aabbcc", 40, "outline", "#000000"));
         assert_eq!((s.appearance.row_style.as_str(), s.appearance.fill_tint, s.appearance.combat_power, s.appearance.odyle), ("fill", true, false, false));
+        // Class colours: only real classes and colours are kept.
+        s.appearance.update(AppearanceChange {
+            class_palette: Some([("12", "#FF0000"), ("99", "#00ff00"), ("13", "blue")].map(|(k, v)| (k.to_string(), v.to_string())).into()),
+            ..Default::default()
+        });
+        assert_eq!(s.appearance.class_palette, [("12".to_string(), "#ff0000".to_string())].into());
         // An unknown row style is ignored.
         s.appearance.update(AppearanceChange { row_style: Some("wavy".into()), ..Default::default() });
         assert_eq!(s.appearance.row_style, "fill");
