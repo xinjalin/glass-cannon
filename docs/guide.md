@@ -319,9 +319,10 @@ your characters counts once an hour, so it's only what you've seen (the app neve
 online). **[worth a look]** shows just the pets you don't have and what you've rarely
 seen. The offers change on the hour, and differ per character: a page from before the
 hour turned is dimmed until you open it again. When you open the merchant in game, this
-window opens by itself (without taking the focus from the game), at most once every two
-minutes; turn that off in the settings (general → **open the black market with the
-game's**).
+window opens by itself (without taking the focus from the game), once a visit (closed while
+you go through the pages, it stays closed), and goes again when you leave the merchant
+(unless you've clicked into it). Turn that off in the settings (general → **open the black
+market with the game's**).
 
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when

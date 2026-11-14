@@ -343,21 +343,24 @@ fn toggle_window(handle: &AppHandle, app: &AppState, label: &str, placed: &Atomi
     w.set_focus().map_err(|e| e.to_string())
 }
 
-/// How long after it last came up by itself (or was closed) the black market window
-/// doesn't come up again: going through the merchant's pages after closing it doesn't
-/// bring it back.
-const BLACK_MARKET_AGAIN_MS: u64 = 120_000;
+/// A visit to the merchant with no page opened for this long is taken to be over, should
+/// leaving it not have been seen.
+const BLACK_MARKET_VISIT_MS: u64 = 300_000;
 
-/// The merchant opened in game: shows the black market window (settings → general), beside
-/// the game and without taking the focus from it, unless it's showing or came up lately.
+/// The merchant's pages came in: on a visit's first, shows the black market window
+/// (settings → general), without taking the focus from the game. Once a visit: closed
+/// while you go through the pages, it stays closed.
 pub fn black_market_opened(handle: &AppHandle, app: &AppState) {
-    if !lock(&app.settings).black_market_auto {
+    let now = crate::hotkeys::now_ms();
+    let last = app.black_market_auto_at.swap(now, Ordering::SeqCst);
+    let stale = last != 0 && now.saturating_sub(last) >= BLACK_MARKET_VISIT_MS;
+    let visiting = app.black_market_visit.swap(true, Ordering::SeqCst) && !stale;
+    if visiting || !lock(&app.settings).black_market_auto {
         return;
     }
     let Some(w) = handle.get_webview_window(BLACK_MARKET) else { return };
-    let now = crate::hotkeys::now_ms();
-    let last = app.black_market_auto_at.swap(now, Ordering::SeqCst);
-    if showing(&w) || (last != 0 && now.saturating_sub(last) < BLACK_MARKET_AGAIN_MS) {
+    let _ = w.unmaximize();
+    if showing(&w) {
         return;
     }
     let first = !app.black_market_placed.swap(true, Ordering::SeqCst);
@@ -368,6 +371,23 @@ pub fn black_market_opened(handle: &AppHandle, app: &AppState) {
         }
     }
     crate::style::show_quietly(&w);
+    app.black_market_auto_shown.store(true, Ordering::SeqCst);
+}
+
+/// Whether you're at the merchant, as far as the overlay knows (see `hud::watch`).
+pub fn at_black_market(app: &AppState) -> bool {
+    app.black_market_visit.load(Ordering::SeqCst)
+}
+
+/// Leaving the merchant (see `hud::watch`): the visit's over, and the black market window
+/// goes if it came up by itself and you haven't clicked into it.
+pub fn black_market_left<R: Runtime>(handle: &AppHandle<R>, app: &AppState) {
+    app.black_market_visit.store(false, Ordering::SeqCst);
+    if app.black_market_auto_shown.swap(false, Ordering::SeqCst) {
+        if let Some(w) = handle.get_webview_window(BLACK_MARKET) {
+            let _ = w.hide();
+        }
+    }
 }
 
 /// Shows the fight history, or hides it if it's showing.
@@ -397,6 +417,13 @@ pub fn open_checklist(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Resul
 /// Shows the black market window, or hides it if it's already showing (as the history).
 #[tauri::command]
 pub fn open_black_market(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    // It can't be maximized (it hid the game, with no way back), but it may have been
+    // before.
+    if let Some(w) = handle.get_webview_window(BLACK_MARKET) {
+        let _ = w.unmaximize();
+    }
+    // Opened or closed by you: it doesn't go by itself.
+    app.black_market_auto_shown.store(false, Ordering::SeqCst);
     toggle_window(&handle, &app, BLACK_MARKET, &app.black_market_placed, MIN_BLACK_MARKET)
 }
 

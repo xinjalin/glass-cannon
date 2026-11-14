@@ -67,20 +67,23 @@ extern "system" {
     fn SetWindowPos(hwnd: isize, after: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
 }
 
-/// Shows a window over the others without taking the focus (the game keeps its keys): on
-/// top of the windows that aren't kept on top, where it is, as it is.
+/// Shows a window over the others without taking the focus (the game keeps its keys), where
+/// it is, as it is. It's shown by the window library, which keeps track of it (shown behind
+/// its back, its hide did nothing: the window wouldn't close), while it can't take the
+/// focus; then it's raised and can again, for a click to give it the keys.
 pub fn show_quietly<R: Runtime>(window: &WebviewWindow<R>) {
     const HWND_TOP: isize = 0;
     const SWP_NOSIZE: u32 = 0x0001;
     const SWP_NOMOVE: u32 = 0x0002;
     const SWP_NOACTIVATE: u32 = 0x0010;
-    const SWP_SHOWWINDOW: u32 = 0x0040;
-    let Ok(hwnd) = window.hwnd() else { return };
-    let hwnd = hwnd.0 as isize;
-    let _ = window.run_on_main_thread(move || {
-        // SAFETY: a plain z-order and show change on our own window.
-        unsafe { SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_SHOWWINDOW) };
-    });
+    let _ = window.set_focusable(false);
+    let _ = window.show();
+    if let Ok(hwnd) = window.hwnd() {
+        let hwnd = hwnd.0 as isize;
+        // SAFETY: a plain z-order change on our own window.
+        unsafe { SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE) };
+    }
+    let _ = window.set_focusable(true);
 }
 
 /// Keeps the window's frame (and so its acrylic) in the active state.

@@ -135,6 +135,8 @@
         "visible": false,
         "shadow": true,
         "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": false

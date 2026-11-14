@@ -55,6 +55,67 @@ pub fn hud_rects(app: State<'_, Arc<AppState>>, rects: Vec<HitRect>, panels: Opt
     *lock(&app.hud_meter) = meter;
 }
 
+/// How long the game's cursor stays hidden (you're back in the game) before you're taken to
+/// have left the merchant: a moment's hiding (a loading screen) doesn't count.
+const MERCHANT_LEFT_AFTER: Duration = Duration::from_millis(1000);
+/// While the cursor shows, how often the top-right corner is looked at for the merchant's
+/// close X, and how many looks in a row without it (once seen) mean you've left.
+const MERCHANT_LOOK_EVERY: Duration = Duration::from_millis(500);
+const MERCHANT_GONE_LOOKS: u8 = 2;
+
+/// Telling that you've left the merchant. The cursor alone can't: the black market window
+/// comes up in the middle of the screen, where the game keeps its hidden cursor, and over
+/// our window it shows. So, while it shows, the top-right corner is looked at for the
+/// merchant's close X (as for game menus): gone from there, once seen, you've left.
+#[derive(Debug, Default)]
+struct MerchantWatch {
+    playing_since: Option<std::time::Instant>,
+    looked_at: Option<std::time::Instant>,
+    seen_mark: bool,
+    misses: u8,
+}
+
+impl MerchantWatch {
+    /// `corner`: whether the corner shows a menu's mark (None: couldn't tell).
+    fn left(&mut self, cursor: bool, corner: impl FnOnce() -> Option<bool>) -> bool {
+        if !cursor {
+            let since = *self.playing_since.get_or_insert_with(std::time::Instant::now);
+            return since.elapsed() >= MERCHANT_LEFT_AFTER;
+        }
+        self.playing_since = None;
+        if self.looked_at.is_some_and(|t| t.elapsed() < MERCHANT_LOOK_EVERY) {
+            return false;
+        }
+        self.looked_at = Some(std::time::Instant::now());
+        match corner() {
+            Some(true) => {
+                self.seen_mark = true;
+                self.misses = 0;
+            }
+            Some(false) if self.seen_mark => self.misses += 1,
+            _ => {}
+        }
+        self.misses >= MERCHANT_GONE_LOOKS
+    }
+}
+
+/// Whether the game's top-right corner shows a menu's close X or back arrow, our widgets
+/// left out; None when the black market window covers it (it can't be told then).
+fn merchant_corner<R: Runtime>(handle: &AppHandle<R>, app: &AppState, area: Rect) -> Option<bool> {
+    let mut corner = crate::menus::read_corner((area.left, area.top, area.width(), area.height()))?;
+    let side = corner.side() as f64;
+    if let Some(bm) = handle.get_webview_window(crate::BLACK_MARKET).filter(|w| w.is_visible().unwrap_or(false)) {
+        let (Ok(at), Ok(size)) = (bm.outer_position(), bm.outer_size()) else { return None };
+        let right = f64::from(area.right);
+        let (l, t, r, b) = (f64::from(at.x), f64::from(at.y), f64::from(at.x) + f64::from(size.width), f64::from(at.y) + f64::from(size.height));
+        if r > right - side && l < right && b > f64::from(area.top) && t < f64::from(area.top) + side {
+            return None;
+        }
+    }
+    corner.blank(&widgets_in_corner(&lock(&app.hud_drawn), f64::from(area.width()) - side, side));
+    Some(corner.has_menu_mark(f64::from(area.height())))
+}
+
 /// How far past its box a widget's glow and shadow can reach, in physical pixels.
 const WIDGET_BLEED: f64 = 8.0;
 
@@ -164,6 +225,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             // The game itself in front (not one of our windows), for the menu check.
             let mut game_in_front = false;
             let mut menus = crate::menus::MenuDetector::default();
+            // Watching for you leaving the merchant.
+            let mut merchant = MerchantWatch::default();
             loop {
                 let Some(w) = handle.get_webview_window(HUD) else { return };
                 let on = lock(&app.settings).overlay_on;
@@ -197,6 +260,17 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // redraws each widget in its own time).
                 // A game menu (settings → hide for game menus): as the map, from the cursor
                 // with a menu's close X, or a window's back arrow, at the top right (see `menus`).
+                // Leaving the merchant: its visit is over, and the black market window that came
+                // up with it goes.
+                if crate::settings::at_black_market(&app) && game_in_front {
+                    let corner = || placed.and_then(|area| merchant_corner(&handle, &app, area));
+                    if merchant.left(crate::menus::cursor_showing(), corner) {
+                        crate::settings::black_market_left(&handle, &app);
+                        merchant = MerchantWatch::default();
+                    }
+                } else {
+                    merchant.playing_since = None;
+                }
                 let menu_check = shown && !editing && game_in_front && app.args.replay.is_none() && lock(&app.settings).hide_for_menus;
                 let menu = match placed.filter(|_| menu_check) {
                     Some(area) => {
@@ -406,6 +480,29 @@ fn pointer_on_widget<R: Runtime>(handle: &AppHandle<R>, w: &tauri::WebviewWindow
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn leaving_the_merchant_is_its_close_x_gone_once_seen() {
+        let mut m = MerchantWatch::default();
+        // Each look as if the last were long ago.
+        let look = |m: &mut MerchantWatch, mark: Option<bool>| {
+            m.looked_at = None;
+            m.left(true, || mark)
+        };
+        // No mark seen yet (a merchant whose X isn't told): missing it means nothing.
+        assert!(!look(&mut m, Some(false)));
+        assert!(!look(&mut m, Some(false)));
+        assert!(!look(&mut m, Some(false)));
+        // Seen, then gone twice in a row: left. Covered by our window: can't tell.
+        assert!(!look(&mut m, Some(true)));
+        assert!(!look(&mut m, Some(false)));
+        assert!(!look(&mut m, None));
+        assert!(look(&mut m, Some(false)));
+        // Between looks, nothing is read.
+        let mut m = MerchantWatch::default();
+        assert!(!m.left(true, || Some(true)));
+        assert!(!m.left(true, || unreachable!()));
+    }
 
     #[test]
     fn a_widget_takes_the_pointer_over_its_box_only() {
