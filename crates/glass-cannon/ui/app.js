@@ -628,6 +628,11 @@ function placeNotice() {
   const box = $("box").getBoundingClientRect();
   $("notice").style.top = `${box.bottom - panel.top + 2}px`;
 }
+// It follows the rows' bottom edge the moment it moves (the meter fitted to a new height),
+// not at the notices' next turn: it floated over the rows meanwhile.
+new ResizeObserver(() => {
+  if (!$("notice").hidden) placeNotice();
+}).observe($("box"));
 
 setInterval(() => {
   if (!notices.length) return;
@@ -764,25 +769,48 @@ function drawDummy() {
     .join("\n");
 }
 
-// A live boss fight's HP and enrage (settings → boss hp).
+// The target line, in a live fight while the target frame widget is off (settings → on
+// the meter → target): its HP, time to kill, stagger and enrage, and its name when it isn't
+// the fight's (one you picked); your best against a boss.
+//
+// It keeps its place, and the cast line under it, for the whole fight (empty while there's
+// nothing to say): the meter isn't fitted to a new height each time a cast starts or ends.
 function drawBossBar(enc) {
   const bar = $("boss-bar");
-  const show = mode === "live" && enc.active && enc.target_boss && enc.target_max_hp && lastView && lastView.boss_hp;
+  const show = !!(mode === "live" && enc.active && lastView && lastView.target_line);
   bar.hidden = !show;
-  drawBossCast(show && lastView.boss_casts ? enc : null);
+  const known = lastView && lastView.target;
+  const t = known && known.max_hp ? known : null;
+  drawBossCast(show ? enc : null, t);
   if (!show) return;
-  const pct = Math.max(0, Math.min(1, (enc.target_hp ?? enc.target_max_hp) / enc.target_max_hp));
+  const name = $("boss-name");
+  name.hidden = !t || t.name === enc.target;
+  name.textContent = t ? t.name : "";
+  name.title = t && t.selected ? "Your target" : "";
+  const pct = t ? Math.max(0, Math.min(1, (t.hp ?? t.max_hp) / t.max_hp)) : 0;
   $("boss-hp-fill").style.width = `${pct * 100}%`;
-  $("boss-hp-text").textContent = `${(pct * 100).toFixed(1)}%`;
-  $("boss-hp-text").title = `${fmt(enc.target_hp ?? 0)} / ${fmt(enc.target_max_hp)} HP`;
-  const left = enc.berserk_us ? enc.berserk_us / 1000 - Date.now() : null;
+  $("boss-hp-text").textContent = t ? `${(pct * 100).toFixed(1)}%` : "–";
+  $("boss-hp-text").title = t ? `${fmt(t.hp ?? 0)} / ${fmt(t.max_hp)} HP` : "Its HP isn't known yet";
+  const ttk = $("boss-ttk");
+  ttk.textContent = t && t.time_to_kill_s != null ? `~${clock(t.time_to_kill_s)}` : "";
+  ttk.title = "How long until it dies, at the damage it took in the last 10 seconds";
+  const s = t && t.stagger;
+  const stagger = $("boss-stagger");
+  stagger.hidden = !s || !s.size;
+  if (s && s.size) {
+    const broken = s.state === 3;
+    stagger.textContent = broken ? "staggered!" : `stagger ${Math.round((s.left / s.size) * 100)}%`;
+    stagger.classList.toggle("broken", broken);
+    stagger.title = `Stagger gauge: ${fmt(s.left)} / ${fmt(s.size)}`;
+  }
+  const left = t && t.berserk_us ? t.berserk_us / 1000 - Date.now() : null;
   const enrage = $("enrage");
   enrage.hidden = left == null || left < -60_000 || left > 3_600_000;
   enrage.textContent = left > 0 ? `enrage ${clock(left / 1000)}` : "enraged";
   enrage.className = left != null && left < 30_000 ? "soon" : "";
   enrage.title = "When the boss goes berserk";
   // Your best against this boss: green while you're doing better.
-  const b = lastView.best;
+  const b = enc.target_boss ? lastView.best : null;
   const best = $("best");
   best.hidden = !b;
   if (b) {
@@ -798,17 +826,24 @@ function drawBossBar(enc) {
 // between refreshes, from when the snapshot came.
 let castLine = null;
 
-function drawBossCast(enc) {
+// `t`: the target, whose own cast shows when it isn't a boss with its casts followed
+// (settings → on the meter → boss casts).
+function drawBossCast(enc, t) {
   const line = $("boss-cast");
+  // Always there with the target line (empty between casts), so the meter's height holds.
   line.hidden = !enc;
   castLine = null;
   if (!enc) return;
-  const c = enc.boss_cast;
-  const next = lastView.boss_next;
+  const boss = !!(enc.target_boss && lastView.boss_casts);
+  const own = !boss && t && t.cast ? t.cast : null;
+  const c = boss ? enc.boss_cast : null;
+  const next = boss ? lastView.boss_next : null;
   // Most boss skills have no name in the game data: then the cast time says what it is
   // (name them in the analysis window's [boss] tab).
   const name = (x) => x.skill_name || (x.cast_ms ? `${(x.cast_ms / 1000).toFixed(1)} s cast` : "a cast");
-  if (c && c.cast_left_ms > 0) {
+  if (own) {
+    castLine = { kind: "casting", name: name(own), total: own.cast_ms, left: own.remaining_ms };
+  } else if (c && c.cast_left_ms > 0) {
     castLine = { kind: "casting", name: name(c), total: c.cast_ms, left: c.cast_left_ms };
   } else if (c && c.lands_left_ms > 0) {
     castLine = { kind: "landing", name: name(c), total: c.lands_ms, left: c.lands_left_ms };

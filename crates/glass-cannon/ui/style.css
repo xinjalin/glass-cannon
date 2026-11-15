@@ -189,6 +189,10 @@ svg {
 .hp-track { flex: 1; height: 0.45em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
 #boss-hp-fill { display: block; height: 100%; background: var(--bad); }
 #enrage { flex: none; color: var(--warn); }
+#boss-name { flex: none; max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
+#boss-ttk { flex: none; }
+#boss-stagger { flex: none; color: var(--accent-2); }
+#boss-stagger.broken { color: var(--warn); font-weight: 700; }
 #enrage.soon { color: var(--bad); font-weight: 700; }
 #best { flex: none; color: var(--faint); }
 /* A fixed grid and height: what it says changes several times a second, and nothing may

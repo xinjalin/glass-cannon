@@ -105,13 +105,13 @@ async function refresh() {
   }
   const att = $("tf-attacking");
   att.textContent = t.attacking ? `→ ${t.attacking_you ? "you" : t.attacking}` : "";
-  att.className = t.attacking_you ? "you" : "";
+  att.classList.toggle("you", !!t.attacking_you);
   att.title = "Who it's attacking";
   const left = t.berserk_us ? t.berserk_us / 1000 - Date.now() : null;
   const enrage = $("tf-enrage");
   enrage.hidden = left == null || left < -60_000 || left > 3_600_000;
   enrage.textContent = left > 0 ? `enrage ${clock(left / 1000)}` : "enraged";
-  enrage.className = left != null && left < 30_000 ? "soon" : "";
+  enrage.classList.toggle("soon", left != null && left < 30_000);
   // Your best against this boss: green while you're doing better.
   const b = t.best;
   $("tf-best-line").hidden = !b;
