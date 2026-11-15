@@ -181,6 +181,24 @@ $("pet-map").addEventListener("click", ACTIONS.petMap);
 $("attempts").addEventListener("click", ACTIONS.attempts);
 $("checklist").addEventListener("click", ACTIONS.checklist);
 $("black-market").addEventListener("click", ACTIONS.blackMarket);
+
+// The Shugo: one of its nyerks, at random (never the same twice running), and a wiggle.
+// An easter egg.
+const NYERKS = 7;
+let lastNyerk = 0;
+$("shugo").addEventListener("click", () => {
+  let n;
+  do n = 1 + Math.floor(Math.random() * NYERKS);
+  while (n === lastNyerk);
+  lastNyerk = n;
+  const sound = new Audio(`sounds/nyerk-${n}.wav`);
+  sound.volume = 0.8;
+  sound.play().catch(() => {});
+  const b = $("shugo");
+  b.classList.remove("nyerk");
+  void b.offsetWidth; // restart the wiggle
+  b.classList.add("nyerk");
+});
 $("arrange").addEventListener("click", async () => {
   await invoke("hud_edit", { on: !(state && state.arranging) }).catch(() => {});
   refresh();
