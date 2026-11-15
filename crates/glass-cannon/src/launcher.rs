@@ -24,9 +24,7 @@ pub struct LauncherState {
     overlay_on: bool,
     overlay_showing: bool,
     arranging: bool,
-    /// The overlay is stepping aside for the world map.
-    world_map: bool,
-    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
+    /// Why the widgets are stepping aside now: "", "menu" or "hotkey".
     step_aside: &'static str,
     /// Its widgets are hidden by the hotkey, and the hotkey's keys.
     hidden: bool,
@@ -90,8 +88,6 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
     if live {
         lock(&app.data).annotate(&mut snap);
     }
-    // Before the settings below: it reads them (and the meter) itself.
-    let world_map = crate::hud::on_world_map(&app);
     let history = lock(&app.history);
     let fight = match snap.encounter.as_ref().filter(|_| live) {
         Some(e) => Some(FightLine::of(e, true)),
@@ -107,7 +103,6 @@ pub fn launcher_state(app: State<'_, Arc<AppState>>) -> LauncherState {
         overlay_on: settings.overlay_on,
         overlay_showing: app.hud_shown.load(Ordering::SeqCst),
         arranging: app.hud_editing.load(Ordering::SeqCst),
-        world_map,
         step_aside: *lock(&app.step_aside),
         hidden: app.hud_hidden.load(Ordering::SeqCst),
         hide_keys: settings.hotkeys.get("show_hide").to_string(),

@@ -315,14 +315,15 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                     }
                     None => false,
                 };
-                // Hidden by the hotkey: as the map, until it's pressed again.
+                // Hidden by the hotkey: as for a menu, until it's pressed again. (The world map
+                // is a menu here, by its close X: the game's asking for the map's contents,
+                // as it was told by before, also comes now and then mid-fight, and the
+                // widgets flickered with it.)
                 let hidden = app.hud_hidden.load(Ordering::SeqCst);
-                let world_map = on_world_map(&app);
-                let map = shown && !editing && (world_map || menu || hidden);
+                let map = shown && !editing && (menu || hidden);
                 *lock(&app.step_aside) = match () {
                     _ if !map => "",
                     _ if hidden => "hotkey",
-                    _ if world_map => "map",
                     _ => "menu",
                 };
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
@@ -330,7 +331,7 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 }
                 // A menu over a party-finder lobby (its group not started): the meter stays,
                 // showing the party, to check everyone's combat power and gear score there.
-                let lobby = map && !hidden && !world_map && menu && in_lobby(&app);
+                let lobby = map && !hidden && menu && in_lobby(&app);
                 app.lobby_menu.store(lobby, Ordering::SeqCst);
                 if lobby_sent != Some(lobby) && handle.emit_to(HUD, "hud-keep-meter", lobby).is_ok() {
                     lobby_sent = Some(lobby);
@@ -358,15 +359,6 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
             }
         })
         .expect("starting the HUD thread");
-}
-
-/// The world map is open and the overlay steps aside for it (settings → hide on the world
-/// map): back within about 1.5 s of closing it, as the game stops asking for its contents.
-pub fn on_world_map(app: &AppState) -> bool {
-    // The setting first, on its own: the snapshot holds the meter while it reads the
-    // settings, so holding both here the other way round could deadlock.
-    let hide = lock(&app.settings).hide_on_world_map;
-    hide && app.engine.meter().world_map_open(app.engine.now())
 }
 
 /// In a party-finder group that hasn't started: someone in it has a ready mark (the game

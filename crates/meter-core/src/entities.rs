@@ -676,8 +676,11 @@ pub const RANKS: std::ops::RangeInclusive<u32> = 1..=19;
 /// A player's rank in their spawn (`0x3645`): the u32 just before their combat power. 1 to
 /// 19, 19 the lowest: on our captures (2026-11-07, the Abyss; 2026-11-13, the Ludra raid;
 /// 4,090 players) 19 is the most common by far (1,232), and the lower the rank, the higher
-/// the players' combat power (a median of 225K at 5, 176K at 10, 119K at 19). Which of the
-/// game's ranks each number is hasn't been checked against the game.
+/// the players' combat power (a median of 225K at 5, 176K at 10, 119K at 19). They're the
+/// game's 18 ranks, best first (Supreme Commander, Commander, Marshal, General, 5- to
+/// 1-Star Officer, First- to Ninth-Class Soldier), and 19 for a player off their class's
+/// board: the fewer places a rank has (one Supreme Commander a class), the fewer players had
+/// it.
 pub fn parse_spawn_rank(p: &[u8]) -> Option<u32> {
     let (start, _) = spawn_combat_power_at(p)?;
     u32_at(p, start.checked_sub(4)?).filter(|r| RANKS.contains(r))

@@ -314,6 +314,15 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .tf-class-icon { width: 1.25em; height: 1.25em; object-fit: contain; }
 .tf-class { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--class, var(--text)); font-weight: 700; }
 .tf-cp { color: var(--text); font-weight: 700; }
+/* A player target's class colour (settings → overlay → target frame): on their name, or
+   over the whole frame, with a stripe of it down its left edge. */
+[data-class-look="name"] #panel.has-class .tf-name { color: var(--class); }
+[data-class-look="frame"] #panel.has-class { background: color-mix(in srgb, var(--class) 30%, var(--tint)); box-shadow: inset 0.25em 0 0 var(--class); }
+[data-class-look="frame"] #panel.has-class .tf-hp #tf-hp-fill { background: var(--class); }
+[data-class-look="off"] .tf-class { color: var(--text); }
+/* The parts turned off; a line left with nothing in it goes too. */
+#frame .off { display: none !important; }
+#frame .tf-line:not(:has(> :not(.off))), #frame .tf-player:not(:has(> :not(.off))) { display: none; }
 .tf-line { display: flex; justify-content: space-between; gap: 0.6em; color: var(--muted); font-size: 0.9em; font-variant-numeric: tabular-nums; }
 #tf-attacking.you { color: var(--warn); font-weight: 700; }
 #tf-enrage { color: var(--warn); }

@@ -50,6 +50,7 @@ mod runs;
 mod settings;
 mod store;
 mod style;
+mod targetframe;
 mod vitals;
 mod widgets;
 
@@ -181,7 +182,7 @@ pub struct AppState {
     hotkey_states: Mutex<std::collections::BTreeMap<&'static str, &'static str>>,
     /// The overlay's widgets are hidden for now by the hotkey (not saved).
     hud_hidden: AtomicBool,
-    /// Why the widgets are stepping aside now: "", "map", "menu" or "hotkey".
+    /// Why the widgets are stepping aside now: "", "menu" or "hotkey".
     step_aside: Mutex<&'static str>,
     /// The menu check's last results: how X-like and how arrow-like the top-right corner
     /// was (for the setting's tooltip).
@@ -1108,7 +1109,6 @@ fn main() {
             widgets::set_boss_skill_alert,
             widgets::boss_skill_alerts,
             widgets::set_alert_sound,
-            widgets::set_hide_on_world_map,
             widgets::set_close_with_game,
             widgets::set_hide_for_menus,
             widgets::set_click_through,
@@ -1133,6 +1133,9 @@ fn main() {
             vitals::vitals_setup,
             vitals::set_vitals,
             vitals::reset_vitals,
+            targetframe::target_setup,
+            targetframe::set_target_setup,
+            targetframe::reset_target_setup,
             blackmarket::black_market,
             settings::fit_pet_map,
             settings::reset_settings,
