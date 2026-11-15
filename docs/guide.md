@@ -101,7 +101,10 @@ finishes. The widgets:
   (thin, with notches outside them like a ruler's, at a quarter, half and three quarters) arcs; a **damage trail**, where HP
   you lose stays as a pale strip for a moment before shrinking away; each arc's colour (HP, stamina, MP,
   flight power, cast, and the shield over HP), picked from a swatch; how round they are, from straight to
-  very round; how wide; **always show arcs**, which keeps their tracks up with nothing to
+  very round; how wide; **which arcs show** (HP, stamina, MP, flight power: only HP and
+  stamina, say) and where each goes: left or right, outer or inner (moving one to another's
+  spot swaps them; alone on its side, an inner arc moves out to the outer line);
+  **always show arcs**, which keeps their tracks up with nothing to
   fill them; the numbers (kept clear of the arcs, and never resizing them) as value and
   max, percent, or both; their size; what's behind
   them (an outline, a shadow, a dark plate or nothing); whether they go by the arcs' top
