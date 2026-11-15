@@ -53,8 +53,38 @@
                 <button type="button" class="swatch" data-theme-choice="sky" title="sky"></button>
                 <button type="button" class="swatch" data-theme-choice="amber" title="amber"></button>
                 <button type="button" class="swatch" data-theme-choice="mono" title="mono"></button>
+                <button type="button" class="swatch" data-theme-choice="seafoam" title="seafoam: mint and teal over deep navy"></button>
+                <button type="button" class="swatch" data-theme-choice="seafoam-light" title="seafoam light: navy and teal on mint glass (a light theme)"></button>
+                <button type="button" class="swatch" data-theme-choice="scarlet" title="scarlet: scarlet and powder petal over carbon black"></button>
+                <button type="button" class="swatch" data-theme-choice="teal" title="teal: ash grey and beige over ink black"></button>
+                <button type="button" class="swatch" data-theme-choice="indigo" title="indigo: periwinkle and ghost white over space indigo"></button>
                 <button type="button" class="swatch custom" data-theme-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Theme colour"></button>
               </span>
+            </div>
+            <p class="hint" data-keywords="colour color parts background glass tint accent numbers lines borders fills theme reset">the theme's parts: each follows the theme until you pick a colour</p>
+            <div class="line" data-keywords="colour color parts reset theme">
+              <span class="key">parts</span>
+              <button id="parts-reset" type="button" class="chip end" title="Every part back to the theme's colours">[all to theme]</button>
+            </div>
+            <div class="line" data-keywords="colour color background glass tint panel">
+              <span class="key">background colour</span>
+              <span id="part-background" class="swatches" role="radiogroup" aria-label="Background colour"></span>
+            </div>
+            <div class="line" data-keywords="colour color accent headings buttons tabs highlight">
+              <span class="key">accent</span>
+              <span id="part-accent" class="swatches" role="radiogroup" aria-label="Accent colour"></span>
+            </div>
+            <div class="line" data-keywords="colour color numbers dps figures">
+              <span class="key">numbers</span>
+              <span id="part-numbers" class="swatches" role="radiogroup" aria-label="Numbers colour"></span>
+            </div>
+            <div class="line" data-keywords="colour color lines borders dividers frame">
+              <span class="key">lines</span>
+              <span id="part-lines" class="swatches" role="radiogroup" aria-label="Lines colour"></span>
+            </div>
+            <div class="line" data-keywords="colour color fills selected buttons bars rows">
+              <span class="key">fills</span>
+              <span id="part-fills" class="swatches" role="radiogroup" aria-label="Fills colour"></span>
             </div>
             <div class="line" data-keywords="color colour class damage rows">
               <span class="key">bars</span>
@@ -143,7 +173,7 @@
           </fieldset>
           <fieldset class="box">
             <legend>background</legend>
-            <p class="hint">the overlay's widgets · the windows keep a solid background of their own</p>
+            <p class="hint">the overlay's widgets · the windows keep a solid background (the theme's, or your background colour)</p>
             <div class="line" data-keywords="blur frosted glass transparent clear">
               <span class="key">background</span>
               <span class="choice" role="radiogroup" aria-label="Background">

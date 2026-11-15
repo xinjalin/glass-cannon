@@ -43,8 +43,10 @@
   --muted: rgba(255, 247, 243, 0.8);
   --faint: rgba(255, 247, 243, 0.58);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
-  --line: color-mix(in srgb, var(--accent) 50%, transparent);
-  --line-faint: color-mix(in srgb, var(--accent) 20%, transparent);
+  /* Lines (borders, dividers): the accent's unless a theme (or you) gives them their own. */
+  --line-base: var(--accent);
+  --line: color-mix(in srgb, var(--line-base) 50%, transparent);
+  --line-faint: color-mix(in srgb, var(--line-base) 20%, transparent);
   /* Text on fills of the accent: dark, or light when a picked colour is dark. */
   --ink: #1b0f11;
   /* Fills (selected buttons, bars, filled rows) use a picked colour as it is; text in the
@@ -69,6 +71,81 @@
   --ok: #79dcaa;
   --warn: #ffe59e;
   --bad: #f87070;
+}
+
+/* Palette themes: each part its own colour from one palette: the glass, the accent
+   (headings, buttons), the numbers, the text, the lines, and the fills (selected buttons,
+   bars, filled rows) with the text that reads on them. After :root, as night. */
+/* Seafoam: mint and teal over deep navy-teal, white text, navy on the mint fills. */
+[data-theme="seafoam"] {
+  --accent: #aee7d2;
+  --accent-2: #9fc3dd;
+  --tint-rgb: 12, 24, 33;
+  --text: #f8f3f0;
+  --muted: rgba(248, 243, 240, 0.78);
+  --faint: rgba(248, 243, 240, 0.55);
+  --line-base: #76ada3;
+  --accent-fill: #aee7d2;
+  --ink: #26417e;
+}
+/* Seafoam light: the same palette as it is, light: mint glass, navy text, a deep teal
+   accent, brown numbers (the bow tie), teal lines, mint fills with navy on them; status
+   colours dark enough to read on it, and a light halo round the text in place of a shadow. */
+[data-theme="seafoam-light"] {
+  --accent: #2f7468;
+  --accent-2: #5a3c3b;
+  --tint-rgb: 224, 254, 249;
+  --text: #26417e;
+  --muted: rgba(38, 65, 126, 0.8);
+  --faint: rgba(38, 65, 126, 0.58);
+  --line-base: #76ada3;
+  --accent-fill: #aee7d2;
+  --ink: #26417e;
+  --ok: #217a4a;
+  --warn: #93630f;
+  --bad: #b8332f;
+  --shadow: 0 0 2px rgba(255, 255, 255, 0.7);
+}
+/* With no glass at all, the light text needs its halo stronger to read over the game. */
+[data-theme="seafoam-light"][data-backdrop="clear"] {
+  --shadow: 0 0 2px rgba(255, 255, 255, 0.95), 0 1px 3px rgba(255, 255, 255, 0.85);
+}
+/* Scarlet: scarlet over carbon black, powder-petal numbers, platinum text, charcoal lines. */
+[data-theme="scarlet"] {
+  --accent: #ff4d3d;
+  --accent-2: #ecded5;
+  --tint-rgb: 25, 23, 22;
+  --text: #e9eded;
+  --muted: rgba(233, 237, 237, 0.75);
+  --faint: rgba(233, 237, 237, 0.52);
+  --line-base: #7d8186;
+  --accent-fill: #ff311f;
+  --ink: #191716;
+}
+/* Teal: ash grey over ink black, beige text, air-force-blue numbers and lines, dark teal
+   fills. */
+[data-theme="teal"] {
+  --accent: #aec3b0;
+  --accent-2: #8fbccb;
+  --tint-rgb: 1, 22, 30;
+  --text: #eff6e0;
+  --muted: rgba(239, 246, 224, 0.76);
+  --faint: rgba(239, 246, 224, 0.52);
+  --line-base: #598392;
+  --accent-fill: #124559;
+  --ink: #eff6e0;
+}
+/* Indigo: periwinkle over space indigo, ghost-white text and numbers. */
+[data-theme="indigo"] {
+  --accent: #e4d9ff;
+  --accent-2: #fafaff;
+  --tint-rgb: 30, 39, 73;
+  --text: #fafaff;
+  --muted: rgba(250, 250, 255, 0.76);
+  --faint: rgba(250, 250, 255, 0.52);
+  --line-base: #8e94d6;
+  --accent-fill: #e4d9ff;
+  --ink: #1e2749;
 }
 
 /* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */

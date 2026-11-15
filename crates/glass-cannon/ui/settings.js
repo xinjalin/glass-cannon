@@ -109,6 +109,7 @@ function drawAppearance(a) {
     b.setAttribute("aria-checked", String(b.dataset.barChoice === a.bar_color));
   }
   drawCustom(document.querySelector("[data-theme-custom]"), a.theme);
+  drawParts(a);
   drawCustom(document.querySelector("[data-bar-custom]"), a.bar_color);
   for (const b of document.querySelectorAll("[data-backdrop-choice]")) {
     b.setAttribute("role", "radio");
@@ -248,6 +249,7 @@ function setAppearance(change) {
 for (const b of document.querySelectorAll("[data-theme-choice]")) {
   b.addEventListener("click", () => setAppearance({ theme: b.dataset.themeChoice }));
 }
+$("parts-reset").addEventListener("click", () => setAppearance(Object.fromEntries(PARTS.map(([, , key]) => [key, "theme"]))));
 for (const b of document.querySelectorAll("[data-highlight-choice]")) {
   b.addEventListener("click", () => setAppearance({ highlight: b.dataset.highlightChoice }));
 }
@@ -376,6 +378,22 @@ const EDGE_COLOURS = [
   ["navy", "#10204a"],
 ];
 const TEXT_OP = { min: 40, max: 100, step: 10 };
+// The theme's parts (settings → colours), each with a few colours from the palettes.
+const PARTS = [
+  ["background", "background_color", "backgroundColor", [["carbon black", "#191716"], ["ink black", "#01161e"], ["space indigo", "#1e2749"], ["jet black", "#30343f"], ["deep navy", "#0c1821"]]],
+  ["accent", "accent_color", "accentColor", [["mint", "#aee7d2"], ["scarlet", "#ff4d3d"], ["ash grey", "#aec3b0"], ["periwinkle", "#e4d9ff"], ["teal", "#76ada3"]]],
+  ["numbers", "number_color", "numberColor", [["powder petal", "#ecded5"], ["beige", "#eff6e0"], ["ghost white", "#fafaff"], ["light teal", "#bbe4df"], ["sky", "#9fc3dd"]]],
+  ["lines", "line_color", "lineColor", [["charcoal", "#7d8186"], ["air force blue", "#598392"], ["teal", "#76ada3"], ["indigo", "#8e94d6"], ["grey", "#707175"]]],
+  ["fills", "fill_color", "fillColor", [["mint", "#aee7d2"], ["scarlet", "#ff311f"], ["dark teal", "#124559"], ["periwinkle", "#e4d9ff"], ["twilight indigo", "#273469"]]],
+];
+const partRows = {};
+
+function drawParts(a) {
+  for (const [name, field, key, presets] of PARTS) {
+    if (!partRows[name]) partRows[name] = makeColourRow(`part-${name}`, presets, true, (v) => setAppearance({ [key]: v }));
+    markColourRow(partRows[name], a[field] || "theme");
+  }
+}
 const colourRows = {};
 
 // A row of colour swatches (with [theme] first when `theme` is given) and a picker.
@@ -438,7 +456,11 @@ function markColourRow(row, value) {
 function drawTextStyle(a) {
   if (!colourRows.text) {
     colourRows.text = makeColourRow("text-colours", TEXT_COLOURS, true, (v) => setAppearance({ textColor: v }));
-    colourRows.edge = makeColourRow("edge-colours", EDGE_COLOURS, false, (v) => setAppearance({ edgeColor: v }));
+    // With no edge, a colour brings the theme's shadow back in it (or the click would do
+    // nothing you could see).
+    colourRows.edge = makeColourRow("edge-colours", EDGE_COLOURS, false, (v) =>
+      setAppearance(state.appearance && state.appearance.text_edge === "none" ? { edgeColor: v, textEdge: "theme" } : { edgeColor: v }),
+    );
   }
   markColourRow(colourRows.text, a.text_color || "theme");
   markColourRow(colourRows.edge, a.edge_color || "#000000");
@@ -450,8 +472,6 @@ function drawTextStyle(a) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(b.dataset.textEdge === (a.text_edge || "theme")));
   }
-  // The edge's colour only matters with an edge of your own.
-  for (const b of colourRows.edge.items) b.disabled = !a.text_edge || a.text_edge === "theme" || a.text_edge === "none";
 }
 
 $("text-op-down").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) - TEXT_OP.step }));

@@ -16,6 +16,14 @@ html:not(.widget) {
   --raised: #15181c;
   --frame-x: 0.9em;
 }
+/* The palette themes' windows take the palette's background (the title and footer bars a
+   step lighter; the light theme's a step darker, its text with no shadow). A background
+   colour of your own sets them too (theme.js). */
+html:not(.widget)[data-theme="seafoam"] { --win-rgb: 12, 24, 33; --raised: #13232f; }
+html:not(.widget)[data-theme="seafoam-light"] { --win-rgb: 224, 254, 249; --raised: #cbeee7; --shadow: none; }
+html:not(.widget)[data-theme="scarlet"] { --win-rgb: 25, 23, 22; --raised: #23201f; }
+html:not(.widget)[data-theme="teal"] { --win-rgb: 1, 22, 30; --raised: #082531; }
+html:not(.widget)[data-theme="indigo"] { --win-rgb: 30, 39, 73; --raised: #283363; }
 
 #panel { padding-left: var(--frame-x); padding-right: var(--frame-x); }
 
