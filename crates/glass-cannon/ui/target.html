@@ -13,20 +13,20 @@
       <div class="tf-head">
         <span id="tf-boss" class="boss" hidden>BOSS</span>
         <span id="tf-name" class="tf-name"></span>
-        <span id="tf-pct" class="tf-pct"></span>
+        <span id="tf-pct" data-part="percent" class="tf-pct"></span>
       </div>
       <div id="tf-player" class="tf-player" hidden>
-        <img id="tf-class-icon" class="tf-class-icon" alt="" hidden>
-        <span id="tf-class" class="tf-class"></span>
-        <span id="tf-rank" class="tf-rank"></span>
-        <span id="tf-cp" class="tf-cp"></span>
+        <img id="tf-class-icon" class="tf-class-icon" data-part="class" alt="" hidden>
+        <span id="tf-class" data-part="class" class="tf-class"></span>
+        <span id="tf-rank" data-part="rank" class="tf-rank"></span>
+        <span id="tf-cp" data-part="cp" class="tf-cp"></span>
       </div>
-      <div class="tf-hp"><span id="tf-hp-fill"></span></div>
+      <div class="tf-hp" data-part="bar"><span id="tf-hp-fill"></span></div>
       <div class="tf-line">
-        <span id="tf-hp-text"></span>
-        <span id="tf-ttk"></span>
+        <span id="tf-hp-text" data-part="hp"></span>
+        <span id="tf-ttk" data-part="ttk"></span>
       </div>
-      <div id="tf-cast-box" hidden>
+      <div id="tf-cast-box" data-part="cast" hidden>
         <div class="tf-line tf-cast-line">
           <span id="tf-cast-name"></span>
           <span id="tf-cast-time"></span>
@@ -34,13 +34,13 @@
         <div class="tf-cast"><span id="tf-cast-fill"></span></div>
       </div>
       <div class="tf-line">
-        <span id="tf-attacking"></span>
-        <span id="tf-enrage"></span>
+        <span id="tf-attacking" data-part="attacking"></span>
+        <span id="tf-enrage" data-part="enrage"></span>
       </div>
-      <div id="tf-best-line" class="tf-line" hidden>
+      <div id="tf-best-line" data-part="best" class="tf-line" hidden>
         <span id="tf-best"></span>
       </div>
-      <div id="tf-stagger-box" hidden>
+      <div id="tf-stagger-box" data-part="stagger" hidden>
         <div class="tf-stagger"><span id="tf-stagger-fill"></span></div>
         <span id="tf-stagger-text" class="note"></span>
       </div>

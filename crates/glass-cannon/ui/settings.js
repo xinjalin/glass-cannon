@@ -171,7 +171,6 @@ async function refresh() {
     setToggle("boss-on-you", state.boss_on_you);
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
-    setToggle("hide-on-world-map", state.hide_on_world_map);
     setToggle("close-with-game", state.close_with_game);
     setToggle("hide-for-menus", state.hide_for_menus);
     setToggle("click-through", state.click_through);
@@ -558,11 +557,6 @@ for (const b of document.querySelectorAll("[data-widget]")) {
 // Arrange the overlay; again (or [ done ] on the overlay) saves the layout and stops.
 $("arrange-overlay").addEventListener("click", async () => {
   await invoke("hud_edit", { on: !(state && state.arranging) }).catch((e) => say(String(e), "error"));
-  refresh();
-});
-
-$("hide-on-world-map").addEventListener("click", async () => {
-  await invoke("set_hide_on_world_map", { on: !(state && state.hide_on_world_map) });
   refresh();
 });
 
@@ -964,6 +958,57 @@ invoke("cooldowns_look")
   .then((l) => {
     cdLook = l;
     drawCdLook();
+  })
+  .catch(() => {});
+
+// ---------------------------------------------------------------- target frame
+
+// How the target frame looks (targetframe.rs); the widget follows each change at once.
+let targetSetup = null;
+
+function drawTargetSetup() {
+  const t = targetSetup;
+  if (!t) return;
+  for (const b of document.querySelectorAll("[data-tf]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(t[b.dataset.tf] === b.dataset.tfValue));
+  }
+  const hidden = new Set(t.hidden || []);
+  for (const b of document.querySelectorAll("[data-tf-part]")) {
+    const on = !hidden.has(b.dataset.tfPart);
+    b.setAttribute("aria-pressed", String(on));
+    b.querySelector(".state").textContent = on ? "[on]" : "[off]";
+  }
+}
+
+async function setTargetSetup(change) {
+  try {
+    targetSetup = await invoke("set_target_setup", { change });
+  } catch {
+    // Unchanged, then.
+  }
+  drawTargetSetup();
+}
+
+for (const b of document.querySelectorAll("[data-tf]")) {
+  const key = { class_look: "classLook", rank_style: "rankStyle" }[b.dataset.tf];
+  b.addEventListener("click", () => setTargetSetup({ [key]: b.dataset.tfValue }));
+}
+for (const b of document.querySelectorAll("[data-tf-part]")) {
+  b.addEventListener("click", () => setTargetSetup({ part: b.dataset.tfPart, shown: b.getAttribute("aria-pressed") !== "true" }));
+}
+$("tf-reset").addEventListener("click", async () => {
+  try {
+    targetSetup = await invoke("reset_target_setup");
+  } catch {
+    // Unchanged, then.
+  }
+  drawTargetSetup();
+});
+invoke("target_setup")
+  .then((t) => {
+    targetSetup = t;
+    drawTargetSetup();
   })
   .catch(() => {});
 

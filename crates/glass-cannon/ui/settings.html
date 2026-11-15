@@ -219,6 +219,7 @@
             <button type="button" role="tab" data-subtab="party-cooldowns" aria-selected="false" tabindex="-1">[party cooldowns]</button>
             <button type="button" role="tab" data-subtab="action-bar" aria-selected="false" tabindex="-1">[action bar]</button>
             <button type="button" role="tab" data-subtab="vitals" aria-selected="false" tabindex="-1">[vitals arcs]</button>
+            <button type="button" role="tab" data-subtab="target" aria-selected="false" tabindex="-1">[target frame]</button>
           </div>
           <div id="subpanels" class="subpanels">
           <fieldset class="box subpanel" data-subtab="cooldowns" data-keywords="cooldowns timeline list">
@@ -370,13 +371,70 @@
               <span class="key">reset</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
+          <fieldset class="box subpanel" data-subtab="target" data-keywords="target frame pvp player class rank">
+            <legend>target frame</legend>
+            <div class="line" data-keywords="class colour color pvp player name frame background tint">
+              <span class="key">class colour</span>
+              <span class="choice" role="radiogroup" aria-label="A player target's class colour">
+                <button type="button" data-tf="class_look" data-tf-value="off" title="No class colour">[off]</button>
+                <button type="button" data-tf="class_look" data-tf-value="name" title="Their name in their class's colour">[name]</button>
+                <button type="button" data-tf="class_look" data-tf-value="frame" title="The whole frame tinted their class's colour, to tell at a glance who you're up against">[frame]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="rank title number abyss officer soldier general">
+              <span class="key">rank</span>
+              <span class="choice" role="radiogroup" aria-label="How a player's rank shows">
+                <button type="button" data-tf="rank_style" data-tf-value="title" title="The game's title for it: Supreme Commander, Commander, Marshal, General, 5- to 1-Star Officer, First- to Ninth-Class Soldier">[title]</button>
+                <button type="button" data-tf="rank_style" data-tf-value="number" title="Its number, 1 (Supreme Commander) to 18 (Ninth-Class Soldier)">[number]</button>
+              </span>
+            </div>
+            <p class="hint" data-keywords="show hide parts elements">what the frame shows</p>
+            <div class="widget-grid" data-keywords="show hide parts elements hp percent bar time kill cast attacking enrage best stagger cp">
+              <button type="button" class="opt" data-tf-part="percent" aria-pressed="true" title="Its HP as a percent, by its name">
+                <span class="key">hp %</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="class" aria-pressed="true" title="A player's class: icon and name">
+                <span class="key">class</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="rank" aria-pressed="true" title="A player's rank">
+                <span class="key">rank</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="cp" aria-pressed="true" title="A player's combat power">
+                <span class="key">cp</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="bar" aria-pressed="true" title="The HP bar">
+                <span class="key">hp bar</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="hp" aria-pressed="true" title="Its HP and max HP under the bar">
+                <span class="key">hp</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="ttk" aria-pressed="true" title="How long until it dies, at the damage it took in the last 10 seconds">
+                <span class="key">time to kill</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="cast" aria-pressed="true" title="What it's casting, with a bar">
+                <span class="key">cast</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="attacking" aria-pressed="true" title="Who it's attacking">
+                <span class="key">attacking</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="enrage" aria-pressed="true" title="When a boss enrages">
+                <span class="key">enrage</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="best" aria-pressed="true" title="Your best DPS and fastest kill against a boss">
+                <span class="key">your best</span><span class="state">[on]</span>
+              </button>
+              <button type="button" class="opt" data-tf-part="stagger" aria-pressed="true" title="A boss's stagger gauge">
+                <span class="key">stagger</span><span class="state">[on]</span>
+              </button>
+            </div>
+            <button id="tf-reset" type="button" class="opt" data-keywords="reset default" title="The target frame as it was at first">
+              <span class="key">reset</span><span class="state">[ reset ]</span>
+            </button>
+          </fieldset>
           </div>
           <fieldset class="box">
             <legend>over the game</legend>
-            <button id="hide-on-world-map" data-keywords="map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while the world map is open, and comes back within about 1.5 s of closing it">
-              <span class="key">hide on the world map</span><span class="state">[on]</span>
-            </button>
-            <button id="hide-for-menus" data-keywords="inventory menu auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), at a strip at its bottom middle for the gold Confirm button of reward screens (a Monster Cube's, Shugo's…), and over the top of the screen for a window's close X on its title bar (Attendance…), and steps aside only when one is there. They're only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over the corner or the button hides it from the meter">
+            <button id="hide-for-menus" data-keywords="inventory menu world map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open, the world map among them (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), at a strip at its bottom middle for the gold Confirm button of reward screens (a Monster Cube's, Shugo's…), and over the top of the screen for a window's close X on its title bar (Attendance…), and steps aside only when one is there. They're only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over the corner or the button hides it from the meter">
               <span class="key">hide for game menus</span><span class="state">[off]</span>
             </button>
             <button id="click-through" data-keywords="click through mouse pass input interact" type="button" class="opt" aria-pressed="false" title="Every click goes through the widgets to the game, the meter's, the world timers' and the pet tracker's too (the other widgets always let them through). Arranging the widgets still takes the mouse">

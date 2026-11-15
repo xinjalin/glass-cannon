@@ -211,15 +211,15 @@ pub struct Settings {
     /// How the vitals arcs widget looks.
     #[serde(default)]
     pub vitals: crate::vitals::VitalsSetup,
+    /// How the target frame looks.
+    #[serde(default)]
+    pub target: crate::targetframe::TargetSetup,
     /// A sound with each boss warning in the overlay.
     #[serde(default = "default_true")]
     pub alert_sound: bool,
     /// The boss warnings say when the boss turns to attack you.
     #[serde(default = "default_true")]
     pub boss_on_you: bool,
-    /// The overlay steps aside while the world map is open.
-    #[serde(default = "default_true")]
-    pub hide_on_world_map: bool,
     /// The launcher kept on top of other windows (its green light).
     #[serde(default)]
     pub launcher_on_top: bool,
@@ -634,6 +634,7 @@ impl Settings {
         let mut s: Settings = load(&dir.join("settings.json"));
         s.appearance = s.appearance.sanitized();
         s.vitals = std::mem::take(&mut s.vitals).sanitized();
+        s.target = std::mem::take(&mut s.target).sanitized();
         s.action_bar_look = std::mem::take(&mut s.action_bar_look).sanitized();
         if std::mem::take(&mut s.everyone) && s.scope == Scope::Mine {
             s.scope = Scope::Everyone;

@@ -5,6 +5,46 @@
 
 const POLL_MS = 250;
 
+// How it looks (settings → overlay → target frame; targetframe.rs): these until read.
+let setup = { class_look: "name", rank_style: "title", hidden: [] };
+
+// The game's ranks, 1 the highest; 19 is a player without one (not on their class's
+// board), the most common by far.
+const RANKS = [
+  "Supreme Commander",
+  "Commander",
+  "Marshal",
+  "General",
+  "5-Star Officer",
+  "4-Star Officer",
+  "3-Star Officer",
+  "2-Star Officer",
+  "1-Star Officer",
+  "First-Class Soldier",
+  "Second-Class Soldier",
+  "Third-Class Soldier",
+  "Fourth-Class Soldier",
+  "Fifth-Class Soldier",
+  "Sixth-Class Soldier",
+  "Seventh-Class Soldier",
+  "Eighth-Class Soldier",
+  "Ninth-Class Soldier",
+];
+const UNRANKED = 19;
+
+function rankText(rank) {
+  if (rank == null) return "";
+  if (setup.rank_style === "number") return rank >= UNRANKED ? "unranked" : `rank ${rank}`;
+  return RANKS[rank - 1] || "unranked";
+}
+
+// The class look on the page, and the parts turned off.
+function applySetup() {
+  document.body.dataset.classLook = setup.class_look;
+  const hidden = new Set(setup.hidden || []);
+  for (const e of document.querySelectorAll("[data-part]")) e.classList.toggle("off", hidden.has(e.dataset.part));
+}
+
 // Class icons, loaded once each (null while loading or missing).
 const classIcons = new Map();
 function classIconUrl(code) {
@@ -21,14 +61,17 @@ function classIconUrl(code) {
 // A player you target: their class (in its colour), rank and combat power.
 function drawPlayer(p) {
   $("tf-player").hidden = !p;
-  $("frame").className = p && p.class_code ? `c${p.class_code}` : "";
+  // Their class's colour on the frame (as the settings have it): set on the panel, so a
+  // whole-frame tint can reach its background.
+  const cls = p && p.class_code ? p.class_code : null;
+  $("panel").className = cls ? `has-class c${cls}` : "";
   if (!p) return;
   const icon = classIconUrl(p.class_code);
   $("tf-class-icon").hidden = !icon;
   if (icon && $("tf-class-icon").src !== icon) $("tf-class-icon").src = icon;
   $("tf-class").textContent = p.class_name || "class not known yet";
-  $("tf-rank").textContent = p.rank != null ? `rank ${p.rank}` : "";
-  $("tf-rank").title = p.rank != null ? "Their rank as the game sends it: 1 the highest, 19 the lowest" : "";
+  $("tf-rank").textContent = rankText(p.rank);
+  $("tf-rank").title = p.rank != null ? (p.rank >= UNRANKED ? "Not on their class's rank board" : `${RANKS[p.rank - 1]} (rank ${p.rank} of 18)`) : "";
   $("tf-cp").textContent = p.combat_power != null ? `CP ${fmt(p.combat_power)}` : "";
 }
 
@@ -90,4 +133,17 @@ async function refresh() {
 setInterval(() => {
   if (!document.hidden) refresh();
 }, POLL_MS);
+tauri.event.listen("target-setup", (e) => {
+  if (e.payload) setup = e.payload;
+  applySetup();
+  refresh();
+});
+invoke("target_setup")
+  .then((s) => {
+    if (s) setup = s;
+    applySetup();
+    refresh();
+  })
+  .catch(() => {});
+applySetup();
 refresh();

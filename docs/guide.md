@@ -76,8 +76,13 @@ finishes. The widgets:
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   boss HP, enrage and cast lines, so nothing is shown twice. A player you target shows
-  their class (icon and name, in its colour), their rank (as the game sends it, 1 the
-  highest and 19 the lowest) and their combat power, from when they came into view.
+  their class (icon and name), their rank and their combat power, from when they came
+  into view. Its settings (overlay → target frame): a player's **class colour** on their
+  name, over the whole frame (to tell at a glance who you're up against), or off; their
+  **rank** as the game's title (Supreme Commander, Commander, Marshal, General, 5- to
+  1-Star Officer, First- to Ninth-Class Soldier; unranked off their class's board) or its
+  number (1 to 18); and which of its parts **show** (HP %, class, rank, CP, HP bar, HP,
+  time to kill, cast, attacking, enrage, your best, stagger).
 - **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. Your
   max HP is the game's (it moves with buffs); until it sends it, the highest HP seen
   stands in. A shield on you (a barrier, such as a Cleric's) shows striped white on from
@@ -163,12 +168,8 @@ closes. **Reset settings & keybinds** (settings → general, click twice) puts e
 keybind and the appearance back to the defaults; the pets you track, starred and alerted
 events, boss skills you marked, the overlay's layout and the history stay.
 
-**Hide on the world map** (settings, on by default): the overlay steps aside while the
-world map is open and comes back within about 1.5 s of closing it. The game asks for the map's
-contents about every 1.2 s while it's open, and that's how the meter knows.
-
-**Hide for game menus** (settings, on by default): the overlay also steps aside while a
-full-screen game menu is open. Menus send the server nothing, the game keeps its keys from
+**Hide for game menus** (settings, on by default): the overlay steps aside while a
+full-screen game menu is open, the world map among them. Menus send the server nothing, the game keeps its keys from
 other apps, and the cursor a menu brings up is the same as the one Alt does, so the
 cursor alone never hides the widgets. Every full-screen menu (the inventory, the main
 menu…) has a close X at the top right, on the corner's diagonal whatever the UI scale (a
