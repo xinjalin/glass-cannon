@@ -571,6 +571,26 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bm-tag.new { border-color: var(--accent); color: var(--accent); }
 .bm-tag.have { color: var(--muted); }
 .bm-tag.sold { color: var(--muted); }
+/* An item's grade: its icon framed in the grade's colour, in the game's order (grey, green,
+   blue, gold, orange). */
+.bm-offer .icon[class*="grade-"] { box-shadow: 0 0 0 2px var(--grade), inset 0 0 0.6em color-mix(in srgb, var(--grade) 45%, transparent); }
+.grade-common { --grade: #9a9a9a; }
+.grade-rare { --grade: #4fa83a; }
+.grade-epic { --grade: #1f8fd0; }
+.grade-unique { --grade: #d8b015; }
+.grade-legendary { --grade: #e0661a; }
+/* A pet: maxed in the theme's colour; still to get (or to level up) in red, bold. */
+/* Maxed rows also step back (dimmed), so they read apart in themes whose colour is a red. */
+.bm-offer.maxed { opacity: 0.65; }
+.bm-offer.maxed .bm-name { color: var(--accent); }
+.bm-offer.need .bm-name { color: var(--bad); font-weight: 700; }
+.bm-pet { display: inline-flex; align-items: center; gap: 0.35em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bm-offer.maxed .bm-pet { color: var(--accent); }
+.bm-pet-bar { width: 3em; height: 0.3em; border-radius: 0.15em; background: var(--line-faint); overflow: hidden; }
+.bm-pet-fill { display: block; height: 100%; background: var(--accent-2); }
+.bm-hidden { margin: 0.3em 0.1em 0; }
+#show .bm-toggle { margin-left: auto; color: var(--muted); }
+#show .bm-toggle[aria-pressed="true"] { color: var(--accent); }
 
 /* ---------------------------------------------------------------- checklist */
 

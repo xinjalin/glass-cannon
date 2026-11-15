@@ -315,18 +315,20 @@ isn't counted.
 
 **Black market** (the shop icon on the launcher): what the Black Cloud Merchant offers each
 character this hour. Open it in the game's shop (H), on each of its pages (Special, Pets,
-Skins), with the meter open: each page's offers show here, named, with their price and
-discount, and whether they're bought. Pets you don't have yet (as the game last sent your
-pets) are marked; skins can't be yet (the game's list of your skins uses other numbers
-than the shop's). Each offer says how often you've seen it on offer: each page of each of
+Skins), with the meter open: each page's offers show here, with their icon, name, price
+and discount, and whether they're bought. Each pet shows how far your characters have it
+(as the game last sent your pets): its level and the souls toward the next (Lv 2 · 25/75),
+named in red while there's more to get, in the theme's colour once it's maxed;
+**[hide maxed pets]** leaves those out. Skins you own can't be told yet (the game's list of
+your skins uses other numbers than the shop's). Each offer says how often you've seen it on offer: each page of each of
 your characters counts once an hour, so it's only what you've seen (the app never goes
 online). **[worth a look]** shows just the pets you don't have and what you've rarely
 seen. The offers change on the hour, and differ per character: a page from before the
 hour turned is dimmed until you open it again. When you open the merchant in game, this
 window opens by itself (without taking the focus from the game), once a visit (closed while
-you go through the pages, it stays closed), and goes again when you leave the merchant
-(unless you've clicked into it). Turn that off in the settings (general → **open the black
-market with the game's**).
+you go through the pages, it stays closed), and goes again when you leave the merchant: its
+Exit back to the Shop, or closing the Shop (the game's cursor hiding). Turn that off in the
+settings (general → **open the black market with the game's**).
 
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when

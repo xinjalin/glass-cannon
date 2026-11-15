@@ -568,6 +568,58 @@ pub fn bottom_origin(width: i32, height: i32) -> (f64, f64) {
     (f64::from((width - w) / 2), f64::from(height - h))
 }
 
+/// The Black Cloud Merchant is a page of the Shop, and both have the close X in the corner,
+/// so leaving the merchant (its Exit) back to the Shop doesn't take that away. What tells
+/// them apart is at the top left: the Shop shows two signs there ("Black Cloud Merchants",
+/// "Closet"), the merchant's page one ("Exit"), and its opening none. So a band where the
+/// Shop's second sign is, past where the Exit sign ends (as shares of the game's height:
+/// left, right, top, bottom), is looked at: bright, the Shop's back. On 2000×1125
+/// screenshots: 40 % of a wider band bright on the Shop, 4 to 5 % on the merchant's page and
+/// its opening (the Exit sign's edge); this one starts past it.
+const SHOP_SIGN_BAND: (f64, f64, f64, f64) = (0.29, 0.55, 0.018, 0.05);
+/// Bright: this bright (of 255), on at least this share of the band.
+const SHOP_SIGN_BRIGHT: u8 = 150;
+const SHOP_SIGN_SHARE: f64 = 0.25;
+
+/// Where [`read_shop_sign`] looks within the game's picture: (left, top, width, height).
+pub fn shop_sign_band(height: i32) -> (i32, i32, i32, i32) {
+    let h = f64::from(height);
+    let (l, r, t, b) = SHOP_SIGN_BAND;
+    let at = |v: f64| (v * h).round() as i32;
+    (at(l), at(t), at(r) - at(l), at(b) - at(t))
+}
+
+/// Whether the Shop's second sign shows (you're in the Shop, not at the merchant), our
+/// own windows' boxes (`skip`, in the band's pixels) left out; None when it can't be read
+/// or they cover it.
+pub fn read_shop_sign(area: (i32, i32, i32, i32), skip: &[(f64, f64, f64, f64)]) -> Option<bool> {
+    let (left, top, width, height) = area;
+    let (x, y, w, h) = shop_sign_band(height);
+    if w < 16 || h < 4 || x + w > width {
+        return None;
+    }
+    let px = read_screen(left + x, top + y, w, h)?;
+    let luma: Vec<u8> = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
+    shop_sign_lit(&luma, w as usize, skip)
+}
+
+/// Whether enough of the band (its pixels outside `skip`) is bright.
+fn shop_sign_lit(luma: &[u8], w: usize, skip: &[(f64, f64, f64, f64)]) -> Option<bool> {
+    let (mut seen, mut bright) = (0usize, 0usize);
+    for (i, &l) in luma.iter().enumerate() {
+        let (x, y) = ((i % w) as f64, (i / w) as f64);
+        if skip.iter().any(|&(l0, t0, r0, b0)| x >= l0 && x < r0 && y >= t0 && y < b0) {
+            continue;
+        }
+        seen += 1;
+        if l >= SHOP_SIGN_BRIGHT {
+            bright += 1;
+        }
+    }
+    // Mostly covered: can't be told.
+    (seen * 2 >= luma.len()).then_some(bright as f64 >= SHOP_SIGN_SHARE * seen as f64)
+}
+
 /// A rectangle of the screen's pixels as RGB, row by row.
 fn read_screen(x: i32, y: i32, w: i32, h: i32) -> Option<Vec<[u8; 3]>> {
     #[repr(C)]
@@ -857,6 +909,30 @@ mod tests {
             a.luma[y * a.w + 400..y * a.w + 1350].fill(60);
         }
         assert!(!a.has_window_close(1125.0));
+    }
+
+    #[test]
+    fn the_shops_second_sign_is_a_bright_band() {
+        let (w, h) = (100usize, 10usize);
+        let dark = vec![20u8; w * h];
+        assert_eq!(shop_sign_lit(&dark, w, &[]), Some(false));
+        // The sign over most of the band, as on the Shop's page.
+        let mut lit = dark.clone();
+        for y in 2..9 {
+            lit[y * w + 10..y * w + 70].fill(210);
+        }
+        assert_eq!(shop_sign_lit(&lit, w, &[]), Some(true));
+        // A bright widget of ours over a dark band (the merchant's page): left out, dark.
+        let mut ours = dark.clone();
+        for y in 0..10 {
+            ours[y * w..y * w + 40].fill(230);
+        }
+        assert_eq!(shop_sign_lit(&ours, w, &[]), Some(true));
+        assert_eq!(shop_sign_lit(&ours, w, &[(0.0, 0.0, 40.0, 10.0)]), Some(false));
+        // Covered all over: can't be told.
+        assert_eq!(shop_sign_lit(&lit, w, &[(0.0, 0.0, 100.0, 10.0)]), None);
+        // The band's place on a 2000×1125 screen.
+        assert_eq!(shop_sign_band(1125), (326, 20, 293, 36));
     }
 
     #[test]

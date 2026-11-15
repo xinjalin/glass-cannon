@@ -378,7 +378,7 @@ pub fn at_black_market(app: &AppState) -> bool {
 }
 
 /// Leaving the merchant (see `hud::watch`): the visit's over, and the black market window
-/// goes if it came up by itself and you haven't clicked into it.
+/// goes if it came up by itself (clicked into or not: it stayed up after you'd scrolled it).
 pub fn black_market_left<R: Runtime>(handle: &AppHandle<R>, app: &AppState) {
     app.black_market_visit.store(false, Ordering::SeqCst);
     if app.black_market_auto_shown.swap(false, Ordering::SeqCst) {

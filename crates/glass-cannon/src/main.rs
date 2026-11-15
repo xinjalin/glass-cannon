@@ -162,8 +162,8 @@ pub struct AppState {
     /// came up by itself.
     black_market_opened: AtomicBool,
     black_market_auto_at: std::sync::atomic::AtomicU64,
-    /// The black market window is up because the merchant opened, and you haven't clicked
-    /// into it: it goes again when you leave the merchant (see `hud::watch`).
+    /// The black market window is up because the merchant opened: it goes again when you
+    /// leave the merchant (see `hud::watch`), clicked into or not.
     black_market_auto_shown: AtomicBool,
     /// You're at the merchant (its pages came in, and you haven't been seen leaving): its
     /// window comes up once a visit.
@@ -698,6 +698,18 @@ fn skill_icon(app: State<'_, Arc<AppState>>, skill: u32) -> Option<String> {
     lock(&app.data).skill_icon(skill)
 }
 
+/// The icon of an item the Black Cloud Merchant sells.
+#[tauri::command]
+fn shop_icon(app: State<'_, Arc<AppState>>, item: u32) -> Option<String> {
+    lock(&app.data).shop_icon(item)
+}
+
+/// The icon of a piece of gear.
+#[tauri::command]
+fn gear_icon(app: State<'_, Arc<AppState>>, item: u32) -> Option<String> {
+    lock(&app.data).gear_icon(item)
+}
+
 #[tauri::command]
 fn pet_icon(app: State<'_, Arc<AppState>>, pet: u32) -> Option<String> {
     lock(&app.data).pet_icon(pet)
@@ -1063,6 +1075,8 @@ fn main() {
             skill_icon,
             class_icon,
             pet_icon,
+            shop_icon,
+            gear_icon,
             rename_skill,
             rename_npc,
             history_list,
@@ -1198,10 +1212,6 @@ fn main() {
                     if let Some(p) = placement::current(window) {
                         lock(&app.placements).set(window.label(), p);
                     }
-                }
-                // Clicked into after it came up by itself: it's yours now, and stays.
-                WindowEvent::Focused(true) if window.label() == BLACK_MARKET => {
-                    app.black_market_auto_shown.store(false, Ordering::SeqCst);
                 }
                 WindowEvent::CloseRequested { api, .. } => match window.label() {
                     // Closing the launcher closes the app.

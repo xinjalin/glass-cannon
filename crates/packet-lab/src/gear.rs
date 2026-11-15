@@ -2,7 +2,9 @@
 //! database and writes `gamedata/gear.json`, which names the gear players wear (the party
 //! view's tooltips).
 //!
-//! Kept: each piece's name, grade and item level, by the ID players' spawns (`0x3645`) give.
+//! Kept: each piece's name, grade, item level and icon name, by the ID players' spawns
+//! (`0x3645`) give. `gear-icons` adds the icon names to a `gear.json` made before, and
+//! fetches the icons.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -30,6 +32,9 @@ pub fn run(items: &Path, out: &Path, scraped: &str) -> Result<()> {
         if let Some(level) = it["itemLevel"].as_u64() {
             e.insert("level".into(), json!(level));
         }
+        if let Some(icon) = it["icon"].as_str().map(icon_name).filter(|i| crate::shop_icons::plain(i)) {
+            e.insert("icon".into(), json!(icon));
+        }
         kept.insert(id, Value::Object(e));
     }
     let doc = json!({
@@ -47,3 +52,31 @@ pub fn run(items: &Path, out: &Path, scraped: &str) -> Result<()> {
     println!("done: {} pieces of gear saved to {}", kept.len(), out.display());
     Ok(())
 }
+
+/// An icon's name without its extension.
+fn icon_name(icon: &str) -> &str {
+    icon.trim_end_matches(".webp").trim_end_matches(".png")
+}
+
+/// `packet-lab gear-icons`: each piece of gear's icon name, from a scraped item database
+/// (by item ID), into `gear.json` (nothing else in it changes), and the icons not in
+/// `dir` yet fetched (see `shop_icons`).
+pub fn icons(items: &Path, gear: &Path, dir: &Path) -> Result<()> {
+    let text = fs::read_to_string(items).with_context(|| format!("reading {}", items.display()))?;
+    let Value::Object(all) = serde_json::from_str(&text)? else { bail!("{} isn't a JSON object by item ID", items.display()) };
+    let mut doc: Value = serde_json::from_str(&fs::read_to_string(gear).with_context(|| format!("reading {}", gear.display()))?)?;
+    let Some(pieces) = doc["gear"].as_object_mut() else { bail!("{} has no gear", gear.display()) };
+    let mut wanted = std::collections::BTreeSet::new();
+    let mut named = 0;
+    for (id, piece) in pieces.iter_mut() {
+        let Some(icon) = all.get(id).and_then(|it| it["icon"].as_str()).map(icon_name).filter(|i| crate::shop_icons::plain(i)) else { continue };
+        piece["icon"] = json!(icon);
+        wanted.insert(icon.to_string());
+        named += 1;
+    }
+    let total = pieces.len();
+    fs::write(gear, serde_json::to_string(&doc)? + "\n").with_context(|| format!("writing {}", gear.display()))?;
+    println!("{named} of {total} pieces of gear given their icon in {}", gear.display());
+    crate::shop_icons::fetch_all(&wanted, dir)
+}
+

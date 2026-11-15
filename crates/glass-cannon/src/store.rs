@@ -1298,6 +1298,15 @@ impl PetBook {
         self.by_character.values().filter_map(|s| s.levels.get(&pet).copied()).max().unwrap_or(0)
     }
 
+    /// A pet's souls toward its next level, as the character with it highest last had them.
+    pub fn souls(&self, pet: u32) -> u32 {
+        self.by_character
+            .values()
+            .max_by_key(|s| s.levels.get(&pet).copied().unwrap_or(0))
+            .and_then(|s| s.souls.get(&pet).copied())
+            .unwrap_or(0)
+    }
+
     /// Hands a saved state to a meter that doesn't know your pets yet, and saves its state
     /// when it has changed.
     pub fn sync(&mut self, character: &str, pets: &mut meter_core::pets::Pets) {
