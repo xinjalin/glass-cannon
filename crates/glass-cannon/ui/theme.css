@@ -148,7 +148,7 @@
   --ink: #1e2749;
 }
 
-/* Bar colour, independent of the theme (settings → bars). Unset: the theme's accent. */
+/* Bar colour, independent of the theme (settings → meter → rows → bars). Unset: the theme's accent. */
 /* "clear": no tint at all, so the text gets a heavier outline to stay readable. Every
    window follows the background chosen in the settings (frosted, tinted or clear). */
 [data-backdrop="clear"] {
