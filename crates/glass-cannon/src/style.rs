@@ -136,6 +136,11 @@ fn border_rgb(theme: &str) -> u32 {
         "sky" => 0x6fa3cc,
         "amber" => 0xc99a52,
         "mono" => 0xa8a8a8,
+        "seafoam" => 0x5f8c84,
+        "seafoam-light" => 0x76ada3,
+        "scarlet" => 0xb52a1d,
+        "teal" => 0x598392,
+        "indigo" => 0x4a5591,
         hex if hex.len() == 7 && hex.starts_with('#') => match u32::from_str_radix(&hex[1..], 16) {
             // A picked colour, made readable as the pages make it, a little darker (as the
             // built-in themes' frames are than their accents).
@@ -192,7 +197,12 @@ fn darker(rgb: u32) -> u32 {
 /// overlay), small rounded corners, a shadow, and a border in the theme's colour.
 pub fn apply<R: Runtime>(window: &WebviewWindow<R>, a: &Appearance) {
     let _ = window.set_shadow(true);
-    frame(window, false, DWMWCP_ROUNDSMALL, colorref(border_rgb(&a.theme)));
+    // Lines of your own colour make the frame too.
+    let border = match u32::from_str_radix(a.line_color.trim_start_matches('#'), 16) {
+        Ok(rgb) if a.line_color.len() == 7 => rgb,
+        _ => border_rgb(&a.theme),
+    };
+    frame(window, false, DWMWCP_ROUNDSMALL, colorref(border));
 }
 
 /// A blur plate under an overlay widget: Windows' light blur (through the accent API; the

@@ -345,7 +345,7 @@ pub const REFRESH_RATES: [u32; 5] = [REALTIME, 200, 500, 1000, 2000];
 pub const REALTIME: u32 = 100;
 pub const DEFAULT_REFRESH_MS: u32 = 500;
 
-pub const THEMES: [&str; 7] = ["night", "rose", "lavender", "mint", "sky", "amber", "mono"];
+pub const THEMES: [&str; 12] = ["night", "rose", "lavender", "mint", "sky", "amber", "mono", "seafoam", "seafoam-light", "scarlet", "teal", "indigo"];
 pub const HIGHLIGHTS: [&str; 3] = ["self", "all", "off"];
 pub const BACKDROPS: [&str; 3] = ["frosted", "tinted", "clear"];
 /// How the meter's rows show each player's share: a strip of blocks beside the numbers, or
@@ -417,6 +417,19 @@ pub struct Appearance {
     /// The edge's colour (`#rrggbb`).
     #[serde(default = "default_edge_color")]
     pub edge_color: String,
+    /// The theme's parts in colours of your own, each "theme" (the theme's) or `#rrggbb`:
+    /// the glass behind everything, the accent (headings, buttons, tabs), the numbers, the
+    /// lines (borders, dividers), and the fills (selected buttons, bars, filled rows).
+    #[serde(default = "default_theme_word")]
+    pub background_color: String,
+    #[serde(default = "default_theme_word")]
+    pub accent_color: String,
+    #[serde(default = "default_theme_word")]
+    pub number_color: String,
+    #[serde(default = "default_theme_word")]
+    pub line_color: String,
+    #[serde(default = "default_theme_word")]
+    pub fill_color: String,
 }
 
 /// The text's edges: the theme's, none, a drop shadow, an outline, raised, depressed.
@@ -495,6 +508,11 @@ impl Default for Appearance {
             text_opacity: default_text_opacity(),
             text_edge: default_theme_word(),
             edge_color: default_edge_color(),
+            background_color: default_theme_word(),
+            accent_color: default_theme_word(),
+            number_color: default_theme_word(),
+            line_color: default_theme_word(),
+            fill_color: default_theme_word(),
         }
     }
 }
@@ -524,6 +542,17 @@ pub struct AppearanceChange {
     pub text_opacity: Option<i64>,
     pub text_edge: Option<String>,
     pub edge_color: Option<String>,
+    /// Each "theme" or `#rrggbb`.
+    pub background_color: Option<String>,
+    pub accent_color: Option<String>,
+    pub number_color: Option<String>,
+    pub line_color: Option<String>,
+    pub fill_color: Option<String>,
+}
+
+/// "theme" or a colour of your own, lowercased; anything else: `None`.
+fn theme_or_hex(c: Option<String>) -> Option<String> {
+    c.filter(|c| c == "theme" || is_hex_color(c)).map(|c| c.to_ascii_lowercase())
 }
 
 impl Appearance {
@@ -580,6 +609,17 @@ impl Appearance {
         if let Some(e) = c.edge_color.filter(|e| is_hex_color(e)) {
             self.edge_color = e.to_ascii_lowercase();
         }
+        for (change, now) in [
+            (c.background_color, &mut self.background_color),
+            (c.accent_color, &mut self.accent_color),
+            (c.number_color, &mut self.number_color),
+            (c.line_color, &mut self.line_color),
+            (c.fill_color, &mut self.fill_color),
+        ] {
+            if let Some(v) = theme_or_hex(change) {
+                *now = v;
+            }
+        }
     }
 
     /// Repairs values from a hand-edited or older settings file.
@@ -624,6 +664,11 @@ impl Appearance {
         }
         if !is_hex_color(&self.edge_color) {
             self.edge_color = fixed.edge_color.clone();
+        }
+        for part in [&mut self.background_color, &mut self.accent_color, &mut self.number_color, &mut self.line_color, &mut self.fill_color] {
+            if part != "theme" && !is_hex_color(part) {
+                *part = "theme".into();
+            }
         }
         self
     }
@@ -1824,7 +1869,18 @@ mod tests {
             text_opacity: Some(10),
             text_edge: Some("outline".into()),
             edge_color: Some("not a colour".into()),
+            background_color: Some("#01161E".into()),
+            accent_color: Some("red".into()),
+            number_color: None,
+            line_color: Some("theme".into()),
+            fill_color: Some("#AEE7D2".into()),
         });
+        // The theme's parts: colours kept (lowercased), "theme" kept, anything else ignored.
+        let a = &s.appearance;
+        assert_eq!(
+            [&a.background_color, &a.accent_color, &a.number_color, &a.line_color, &a.fill_color].map(String::as_str),
+            ["#01161e", "theme", "theme", "theme", "#aee7d2"]
+        );
         assert_eq!((s.appearance.text_color.as_str(), s.appearance.text_opacity, s.appearance.text_edge.as_str(), s.appearance.edge_color.as_str()), ("#aabbcc", 40, "outline", "#000000"));
         assert_eq!((s.appearance.row_style.as_str(), s.appearance.fill_tint, s.appearance.combat_power, s.appearance.odyle), ("fill", true, false, false));
         // Class colours: only real classes and colours are kept.

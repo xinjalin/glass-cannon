@@ -276,6 +276,12 @@ legend {
 .swatch[data-theme-choice="sky"], .swatch[data-bar-choice="sky"] { --swatch: #95caf3; }
 .swatch[data-theme-choice="amber"], .swatch[data-bar-choice="amber"] { --swatch: #f1c073; }
 .swatch[data-theme-choice="mono"], .swatch[data-bar-choice="mono"] { --swatch: #dcdcdc; }
+/* The palette themes: their accent, numbers and glass. */
+.swatch[data-theme-choice="seafoam"] { --swatch: conic-gradient(#aee7d2 0 33%, #9fc3dd 0 66%, #0c1821 0); }
+.swatch[data-theme-choice="seafoam-light"] { --swatch: conic-gradient(#e0fef9 0 33%, #2f7468 0 66%, #26417e 0); }
+.swatch[data-theme-choice="scarlet"] { --swatch: conic-gradient(#ff311f 0 33%, #ecded5 0 66%, #191716 0); }
+.swatch[data-theme-choice="teal"] { --swatch: conic-gradient(#aec3b0 0 33%, #598392 0 66%, #01161e 0); }
+.swatch[data-theme-choice="indigo"] { --swatch: conic-gradient(#e4d9ff 0 33%, #fafaff 0 66%, #1e2749 0); }
 .swatch[aria-checked="true"] { outline: 2px solid var(--text); }
 /* Any colour: a rainbow until one is picked, then that colour. The picker itself is the
    system's colour dialog, opened by the hidden input inside. */
@@ -298,6 +304,8 @@ legend {
 .swatch[data-bar-custom] { border-radius: 0.2em; }
 .chip { padding: 0 0.15em; border-radius: 0.25em; color: var(--accent); }
 .chip:hover { background: var(--line-faint); }
+/* A lone button at a line's right end. */
+.chip.end { margin-left: auto; }
 
 .stepper,
 .choice { display: flex; align-items: center; gap: 0.2em; margin-left: auto; white-space: nowrap; }

@@ -26,20 +26,22 @@ function inkOn(hex) {
   return contrast(l, lum(LIGHT_INK)) > contrast(l, lum(DARK_INK)) ? LIGHT_INK : DARK_INK;
 }
 
-function readable(hex) {
+// A picked colour made to read on the glass: at least MIN_LIGHTNESS on the dark glass,
+// at most MAX_LIGHTNESS_ON_LIGHT on a light theme's.
+function readable(hex, onLight = false) {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
-  if (l >= MIN_LIGHTNESS) return hex;
+  if (onLight ? l <= MAX_LIGHTNESS_ON_LIGHT : l >= MIN_LIGHTNESS) return hex;
   const d = max - min;
   const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
   let h = 0;
   // Kept in 0-6: between red and magenta (more blue than green) `%` alone goes negative,
   // which made a channel negative and the colour invalid (as style.rs's `rem_euclid` does).
   if (d) h = max === r ? ((((g - b) / d) % 6) + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  // Back from hue, saturation and the raised lightness.
-  const L = MIN_LIGHTNESS;
+  // Back from hue, saturation and the raised (or lowered) lightness.
+  const L = onLight ? MAX_LIGHTNESS_ON_LIGHT : MIN_LIGHTNESS;
   const c = (1 - Math.abs(2 * L - 1)) * s;
   const x = c * (1 - Math.abs((h % 2) - 1));
   const m = L - c / 2;
@@ -64,8 +66,11 @@ function customTheme(root, picked) {
 // The text as chosen (settings → appearance → text): its colour (the theme's, or your
 // own) and how opaque, with the dimmer text (hints, labels) in the same colour, fainter;
 // and its edge: the theme's soft shadow, none, a drop shadow, an outline, raised or
-// depressed, in the edge colour.
-const TEXT_THEME = { night: "#d4d4d5" };
+// depressed, in the edge colour (the theme's shadow too, when it isn't black).
+const TEXT_THEME = { night: "#d4d4d5", seafoam: "#f8f3f0", "seafoam-light": "#26417e", scarlet: "#e9eded", teal: "#eff6e0", indigo: "#fafaff" };
+// Light themes: dark text, and picked colours darkened (not lightened) to read on them.
+const LIGHT_THEMES = ["seafoam-light"];
+const MAX_LIGHTNESS_ON_LIGHT = 0.4;
 const TEXT_DEFAULT = "#fff7f3";
 const EDGES = {
   none: () => "none",
@@ -87,8 +92,41 @@ function applyText(root, a) {
     root.style.setProperty("--muted", at(0.78));
     root.style.setProperty("--faint", at(0.55));
   }
+  const colour = isHexColor(a.edge_color) ? a.edge_color.toLowerCase() : "#000000";
   const edge = EDGES[a.text_edge];
-  if (edge) root.style.setProperty("--shadow", edge(isHexColor(a.edge_color) ? a.edge_color : "#000000"));
+  if (edge) {
+    root.style.setProperty("--shadow", edge(colour));
+  } else if (colour !== "#000000") {
+    // The theme's soft shadow (heavier on the clear background), in your colour.
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16));
+    const c = (k) => `rgba(${r}, ${g}, ${b}, ${k})`;
+    const soft = root.dataset.backdrop === "clear" ? `0 0 2px ${c(0.95)}, 0 1px 3px ${c(0.85)}` : `0 1px 2px ${c(0.55)}`;
+    root.style.setProperty("--shadow", soft);
+  }
+}
+
+// The theme's parts in colours of your own (settings → colours), each over the theme's:
+// the glass, the accent and the numbers (made readable on the glass, as a picked theme),
+// the lines, and the fills with the text that reads on them.
+function applyParts(root, a) {
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
+  const light = LIGHT_THEMES.includes(a.theme);
+  if (isHexColor(a.background_color)) {
+    root.style.setProperty("--tint-rgb", rgb(a.background_color));
+    // The windows too, their title and footer bars a step lighter (darker on a light one).
+    const c = [1, 3, 5].map((i) => parseInt(a.background_color.slice(i, i + 2), 16));
+    const lightBg = c[0] * 0.299 + c[1] * 0.587 + c[2] * 0.114 > 140;
+    const step = c.map((v) => Math.round(lightBg ? v * 0.91 : v + (255 - v) * 0.045 + 3));
+    root.style.setProperty("--win-rgb", c.join(", "));
+    root.style.setProperty("--raised", `rgb(${step.join(", ")})`);
+  }
+  if (isHexColor(a.accent_color)) root.style.setProperty("--accent", readable(a.accent_color, light));
+  if (isHexColor(a.number_color)) root.style.setProperty("--accent-2", readable(a.number_color, light));
+  if (isHexColor(a.line_color)) root.style.setProperty("--line-base", a.line_color);
+  if (isHexColor(a.fill_color)) {
+    root.style.setProperty("--accent-fill", a.fill_color);
+    root.style.setProperty("--ink", inkOn(a.fill_color));
+  }
 }
 
 function applyAppearance(a) {
@@ -98,8 +136,9 @@ function applyAppearance(a) {
   appliedAppearance = key;
   const root = document.documentElement;
   root.dataset.theme = isHexColor(a.theme) ? "custom" : a.theme;
-  for (const v of ["--accent", "--accent-2", "--tint-rgb", "--accent-fill", "--ink"]) root.style.removeProperty(v);
+  for (const v of ["--accent", "--accent-2", "--tint-rgb", "--accent-fill", "--ink", "--line-base", "--win-rgb", "--raised"]) root.style.removeProperty(v);
   if (isHexColor(a.theme)) customTheme(root, a.theme);
+  applyParts(root, a);
   root.dataset.highlight = a.highlight;
   root.dataset.backdrop = a.backdrop;
   root.dataset.bars = isHexColor(a.bar_color) ? "custom" : a.bar_color;
