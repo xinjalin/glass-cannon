@@ -305,6 +305,7 @@ legend {
 .choice button { color: var(--accent); padding: 0 0.15em; border-radius: 0.25em; }
 .stepper button:hover,
 .choice button:hover { background: var(--line-faint); }
+.choice .sep { color: var(--faint); padding: 0 0.1em; }
 .stepper button:disabled { color: var(--faint); cursor: default; background: none; }
 .step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
 

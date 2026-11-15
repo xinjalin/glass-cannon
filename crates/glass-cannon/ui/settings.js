@@ -1068,6 +1068,16 @@ function drawVitals() {
   setToggle("vt-always", v.always_show);
   setToggle("vt-trail", v.trail);
   setToggle("vt-cast", v.show_cast);
+  const hiddenArcs = new Set(v.hidden_arcs || []);
+  for (const b of document.querySelectorAll("[data-vt-arc]")) {
+    const on = !hiddenArcs.has(b.dataset.vtArc);
+    b.setAttribute("aria-checked", String(on));
+    b.textContent = on ? "[on]" : "[off]";
+  }
+  for (const b of document.querySelectorAll("[data-vt-spot]")) {
+    const [side, layer] = (v.arc_spots || {})[b.dataset.vtSpot]?.split("-") || [];
+    b.setAttribute("aria-checked", String(b.dataset.vtSide ? b.dataset.vtSide === side : b.dataset.vtLayer === layer));
+  }
   // Its look only matters while it shows.
   for (const b of document.querySelectorAll('[data-vt="cast"]')) b.disabled = !v.show_cast;
 }
@@ -1151,6 +1161,17 @@ $("vt-width-up").addEventListener("click", () => vitals && setVitals({ width: vi
 $("vt-always").addEventListener("click", () => vitals && setVitals({ alwaysShow: !vitals.always_show }));
 $("vt-trail").addEventListener("click", () => vitals && setVitals({ trail: !vitals.trail }));
 $("vt-cast").addEventListener("click", () => vitals && setVitals({ showCast: !vitals.show_cast }));
+for (const b of document.querySelectorAll("[data-vt-arc]")) {
+  b.addEventListener("click", () => vitals && setVitals({ arc: b.dataset.vtArc, arcShown: b.getAttribute("aria-checked") !== "true" }));
+}
+// A side or outer/inner: the other half of the spot kept.
+for (const b of document.querySelectorAll("[data-vt-spot]")) {
+  b.addEventListener("click", () => {
+    const arc = b.dataset.vtSpot;
+    const [side, layer] = (vitals?.arc_spots?.[arc] || "left-outer").split("-");
+    if (vitals) setVitals({ arc, spot: `${b.dataset.vtSide || side}-${b.dataset.vtLayer || layer}` });
+  });
+}
 $("vt-reset").addEventListener("click", async () => {
   try {
     vitals = await invoke("reset_vitals");

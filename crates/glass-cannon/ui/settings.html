@@ -357,6 +357,55 @@
                 <button type="button" data-vt="text_at" data-vt-value="bottom" title="Under the arcs' bottom ends">[bottom]</button>
               </span>
             </div>
+            <p class="hint" data-keywords="arcs show hide side left right inner outer hp stamina mp flight">the arcs: which show, and where (moving one to another's spot swaps them; alone on its side, an inner arc moves out)</p>
+            <div class="line arc-spot" data-keywords="arcs show hide side left right inner outer swap hp">
+              <span class="key">hp</span>
+              <span class="choice" role="group" aria-label="Your HP: shown, side, outside or in">
+                <button type="button" data-vt-arc="hp" title="Your HP: shown or not">[on]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="hp" data-vt-side="left" title="Your HP on the left">[left]</button>
+                <button type="button" data-vt-spot="hp" data-vt-side="right" title="Your HP on the right">[right]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="hp" data-vt-layer="outer" title="Your HP outside (the thicker arc)">[outer]</button>
+                <button type="button" data-vt-spot="hp" data-vt-layer="inner" title="Your HP inside">[inner]</button>
+              </span>
+            </div>
+            <div class="line arc-spot" data-keywords="arcs show hide side left right inner outer swap stamina">
+              <span class="key">stamina</span>
+              <span class="choice" role="group" aria-label="Your stamina: shown, side, outside or in">
+                <button type="button" data-vt-arc="stamina" title="Your stamina: shown or not">[on]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="stamina" data-vt-side="left" title="Your stamina on the left">[left]</button>
+                <button type="button" data-vt-spot="stamina" data-vt-side="right" title="Your stamina on the right">[right]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="stamina" data-vt-layer="outer" title="Your stamina outside (the thicker arc)">[outer]</button>
+                <button type="button" data-vt-spot="stamina" data-vt-layer="inner" title="Your stamina inside">[inner]</button>
+              </span>
+            </div>
+            <div class="line arc-spot" data-keywords="arcs show hide side left right inner outer swap mp">
+              <span class="key">mp</span>
+              <span class="choice" role="group" aria-label="Your MP: shown, side, outside or in">
+                <button type="button" data-vt-arc="mp" title="Your MP: shown or not">[on]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="mp" data-vt-side="left" title="Your MP on the left">[left]</button>
+                <button type="button" data-vt-spot="mp" data-vt-side="right" title="Your MP on the right">[right]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="mp" data-vt-layer="outer" title="Your MP outside (the thicker arc)">[outer]</button>
+                <button type="button" data-vt-spot="mp" data-vt-layer="inner" title="Your MP inside">[inner]</button>
+              </span>
+            </div>
+            <div class="line arc-spot" data-keywords="arcs show hide side left right inner outer swap flight power">
+              <span class="key">flight power</span>
+              <span class="choice" role="group" aria-label="Your flight power: shown, side, outside or in">
+                <button type="button" data-vt-arc="flight" title="Your flight power: shown or not">[on]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="flight" data-vt-side="left" title="Your flight power on the left">[left]</button>
+                <button type="button" data-vt-spot="flight" data-vt-side="right" title="Your flight power on the right">[right]</button>
+                <span class="sep">·</span>
+                <button type="button" data-vt-spot="flight" data-vt-layer="outer" title="Your flight power outside (the thicker arc)">[outer]</button>
+                <button type="button" data-vt-spot="flight" data-vt-layer="inner" title="Your flight power inside">[inner]</button>
+              </span>
+            </div>
             <button id="vt-cast" type="button" class="opt" data-keywords="cast bar casting show hide" aria-pressed="true" title="Your cast under your feet, while you cast">
               <span class="key">cast bar</span><span class="state">[on]</span>
             </button>

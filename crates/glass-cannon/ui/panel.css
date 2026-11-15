@@ -489,6 +489,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-tick { stroke-width: 2px; stroke-linecap: round; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
 .arc-tick.hp { stroke: var(--arc-hp); }
 .arc-tick.mp { stroke: var(--arc-mp); }
+.arc-tick.stamina { stroke: var(--arc-stamina); }
+.arc-tick.flight { stroke: var(--arc-flight); }
 .arc-tick.shielded { stroke: var(--arc-shield); }
 /* The damage trail: HP just lost, pale, shrinking away after a moment. */
 .arc-trail { fill: none; stroke: color-mix(in srgb, var(--arc-hp) 45%, #fff); opacity: 0.8; stroke-linecap: round; transition: stroke-dasharray 0.45s ease-in; }

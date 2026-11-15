@@ -2,7 +2,7 @@
 //! roundness and thickness, whether they always show, their numbers (what, how big, on what, at which end) and the cast's look.
 //! Each change is saved and sent to the widget at once.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -24,10 +24,14 @@ pub const TEXT_PLACES: [&str; 2] = ["top", "bottom"];
 pub const NUMBERS: [&str; 3] = ["value", "percent", "both"];
 /// The cast: along an arc under your feet, or a straight bar with its time at each end.
 pub const CASTS: [&str; 2] = ["arc", "bar"];
+/// Where a side arc can go: a side, and outside (the thicker line) or inside it.
+pub const SPOTS: [&str; 4] = ["left-outer", "left-inner", "right-outer", "right-inner"];
 /// The numbers' size, in percent of the overlay's text.
 pub const TEXT_SIZES: RangeInclusive<u16> = 50..=200;
 /// How round the arcs are, in percent: 0 straight, 50 as they were, 100 the roundest.
 pub const ROUNDNESS: RangeInclusive<u16> = 0..=100;
+/// The side arcs, each of which can be turned off (only HP and stamina, say).
+pub const SIDE_ARCS: [&str; 4] = ["hp", "stamina", "mp", "flight"];
 /// The arcs (and the shield over the HP arc) that can have a colour of their own.
 pub const COLOURED: [&str; 6] = ["hp", "stamina", "mp", "flight", "cast", "shield"];
 /// How thick the arcs are, in percent of each look's own.
@@ -43,6 +47,8 @@ pub struct VitalsSetup {
     pub text_at: String,
     pub numbers: String,
     pub cast: String,
+    /// Each side arc's spot (see [`SPOTS`]): one arc to a spot, all four placed.
+    pub arc_spots: BTreeMap<String, String>,
     pub width: u16,
     /// The arcs' tracks show even with nothing to fill them (no value yet, no cast).
     pub always_show: bool,
@@ -52,6 +58,8 @@ pub struct VitalsSetup {
     pub colours: BTreeMap<String, String>,
     /// HP lost stays as a pale trail for a moment, then shrinks away.
     pub trail: bool,
+    /// The side arcs turned off (see [`SIDE_ARCS`]); the others show.
+    pub hidden_arcs: BTreeSet<String>,
 }
 
 impl Default for VitalsSetup {
@@ -64,11 +72,13 @@ impl Default for VitalsSetup {
             text_at: TEXT_PLACES[0].into(),
             numbers: NUMBERS[0].into(),
             cast: CASTS[0].into(),
+            arc_spots: default_spots(),
             width: 100,
             always_show: false,
             show_cast: true,
             colours: BTreeMap::new(),
             trail: false,
+            hidden_arcs: BTreeSet::new(),
         }
     }
 }
@@ -85,12 +95,30 @@ pub struct VitalsChange {
     pub text_at: Option<String>,
     pub numbers: Option<String>,
     pub cast: Option<String>,
+
     pub width: Option<i64>,
     pub always_show: Option<bool>,
     pub show_cast: Option<bool>,
     /// The colours of your own, all of them (an empty map: the built-in ones).
     pub colours: Option<BTreeMap<String, String>>,
     pub trail: Option<bool>,
+    /// A side arc to show or hide, with `arc_shown`, or to move, with `spot` (the arc there
+    /// moves to where this one was).
+    pub arc: Option<String>,
+    pub arc_shown: Option<bool>,
+    pub spot: Option<String>,
+}
+
+/// As at first: HP and stamina on the left, MP and flight power on the right.
+fn default_spots() -> BTreeMap<String, String> {
+    SIDE_ARCS.iter().zip(SPOTS).map(|(a, s)| ((*a).into(), s.into())).collect()
+}
+
+/// Each side arc in a spot of its own.
+fn valid_spots(s: &BTreeMap<String, String>) -> bool {
+    let arcs: BTreeSet<&str> = s.keys().map(String::as_str).collect();
+    let spots: BTreeSet<&str> = s.values().map(String::as_str).collect();
+    arcs == SIDE_ARCS.into_iter().collect() && spots == SPOTS.into_iter().collect()
 }
 
 fn is_hex_colour(c: &str) -> bool {
@@ -140,6 +168,22 @@ impl VitalsSetup {
         if let Some(t) = c.trail {
             self.trail = t;
         }
+        let arc = c.arc.filter(|a| SIDE_ARCS.contains(&a.as_str()));
+        if let (Some(arc), Some(spot)) = (&arc, c.spot.filter(|s| SPOTS.contains(&s.as_str()))) {
+            // Swapped with the arc there.
+            let was = self.arc_spots.get(arc).cloned().unwrap_or_default();
+            if let Some(other) = self.arc_spots.iter().find(|(_, s)| **s == spot).map(|(a, _)| a.clone()) {
+                self.arc_spots.insert(other, was);
+            }
+            self.arc_spots.insert(arc.clone(), spot);
+        }
+        if let (Some(arc), Some(shown)) = (arc, c.arc_shown) {
+            if shown {
+                self.hidden_arcs.remove(&arc);
+            } else {
+                self.hidden_arcs.insert(arc);
+            }
+        }
     }
 
     /// Repairs values from a hand-edited settings file.
@@ -159,6 +203,10 @@ impl VitalsSetup {
             self.width = fixed.width;
         }
         self.colours = valid_colours(self.colours);
+        self.hidden_arcs.retain(|a| SIDE_ARCS.contains(&a.as_str()));
+        if !valid_spots(&self.arc_spots) {
+            self.arc_spots = fixed.arc_spots;
+        }
         self
     }
 }
@@ -218,6 +266,30 @@ mod tests {
         // The newer looks, and the trail.
         v.update(VitalsChange { style: Some("framed".into()), trail: Some(true), ..Default::default() });
         assert_eq!((v.style.as_str(), v.trail), ("framed", true));
+        // Only HP and stamina: MP and flight power off; an unknown arc ignored.
+        for arc in ["mp", "flight", "wings"] {
+            v.update(VitalsChange { arc: Some(arc.into()), arc_shown: Some(false), ..Default::default() });
+        }
+        assert_eq!(v.hidden_arcs.iter().map(String::as_str).collect::<Vec<_>>(), ["flight", "mp"]);
+        v.update(VitalsChange { arc: Some("mp".into()), arc_shown: Some(true), ..Default::default() });
+        // HP to the right, outside: MP, there before, takes HP's spot; stamina to the left,
+        // outside, in HP's old spot again (MP inside it now); a spot that isn't one ignored.
+        let spots = |v: &VitalsSetup| SIDE_ARCS.map(|a| v.arc_spots[a].clone());
+        assert_eq!(spots(&v), ["left-outer", "left-inner", "right-outer", "right-inner"]);
+        let to = |arc: &str, spot: &str| VitalsChange { arc: Some(arc.into()), spot: Some(spot.into()), ..Default::default() };
+        v.update(to("hp", "right-outer"));
+        assert_eq!(spots(&v), ["right-outer", "left-inner", "left-outer", "right-inner"]);
+        v.update(to("stamina", "left-outer"));
+        v.update(to("stamina", "up"));
+        assert_eq!(spots(&v), ["right-outer", "left-outer", "left-inner", "right-inner"]);
+        assert_eq!(v.hidden_arcs.iter().map(String::as_str).collect::<Vec<_>>(), ["flight"]);
+    }
+
+    #[test]
+    fn spots_that_dont_place_each_arc_once_are_put_back() {
+        let mut v = VitalsSetup::default();
+        v.arc_spots.insert("mp".into(), "left-outer".into());
+        assert_eq!(v.sanitized().arc_spots, default_spots());
     }
 
     #[test]

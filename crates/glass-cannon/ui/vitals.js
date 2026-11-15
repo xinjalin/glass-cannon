@@ -1,6 +1,7 @@
 // The vitals arcs widget: arcs either side of your character, as GT Companion's center HUD
-// has them, with no box. On the left your HP (outer) with your stamina inside it, on the
-// right your MP with your flight power inside it, each filling from the bottom; your cast
+// has them, with no box. At first on the left your HP (outer) with your stamina inside it,
+// on the right your MP with your flight power inside it (each can go to any side, outside or
+// in, or be turned off), each filling from the bottom; your cast
 // under your feet. Drawn to the widget's size (arrange it around your character), in the
 // look chosen in the settings (overlay → vitals arcs): solid, thin, segmented, gradient,
 // framed or ticked arcs, a damage trail on the HP arc, how
@@ -20,7 +21,14 @@ const HUNDREDTHS = 100;
 // ---------------------------------------------------------------- the look
 
 // As the settings have it (vitals.rs); these until they're read.
-let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false };
+let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hidden_arcs: [], arc_spots: {} };
+
+// Each side arc's spot: a side, outside or in (as at first, unless moved in the settings).
+const SPOTS = { hp: "left-outer", stamina: "left-inner", mp: "right-outer", flight: "right-inner" };
+const spotOf = (k) => (setup.arc_spots || {})[k] || SPOTS[k];
+
+// A side arc turned off in the settings (only HP and stamina, say).
+const arcOff = (k) => (setup.hidden_arcs || []).includes(k);
 
 // At roundness 50 (as the arcs always were) each side arc bends this far either side of its
 // middle, and the cast's arc this far either side of straight down; at 100, twice as far;
@@ -197,12 +205,21 @@ function layoutArcs() {
   if (!g.w || !g.h) return;
   svg.setAttribute("viewBox", `0 0 ${g.w} ${g.h}`);
   const step = g.outer / 2 + g.gap + g.inner / 2;
-  const arcs = {
-    hp: [sideArc(g, true, 0), g.outer],
-    stamina: [sideArc(g, true, step), g.inner],
-    mp: [sideArc(g, false, 0), g.outer],
-    flight: [sideArc(g, false, step), g.inner],
-  };
+  // Each arc in its spot; on a side whose outer arc is off, the inner one moves out to its
+  // place (two arcs, one each side, say).
+  const arcs = {};
+  const sides = [];
+  for (const side of ["left", "right"]) {
+    const left = side === "left";
+    const at = (layer) => Object.keys(SPOTS).find((k) => spotOf(k) === `${side}-${layer}`);
+    const [o, i] = [at("outer"), at("inner")];
+    const outer = [sideArc(g, left, 0), g.outer];
+    if (o) arcs[o] = outer;
+    if (i) arcs[i] = [sideArc(g, left, step), g.inner];
+    const shown = [o, i].filter((k) => k && !arcOff(k));
+    if (shown.length === 1) arcs[shown[0]] = outer;
+    if (shown.length) sides.push([shown[0], shown[1], left]);
+  }
   const cast = castShape(g);
   arcs.cast = [cast, cast.bar ? Math.max(2, g.inner * 0.6) : g.inner];
   const framed = setup.style === "framed";
@@ -219,7 +236,7 @@ function layoutArcs() {
   }
   parts.shield.setAttribute("d", arcs.hp[0].d);
   parts.shield.style.strokeWidth = `${fillWidth(arcs.hp[1])}px`;
-  drawTicks(arcs, g);
+  drawTicks(arcs, g, sides.map(([o]) => o));
 
   // The numbers, the outer arc's over the inner's, beside the chosen ends and inward of
   // both arcs' ends: the arcs bend outward from their ends, so nothing of them is further
@@ -228,12 +245,10 @@ function layoutArcs() {
   // and the values a line further along the arcs, clear of them.
   const ts = g.ts;
   const both = setup.numbers === "both";
-  for (const [outerKey, innerKey, left] of [
-    ["hp", "stamina", true],
-    ["mp", "flight", false],
-  ]) {
+  for (const [outerKey, innerKey, left] of sides) {
+    // One arc alone on its side: its numbers placed as the outer's, by it.
     const o = arcs[outerKey][0];
-    const i = arcs[innerKey][0];
+    const i = innerKey ? arcs[innerKey][0] : o;
     const inward = left ? 1 : -1;
     const anchor = left ? "start" : "end";
     const away = left ? "end" : "start";
@@ -241,24 +256,30 @@ function layoutArcs() {
     // Between the two arcs' ends, and a little either side of it.
     const mid = (o[end][0] + i[end][0]) / 2;
     const apart = ts * 0.15;
-    const x = i[end][0] + inward * (g.inner / 2 + ts * 0.35);
+    const x = i[end][0] + inward * ((innerKey ? g.inner : g.outer) / 2 + ts * 0.35);
     if (end === "bottom") {
       // Upward from the outer arc's bottom end, as the top's mirrored: the outer arc's
       // value lowest, by its end (the lower one), the inner arc's over it, by its own.
       const y = o.bottom[1] + ts * 0.75 - (both ? ts : 0);
       place(parts[outerKey].value, [x, y], anchor);
-      place(parts[innerKey].value, [x, y - ts], anchor);
       const py = Math.max(o.bottom[1], i.bottom[1]) + g.outer / 2 + ts * 0.9;
-      place(parts[outerKey].pct, [mid - inward * apart, py], away);
-      place(parts[innerKey].pct, [mid + inward * apart, py], anchor);
+      if (!innerKey) place(parts[outerKey].pct, [mid, py], "middle");
+      else {
+        place(parts[innerKey].value, [x, y - ts], anchor);
+        place(parts[outerKey].pct, [mid - inward * apart, py], away);
+        place(parts[innerKey].pct, [mid + inward * apart, py], anchor);
+      }
     } else {
       // Downward from the outer arc's top end.
       const y = o.top[1] - ts * 0.15 + (both ? ts : 0);
       place(parts[outerKey].value, [x, y], anchor);
-      place(parts[innerKey].value, [x, y + ts], anchor);
       const py = Math.min(o.top[1], i.top[1]) - g.outer / 2 - ts * 0.45;
-      place(parts[outerKey].pct, [mid - inward * apart, py], away);
-      place(parts[innerKey].pct, [mid + inward * apart, py], anchor);
+      if (!innerKey) place(parts[outerKey].pct, [mid, py], "middle");
+      else {
+        place(parts[innerKey].value, [x, y + ts], anchor);
+        place(parts[outerKey].pct, [mid - inward * apart, py], away);
+        place(parts[innerKey].pct, [mid + inward * apart, py], anchor);
+      }
     }
   }
   if (cast.bar) {
@@ -274,12 +295,12 @@ function layoutArcs() {
 }
 
 // The ticks look's marks: notches like a ruler's on the outside of each side's outer arc
-// (HP, MP), clear of both arcs, at a quarter, half (longer) and three quarters of the way
-// up.
-function drawTicks(arcs, g) {
+// (`outers`: HP and MP at first), clear of both arcs, at a quarter, half (longer) and three
+// quarters of the way up.
+function drawTicks(arcs, g, outers) {
   const marks = [];
   if (setup.style === "ticks") {
-    for (const k of ["hp", "mp"]) {
+    for (const k of outers) {
       const path = parts[k].track;
       const len = path.getTotalLength();
       const from = arcs[k][1] / 2 + Math.max(2, g.fs * 0.15);
@@ -373,6 +394,11 @@ function cells(from, to) {
 
 function arc(k, share, value, percent) {
   const p = parts[k];
+  // Turned off: none of it.
+  if (arcOff(k)) {
+    for (const e of [p.frame, p.track, p.fill, p.value, p.pct]) e.style.display = "none";
+    return;
+  }
   const known = share != null;
   // Always shown: the empty track stays up with nothing to fill it.
   p.track.style.display = known || setup.always_show ? "" : "none";
@@ -398,9 +424,9 @@ function drawArcs(b) {
   };
   const hp = share(b && b.hp, b && b.hp_max);
   side("hp", b && b.hp, b && b.hp_max, 1);
-  drawTrail(hp != null ? Math.max(0, Math.min(1, hp)) * 100 : null);
+  drawTrail(hp != null && !arcOff("hp") ? Math.max(0, Math.min(1, hp)) * 100 : null);
   // The shield: on along the arc from the HP's end (a dash after a gap the HP's length).
-  const span = b ? shieldSpan(b.hp, b.hp_max, b.shield) : null;
+  const span = b && !arcOff("hp") ? shieldSpan(b.hp, b.hp_max, b.shield) : null;
   parts.shield.style.display = span ? "" : "none";
   // The ticks look's HP notches beside the shield, in its colour.
   for (const l of ticks.querySelectorAll(".arc-tick.hp")) {
