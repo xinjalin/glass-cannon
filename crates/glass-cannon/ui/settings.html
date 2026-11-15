@@ -42,7 +42,7 @@
         <section class="tab-panel" id="tab-appearance" role="tabpanel" aria-labelledby="tab-button-appearance" data-tab="appearance">
           <h2 class="panel-title">appearance</h2>
           <fieldset class="box">
-            <legend>colours</legend>
+            <legend>theme</legend>
             <div class="line" data-keywords="color colour accent skin">
               <span class="key">theme</span>
               <span id="themes" class="swatches" role="radiogroup" aria-label="Theme">
@@ -61,15 +61,7 @@
                 <button type="button" class="swatch custom" data-theme-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Theme colour"></button>
               </span>
             </div>
-            <p class="hint" data-keywords="colour color parts background glass tint accent numbers lines borders fills theme reset">the theme's parts: each follows the theme until you pick a colour</p>
-            <div class="line" data-keywords="colour color parts reset theme">
-              <span class="key">parts</span>
-              <button id="parts-reset" type="button" class="chip end" title="Every part back to the theme's colours">[all to theme]</button>
-            </div>
-            <div class="line" data-keywords="colour color background glass tint panel">
-              <span class="key">background colour</span>
-              <span id="part-background" class="swatches" role="radiogroup" aria-label="Background colour"></span>
-            </div>
+            <p class="hint" data-keywords="colour color parts accent numbers lines borders fills theme">its parts: each follows the theme until you pick a colour</p>
             <div class="line" data-keywords="colour color accent headings buttons tabs highlight">
               <span class="key">accent</span>
               <span id="part-accent" class="swatches" role="radiogroup" aria-label="Accent colour"></span>
@@ -86,46 +78,10 @@
               <span class="key">fills</span>
               <span id="part-fills" class="swatches" role="radiogroup" aria-label="Fills colour"></span>
             </div>
-            <div class="line" data-keywords="color colour class damage rows">
-              <span class="key">bars</span>
-              <span class="swatches" role="radiogroup" aria-label="Bar colour">
-                <span class="group">
-                  <button type="button" class="chip" data-bar-choice="theme" title="Follow the theme">[theme]</button>
-                  <button type="button" class="chip" data-bar-choice="class" title="Each player's class colour">[class]</button>
-                </span>
-                <span class="group">
-                  <button type="button" class="swatch" data-bar-choice="rose" title="rose"></button>
-                  <button type="button" class="swatch" data-bar-choice="lavender" title="lavender"></button>
-                  <button type="button" class="swatch" data-bar-choice="mint" title="mint"></button>
-                  <button type="button" class="swatch" data-bar-choice="sky" title="sky"></button>
-                  <button type="button" class="swatch" data-bar-choice="amber" title="amber"></button>
-                  <button type="button" class="swatch" data-bar-choice="mono" title="mono"></button>
-                  <button type="button" class="swatch custom" data-bar-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Bar colour"></button>
-                </span>
-              </span>
+            <div class="line" data-keywords="colour color parts reset theme">
+              <span class="key">back to the theme</span>
+              <button id="parts-reset" type="button" class="chip end" title="Every part back to the theme's colours">[all to theme]</button>
             </div>
-            <div class="line" data-keywords="class colours colors palette classes gladiator templar assassin ranger sorcerer elementalist cleric chanter fighter custom">
-              <span class="key">class colours</span>
-              <span id="class-colours" class="swatches class-swatches" role="group" aria-label="Each class's colour"></span>
-            </div>
-            <div class="line" data-keywords="row fill self you">
-              <span class="key">highlight</span>
-              <span class="choice" role="radiogroup" aria-label="Highlight">
-                <button type="button" data-highlight-choice="self" title="Fill only your row">[you]</button>
-                <button type="button" data-highlight-choice="all" title="Fill every row in its colour">[all]</button>
-                <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
-              </span>
-            </div>
-            <div class="line" data-keywords="row bars blocks fill style meter">
-              <span class="key">rows</span>
-              <span class="choice" role="radiogroup" aria-label="How the meter's rows show each player's share">
-                <button type="button" data-row-style-choice="blocks" title="A strip of blocks beside the numbers">[blocks]</button>
-                <button type="button" data-row-style-choice="fill" title="Each row filled as far as its share of the top player's, the highlighted ones stronger">[bars]</button>
-              </span>
-            </div>
-            <button id="fill-tint" data-keywords="highlight opacity transparent see-through fill" type="button" class="opt" aria-pressed="false" title="The rows' fill as see-through as the tint (background → tint), not solid">
-              <span class="key">see-through highlight</span><span class="state">[off]</span>
-            </button>
           </fieldset>
           <fieldset class="box">
             <legend>text</legend>
@@ -172,15 +128,19 @@
             </div>
           </fieldset>
           <fieldset class="box">
-            <legend>background</legend>
-            <p class="hint">the overlay's widgets · the windows keep a solid background (the theme's, or your background colour)</p>
+            <legend>glass</legend>
+            <p class="hint" data-keywords="background glass">behind the overlay's widgets · the windows take its colour</p>
             <div class="line" data-keywords="blur frosted glass transparent clear">
-              <span class="key">background</span>
-              <span class="choice" role="radiogroup" aria-label="Background">
+              <span class="key">style</span>
+              <span class="choice" role="radiogroup" aria-label="Glass">
                 <button type="button" data-backdrop-choice="frosted" title="Blurred glass with a tint">[frosted]</button>
                 <button type="button" data-backdrop-choice="tinted" title="A see-through tint, no blur">[tinted]</button>
                 <button type="button" data-backdrop-choice="clear" title="No background at all">[clear]</button>
               </span>
+            </div>
+            <div class="line" data-keywords="colour color background glass tint panel">
+              <span class="key">colour</span>
+              <span id="part-background" class="swatches" role="radiogroup" aria-label="Background colour"></span>
             </div>
             <div class="line" data-keywords="opacity transparency alpha see-through">
               <span class="key">tint</span>
@@ -189,6 +149,14 @@
                 <span id="opacity-value" class="step-value"></span>
                 <button id="opacity-up" type="button" title="More solid">[+]</button>
               </span>
+            </div>
+          </fieldset>
+          <fieldset class="box">
+            <legend>class colours</legend>
+            <p class="hint" data-keywords="class colours">the meter's class bars, party frames, the target frame</p>
+            <div class="line" data-keywords="class colours colors palette classes gladiator templar assassin ranger sorcerer elementalist cleric chanter fighter custom">
+              <span class="key">each class</span>
+              <span id="class-colours" class="swatches class-swatches" role="group" aria-label="Each class's colour"></span>
             </div>
           </fieldset>
         </section>
@@ -242,6 +210,25 @@
               <span class="key">arrange</span><span class="state">[ arrange ]</span>
             </button>
           </fieldset>
+          <fieldset class="box">
+            <legend>over the game</legend>
+            <button id="hide-for-menus" data-keywords="inventory menu world map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open, the world map among them (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), at a strip at its bottom middle for the gold Confirm button of reward screens (a Monster Cube's, Shugo's…), over the top of the screen for a window's close X on its title bar (Attendance…), and across the middle for a login pop-up's flat bar over the dimmed game, and steps aside only when one is there. They're only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over the corner or the button hides it from the meter">
+              <span class="key">hide for game menus</span><span class="state">[off]</span>
+            </button>
+            <button id="click-through" data-keywords="click through mouse pass input interact" type="button" class="opt" aria-pressed="false" title="Every click goes through the widgets to the game, the meter's, the world timers' and the pet tracker's too (the other widgets always let them through). Arranging the widgets still takes the mouse">
+              <span class="key">click-through</span><span class="state">[off]</span>
+            </button>
+            <div class="line" data-keywords="hide idle out of combat auto-hide transparency">
+              <span class="key">fade outside combat</span>
+              <span class="choice" role="radiogroup" aria-label="Fade widgets outside combat (which ones: the arrange menu)">
+                <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
+                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight (the meter under the mouse too). Which widgets fade: the arrange menu&#39;s fade column">[10s]</button>
+                <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
+                <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
+              </span>
+            </div>
+          </fieldset>
+          <p class="hint subtabs-hint">each widget's own settings</p>
           <!-- Each widget's own settings, a tab each (settings.js), so the page stays short;
                while searching, every one shows. -->
           <div id="subtabs" class="subtabs" role="tablist" aria-label="Widget settings">
@@ -358,6 +345,7 @@
             <button id="vt-hide-full" type="button" class="opt" data-keywords="hide full arcs vitals when full" aria-pressed="false" title="An arc hides while it's full (HP with no shield on it), and comes back as soon as it drops">
               <span class="key">hide when full</span><span class="state">[off]</span>
             </button>
+            <p class="hint" data-keywords="numbers">numbers</p>
             <div class="line" data-keywords="numbers value percent both">
               <span class="key">numbers</span>
               <span class="choice" role="radiogroup" aria-label="The numbers by the arcs">
@@ -439,6 +427,7 @@
                 <button type="button" data-vt-spot="flight" data-vt-layer="inner" title="Your flight power inside">[inner]</button>
               </span>
             </div>
+            <p class="hint" data-keywords="cast">your cast</p>
             <button id="vt-cast" type="button" class="opt" data-keywords="cast bar casting show hide" aria-pressed="true" title="Your cast under your feet, while you cast">
               <span class="key">cast bar</span><span class="state">[on]</span>
             </button>
@@ -514,24 +503,6 @@
             </button>
           </fieldset>
           </div>
-          <fieldset class="box">
-            <legend>over the game</legend>
-            <button id="hide-for-menus" data-keywords="inventory menu world map auto-hide" type="button" class="opt" aria-pressed="false" title="The overlay steps aside while a full-screen game menu is open, the world map among them (with the action controls, where the game hides the cursor while you play). Alt shows the cursor too, so the cursor alone never hides them: while it shows, the meter looks at a small square at the top-right corner of the game for the close X every full-screen menu has (or the back arrow a few windows have), at a strip at its bottom middle for the gold Confirm button of reward screens (a Monster Cube's, Shugo's…), and over the top of the screen for a window's close X on its title bar (Attendance…), and steps aside only when one is there. They're only looked at, never saved or sent; nothing is read while the cursor is hidden, this is off or the game isn't in front. A widget placed over the corner or the button hides it from the meter">
-              <span class="key">hide for game menus</span><span class="state">[off]</span>
-            </button>
-            <button id="click-through" data-keywords="click through mouse pass input interact" type="button" class="opt" aria-pressed="false" title="Every click goes through the widgets to the game, the meter's, the world timers' and the pet tracker's too (the other widgets always let them through). Arranging the widgets still takes the mouse">
-              <span class="key">click-through</span><span class="state">[off]</span>
-            </button>
-            <div class="line" data-keywords="hide idle out of combat auto-hide transparency">
-              <span class="key">fade outside combat</span>
-              <span class="choice" role="radiogroup" aria-label="Fade widgets outside combat (which ones: the arrange menu)">
-                <button type="button" data-fade-choice="0" title="Always shown">[off]</button>
-                <button type="button" data-fade-choice="10" title="10 s after combat; back in the next fight (the meter under the mouse too). Which widgets fade: the arrange menu&#39;s fade column">[10s]</button>
-                <button type="button" data-fade-choice="30" title="30 s after combat">[30s]</button>
-                <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
-              </span>
-            </div>
-          </fieldset>
         </section>
         <section class="tab-panel" id="tab-alerts" role="tabpanel" aria-labelledby="tab-button-alerts" data-tab="alerts">
           <h2 class="panel-title">alerts</h2>
@@ -607,18 +578,42 @@
             </div>
           </fieldset>
           <fieldset class="box">
-            <legend>on the meter</legend>
-            <button id="boss-hp" data-keywords="target health hp berserk timer enrage stagger time to kill cast" type="button" class="opt" aria-pressed="false" title="A line under the fight's name with its target's HP, time to kill, stagger and enrage (and its name, when it's one you picked), and its cast under it, in live fights. Only while the target frame widget is off: it has it all">
-              <span class="key">target hp, stagger &amp; more</span><span class="state">[on]</span>
-            </button>
-            <button id="boss-casts" type="button" class="opt" aria-pressed="false" title="Under the boss's HP: what it's casting and when it lands, else what it cast next the last time you fought it (left out while the target frame shows)">
-              <span class="key">boss casts</span><span class="state">[on]</span>
-            </button>
-            <button id="info-bar" data-keywords="clock latency ms strip" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
-              <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
-            </button>
-            <button id="meter-fit" data-keywords="meter height size fit rows auto resize" type="button" class="opt" aria-pressed="true" title="The meter's height fits what it shows: its rows, open skill lists and the lines over them. Off, it's the height you give it while arranging the overlay">
-              <span class="key">fit height</span><span class="state">[on]</span>
+            <legend>rows</legend>
+            <div class="line" data-keywords="color colour class damage rows">
+              <span class="key">bars</span>
+              <span class="swatches" role="radiogroup" aria-label="Bar colour">
+                <span class="group">
+                  <button type="button" class="chip" data-bar-choice="theme" title="Follow the theme">[theme]</button>
+                  <button type="button" class="chip" data-bar-choice="class" title="Each player's class colour">[class]</button>
+                </span>
+                <span class="group">
+                  <button type="button" class="swatch" data-bar-choice="rose" title="rose"></button>
+                  <button type="button" class="swatch" data-bar-choice="lavender" title="lavender"></button>
+                  <button type="button" class="swatch" data-bar-choice="mint" title="mint"></button>
+                  <button type="button" class="swatch" data-bar-choice="sky" title="sky"></button>
+                  <button type="button" class="swatch" data-bar-choice="amber" title="amber"></button>
+                  <button type="button" class="swatch" data-bar-choice="mono" title="mono"></button>
+                  <button type="button" class="swatch custom" data-bar-custom title="Pick any colour"><input type="color" tabindex="-1" aria-label="Bar colour"></button>
+                </span>
+              </span>
+            </div>
+            <div class="line" data-keywords="row fill self you">
+              <span class="key">highlight</span>
+              <span class="choice" role="radiogroup" aria-label="Highlight">
+                <button type="button" data-highlight-choice="self" title="Fill only your row">[you]</button>
+                <button type="button" data-highlight-choice="all" title="Fill every row in its colour">[all]</button>
+                <button type="button" data-highlight-choice="off" title="Fill no rows: the bars show the bar colour">[off]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="row bars blocks fill style meter">
+              <span class="key">row style</span>
+              <span class="choice" role="radiogroup" aria-label="How the meter's rows show each player's share">
+                <button type="button" data-row-style-choice="blocks" title="A strip of blocks beside the numbers">[blocks]</button>
+                <button type="button" data-row-style-choice="fill" title="Each row filled as far as its share of the top player's, the highlighted ones stronger">[bars]</button>
+              </span>
+            </div>
+            <button id="fill-tint" data-keywords="highlight opacity transparent see-through fill" type="button" class="opt" aria-pressed="false" title="The rows' fill as see-through as the tint (background → tint), not solid">
+              <span class="key">see-through highlight</span><span class="state">[off]</span>
             </button>
             <div class="line" data-keywords="party expedition sort order combat power cp gear score gs ascending descending">
               <span class="key">party order</span>
@@ -633,16 +628,24 @@
             <button id="show-cp" data-keywords="combat power cp players names" type="button" class="opt" aria-pressed="true" title="Each player's combat power by their name: your party's from its roster, others' from when they came into view">
               <span class="key">combat power</span><span class="state">[on]</span>
             </button>
+          </fieldset>
+          <fieldset class="box">
+            <legend>on the meter</legend>
+            <button id="boss-hp" data-keywords="target health hp berserk timer enrage stagger time to kill cast" type="button" class="opt" aria-pressed="false" title="A line under the fight's name with its target's HP, time to kill, stagger and enrage (and its name, when it's one you picked), and its cast under it, in live fights. Only while the target frame widget is off: it has it all">
+              <span class="key">target hp, stagger &amp; more</span><span class="state">[on]</span>
+            </button>
+            <button id="boss-casts" type="button" class="opt" aria-pressed="false" title="Under the boss's HP: what it's casting and when it lands, else what it cast next the last time you fought it (left out while the target frame shows)">
+              <span class="key">boss casts</span><span class="state">[on]</span>
+            </button>
+            <button id="info-bar" data-keywords="clock latency ms strip" type="button" class="opt" aria-pressed="false" title="A strip on the meter with the local time and the game's ping">
+              <span class="key">time &amp; ping bar</span><span class="state">[off]</span>
+            </button>
+            <button id="meter-fit" data-keywords="meter height size fit rows auto resize" type="button" class="opt" aria-pressed="true" title="The meter's height fits what it shows: its rows, open skill lists and the lines over them. Off, it's the height you give it while arranging the overlay">
+              <span class="key">fit height</span><span class="state">[on]</span>
+            </button>
             <button id="show-odyle" data-keywords="odyle energy tickets strip" type="button" class="opt" aria-pressed="true" title="Your Odyle energy (charged in brackets) on the meter's top strip, as the game last sent it">
               <span class="key">odyle energy</span><span class="state">[on]</span>
             </button>
-          </fieldset>
-          <fieldset class="box">
-            <legend>recording</legend>
-            <button id="record" data-keywords="capture packets pcap log" type="button" class="opt" aria-pressed="false">
-              <span class="key">record fights</span><span class="state">[off]</span>
-            </button>
-            <p class="hint" id="record-hint">save packets to the captures folder</p>
           </fieldset>
         </section>
         <section class="tab-panel" id="tab-keybinds" role="tabpanel" aria-labelledby="tab-button-keybinds" data-tab="keybinds">
@@ -667,11 +670,18 @@
               <span class="key">close with the game</span><span class="state">[off]</span>
             </button>
             <button id="black-market-auto" data-keywords="black market cloud merchant shop open auto window" type="button" class="opt" aria-pressed="true" title="The black market window comes up when you open the Black Cloud Merchant in game (beside the game, without taking its keys). Closed, it stays closed for a couple of minutes while you go through the merchant's pages">
-              <span class="key">open the black market with the game's</span><span class="state">[on]</span>
+              <span class="key">black market opens with the merchant</span><span class="state">[on]</span>
             </button>
             <button id="shortcut" data-keywords="desktop icon start menu" type="button" class="opt">
               <span class="key">desktop shortcut</span><span class="state">[ add ]</span>
             </button>
+          </fieldset>
+          <fieldset class="box">
+            <legend>recording</legend>
+            <button id="record" data-keywords="capture packets pcap log" type="button" class="opt" aria-pressed="false">
+              <span class="key">record fights</span><span class="state">[off]</span>
+            </button>
+            <p class="hint" id="record-hint">save packets to the captures folder</p>
           </fieldset>
           <fieldset class="box">
             <legend>reset</legend>

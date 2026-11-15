@@ -231,27 +231,30 @@ background, Windows lightly blurs the game behind each widget.
   your party's from its roster, anyone else's from when they came into view, yours from
   your login or zone change. **Odyle energy** (settings → meter; charged in brackets) shows
   on the strip at the meter's top, as the game last sent it (at login and as it changes).
-- **Theme** (settings → appearance → colours): a colour for everything, or a palette theme
+- **Theme** (settings → appearance → theme): a colour for everything, or a palette theme
   (seafoam, scarlet, teal, indigo) that gives each part its own; **seafoam light** is the
-  one light theme (mint glass, navy text), with colours you pick darkened to read on it. And **the theme's parts**,
-  each following the theme until you pick a colour of your own: the **background colour**
-  (the glass behind the overlay and the windows), the **accent** (headings, buttons, tabs),
-  the **numbers**, the **lines** (borders, dividers, the windows' frames) and the
-  **fills** (selected buttons, bars, filled rows, with text on them that reads);
-  **[all to theme]** puts them all back.
+  one light theme (mint glass, navy text), with colours you pick darkened to read on it. And
+  its parts, each following the theme until you pick a colour of your own: the **accent**
+  (headings, buttons, tabs), the **numbers**, the **lines** (borders, dividers, the
+  windows' frames) and the **fills** (selected buttons, bars, filled rows, with text on
+  them that reads); **back to the theme** puts them all back.
+- **Glass** (settings → appearance → glass): what's behind the overlay's widgets: its
+  **style** (frosted, tinted or clear), its **colour** (the windows take it too) and how
+  strong the **tint** is.
 - **Text** (settings → appearance → text), as subtitles have it: the font and its size, the
   text's colour (the theme's or any) and opacity, and its edge (the theme's soft shadow,
   none, a drop shadow, an outline, raised or depressed) in a colour of your own (picked
   with no edge, the theme's shadow comes back in it). It shows
-  everywhere: the overlay and the windows. What's behind the text is the background and
-  tint (settings → appearance → background).
-- **Class colours** (settings → appearance): with the bars in class colours, each class's
+  everywhere: the overlay and the windows. What's behind the text is the glass (settings →
+  appearance → glass).
+- **Class colours** (settings → appearance → class colours): with the bars in class colours, each class's
   colour can be your own (click its swatch); the text on it stays readable, dark or
   light by the colour. They show wherever class colours do; **[reset]** brings back the
   built-in ones.
 - The rows show each player's share as a strip of **blocks**, or as **bars**: the row
-  itself filled that far (settings → appearance → rows). **See-through highlight** makes
-  the filled rows as see-through as the tint.
+  itself filled that far (settings → meter → rows, with the bars' colour, which rows are
+  filled, the party's order and combat power). **See-through highlight** makes the filled
+  rows as see-through as the tint.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
   party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A **☠**
@@ -262,11 +265,13 @@ background, Windows lightly blurs the game behind each widget.
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
   analysis, end the fight, arrange the overlay, history, and **≡** for the settings, in tabs: **appearance** (theme:
   *night*, the default, or rose, lavender, mint, sky, amber, mono, the palette themes
-  seafoam (and seafoam light, a light theme), scarlet, teal and indigo, or any colour; the theme's parts; bars, font,
-  background), **overlay** (its widgets, hiding it, fading outside combat),
+  seafoam (and seafoam light, a light theme), scarlet, teal and indigo, or any colour, and
+  its parts; text; glass; class colours), **overlay** (its widgets, how they behave over
+  the game, each widget's own settings),
   **alerts** (boss warnings and their sound), **meter** (whose damage counts, update rate:
-  *live* or every 0.2–2 s, what shows on it, recording), **keybinds** and **general**
-  (status checks, closing with the game, resets; a dot on it when a check needs a look).
+  *live* or every 0.2–2 s, its rows, what shows on it), **keybinds** and **general**
+  (status checks, closing with the game, recording, resets; a dot on it when a check
+  needs a look).
   The search over the tabs (**Ctrl+F** or **/**) is forgiving: letters in order find a
   setting ("alrt snd": alert sound), a slip is fine ("soudn"), and common words find
   theirs ("opacity": tint, "fps": update rate). **Enter** goes to the best match, **Esc**
