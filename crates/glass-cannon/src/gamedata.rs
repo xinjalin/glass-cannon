@@ -179,6 +179,12 @@ pub struct ShopItem {
     pub slot: Option<String>,
     #[serde(default)]
     pub pet: Option<u32>,
+    /// Its icon's file name (`<icon>.png` in the data folder; packet-lab shop-icons).
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Its grade (Common, Rare, Epic, Unique, Legendary), where the data knows it.
+    #[serde(default)]
+    pub grade: Option<String>,
 }
 
 /// Which mob types give which pet's souls, and where each pet is found (optional; from
@@ -230,6 +236,9 @@ pub struct GearEntry {
     pub grade: Option<String>,
     #[serde(default)]
     pub level: Option<u32>,
+    /// Its icon's file name (`<icon>.png` in the data folder; packet-lab gear-icons).
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 /// A pet in the data: its ID, name and genus.
@@ -923,6 +932,20 @@ impl GameData {
         self.icon_data_url(&format!("pet_{pet}.png"))
     }
 
+    /// An item the Black Cloud Merchant sells: its icon (a pet's portrait for a pet).
+    pub fn shop_icon(&self, item: u32) -> Option<String> {
+        let info = self.shop_item(item)?;
+        if let Some(url) = info.pet.and_then(|p| self.pet_icon(p)) {
+            return Some(url);
+        }
+        self.icon_data_url(&format!("{}.png", info.icon.as_deref()?))
+    }
+
+    /// A piece of gear's icon (`<icon>.png`; packet-lab gear-icons).
+    pub fn gear_icon(&self, item: u32) -> Option<String> {
+        self.icon_data_url(&format!("{}.png", self.gear(item)?.icon.as_deref()?))
+    }
+
     pub fn class_icon(&self, code: u32) -> Option<String> {
         ["webp", "png"]
             .iter()
@@ -1359,6 +1382,33 @@ mod tests {
         assert_eq!(d.skill_icon(1), None);
         assert_eq!(d.class_icon(18).as_deref(), Some("data:image/webp;base64,UklGRg=="));
         assert_eq!(d.class_icon(11), None);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn shop_items_have_their_icons() {
+        let dir = temp_dir("shop");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "1": { "name": "One" } } }"#).unwrap();
+        fs::write(dir.join("pet_1001.png"), b"PET").unwrap();
+        fs::write(dir.join("Icon_GM_0067_T05_Torso.png"), b"SKIN").unwrap();
+        fs::write(
+            dir.join(SHOP_ITEMS_FILE),
+            r#"{ "items": { "1": { "kind": "pet", "name": "Fungie", "pet": 1001, "icon": "Icon_Vehicle" },
+                "2": { "kind": "skin", "name": "Restored Recon Team", "icon": "Icon_GM_0067_T05_Torso" },
+                "3": { "kind": "skin", "name": "Odd", "icon": "../x" } } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // A pet: its portrait. A skin: its own icon. A name reaching out of the folder: none.
+        assert_eq!(d.shop_icon(1).as_deref(), Some("data:image/png;base64,UEVU"));
+        assert_eq!(d.shop_icon(2).as_deref(), Some("data:image/png;base64,U0tJTg=="));
+        assert_eq!(d.shop_icon(3), None);
+        assert_eq!(d.shop_icon(4), None);
+        // Gear: the same file as the skin that looks like it.
+        fs::write(dir.join(GEAR_FILE), r#"{ "gear": { "110120003": { "name": "Breastplate", "icon": "Icon_GM_0067_T05_Torso" } } }"#).unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        assert_eq!(d.gear_icon(110120003).as_deref(), Some("data:image/png;base64,U0tJTg=="));
+        assert_eq!(d.gear_icon(1), None);
         fs::remove_dir_all(dir).ok();
     }
 }

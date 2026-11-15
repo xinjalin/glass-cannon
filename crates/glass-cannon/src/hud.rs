@@ -73,11 +73,15 @@ struct MerchantWatch {
     looked_at: Option<std::time::Instant>,
     seen_mark: bool,
     misses: u8,
+    /// Looks in a row with the Shop's second sign showing (see `menus::read_shop_sign`).
+    shop_looks: u8,
 }
 
 impl MerchantWatch {
-    /// `corner`: whether the corner shows a menu's mark (None: couldn't tell).
-    fn left(&mut self, cursor: bool, corner: impl FnOnce() -> Option<bool>) -> bool {
+    /// `look`: whether the corner shows a menu's mark, and whether the Shop's second sign
+    /// shows (each None: couldn't tell). The merchant's Exit goes back to the Shop, which
+    /// has the X too: there, it's the sign that tells.
+    fn left(&mut self, cursor: bool, look: impl FnOnce() -> (Option<bool>, Option<bool>)) -> bool {
         if !cursor {
             let since = *self.playing_since.get_or_insert_with(std::time::Instant::now);
             return since.elapsed() >= MERCHANT_LEFT_AFTER;
@@ -87,7 +91,8 @@ impl MerchantWatch {
             return false;
         }
         self.looked_at = Some(std::time::Instant::now());
-        match corner() {
+        let (corner, shop) = look();
+        match corner {
             Some(true) => {
                 self.seen_mark = true;
                 self.misses = 0;
@@ -95,8 +100,25 @@ impl MerchantWatch {
             Some(false) if self.seen_mark => self.misses += 1,
             _ => {}
         }
-        self.misses >= MERCHANT_GONE_LOOKS
+        self.shop_looks = if shop == Some(true) { self.shop_looks + 1 } else { 0 };
+        self.misses >= MERCHANT_GONE_LOOKS || self.shop_looks >= MERCHANT_GONE_LOOKS
     }
+}
+
+/// Whether the Shop's second sign shows at the game's top left (you've left the merchant
+/// for the Shop), our widgets left out; None when the black market window covers it.
+fn merchant_shop_sign<R: Runtime>(handle: &AppHandle<R>, app: &AppState, area: Rect) -> Option<bool> {
+    let (bx, by, bw, bh) = crate::menus::shop_sign_band(area.height());
+    if let Some(bm) = handle.get_webview_window(crate::BLACK_MARKET).filter(|w| w.is_visible().unwrap_or(false)) {
+        let (Ok(at), Ok(size)) = (bm.outer_position(), bm.outer_size()) else { return None };
+        let (l, t) = (at.x - area.left, at.y - area.top);
+        let (r, b) = (l + size.width as i32, t + size.height as i32);
+        if r > bx && l < bx + bw && b > by && t < by + bh {
+            return None;
+        }
+    }
+    let skip = widgets_in_strip(&lock(&app.hud_drawn), f64::from(bx), f64::from(by));
+    crate::menus::read_shop_sign((area.left, area.top, area.width(), area.height()), &skip)
 }
 
 /// Whether the game's top-right corner shows a menu's close X or back arrow, our widgets
@@ -263,8 +285,8 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // Leaving the merchant: its visit is over, and the black market window that came
                 // up with it goes.
                 if crate::settings::at_black_market(&app) && game_in_front {
-                    let corner = || placed.and_then(|area| merchant_corner(&handle, &app, area));
-                    if merchant.left(crate::menus::cursor_showing(), corner) {
+                    let look = || placed.map_or((None, None), |area| (merchant_corner(&handle, &app, area), merchant_shop_sign(&handle, &app, area)));
+                    if merchant.left(crate::menus::cursor_showing(), look) {
                         crate::settings::black_market_left(&handle, &app);
                         merchant = MerchantWatch::default();
                     }
@@ -479,7 +501,7 @@ mod tests {
         // Each look as if the last were long ago.
         let look = |m: &mut MerchantWatch, mark: Option<bool>| {
             m.looked_at = None;
-            m.left(true, || mark)
+            m.left(true, || (mark, None))
         };
         // No mark seen yet (a merchant whose X isn't told): missing it means nothing.
         assert!(!look(&mut m, Some(false)));
@@ -492,8 +514,20 @@ mod tests {
         assert!(look(&mut m, Some(false)));
         // Between looks, nothing is read.
         let mut m = MerchantWatch::default();
-        assert!(!m.left(true, || Some(true)));
+        assert!(!m.left(true, || (Some(true), None)));
         assert!(!m.left(true, || unreachable!()));
+        // The merchant's Exit: back in the Shop, the X still there, its second sign showing
+        // in two looks in a row.
+        let mut m = MerchantWatch::default();
+        let shop = |m: &mut MerchantWatch, sign: Option<bool>| {
+            m.looked_at = None;
+            m.left(true, || (Some(true), sign))
+        };
+        assert!(!shop(&mut m, Some(false)));
+        assert!(!shop(&mut m, Some(true)));
+        assert!(!shop(&mut m, Some(false)), "a flash of it isn't enough");
+        assert!(!shop(&mut m, Some(true)));
+        assert!(shop(&mut m, Some(true)));
     }
 
     #[test]

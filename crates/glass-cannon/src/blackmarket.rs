@@ -121,9 +121,15 @@ pub struct OfferView {
     pub kind: Option<String>,
     /// What a skin is for ("Greatsword"), a pet's genus.
     pub detail: Option<String>,
+    /// Its grade, where the data knows it (its icon is framed in the grade's colour).
+    pub grade: Option<String>,
     /// A pet: its ID, and its level as your characters last had it (0: you don't have it).
     pub pet: Option<u32>,
     pub pet_level: Option<u32>,
+    /// A pet's souls toward its next level, and the souls that level takes (None: at its
+    /// highest level, nothing more to get).
+    pub pet_souls: Option<u32>,
+    pub pet_next: Option<u32>,
     pub count: u64,
     pub price: u64,
     pub discounted_price: u64,
@@ -201,8 +207,11 @@ pub fn view(m: &BlackMarket, data: &GameData, pets: &PetBook, you: Option<String
                                 name: info.map(|i| i.name.clone()),
                                 kind: info.map(|i| i.kind.clone()),
                                 detail: info.and_then(|i| i.slot.clone()).or_else(|| pet.and_then(|p| data.pet_genus(p))),
+                                grade: info.and_then(|i| i.grade.clone()),
                                 pet,
                                 pet_level: pet.map(|p| pets.level(p)),
+                                pet_souls: pet.map(|p| pets.souls(p)),
+                                pet_next: pet.and_then(|p| meter_core::pets::SOULS_PER_LEVEL.get(pets.level(p) as usize).copied()),
                                 count: o.count,
                                 price: o.price,
                                 discounted_price: o.discounted_price,

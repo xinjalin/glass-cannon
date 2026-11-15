@@ -27,6 +27,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `field-bosses.json` (field bosses' level and location) | the same bundle's monsters | none: used without a licence |
 | `boss-mechanics.json` (dungeon bosses' mechanics for the boss warnings: which buff, debuff, cue cast, stagger gauge or ground hit means what, and what to do; the casts that always warn; and `labels`, our own short names for moves the game only calls "Attack") | written by hand; which effect and skill IDs go with which mechanic came from [GT Companion](https://gaming.tools)'s dungeon warnings (0.5.110) as leads, the Ludra raid's from our own runs and two guides to it ([aion2tierlist.com](https://aion2tierlist.com/guides/aion-2-ludra-raid-guide)'s and [dbaion2.ru](https://dbaion2.ru/en/guides/mekhaniki-rudra/)'s), the labels from what each move did in our runs; the wording is ours | none (the IDs are NCSOFT's) |
 | `pet_<id>.png` (pet portraits, for the pet tracker) | NCSOFT's game asset server, by the bundle's pets' icon names | NCSOFT's artwork, used without a licence |
+| `Icon_*.png` (icons for what the Black Cloud Merchant sells and for gear, under each icon's own name: a skin and the gear it looks like share one) | NCSOFT's game asset server, by the icon names `shop-items.json` and `gear.json` keep from the bundle's items | NCSOFT's artwork, used without a licence |
 | `Icon_Item_Usable_*.png` and `item-icons.json` (icons for scroll, potion and food buffs) | NCSOFT's game asset server (`assets.playnccdn.com`), matched to skills by the bundle's item names | NCSOFT's artwork, used without a licence |
 
 The NOIA2 and RATmeter data stays under their GPL-3.0 licence (the release includes
@@ -58,6 +59,12 @@ sources aren't named; they're here on the same terms and will be removed on requ
 - Gear: `packet-lab gear <items.json> --scraped <date>` from the same kind of scrape.
 - Pet portraits: `packet-lab pet-icons <pets.json>` from the same kind of scrape (its pets'
   icon names), downloaded from NCSOFT's asset server at 64 px.
+- Black market and gear icons: `packet-lab shop-items <items.json> --scraped <date>` keeps
+  each item's icon name (skins, Theostones, wings, emotes, skin chests); `packet-lab
+  gear-icons <items.json>` adds each piece's icon name to `gear.json`. `packet-lab
+  shop-icons` and `gear-icons` download the icons from NCSOFT's asset server at 48 px as
+  `<icon>.png` (four at a time; icons already there, a skin's and its gear's shared, are
+  kept).
 - Pet spawns: `packet-lab pet-spawns <pets.json> <regions.json> --commit <sha>` from Aion DPS
   Meter's `Client/assets/aion2/pets/` at that commit.
 - Boss skill names: `packet-lab boss-skills <skill_names.json> --commit <sha>` from Aion DPS

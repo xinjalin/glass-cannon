@@ -1,6 +1,7 @@
 // The black market window: what the Black Cloud Merchant offers each character this hour
-// (each page as the game last sent it), what each offer is, whether you have the pet yet,
-// and how often you've seen it on offer. Item and character names are set with
+// (each page as the game last sent it), what each offer is (with its icon), how far along
+// each pet is (maxed in the theme's colour, still to get in red), and how often you've seen
+// it on offer. Item and character names are set with
 // textContent, never innerHTML.
 
 const POLL_MS = 3000;
@@ -29,6 +30,7 @@ function store(key, value) {
   }
 }
 show = stored("black-market-show") || "all";
+let hideMaxed = stored("black-market-hide-maxed") === "1";
 
 const label = (name) => name || "unknown";
 const kinah = (n) => Math.round(n).toLocaleString("en-US");
@@ -39,25 +41,32 @@ function until(ms) {
   return m >= 60 ? `in ${Math.floor(m / 60)}h ${m % 60}m` : `in ${m}m`;
 }
 
-// Pet portraits, loaded once each.
-const portraits = new Map();
-function portrait(pet) {
-  if (!portraits.has(pet)) {
-    portraits.set(pet, null);
-    invoke("pet_icon", { pet })
+// Each offer's icon (a pet's portrait, a skin's or Theostone's icon), loaded once each;
+// a letter for its kind until it comes, or when the data has none.
+const offerIcons = new Map();
+function itemIcon(o) {
+  if (!offerIcons.has(o.item)) {
+    offerIcons.set(o.item, null);
+    invoke("shop_icon", { item: o.item })
       .then((url) => {
-        portraits.set(pet, url);
+        offerIcons.set(o.item, url);
         if (url) draw(true);
       })
       .catch(() => {});
   }
-  const url = portraits.get(pet);
-  if (!url) return el("span", "icon blank");
-  const img = el("img", "icon");
+  const url = offerIcons.get(o.item);
+  // Framed in its grade's colour, as the game colours them.
+  const grade = o.grade ? ` grade-${o.grade.toLowerCase()}` : "";
+  if (!url) return el("span", "icon blank" + grade, o.kind ? o.kind[0] : "?");
+  const img = el("img", "icon" + grade);
   img.src = url;
   img.alt = "";
+  if (o.grade) img.title = o.grade;
   return img;
 }
+
+// A pet at its highest level: nothing more to get from it.
+const maxed = (o) => o.pet != null && o.pet_level > 0 && o.pet_next == null;
 
 // Worth a look: a pet you don't have, or something you've rarely seen offered.
 function worth(o, looks) {
@@ -65,8 +74,10 @@ function worth(o, looks) {
 }
 
 function offerRow(o, page) {
-  const li = el("li", "bm-offer" + (o.sold_out ? " sold" : "") + (worth(o, page.looks) ? " worth" : ""));
-  li.append(o.pet != null ? portrait(o.pet) : el("span", "icon blank", o.kind ? o.kind[0] : "?"));
+  // A pet: maxed in the theme's colour, still to get (or to level) in red.
+  const state = o.pet == null ? "" : maxed(o) ? " maxed" : " need";
+  const li = el("li", "bm-offer" + (o.sold_out ? " sold" : "") + (worth(o, page.looks) ? " worth" : "") + state);
+  li.append(itemIcon(o));
   const what = el("div", "bm-what");
   const name = el("span", "bm-name", o.name || `item ${o.item}`);
   if (!o.name) name.title = "Not in the item data";
@@ -77,9 +88,25 @@ function offerRow(o, page) {
   if (sub) line.append(el("span", "note", sub));
   if (o.pet != null) {
     const have = o.pet_level > 0;
-    const tag = el("span", "bm-tag " + (have ? "have" : "new"), have ? `have · Lv ${o.pet_level}` : "you don't have it");
-    tag.title = have ? "Your characters' highest level with this pet, as the game last sent it" : "None of your characters has this pet yet (as the game last sent your pets)";
-    line.append(tag);
+    // Its level and souls toward the next ("Lv 2 · 25/75"), with a bar; or maxed.
+    const progress = el("span", "bm-pet");
+    if (maxed(o)) {
+      progress.textContent = `Lv ${o.pet_level} · maxed`;
+      progress.title = "At its highest level on one of your characters (as the game last sent your pets)";
+    } else {
+      const souls = o.pet_souls || 0;
+      const next = o.pet_next || 0;
+      progress.append(`${have ? `Lv ${o.pet_level}` : "not yet"} · ${souls}/${next}`);
+      const bar = el("span", "bm-pet-bar");
+      const fill = el("span", "bm-pet-fill");
+      fill.style.width = `${next ? Math.min(100, (souls / next) * 100) : 0}%`;
+      bar.append(fill);
+      progress.append(bar);
+      progress.title = have
+        ? `Level ${o.pet_level}: ${souls} of the ${next} souls the next level takes (your characters' highest, as the game last sent your pets)`
+        : `None of your characters has it yet: ${souls} of the ${next} souls it takes to summon (as the game last sent your pets)`;
+    }
+    line.append(progress);
   }
   const seen = el("span", "bm-seen note", o.seen <= 1 ? "first time seen" : `seen ${o.seen}× in ${page.looks} looks`);
   seen.title = `On offer in ${o.seen} of the ${page.looks} hourly ${page.name} pages you've opened (all characters), first ${dayAndTime(o.first_ms)}`;
@@ -124,13 +151,16 @@ function draw(force) {
   );
   $("characters").hidden = chars.length < 2;
   for (const b of document.querySelectorAll("#show [data-show]")) b.setAttribute("aria-selected", String(b.dataset.show === show));
+  $("hide-maxed").setAttribute("aria-pressed", String(hideMaxed));
   $("count").textContent = `· new offers ${until(data.next_refresh_ms)}`;
   $("count").title = `Every character's offers change on the hour (${timeOfDay(data.next_refresh_ms)})`;
   const c = chars.find((x) => x.name === character);
   const boxes = [];
   for (const page of c ? c.pages : []) {
-    const offers = page.offers.filter((o) => show === "all" || worth(o, page.looks));
-    if (!offers.length && show !== "all") continue;
+    const shown = page.offers.filter((o) => show === "all" || worth(o, page.looks));
+    const offers = hideMaxed ? shown.filter((o) => !maxed(o)) : shown;
+    const hidden = shown.length - offers.length;
+    if (!offers.length && !hidden && show !== "all") continue;
     const box = el("section", "ck-box bm-page" + (page.stale ? " stale" : ""));
     const head = el("h2", "ck-head", page.name);
     const when = page.stale ? ` · from ${dayAndTime(page.seen_ms)}, changed since: open it again` : ` · opened ${timeOfDay(page.seen_ms)}`;
@@ -138,8 +168,9 @@ function draw(force) {
     box.append(head);
     const ul = el("ul", "bm-list");
     ul.append(...offers.map((o) => offerRow(o, page)));
-    if (!offers.length) ul.append(el("li", "note", "nothing on this page"));
+    if (!offers.length && !hidden) ul.append(el("li", "note", "nothing on this page"));
     box.append(ul);
+    if (hidden) box.append(el("p", "note bm-hidden", `${hidden} maxed ${hidden === 1 ? "pet" : "pets"} hidden`));
     boxes.push(box);
   }
   $("pages").replaceChildren(...boxes);
@@ -167,6 +198,12 @@ for (const b of document.querySelectorAll("#show [data-show]")) {
     draw(true);
   });
 }
+
+$("hide-maxed").addEventListener("click", () => {
+  hideMaxed = !hideMaxed;
+  store("black-market-hide-maxed", hideMaxed ? "1" : "0");
+  draw(true);
+});
 
 load();
 setInterval(() => {

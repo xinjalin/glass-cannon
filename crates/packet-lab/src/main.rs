@@ -40,6 +40,7 @@ mod boss_skills;
 mod item_icons;
 mod theostones;
 mod shop_items;
+mod shop_icons;
 
 #[derive(Parser)]
 #[command(name = "packet-lab", version, about = "Capture and inspect a game's network traffic (no admin needed)")]
@@ -253,6 +254,12 @@ enum Cmd {
         /// The pet names, to link each pet item to its pet
         #[arg(long, default_value = "gamedata/pets.json")]
         pets: PathBuf,
+        /// The gear (with icon names), for the skins' grades
+        #[arg(long, default_value = "gamedata/gear.json")]
+        gear: PathBuf,
+        /// The Theostones, for their grades
+        #[arg(long, default_value = "gamedata/theostones.json")]
+        theostones: PathBuf,
         #[arg(long, default_value = "gamedata/shop-items.json")]
         out: PathBuf,
         /// When the scrape was made (recorded in the file)
@@ -346,6 +353,26 @@ enum Cmd {
     PetIcons {
         /// The scrape's pets: a JSON object by pet ID, each with its icon file name
         pets: PathBuf,
+        #[arg(long, default_value = "gamedata")]
+        dir: PathBuf,
+    },
+    /// Download an icon for each skin, Theostone and other item the Black Cloud Merchant
+    /// sells, from NCSOFT's asset server into gamedata as <icon>.png, by the icon names in
+    /// gamedata/shop-items.json (icons already there are kept)
+    ShopIcons {
+        #[arg(long, default_value = "gamedata/shop-items.json")]
+        items: PathBuf,
+        #[arg(long, default_value = "gamedata")]
+        dir: PathBuf,
+    },
+    /// Give gamedata/gear.json each piece's icon name from a scraped item database, and
+    /// download the icons from NCSOFT's asset server into gamedata as <icon>.png (icons
+    /// already there, a skin's with the same artwork among them, are kept)
+    GearIcons {
+        /// The scrape's items: a JSON object by item ID, each with its icon file name
+        items: PathBuf,
+        #[arg(long, default_value = "gamedata/gear.json")]
+        gear: PathBuf,
         #[arg(long, default_value = "gamedata")]
         dir: PathBuf,
     },
@@ -517,9 +544,11 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::GatherMap { markers, icons, out } => gather_map::run(&markers, icons.as_deref(), &out),
         Cmd::PetIcons { pets, dir } => pet_icons::run(&pets, &dir),
+        Cmd::ShopIcons { items, dir } => shop_icons::run(&items, &dir),
+        Cmd::GearIcons { items, gear, dir } => gear::icons(&items, &gear, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
-        Cmd::ShopItems { items, pets, out, scraped } => shop_items::run(&items, &pets, &out, &scraped),
+        Cmd::ShopItems { items, pets, gear, theostones, out, scraped } => shop_items::run(&items, &pets, &gear, &theostones, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),
         Cmd::Live {
             process,

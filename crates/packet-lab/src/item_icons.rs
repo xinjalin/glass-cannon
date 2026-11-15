@@ -88,12 +88,17 @@ pub fn run(items: &Path, dir: &Path, fetched: &str) -> Result<()> {
 
 /// Downloads one icon and saves it at [`SIZE`] pixels.
 pub(crate) fn fetch(agent: &ureq::Agent, icon: &str, out: &Path) -> Result<()> {
+    fetch_sized(agent, icon, out, SIZE)
+}
+
+/// An icon from the asset server, shrunk to `size` pixels a side.
+pub(crate) fn fetch_sized(agent: &ureq::Agent, icon: &str, out: &Path, size: u32) -> Result<()> {
     let bytes = crate::gamedata::get_bytes(agent, &format!("{ASSETS}/{icon}.png"), MAX_ICON_BYTES)?;
     if !bytes.starts_with(b"\x89PNG") {
         bail!("not a PNG");
     }
     let img = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)?;
-    img.resize_exact(SIZE, SIZE, FilterType::Lanczos3)
+    img.resize_exact(size, size, FilterType::Lanczos3)
         .save_with_format(out, image::ImageFormat::Png)
         .with_context(|| format!("writing {}", out.display()))
 }
