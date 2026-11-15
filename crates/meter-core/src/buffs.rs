@@ -15,7 +15,11 @@
 //!   u8` or `07, varint instance, u8, varint source, u32 skill, u32`.
 //!
 //! `instance` identifies one application of an effect on one target; the remove message
-//! and heal-over-time ticks (`0x3805`) refer to it. `effect` is a 9-digit ID that starts
+//! and heal-over-time ticks (`0x3805`) refer to it. Cast again while it's still on, an
+//! effect is often topped up rather than applied anew: a still-active message for the same
+//! instance carries a longer duration, counted from when it was first applied (the raid
+//! capture of 2026-11-13: a 30 s buff of yours recast 13.6 s in came back as 43,600 ms).
+//! So a still-active message's duration is taken, or the buff would run out early. `effect` is a 9-digit ID that starts
 //! with the skill's family (Recuperation 1812·00101, Earth's Promise 1878·00011). Worked out
 //! from our live dummy tests: Recuperation's three 8 s applications each ended 8.1 s later
 //! with a remove for the same instance, and Earth's Promise's 5 s debuffs 5.0 s later.
@@ -201,6 +205,10 @@ impl EffectTracker {
                 old.end_us = Some(ts_us);
                 self.closed.push(old);
             }
+        } else if let Some(open) = self.open.get_mut(&key) {
+            // Still active: topped up (cast again while it was on), its duration from when
+            // it was first applied.
+            open.duration_ms = e.duration_ms;
         }
     }
 
@@ -252,6 +260,21 @@ mod tests {
     const RECUPERATION_APPLY: &str = "90 5c 01 13 ad 10 e5 e4 cc 0a 40 1f 00 00 00 00 00 00 3d 3b 6a 58 a1 01 00 00 \
                                       90 5c 0d b8 7d 14 01 00 21 23 96 c7 39 12 01 c8 00 ed 0d 47";
     const RECUPERATION_REMOVE: &str = "90 5c 01 00 ad 10 01";
+
+    #[test]
+    fn a_buff_topped_up_while_on_lasts_longer() {
+        // Recuperation (8 s) applied, then still active 5 s in with its duration from then
+        // on 13 s: cast again, and topped up.
+        let apply = hex(RECUPERATION_APPLY);
+        let mut active = apply.clone();
+        active.remove(2); // no count in a still-active message
+        active[9..17].copy_from_slice(&13_000u64.to_le_bytes()); // its duration
+        let mut t = EffectTracker::default();
+        t.feed(1_000_000, OPCODE_BUFF_APPLY, &apply);
+        t.feed(6_000_000, OPCODE_BUFF_ACTIVE, &active);
+        let span = t.active_on(11792).next().unwrap();
+        assert_eq!((span.start_us, span.duration_ms), (1_000_000, 13_000), "the same start, a longer duration");
+    }
 
     #[test]
     fn buff_apply() {
