@@ -111,8 +111,8 @@ body {
 }
 .tab-dot.bad { background: var(--bad); }
 
-/* Every tab in the same grid cell: the area is as tall as the tallest, so the window keeps
-   its size from tab to tab; only the chosen one shows. */
+/* Only the chosen tab takes room, so the window is as tall as what it shows (it fits
+   itself again as you change tabs). */
 #panels { display: grid; align-items: start; }
 .tab-panel,
 #no-results { grid-area: 1 / 1; }
@@ -121,9 +121,8 @@ body {
   flex-direction: column;
   gap: 0.6em;
   min-width: 0;
-  visibility: hidden;
 }
-.tab-panel.active { visibility: visible; }
+.tab-panel:not(.active) { display: none; }
 /* The tab's name, only over the search results. */
 .panel-title {
   display: none;
@@ -137,7 +136,7 @@ body {
 .panel-title::after { content: "]"; }
 /* Searching: the matching settings of every tab, one after another under their tab's name. */
 #panels.searching { display: flex; flex-direction: column; align-items: stretch; gap: 0.8em; }
-.searching .tab-panel { visibility: visible; }
+.searching .tab-panel { display: flex; }
 .searching .panel-title { display: block; }
 #panels [data-miss] { display: none !important; }
 

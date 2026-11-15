@@ -50,8 +50,8 @@ function fitWindow() {
   });
 }
 
-// The window fits the tallest tab (they share one grid cell), so it keeps its size from tab
-// to tab; search results scroll in that size instead.
+// The window fits the tab shown (the others take no room), and fits again as you change
+// tabs; search results scroll in the size it had instead.
 function measureAndFit() {
   if (searching()) return;
   const fs = parseFloat(getComputedStyle(document.documentElement).fontSize);
