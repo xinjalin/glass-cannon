@@ -501,7 +501,7 @@ pub struct LiveBossCast {
 }
 
 /// What you're targeting (or fighting), for the target frame.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
 pub struct TargetView {
     pub entity: u64,
     /// Its label: a player's name, or a mob's "#id" (the app names mobs by `mob_type`).
@@ -513,9 +513,11 @@ pub struct TargetView {
     pub max_hp: Option<u64>,
     /// When it goes berserk (µs since 1970).
     pub berserk_us: Option<u64>,
-    /// Who it's attacking, and whether that's you.
+    /// Who it's attacking, and whether that's you; a mob's type when that's a mob (the app
+    /// names it, as it does the target).
     pub attacking: Option<String>,
     pub attacking_you: bool,
+    pub attacking_type: Option<u32>,
     pub stagger: Option<Stagger>,
     /// At the rate it lost HP over the last 10 s.
     pub time_to_kill_s: Option<f64>,
@@ -957,6 +959,8 @@ pub struct Meter {
     cubes: crate::cubes::Cubes,
     /// Your pets' souls.
     pets: crate::pets::Pets,
+    /// Your skins and wings.
+    collection: crate::collection::Collection,
     /// Where the mobs and players in view are, and you.
     positions: crate::positions::Positions,
     /// Bosses' casts, oldest first (kept [`BOSS_LOG_US`]): a fight takes its bosses' from
@@ -1017,6 +1021,7 @@ impl Meter {
             gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
             pets: crate::pets::Pets::default(),
+            collection: crate::collection::Collection::default(),
             positions: crate::positions::Positions::default(),
             boss_log: VecDeque::new(),
             pulls: HashMap::new(),
@@ -1109,6 +1114,11 @@ impl Meter {
     /// Your pets' levels and souls, for keeping between runs.
     pub fn pets(&mut self) -> &mut crate::pets::Pets {
         &mut self.pets
+    }
+
+    /// Your skins and wings, for keeping between runs.
+    pub fn collection(&mut self) -> &mut crate::collection::Collection {
+        &mut self.collection
     }
 
     /// Whether the world map is open: the game asks for its contents (`0x9101`) about
@@ -1258,6 +1268,7 @@ impl Meter {
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         self.cubes.feed(ts_us, opcode, payload);
         self.pets.feed(opcode, payload);
+        self.collection.feed(opcode, payload);
         self.positions.feed(ts_us, opcode, payload, self.registry.self_id());
         self.gear.feed(opcode, payload);
         if opcode == OPCODE_CAST {
@@ -1575,6 +1586,7 @@ impl Meter {
                 self.pulls.clear();
                 self.cubes.clear();
                 self.pets.clear();
+                self.collection.clear();
                 self.positions.clear();
                 self.mechanics.clear();
                 self.pvp.end();
@@ -2444,6 +2456,7 @@ impl Meter {
             berserk_us: self.berserk.get(&entity).map(|ms| ms * 1000),
             attacking: attacking.map(|t| self.registry.label(t)),
             attacking_you: attacking.is_some() && attacking == self.registry.self_id(),
+            attacking_type: attacking.and_then(|t| self.registry.mob_type(t)),
             stagger: self.stagger.get(&entity).copied(),
             time_to_kill_s,
             selected: picked.is_some(),

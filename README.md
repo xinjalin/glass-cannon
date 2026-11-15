@@ -24,7 +24,9 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 - **Map and pets**: where each pet's mobs spawn and where to gather, and a tracker for the
   pets you're working on.
 - **Black market**: what the Black Cloud Merchant offers each character this hour, with the
-  pets you don't have yet marked.
+  pets, skins and wings you don't have yet marked, and Theostones' effects.
+- **Collection**: every skin, outfit and wing, which your characters have and which they're
+  missing, slot by slot.
 - **Weekly checklist**: each character's Odyle energy and its weekly sources.
 
 ## Screenshots
@@ -86,8 +88,8 @@ Both hotkeys can be changed in the settings. The full guide is in
   the game's are dropped as they arrive; nothing is saved unless you turn on recording.
 - **Screen**: to step aside for game menus, the overlay looks at a small square in the
   game's top-right corner, a strip at its bottom middle (for reward screens' Confirm
-  button) and the top of the screen (for a window's close X, as the Attendance window's),
-  only while the cursor is showing. None of it is ever saved, and the setting can be
+  button), the top of the screen (for a window's close X, as the Attendance window's) and
+  a band across the middle (for a login pop-up's bar), only while the cursor is showing. None of it is ever saved, and the setting can be
   turned off. While you're at the Black Cloud Merchant, the same corner and a band at the
   top left (where the Shop's signs are) tell when you've left it, for the black market
   window to go (settings → general turns that off).

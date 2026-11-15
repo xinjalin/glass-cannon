@@ -555,7 +555,7 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 
 .bm-page.stale { opacity: 0.6; }
 .bm-list { margin: 0; padding: 0; list-style: none; }
-.bm-offer { display: flex; align-items: center; gap: 0.5em; padding: 0.25em 0.1em; }
+.bm-offer { display: flex; align-items: center; gap: 0.5em; padding: 0.25em 0.1em 0.25em 0.5em; }
 .bm-offer + .bm-offer { border-top: 1px solid var(--line-faint); }
 .bm-offer .icon { flex: none; width: 1.7em; height: 1.7em; border-radius: 0.25em; object-fit: cover; }
 .bm-offer .icon.blank { display: grid; place-items: center; background: var(--line-faint); color: var(--muted); font-size: 0.8em; text-transform: uppercase; }
@@ -581,6 +581,7 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .grade-epic { --grade: #1f8fd0; }
 .grade-unique { --grade: #d8b015; }
 .grade-legendary { --grade: #e0661a; }
+.grade-special { --grade: #b061d8; }
 /* A pet: maxed in the theme's colour; still to get (or to level up) in red, bold. */
 /* Maxed rows also step back (dimmed), so they read apart in themes whose colour is a red. */
 .bm-offer.maxed { opacity: 0.65; }
@@ -588,6 +589,28 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bm-offer.need .bm-name { color: var(--bad); font-weight: 700; }
 .bm-pet { display: inline-flex; align-items: center; gap: 0.35em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bm-offer.maxed .bm-pet { color: var(--accent); }
+.bm-have { color: var(--muted); }
+.bm-offer.maxed .bm-have { color: var(--accent); }
+.bm-offer.need .bm-have { color: var(--bad); font-weight: 700; }
+/* The collection window: slots under the kinds, then had/missing beside the search. */
+.col-slots { font-size: 0.9em; }
+.col-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; margin-bottom: 0.4em; }
+.col-filters .tabs { margin: 0; }
+.col-filters .side-search {
+  flex: 1 1 15ch;
+  min-width: 15ch;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 0.25em;
+  padding: 0.1em 0.4em;
+  outline: none;
+}
+.col-filters .side-search::placeholder { color: var(--faint); }
+.col-filters .side-search:focus { border-color: var(--accent); }
+#list .bm-offer > .bm-have { flex: none; margin-left: auto; white-space: nowrap; }
+.col-also { margin-left: 0.4em; }
 .bm-pet-bar { width: 3em; height: 0.3em; border-radius: 0.15em; background: var(--line-faint); overflow: hidden; }
 .bm-pet-fill { display: block; height: 100%; background: var(--accent-2); }
 .bm-hidden { margin: 0.3em 0.1em 0; }

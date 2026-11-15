@@ -190,7 +190,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x5600` | 39 | 6 | 506.6 |  |  | Aion DPS Meter: hotbar contents |
 | `0x5611` | 39 | 6 | 13307.4 |  | ItemDepotList_RS | Aion DPS Meter: inventory and storage at login |
 | `0x5633` | 39 | 6 | 1.0 |  |  | Aion DPS Meter: godstone combinations |
-| `0x5672` | 39 | 6 | 30.7 |  | WingList_NT |  |
+| `0x5672` | 39 | 6 | 30.7 |  | WingList_NT | decoded 2026-11-15: your wings (wing, enchant level); see protocol.md |
 | `0x5679` | 39 | 6 | 766.9 |  | TitleList_NT |  |
 | `0x5683` | 39 | 6 | 40027.6 |  | AchievementList_NT |  |
 | `0x5712` | 39 | 6 | 40.7 |  |  | Aion DPS Meter: guaranteed reward per dungeon |
@@ -198,7 +198,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x8d09` | 39 | 6 | 3194.8 |  |  | Aion DPS Meter: quest log |
 | `0x8d1c` | 39 | 6 | 1418.0 |  |  | Aion DPS Meter: daily mission list (journal) |
 | `0x8d44` | 39 | 6 | 9.0 |  | ClientEnvSetting_NT |  |
-| `0x8d5b` | 39 | 6 | 1855.6 |  | SkinList_NT | Aion DPS Meter: owned skins |
+| `0x8d5b` | 39 | 6 | 1855.6 |  | SkinInfo_NT | Aion DPS Meter: owned skins; decoded 2026-11-15 (skin, count, instances; see protocol.md) |
 | `0x9000` | 39 | 6 | 3831.9 |  | RideInitData_NT |  |
 | `0x9331` | 39 | 6 | 95.9 |  |  | Aion DPS Meter: transcendence records |
 | `0xe226` | 39 | 6 | 905.5 |  | DaevanionBoardInfo_NT |  |
@@ -386,7 +386,7 @@ No name anywhere. Sorted by count; the busy ones are the most worth a look.
 | `0xe248` | 9 | 2 | 11.0 |  | `30 04 46 16 04 00 00 b0 00 00` |
 | `0x4106` | 8 | 1 | 24.6 |  | `fd bc 02 0c c7 09 08 4d 65 67` |
 | `0x570a` | 8 | 1 | 749.0 |  | `00 00 73 f2 00 00 9b 11 00 00` |
-| `0x8d5c` | 8 | 2 | 55.1 |  | `01 07 8f ca 01 0c 00 00 00 01` |
+| `0x8d5c` | 8 | 2 | 55.1 |  | `01 07 8f ca 01 0c 00 00 00 01` · decoded 2026-11-15: skins unlocked (the 0x8d5b list, then a kind's total) |
 | `0x940b` | 8 | 2 | 32.9 |  | `e7 12 00 00 02 f0 00 00 00 e7` |
 | `0x9713` | 8 | 4 | 6.0 |  | `00 00 00 00 00 00` |
 | `0x971b` | 8 | 3 | 4.0 |  | `34 b0 08 00` |

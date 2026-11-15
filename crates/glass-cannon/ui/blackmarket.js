@@ -1,7 +1,8 @@
 // The black market window: what the Black Cloud Merchant offers each character this hour
 // (each page as the game last sent it), what each offer is (with its icon), how far along
-// each pet is (maxed in the theme's colour, still to get in red), and how often you've seen
-// it on offer. Item and character names are set with
+// each pet is (maxed in the theme's colour, still to get in red), whether you have each
+// skin, outfit and wings (the same colours), a Theostone's effect on hover, and how often
+// you've seen it on offer. Item and character names are set with
 // textContent, never innerHTML.
 
 const POLL_MS = 3000;
@@ -67,20 +68,25 @@ function itemIcon(o) {
 
 // A pet at its highest level: nothing more to get from it.
 const maxed = (o) => o.pet != null && o.pet_level > 0 && o.pet_next == null;
+// Nothing to get: a maxed pet, or a skin, outfit or wings one of your characters has.
+const done = (o) => maxed(o) || o.owned === true;
 
-// Worth a look: a pet you don't have, or something you've rarely seen offered.
+// Worth a look: a pet, skin or wings you don't have, or something you've rarely seen offered.
 function worth(o, looks) {
-  return (o.pet != null && o.pet_level === 0) || (looks >= RARE_AFTER_LOOKS && o.seen <= RARE_SEEN);
+  return (o.pet != null && o.pet_level === 0) || o.owned === false || (looks >= RARE_AFTER_LOOKS && o.seen <= RARE_SEEN);
 }
 
 function offerRow(o, page) {
-  // A pet: maxed in the theme's colour, still to get (or to level) in red.
-  const state = o.pet == null ? "" : maxed(o) ? " maxed" : " need";
+  // A pet: maxed in the theme's colour, still to get (or to level) in red. A skin, outfit
+  // or wings: had in the theme's colour, missing in red.
+  const state = o.pet != null ? (maxed(o) ? " maxed" : " need") : o.owned === true ? " maxed" : o.owned === false ? " need" : "";
   const li = el("li", "bm-offer" + (o.sold_out ? " sold" : "") + (worth(o, page.looks) ? " worth" : "") + state);
   li.append(itemIcon(o));
   const what = el("div", "bm-what");
   const name = el("span", "bm-name", o.name || `item ${o.item}`);
   if (!o.name) name.title = "Not in the item data";
+  // A Theostone: what it does.
+  if (o.effect) li.title = o.effect;
   what.append(name);
   const sub = [o.kind, o.detail].filter(Boolean).join(" · ");
   if (o.count > 1) what.append(el("span", "bm-count", ` ×${o.count}`));
@@ -107,6 +113,13 @@ function offerRow(o, page) {
         : `None of your characters has it yet: ${souls} of the ${next} souls it takes to summon (as the game last sent your pets)`;
     }
     line.append(progress);
+  }
+  if (o.owned != null) {
+    const tag = el("span", "bm-have", o.owned ? "have" : "missing");
+    tag.title = o.owned
+      ? "One of your characters has it (as the game last sent your collection)"
+      : "None of your characters has it yet (as the game last sent your collection)";
+    line.append(tag);
   }
   const seen = el("span", "bm-seen note", o.seen <= 1 ? "first time seen" : `seen ${o.seen}× in ${page.looks} looks`);
   seen.title = `On offer in ${o.seen} of the ${page.looks} hourly ${page.name} pages you've opened (all characters), first ${dayAndTime(o.first_ms)}`;
@@ -158,7 +171,7 @@ function draw(force) {
   const boxes = [];
   for (const page of c ? c.pages : []) {
     const shown = page.offers.filter((o) => show === "all" || worth(o, page.looks));
-    const offers = hideMaxed ? shown.filter((o) => !maxed(o)) : shown;
+    const offers = hideMaxed ? shown.filter((o) => !done(o)) : shown;
     const hidden = shown.length - offers.length;
     if (!offers.length && !hidden && show !== "all") continue;
     const box = el("section", "ck-box bm-page" + (page.stale ? " stale" : ""));
@@ -170,7 +183,7 @@ function draw(force) {
     ul.append(...offers.map((o) => offerRow(o, page)));
     if (!offers.length && !hidden) ul.append(el("li", "note", "nothing on this page"));
     box.append(ul);
-    if (hidden) box.append(el("p", "note bm-hidden", `${hidden} maxed ${hidden === 1 ? "pet" : "pets"} hidden`));
+    if (hidden) box.append(el("p", "note bm-hidden", `${hidden} you have hidden`));
     boxes.push(box);
   }
   $("pages").replaceChildren(...boxes);

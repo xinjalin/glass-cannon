@@ -44,6 +44,17 @@
 //! A pop-up over a menu dims the screen, its mark too, past telling, so once seen the menu
 //! stays open until the cursor hides (closing the menu hides it).
 //!
+//! Pop-ups over the game itself (the banners at login: a picture, and under it a bar with
+//! "Don't show again today" and its close mark) dim everything else nearly to black, and
+//! their bar is one flat grey. So a band across the middle of the screen (90 % of its
+//! height wide, from 40 % to 95 % down) is read too and looked over for such a bar: flat
+//! (within 3 of one grey, 25 to 90 of 255) for at least 45 % of the screen's height across,
+//! 3.5 to 9 % of it tall (its text breaks the rows through it), with an edge along its top
+//! and the dimmed screen under it. On a 2000×1126 screenshot of the "LOOKBOOK" banner: the
+//! bar at 46-47, rows 793-862, 800 px wide, above it the picture at about 110, under it 5
+//! (found with our meter over its right end, left out); 294 gameplay screenshots have no
+//! such bar. Kept only for that look, as the corner.
+//!
 //! The cursor idea is from SkeeveAN's Aion DPS Meter notes (`docs/plans/menu-detect-cursor.md`);
 //! this is our own code.
 
@@ -342,6 +353,26 @@ const BAR_STRAIGHT_FAINTER: f64 = 0.7;
 const BAR_REACH: f64 = 0.04;
 const BAR_SPAN: f64 = 0.4;
 
+/// The band across the middle looked over for a pop-up's bar: its width (as a share of the
+/// game's height, centred) and its top and bottom (shares of the height down).
+const BAND_W: f64 = 0.9;
+const BAND_TOP: f64 = 0.4;
+const BAND_BOTTOM: f64 = 0.95;
+/// The bar: this flat (of 255: each pixel from the last, and the most it drifts from its
+/// first: the bar shades a little), this grey, at least this long (a share of the height),
+/// and this tall; the share of its flat rows' pixels that must be on its grey (our widgets
+/// over it are left out); its edges within this share of the height above and below (they
+/// blur over a few rows); under it, the dimmed screen: this dark, along this share of it.
+const POPUP_FLAT: i32 = 3;
+const POPUP_DRIFT: i32 = 8;
+const POPUP_EDGE: f64 = 0.012;
+const POPUP_GREY: (u8, u8) = (25, 90);
+const POPUP_SPAN: f64 = 0.45;
+const POPUP_TALL: (f64, f64) = (0.035, 0.09);
+const POPUP_ON: f64 = 0.85;
+const POPUP_DIM: u8 = 15;
+const POPUP_DIM_SHARE: f64 = 0.7;
+
 /// The top of the screen's brightness, row by row.
 pub struct Area {
     w: usize,
@@ -392,6 +423,83 @@ impl Area {
         let above = best(&|d| cy.checked_sub(d));
         let below = best(&|d| Some(cy + d));
         above.max(below) >= BAR_STRAIGHT && above.min(below) >= BAR_STRAIGHT_FAINTER
+    }
+
+    /// Row `y`'s longest flat grey stretch: (from, to, its grey), if at least `span` long.
+    /// Blanked pixels (our widgets) go along with it but don't count as on it.
+    fn flat_run(&self, y: usize, span: usize) -> Option<(usize, usize, i32)> {
+        let row = &self.luma[y * self.w..(y + 1) * self.w];
+        let mut best: Option<(usize, usize, i32)> = None;
+        let mut x = 0;
+        while x < self.w {
+            let v = i32::from(row[x]);
+            if !(i32::from(POPUP_GREY.0)..=i32::from(POPUP_GREY.1)).contains(&v) {
+                x += 1;
+                continue;
+            }
+            // Blanked pixels go along with it, but it ends at its last pixel of the grey.
+            let (start, mut at, mut end, mut on, mut last) = (x, x, x, 0usize, v);
+            while at < self.w {
+                let p = i32::from(row[at]);
+                if p != 0 {
+                    if (p - last).abs() > POPUP_FLAT || (p - v).abs() > POPUP_DRIFT {
+                        break;
+                    }
+                    last = p;
+                    on += 1;
+                    end = at + 1;
+                }
+                at += 1;
+            }
+            let len = end - start;
+            if len >= span && on as f64 >= POPUP_ON * len as f64 && best.is_none_or(|(a, b, _)| len > b - a) {
+                best = Some((start, end, v));
+            }
+            x = at.max(x + 1);
+        }
+        best
+    }
+
+    /// A pop-up's bar in the band: flat grey rows, long and a few percent of the height
+    /// tall (rows through its text needn't be flat), an edge along its top, the dimmed
+    /// screen under it. `height`: the game picture's height.
+    pub fn has_popup_bar(&self, height: f64) -> bool {
+        let span = (POPUP_SPAN * height) as usize;
+        let (lo, hi) = ((POPUP_TALL.0 * height) as usize, (POPUP_TALL.1 * height) as usize);
+        let rows: Vec<Option<(usize, usize, i32)>> = (0..self.h).map(|y| self.flat_run(y, span)).collect();
+        let edge = ((POPUP_EDGE * height) as usize).max(3);
+        let same = |a: (usize, usize, i32), b: (usize, usize, i32)| {
+            let near = |p: usize, q: usize| p.abs_diff(q) as f64 <= 0.02 * height;
+            near(a.0, b.0) && near(a.1, b.1) && (a.2 - b.2).abs() <= POPUP_DRIFT
+        };
+        // How much of row `y` from x0 to x1 is off the grey by an edge's step, or dim.
+        let off = |y: usize, x0: usize, x1: usize, grey: i32| (x0..x1).filter(|&x| (i32::from(self.luma[y * self.w + x]) - grey).abs() >= BAR_STEP).count() as f64 / (x1 - x0) as f64;
+        let dim = |y: usize, x0: usize, x1: usize| (x0..x1).filter(|&x| self.luma[y * self.w + x] <= POPUP_DIM).count() as f64 / (x1 - x0) as f64;
+        for top in 1..self.h {
+            let Some(first) = rows[top] else { continue };
+            // Its first flat row (the one above isn't), with its top edge just above: the
+            // picture over it.
+            if rows[top - 1].is_some_and(|r| same(r, first)) {
+                continue;
+            }
+            let (x0, x1, grey) = first;
+            if !(top.saturating_sub(edge)..top).any(|y| off(y, x0, x1, grey) >= 0.7) {
+                continue;
+            }
+            // Its bottom: the last row of its grey within the tallest it can be, then the
+            // dimmed screen.
+            let last = (top..(top + hi).min(self.h)).rev().find(|&y| rows[y].is_some_and(|r| same(r, first)));
+            let Some(bottom) = last else { continue };
+            let tall = bottom - top + 1;
+            let flat = (top..=bottom).filter(|&y| rows[y].is_some_and(|r| same(r, first))).count();
+            if tall < lo || flat * 5 < tall * 2 {
+                continue;
+            }
+            if (bottom + 1..(bottom + 1 + edge).min(self.h)).any(|y| dim(y, x0, x1) >= POPUP_DIM_SHARE) {
+                return true;
+            }
+        }
+        false
     }
 
     /// The brightest within [`WINDOW_X_SLACK`] pixels up or down.
@@ -464,6 +572,25 @@ pub fn read_top(area: (i32, i32, i32, i32)) -> Option<Area> {
     let px = read_screen(left + x, top, w, h)?;
     let luma = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
     Some(Area { w: w as usize, h: h as usize, luma })
+}
+
+/// The band across the middle (see [`BAND_W`]), as brightness.
+pub fn read_band(area: (i32, i32, i32, i32)) -> Option<Area> {
+    let (left, top, width, height) = area;
+    let (x, y, w, h) = band_box(width, height);
+    if w < 64 || h < 64 {
+        return None;
+    }
+    let px = read_screen(left + x, top + y, w, h)?;
+    let luma = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
+    Some(Area { w: w as usize, h: h as usize, luma })
+}
+
+/// The band's left and top within the game's picture, its width and height.
+pub fn band_box(width: i32, height: i32) -> (i32, i32, i32, i32) {
+    let w = ((f64::from(height) * BAND_W).round() as i32).min(width);
+    let (y0, y1) = ((f64::from(height) * BAND_TOP).round() as i32, (f64::from(height) * BAND_BOTTOM).round() as i32);
+    ((width - w) / 2, y0, w, y1 - y0)
 }
 
 /// The top area's left edge within the game's picture, its width and height.
@@ -909,6 +1036,53 @@ mod tests {
             a.luma[y * a.w + 400..y * a.w + 1350].fill(60);
         }
         assert!(!a.has_window_close(1125.0));
+    }
+
+    /// A login banner over the band (as on a 2000×1126 screenshot, rows from the band's
+    /// top): everything else dimmed to 5, the picture at 110 over the bar, the bar 46 to
+    /// 48 (shading a little), its text through the middle rows, its edges blurred.
+    fn banner() -> Area {
+        let (w, h) = (1013usize, 620usize);
+        let mut luma = vec![5u8; w * h];
+        for y in 0..h {
+            for x in 107..907 {
+                luma[y * w + x] = match y {
+                    100..=341 => 110,
+                    342 => 80,
+                    343..=410 => 46 + (x * 3 / 800) as u8,
+                    411 => 30,
+                    _ => 5,
+                };
+            }
+        }
+        // "Don't show again today": bright text through rows 365-390.
+        for y in 365..391 {
+            for x in (180..440).step_by(7) {
+                luma[y * w + x] = 230;
+            }
+        }
+        Area { w, h, luma }
+    }
+
+    #[test]
+    fn a_popups_bar_over_the_dimmed_game() {
+        assert!(banner().has_popup_bar(1126.0));
+        // Our meter over its right end: left out, still a bar.
+        let mut a = banner();
+        a.blank(&[(833.0, 215.0, 1013.0, 443.0)]);
+        assert!(a.has_popup_bar(1126.0));
+        // The game not dimmed under it (a flat grey panel in the world): no pop-up.
+        let mut a = banner();
+        for y in 412..430 {
+            a.luma[y * a.w..(y + 1) * a.w].fill(70);
+        }
+        assert!(!a.has_popup_bar(1126.0));
+        // Too short to be the bar.
+        let mut a = banner();
+        for y in 343..410 {
+            a.luma[y * a.w + 400..y * a.w + 907].fill(120);
+        }
+        assert!(!a.has_popup_bar(1126.0));
     }
 
     #[test]

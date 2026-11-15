@@ -17,6 +17,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `places.json` (which Sealed Dungeon, Stronghold or Dimensional Invasion each of their bosses is in, which `dungeons.json` doesn't have) | written by hand from [Legaeon](https://legaeon.co.uk/guides/sealed-dungeons.html)'s Sealed Dungeons list, [aion2data.com](https://aion2data.com/bosses)'s Stronghold Commanders and [ExpCarry](https://expcarry.com/aion-2-dimensional-invasion-guide)'s Dimensional Invasion guide, matched by name to the boss types in `npcs.json` | none (the names are NCSOFT's) |
 | `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
 | `gear.json` (weapon, armour and accessory names, grades and item levels, for the gear players wear) | the same bundle's items | none: used without a licence |
+| `wings.json` (wing names, grades and factions by wing ID, for your collection and the black market's wings) | the same bundle's wings | none: used without a licence |
 | `npc-names.json` (NPCs' names: quest givers, merchants and the like, which the mob lists don't have) | the same bundle's NPCs | none: used without a licence |
 | `pet-spawns.json` (which mob types give which pet's souls, and where each pet is found, for the pet tracker) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Client/assets/aion2/pets/`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json` (where the mobs that give each pet's souls spawn on the world and Abyss maps, in metres, for the pet map) | the same (`spawns.json`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
@@ -65,6 +66,8 @@ sources aren't named; they're here on the same terms and will be removed on requ
   shop-icons` and `gear-icons` download the icons from NCSOFT's asset server at 48 px as
   `<icon>.png` (four at a time; icons already there, a skin's and its gear's shared, are
   kept).
+- Wings: `packet-lab wings <wings.json> --scraped <date>` from the same kind of scrape (a
+  JSON object by wing ID), fetching any wing icon not there yet.
 - Pet spawns: `packet-lab pet-spawns <pets.json> <regions.json> --commit <sha>` from Aion DPS
   Meter's `Client/assets/aion2/pets/` at that commit.
 - Boss skill names: `packet-lab boss-skills <skill_names.json> --commit <sha>` from Aion DPS

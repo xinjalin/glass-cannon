@@ -44,6 +44,7 @@ const GATHER_MAP_FILE: &str = "gather-map.json";
 const GEAR_FILE: &str = "gear.json";
 /// What the Black Cloud Merchant sells (pets, skins, Theostones), by item ID.
 const SHOP_ITEMS_FILE: &str = "shop-items.json";
+const WINGS_FILE: &str = "wings.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
@@ -241,6 +242,25 @@ pub struct GearEntry {
     pub icon: Option<String>,
 }
 
+/// Wings by wing ID (optional; from a scraped wing database, made with `packet-lab wings`).
+#[derive(Debug, Default, Deserialize)]
+struct WingFile {
+    #[serde(default)]
+    wings: BTreeMap<u32, WingEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WingEntry {
+    pub name: String,
+    #[serde(default)]
+    pub grade: Option<String>,
+    /// Elyos or Asmodians.
+    #[serde(default)]
+    pub faction: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
 /// A pet in the data: its ID, name and genus.
 pub struct PetInfo<'a> {
     pub id: u32,
@@ -324,6 +344,8 @@ pub struct DungeonPlace<'a> {
 
 #[derive(Debug, Clone, Deserialize)]
 struct Theostone {
+    #[serde(default)]
+    name: String,
     grade: Option<String>,
     effect: String,
     cooldown_s: Option<f64>,
@@ -391,6 +413,7 @@ pub struct GameData {
     pet_spawns: PetSpawnFile,
     gear: GearFile,
     shop_items: ShopItemFile,
+    wings: WingFile,
     /// Dungeon bosses' mechanics, for the boss warnings (optional).
     mechanics: meter_core::mechanics::Book,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
@@ -418,6 +441,7 @@ impl GameData {
             pet_spawns: PetSpawnFile::default(),
             gear: GearFile::default(),
             shop_items: ShopItemFile::default(),
+            wings: WingFile::default(),
             mechanics: meter_core::mechanics::Book::default(),
             problem: None,
             last_attempt: None,
@@ -458,6 +482,7 @@ impl GameData {
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
                     self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
                     self.shop_items = read_json::<ShopItemFile>(&dir.join(SHOP_ITEMS_FILE)).unwrap_or_default();
+                    self.wings = read_json::<WingFile>(&dir.join(WINGS_FILE)).unwrap_or_default();
                     self.mechanics = read_json(&dir.join(MECHANICS_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
@@ -606,6 +631,13 @@ impl GameData {
             t.boss = boss;
         }
         tidy(&mut t.name);
+        // Its target, when that's a mob, by name too (not "Mob 2400123").
+        if let Some(a) = t.attacking.as_mut() {
+            if let Some((name, _)) = t.attacking_type.and_then(|m| self.npc(m)) {
+                *a = name;
+            }
+            tidy(a);
+        }
         // A mob's cast: most mob skills are only "Attack" in the data, which says nothing.
         if let Some(c) = t.cast.as_mut() {
             c.skill_name = self.boss_skill_name(c.skill);
@@ -779,6 +811,37 @@ impl GameData {
         self.shop_items.items.get(&item)
     }
 
+    /// A Theostone item's effect and cooldown, by its name ("Theostone: Fregion's Schemes",
+    /// bound or not): "Has a 3% chance to … (5 s cooldown)".
+    pub fn theostone_effect(&self, name: &str) -> Option<String> {
+        let name = name.strip_suffix(" (Bound)").unwrap_or(name);
+        let t = self.theostones.theostones.values().find(|t| t.name.eq_ignore_ascii_case(name))?;
+        Some(match t.cooldown_s.filter(|s| *s > 0.0) {
+            Some(s) => format!("{} ({s} s cooldown)", t.effect),
+            None => t.effect.clone(),
+        })
+    }
+
+    /// Every item the Black Cloud Merchant sells, by item ID.
+    pub fn shop_items(&self) -> impl Iterator<Item = (u32, &ShopItem)> {
+        self.shop_items.items.iter().map(|(id, i)| (*id, i))
+    }
+
+    /// Every piece of gear, by item ID.
+    pub fn all_gear(&self) -> impl Iterator<Item = (u32, &GearEntry)> {
+        self.gear.gear.iter().map(|(id, g)| (*id, g))
+    }
+
+    /// Every wing, by wing ID.
+    pub fn wings(&self) -> impl Iterator<Item = (u32, &WingEntry)> {
+        self.wings.wings.iter().map(|(id, w)| (*id, w))
+    }
+
+    /// The wings with this name (one per faction, or grade), for a wing item.
+    pub fn wings_named(&self, name: &str) -> Vec<u32> {
+        self.wings.wings.iter().filter(|(_, w)| w.name.eq_ignore_ascii_case(name)).map(|(id, _)| *id).collect()
+    }
+
     /// Every pet in the data, by ID.
     pub fn all_pets(&self) -> impl Iterator<Item = PetInfo<'_>> {
         self.pets.pets.iter().map(|(id, p)| PetInfo {
@@ -941,6 +1004,13 @@ impl GameData {
         self.icon_data_url(&format!("{}.png", info.icon.as_deref()?))
     }
 
+    /// An icon by its name (`<icon>.png` in the data folder), as a data URL: letters,
+    /// digits and underscores only.
+    pub fn icon_named(&self, icon: &str) -> Option<String> {
+        let plain = !icon.is_empty() && icon.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        plain.then(|| self.icon_data_url(&format!("{icon}.png"))).flatten()
+    }
+
     /// A piece of gear's icon (`<icon>.png`; packet-lab gear-icons).
     pub fn gear_icon(&self, item: u32) -> Option<String> {
         self.icon_data_url(&format!("{}.png", self.gear(item)?.icon.as_deref()?))
@@ -1041,6 +1111,27 @@ mod tests {
             }]
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn the_targets_target_is_named_like_the_target() {
+        let dir = temp_dir("tot");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "11100000": { "name": "Ruinous Blow" } } }"#).unwrap();
+        fs::write(dir.join(NPCS_FILE), r#"{ "npcs": { "2400009": { "name": "Hardened Drana", "boss": true } } }"#).unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        let target = |attacking: &str, attacking_type: Option<u32>| meter_core::meter::TargetView {
+            name: "Someone".into(),
+            attacking: Some(attacking.into()),
+            attacking_type,
+            ..Default::default()
+        };
+        // A mob the data names; one it doesn't ("Unknown", not numbers); a player as they are.
+        for (label, kind, shown) in [("Mob 2400009", Some(2_400_009), "Hardened Drana"), ("Mob 2965923", Some(2_965_923), UNNAMED), ("Elvida", None, "Elvida")] {
+            let mut t = target(label, kind);
+            d.annotate_target(&mut t);
+            assert_eq!(t.attacking.as_deref(), Some(shown));
+        }
+        fs::remove_dir_all(dir).ok();
     }
 
     #[test]

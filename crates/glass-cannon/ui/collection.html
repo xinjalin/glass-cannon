@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon collection</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="window.css">
+</head>
+<body data-panel="collection">
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>collection</span>
+      <span id="count" class="note" data-tauri-drag-region></span>
+      <span class="lights">
+        <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
+        <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
+      </span>
+    </header>
+    <!-- What kind, then which slot, then had or missing and a search. -->
+    <nav id="kinds" class="tabs" role="tablist" aria-label="Kind"></nav>
+    <nav id="slots" class="tabs col-slots" role="tablist" aria-label="Slot"></nav>
+    <div class="col-filters">
+      <nav id="show" class="tabs" role="tablist" aria-label="Show">
+        <button type="button" role="tab" data-show="all">[all]</button>
+        <button type="button" role="tab" data-show="have" title="What one of your characters has">[have]</button>
+        <button type="button" role="tab" data-show="missing" title="What none of your characters has yet">[missing]</button>
+      </nav>
+      <input id="search" class="side-search" type="search" placeholder="search a name" title="By name, or the gear that looks like it" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="scroll" id="list"></div>
+    <p id="empty" class="empty" hidden></p>
+    <div class="history-foot">
+      <p id="hint" class="note">the game sends your skins and wings when you log in: log in (or change character) with the meter open · your characters' collections count together</p>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="window.js"></script>
+  <script src="panel.js"></script>
+  <script src="collection.js"></script>
+</body>
+</html>

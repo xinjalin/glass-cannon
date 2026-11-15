@@ -34,6 +34,7 @@ mod actionbar;
 mod analysis;
 mod attempts;
 mod blackmarket;
+mod collection;
 mod checklist;
 mod dummy;
 mod fonts;
@@ -66,6 +67,7 @@ const PET_MAP: &str = "petmap";
 const ATTEMPTS: &str = "attempts";
 const CHECKLIST: &str = "checklist";
 const BLACK_MARKET: &str = "blackmarket";
+const COLLECTION: &str = "collection";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -203,6 +205,8 @@ pub struct AppState {
     /// Every boss kill and wipe, per character (the attempts window).
     attempts: Mutex<store::Attempts>,
     pets: Mutex<store::PetBook>,
+    /// Each character's skins and wings.
+    collection: Mutex<store::CollectionBook>,
     /// Content tickets and Abyss artifacts, as last sent.
     contents: Mutex<store::KnownContents>,
     /// The history window has been placed once.
@@ -210,6 +214,7 @@ pub struct AppState {
     pet_map_placed: AtomicBool,
     attempts_placed: AtomicBool,
     checklist_placed: AtomicBool,
+    collection_placed: AtomicBool,
     black_market_placed: AtomicBool,
     /// What the Black Cloud Merchant offers each character (the black market window).
     black_market: Mutex<blackmarket::BlackMarket>,
@@ -410,6 +415,7 @@ fn pump(app: &AppState) {
         let name = meter.registry().self_name().map(str::to_string).or_else(|| lock(&app.profile).name.clone());
         if let Some(name) = name {
             lock(&app.pets).sync(&name, meter.pets());
+            lock(&app.collection).sync(&name, meter.collection());
             widgets::untrack_maxed(app, &name, meter.pets());
         }
         (meter.take_finished(), known, meter.take_instances(), meter.take_pvp(), meter.take_field_bosses(), contents)
@@ -1048,10 +1054,12 @@ fn main() {
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
         attempts: Mutex::new(attempts),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
+        collection: Mutex::new(store::CollectionBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
         pet_map_placed: AtomicBool::new(false),
         attempts_placed: AtomicBool::new(false),
         checklist_placed: AtomicBool::new(false),
+        collection_placed: AtomicBool::new(false),
         black_market_placed: AtomicBool::new(false),
         black_market: Mutex::new(blackmarket::BlackMarket::load(&config_dir_for_pvp)),
         checklist: Mutex::new(checklist::Checklist::load(&config_dir_for_pvp)),
@@ -1152,6 +1160,9 @@ fn main() {
             attempts::attempts_list,
             attempts::clear_attempts,
             settings::open_checklist,
+            settings::open_collection,
+            collection::collection,
+            collection::collection_icon,
             checklist::checklist,
             checklist::step_checklist,
             settings::open_black_market,
@@ -1259,7 +1270,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST, BLACK_MARKET] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST, BLACK_MARKET, COLLECTION] {
         if Some(label) == skip {
             continue;
         }

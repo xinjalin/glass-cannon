@@ -52,6 +52,8 @@ pub struct VitalsSetup {
     pub width: u16,
     /// The arcs' tracks show even with nothing to fill them (no value yet, no cast).
     pub always_show: bool,
+    /// An arc hides while it's full (HP with no shield on it), and comes back as it drops.
+    pub hide_full: bool,
     /// Your cast shows under your feet.
     pub show_cast: bool,
     /// Colours of your own ("#rrggbb"), by arc (see [`COLOURED`]); the rest keep theirs.
@@ -75,6 +77,7 @@ impl Default for VitalsSetup {
             arc_spots: default_spots(),
             width: 100,
             always_show: false,
+            hide_full: false,
             show_cast: true,
             colours: BTreeMap::new(),
             trail: false,
@@ -98,6 +101,7 @@ pub struct VitalsChange {
 
     pub width: Option<i64>,
     pub always_show: Option<bool>,
+    pub hide_full: Option<bool>,
     pub show_cast: Option<bool>,
     /// The colours of your own, all of them (an empty map: the built-in ones).
     pub colours: Option<BTreeMap<String, String>>,
@@ -158,6 +162,9 @@ impl VitalsSetup {
         }
         if let Some(a) = c.always_show {
             self.always_show = a;
+        }
+        if let Some(h) = c.hide_full {
+            self.hide_full = h;
         }
         if let Some(s) = c.show_cast {
             self.show_cast = s;
@@ -254,6 +261,9 @@ mod tests {
         assert_eq!((v.style.as_str(), v.numbers.as_str(), v.cast.as_str()), ("thin", "value", "bar"));
         v.update(VitalsChange { width: Some(1000), always_show: Some(true), ..Default::default() });
         assert_eq!((v.width, v.always_show), (300, true));
+        assert!(!v.hide_full);
+        v.update(VitalsChange { hide_full: Some(true), ..Default::default() });
+        assert!(v.hide_full);
         assert!(v.show_cast, "the cast shows unless turned off");
         v.update(VitalsChange { show_cast: Some(false), ..Default::default() });
         assert!(!v.show_cast);

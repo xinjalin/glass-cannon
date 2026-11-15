@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::gamedata::GameData;
-use crate::store::{read_json, write_atomic, PetBook};
+use crate::store::{read_json, write_atomic, CollectionBook, PetBook};
 use crate::{lock, AppState};
 
 /// The pages in the order the shop shows them.
@@ -130,6 +130,11 @@ pub struct OfferView {
     /// highest level, nothing more to get).
     pub pet_souls: Option<u32>,
     pub pet_next: Option<u32>,
+    /// A skin, outfit or wings: whether one of your characters has it (None: unknown, the
+    /// game hasn't sent your collection yet, or the data can't tie the item to it).
+    pub owned: Option<bool>,
+    /// A Theostone's effect, for its tooltip.
+    pub effect: Option<String>,
     pub count: u64,
     pub price: u64,
     pub discounted_price: u64,
@@ -183,7 +188,7 @@ fn percent_off(step: u8, price: u64, discounted: u64) -> u32 {
     }
 }
 
-pub fn view(m: &BlackMarket, data: &GameData, pets: &PetBook, you: Option<String>, now_ms: u64) -> BlackMarketView {
+pub fn view(m: &BlackMarket, data: &GameData, pets: &PetBook, collection: &CollectionBook, you: Option<String>, now_ms: u64) -> BlackMarketView {
     let mut characters: Vec<CharacterView> = m
         .file
         .characters
@@ -212,6 +217,8 @@ pub fn view(m: &BlackMarket, data: &GameData, pets: &PetBook, you: Option<String
                                 pet_level: pet.map(|p| pets.level(p)),
                                 pet_souls: pet.map(|p| pets.souls(p)),
                                 pet_next: pet.and_then(|p| meter_core::pets::SOULS_PER_LEVEL.get(pets.level(p) as usize).copied()),
+                                owned: info.and_then(|i| crate::collection::look_of(data, i)).and_then(|l| crate::collection::owned(collection, &l)),
+                                effect: info.filter(|i| i.kind == "theostone").and_then(|i| data.theostone_effect(&i.name)),
                                 count: o.count,
                                 price: o.price,
                                 discounted_price: o.discounted_price,
@@ -251,7 +258,7 @@ fn now_ms() -> u64 {
 #[tauri::command]
 pub fn black_market(app: State<'_, Arc<AppState>>) -> BlackMarketView {
     let you = lock(&app.profile).name.clone();
-    view(&lock(&app.black_market), &lock(&app.data), &lock(&app.pets), you, now_ms())
+    view(&lock(&app.black_market), &lock(&app.data), &lock(&app.pets), &lock(&app.collection), you, now_ms())
 }
 
 /// Called with the pages the meter read since its last snapshot.
@@ -322,26 +329,43 @@ mod tests {
         fs::write(dir.join("skills.json"), r#"{ "skills": { "18010000": { "name": "Onslaught" } } }"#).unwrap();
         fs::write(dir.join("pets.json"), r#"{ "pets": { "1217": { "name": "Congealed Drana", "genus": "Fera" } } }"#).unwrap();
         fs::write(
+            dir.join("theostones.json"),
+            r#"{ "theostones": { "3000007": { "name": "Theostone: Kaisinel's Vestige", "grade": "Rare", "effect": "Has a 3% chance to inflict [Blind] for 5s on attack", "cooldown_s": 5.0 } } }"#,
+        )
+        .unwrap();
+        fs::write(
             dir.join("shop-items.json"),
             r#"{ "items": { "534760187": { "kind": "pet", "name": "Congealed Drana", "pet": 1217 },
-                            "535710057": { "kind": "skin", "name": "Blue Dawn", "slot": "Greatsword" } } }"#,
+                            "535710057": { "kind": "skin", "name": "Blue Dawn", "slot": "Greatsword", "icon": "Icon_WP_GS_0014_T03" },
+                            "535710058": { "kind": "skin", "name": "Red Dusk", "slot": "Helm", "icon": "Icon_GM_0063_T03_Helmet" },
+                            "513830007": { "kind": "theostone", "name": "Theostone: Kaisinel's Vestige (Bound)" } } }"#,
         )
         .unwrap();
         let data = GameData::load_for_tests(dir.clone());
         let pets = PetBook::load(&dir);
         let mut m = BlackMarket::load(&dir);
-        m.update(Some("Nene"), vec![page(BLACK_MARKET_SPECIAL, T + HOUR, &[534_760_187, 535_710_057, 999])], T + 5);
-        let v = view(&m, &data, &pets, Some("Nene".into()), T + 60_000);
+        m.update(Some("Nene"), vec![page(BLACK_MARKET_SPECIAL, T + HOUR, &[534_760_187, 535_710_057, 999, 535_710_058, 513_830_007])], T + 5);
+        // Before the game sends your skins: whether you have them is unknown.
+        let mut collection = CollectionBook::load(&dir);
+        assert_eq!(view(&m, &data, &pets, &collection, None, T).characters[0].pages[0].offers[1].owned, None);
+        // Your skins: the helm's (30063103), not the greatsword's (10014101).
+        let mut c = meter_core::collection::Collection::default();
+        c.feed(meter_core::collection::OPCODE_SKIN_LIST, &[1, 0xff, 0xb9, 0xca, 0x01, 1, 0, 0, 0]);
+        collection.sync("Nene", &mut c);
+        let v = view(&m, &data, &pets, &collection, Some("Nene".into()), T + 60_000);
         let offers = &v.characters[0].pages[0].offers;
         assert_eq!(v.characters[0].pages[0].name, "special");
         assert_eq!((offers[0].name.as_deref(), offers[0].kind.as_deref(), offers[0].detail.as_deref()), (Some("Congealed Drana"), Some("pet"), Some("Fera")));
         assert_eq!((offers[0].pet, offers[0].pet_level, offers[0].percent_off, offers[0].seen), (Some(1217), Some(0), 30, 1));
         assert_eq!((offers[1].name.as_deref(), offers[1].detail.as_deref(), offers[1].pet), (Some("Blue Dawn"), Some("Greatsword"), None));
         assert_eq!((offers[2].name.as_deref(), offers[2].kind.as_deref()), (None, None), "an item the data doesn't know");
+        assert_eq!((offers[0].owned, offers[1].owned, offers[2].owned, offers[3].owned), (None, Some(false), None, Some(true)));
+        assert_eq!(offers[4].effect.as_deref(), Some("Has a 3% chance to inflict [Blind] for 5s on attack (5 s cooldown)"));
+        assert_eq!(offers[1].effect, None);
         assert!(!v.characters[0].pages[0].stale);
         assert_eq!(v.next_refresh_ms, T + HOUR);
         // Past the hour: last hour's offers.
-        assert!(view(&m, &data, &pets, None, T + HOUR + 1).characters[0].pages[0].stale);
+        assert!(view(&m, &data, &pets, &collection, None, T + HOUR + 1).characters[0].pages[0].stale);
         fs::remove_dir_all(dir).ok();
     }
 }
