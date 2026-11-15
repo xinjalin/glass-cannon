@@ -2291,6 +2291,11 @@ impl Meter {
 
     /// Your target ([`Snapshot::target`]) and your DPS in the fight shown, without the
     /// rest of the snapshot: the target frame asks several times a second.
+    /// Your target, or the live fight's (for the meter's target line).
+    pub fn target(&self) -> Option<TargetView> {
+        self.target_view()
+    }
+
     pub fn target_and_dps(&self) -> (Option<TargetView>, Option<f64>) {
         let dps = self.current.as_ref().or(self.last.as_ref()).and_then(|e| {
             let me = self.registry.self_id()?;

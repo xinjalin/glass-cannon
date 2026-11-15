@@ -75,7 +75,7 @@ finishes. The widgets:
   sends is encrypted).
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
-  boss HP, enrage and cast lines, so nothing is shown twice. A player you target shows
+  target and cast lines, so nothing is shown twice; while it's off, the meter has them. A player you target shows
   their class (icon and name), their rank and their combat power, from when they came
   into view. Its settings (overlay → target frame): a player's **class colour** on their
   name, over the whole frame (to tell at a glance who you're up against), or off; their
@@ -238,8 +238,11 @@ background, Windows lightly blurs the game behind each widget.
   the filled rows as see-through as the tint.
 - **Click a player** for their skills. Double-click a skill or the target to rename it.
 - A fight ends on the boss's kill (**✓**), when the boss resets (**✗ wipe**), when your
-  party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A live
-  boss fight shows the boss's HP and enrage timer; a **☠** marks who died.
+  party leaves combat, on a map change, or after 15 s of quiet; **▷|** ends it now. A **☠**
+  marks who died. While the target frame widget is off, a live fight shows its target's HP,
+  time to kill, stagger and enrage under the fight's name (and its name, when it's one you
+  picked), and what it's casting under that (settings → on the meter → target hp, stagger
+  & more).
 - Over the meter, its buttons appear beside the two switches: back (from a saved fight),
   analysis, end the fight, arrange the overlay, history, and **≡** for the settings, in tabs: **appearance** (theme:
   *night*, the default, or rose, lavender, mint, sky, amber, mono, or any colour; bars,

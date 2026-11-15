@@ -26,7 +26,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 use meter_core::live::{self, LiveEvent, LiveOptions};
-use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, DEFAULT_IDLE_TIMEOUT_US};
+use meter_core::meter::{EncounterView, Meter, Scope, Snapshot, TargetView, DEFAULT_IDLE_TIMEOUT_US};
 use meter_core::recorder::Side;
 use meter_core::session;
 
@@ -258,6 +258,10 @@ struct View {
     hide_after_s: u32,
     boss_hp: bool,
     boss_casts: bool,
+    /// The meter's target line is on (settings → on the meter → target), the target frame
+    /// widget, which has it all, being off; and the target for it.
+    target_line: bool,
+    target: Option<TargetView>,
     /// Your best against the boss being fought.
     best: Option<store::Best>,
     /// What the boss cast next the last time you fought it, from where this fight is.
@@ -505,14 +509,20 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let now = app.engine.now();
     let auto_scope = !lock(&app.settings).manual_scope;
     let mechanics_on = lock(&app.settings).boss_mechanics;
-    let (mut snap, ping_ms, cubes, mut souls, pvp_now, boss_mechanics) = {
+    // The meter's target line: only while the target frame widget's off (it has it all).
+    let target_line = {
+        let s = lock(&app.settings);
+        s.boss_hp && !s.widgets.iter().any(|w| w == "target")
+    };
+    let (mut snap, ping_ms, cubes, mut souls, pvp_now, boss_mechanics, mut target) = {
         let mut meter = app.engine.meter();
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
         let cubes = meter.cubes(now);
         let souls = meter.take_soul_gains();
         let pvp_now = meter.pvp();
         let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
-        (meter.snapshot(), ping, cubes, souls, pvp_now, mechanics)
+        let target = if target_line { meter.target() } else { None };
+        (meter.snapshot(), ping, cubes, souls, pvp_now, mechanics, target)
     };
     if let (Some(open), Some(enc)) = (&expanded, snap.encounter.as_mut()) {
         let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
@@ -525,6 +535,9 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let mut profile = lock(&app.profile);
     let history = lock(&app.history);
     data.annotate(&mut snap);
+    if let Some(t) = target.as_mut() {
+        data.annotate_target(t);
+    }
     // Your best against the boss you're fighting (a boss once named above).
     let best = snap
         .encounter
@@ -593,6 +606,8 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         hide_after_s: settings.hide_after_s,
         boss_hp: settings.boss_hp && !target_frame,
         boss_casts: settings.boss_casts && !target_frame,
+        target_line,
+        target,
         best,
         boss_next,
         boss_ahead,
