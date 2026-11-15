@@ -263,7 +263,10 @@ function rowFor(id) {
   const name = el("span", "name");
   const cp = el("span", "cp");
   cp.title = "Combat power";
-  who.append(badge, name, cp);
+  // The name and its combat power on one baseline, together centred beside the class icon.
+  const label = el("span", "who-text");
+  label.append(name, cp);
+  who.append(badge, label);
   const meter = el("span", "meter");
   const segs = Array.from({ length: SEGMENTS }, () => el("span", "seg"));
   meter.append(...segs);

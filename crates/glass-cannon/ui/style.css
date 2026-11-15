@@ -375,8 +375,9 @@ svg {
 /* Combat power by the name (settings → combat power), when known. */
 /* On the name's baseline: centred, its digits (taller than most of a name's letters) sat
    high. */
-.who:has(.cp:not(:empty)) { align-items: baseline; }
-.who:has(.cp:not(:empty)) > .class-icon { align-self: center; }
+/* The name and its combat power share a baseline in a box of their own: a baseline-aligned
+   group sits at the top of its row, so a class icon taller than the text pushed it up. */
+.who-text { display: flex; align-items: baseline; gap: 0.5em; min-width: 0; }
 .cp { display: none; flex: none; font-size: 0.78em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .show-cp .cp:not(:empty) { display: inline; }
 .cp::after { content: " cp"; font-size: 0.85em; opacity: 0.7; }
