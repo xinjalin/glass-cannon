@@ -280,6 +280,34 @@ const CLASSES = [
   [19, "Fighter", "#f6aa6e"],
 ];
 
+// A colour picker's colour, saved as it's picked: the picker's "change" doesn't always come
+// when it's closed, so each pick ("input") is saved a moment after it's made, and on
+// "change" at once. While it's being picked the page's redraws leave it be (`picking`):
+// putting the saved colour back into it lost the pick.
+function savePicks(input, save) {
+  let timer = null;
+  const flush = () => {
+    clearTimeout(timer);
+    timer = null;
+    save(input.value);
+  };
+  input.addEventListener("input", () => {
+    input.dataset.picking = "1";
+    clearTimeout(timer);
+    timer = setTimeout(flush, PICK_SAVE_MS);
+  });
+  input.addEventListener("change", () => {
+    flush();
+    delete input.dataset.picking;
+  });
+  input.addEventListener("blur", () => delete input.dataset.picking);
+}
+
+// Sets a picker's colour, unless it's being picked.
+function showPicked(input, colour) {
+  if (input.value !== colour && !input.dataset.picking) input.value = colour;
+}
+
 // The swatches are made once and then only updated in place: making them again replaces
 // the colour inputs, which closes a picker that's open (and the settings refresh every
 // few seconds).
@@ -296,7 +324,7 @@ function makeClassColours() {
     input.tabIndex = -1;
     input.setAttribute("aria-label", `${name}'s colour`);
     // Picked (the picker closes with it): saved.
-    input.addEventListener("change", () => setAppearance({ classPalette: { ...classPalette, [code]: input.value } }));
+    savePicks(input, (colour) => setAppearance({ classPalette: { ...classPalette, [code]: colour } }));
     b.append(input);
     b.addEventListener("click", () => {
       try {
@@ -326,7 +354,7 @@ function drawClassColours(palette) {
     b.style.setProperty("--swatch", colour);
     b.classList.toggle("own", own);
     b.title = `${name}: ${colour}${own ? " (yours)" : ""} · click to pick another colour`;
-    if (input.value !== colour) input.value = colour;
+    showPicked(input, colour);
   }
   classSwatches.reset.hidden = !Object.keys(palette).length;
 }
@@ -377,7 +405,7 @@ function makeColourRow(boxId, presets, theme, set) {
   input.type = "color";
   input.tabIndex = -1;
   input.setAttribute("aria-label", "A colour of your own");
-  input.addEventListener("change", () => set(input.value));
+  savePicks(input, set);
   custom.append(input);
   custom.addEventListener("click", () => {
     try {
@@ -399,7 +427,7 @@ function markColourRow(row, value) {
   }
   if (!preset && isHexColor(value)) {
     row.custom.style.setProperty("--swatch", value);
-    if (row.input.value !== value) row.input.value = value;
+    showPicked(row.input, value);
     row.custom.title = `${value} · click to pick another colour`;
   } else {
     row.custom.style.removeProperty("--swatch");
@@ -1065,7 +1093,7 @@ function makeArcColours() {
     input.type = "color";
     input.tabIndex = -1;
     input.setAttribute("aria-label", `The ${name} arc's colour`);
-    input.addEventListener("change", () => vitals && setVitals({ colours: { ...(vitals.colours || {}), [key]: input.value } }));
+    savePicks(input, (colour) => vitals && setVitals({ colours: { ...(vitals.colours || {}), [key]: colour } }));
     b.append(input);
     b.addEventListener("click", () => {
       try {
@@ -1096,7 +1124,7 @@ function drawArcColours(colours) {
     b.style.setProperty("--swatch", colour);
     b.classList.toggle("own", own);
     b.title = `${name}: ${colour}${own ? " (yours)" : key === "cast" ? " (the theme's)" : ""} · click to pick another colour`;
-    if (input.value !== colour) input.value = colour;
+    showPicked(input, colour);
   }
   arcSwatches.reset.hidden = !Object.keys(colours).length;
 }
