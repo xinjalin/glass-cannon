@@ -326,6 +326,15 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                                     return true;
                                 }
                             }
+                            // A pop-up over the game (a banner at login): the rest dimmed, its
+                            // bar flat grey.
+                            if let Some(mut band) = crate::menus::read_band((area.left, area.top, w, h)) {
+                                let (bx, by, _, _) = crate::menus::band_box(w, h);
+                                band.blank(&widgets_in_strip(&lock(&app.hud_drawn), f64::from(bx), f64::from(by)));
+                                if band.has_popup_bar(height) {
+                                    return true;
+                                }
+                            }
                             // A window that isn't full screen (Attendance…): its close X on
                             // its title bar, wherever it is in the top of the screen.
                             let Some(mut top) = crate::menus::read_top((area.left, area.top, w, h)) else { return false };

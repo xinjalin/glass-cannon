@@ -32,6 +32,7 @@ mod dungeons;
 mod npc_names;
 mod pets;
 mod gear;
+mod wings;
 mod pet_icons;
 mod pet_map;
 mod gather_map;
@@ -348,6 +349,18 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Build gamedata/wings.json (wing names, grades and factions by wing ID, for your
+    /// collection and the black market's wings) from a scraped wing database, and download
+    /// their icons from NCSOFT's asset server (icons already there are kept)
+    Wings {
+        /// The scrape's wings: a JSON object by wing ID
+        wings: PathBuf,
+        #[arg(long, default_value = "gamedata/wings.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Download each pet's portrait (for the pet tracker) from NCSOFT's asset server into
     /// gamedata as pet_<id>.png, by the icon names in a scraped pet database
     PetIcons {
@@ -547,6 +560,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::ShopIcons { items, dir } => shop_icons::run(&items, &dir),
         Cmd::GearIcons { items, gear, dir } => gear::icons(&items, &gear, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
+        Cmd::Wings { wings, out, scraped } => wings::run(&wings, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::ShopItems { items, pets, gear, theostones, out, scraped } => shop_items::run(&items, &pets, &gear, &theostones, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),

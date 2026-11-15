@@ -1330,6 +1330,82 @@ impl PetBook {
     }
 }
 
+/// Each character's skins and wings (`collection.json`), so a meter started after the game
+/// sent its lists (at login) still knows them.
+pub struct CollectionBook {
+    path: PathBuf,
+    by_character: BTreeMap<String, meter_core::collection::CollectionState>,
+    /// The meter's collection revision last saved.
+    saved: u64,
+}
+
+impl CollectionBook {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("collection.json");
+        let by_character = read_json(&path).unwrap_or_default();
+        Self { path, by_character, saved: 0 }
+    }
+
+    /// Whether any character's skins (or wings) are known.
+    pub fn skins_known(&self) -> bool {
+        self.by_character.values().any(|s| s.skins_known)
+    }
+
+    pub fn wings_known(&self) -> bool {
+        self.by_character.values().any(|s| s.wings_known)
+    }
+
+    /// A skin is yours when any of your characters has it (as pets, a collection they share
+    /// as far as the black market goes), and the most the game has counted of it.
+    pub fn skin(&self, skin: u32) -> Option<u16> {
+        self.by_character.values().filter_map(|s| s.skins.get(&skin).copied()).max()
+    }
+
+    /// A wing's highest enchant level among your characters, when one has it.
+    pub fn wing(&self, wing: u32) -> Option<u8> {
+        self.by_character.values().filter_map(|s| s.wings.get(&wing).copied()).max()
+    }
+
+    /// Every skin any character has.
+    pub fn skins(&self) -> BTreeMap<u32, u16> {
+        let mut all = BTreeMap::new();
+        for s in self.by_character.values() {
+            for (k, n) in &s.skins {
+                let e = all.entry(*k).or_insert(0);
+                *e = (*e).max(*n);
+            }
+        }
+        all
+    }
+
+    /// The characters whose collection is known, and which.
+    pub fn characters(&self) -> Vec<String> {
+        self.by_character.keys().cloned().collect()
+    }
+
+    /// Hands a saved state to a meter that doesn't know your collection yet, and saves its
+    /// state when it has changed.
+    pub fn sync(&mut self, character: &str, c: &mut meter_core::collection::Collection) {
+        if !c.known() {
+            if let Some(state) = self.by_character.get(character) {
+                c.seed(state);
+                self.saved = c.revision();
+            }
+            return;
+        }
+        if c.revision() == self.saved {
+            return;
+        }
+        if let Some(state) = c.state() {
+            self.by_character.insert(character.to_string(), state);
+            self.saved = c.revision();
+            if let Ok(s) = serde_json::to_string(&self.by_character) {
+                write_atomic(&self.path, s);
+            }
+        }
+    }
+}
+
 /// One line of the history list.
 #[derive(Debug, Clone, Serialize)]
 pub struct FightSummary {
@@ -1637,6 +1713,32 @@ mod tests {
         let mut other = Pets::default();
         book.sync("Alt", &mut other);
         assert!(!other.known());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn collections_kept_per_character_and_shared_for_owning() {
+        use meter_core::collection::{Collection, OPCODE_SKIN_LIST, OPCODE_WING_LIST};
+        let dir = temp_dir("collection");
+        let mut book = CollectionBook::load(&dir);
+        assert!(!book.skins_known());
+        // One character's lists: a skin (10001101, 6 of it) and a wing at +2.
+        let mut c = Collection::default();
+        c.feed(OPCODE_SKIN_LIST, &[1, 0xcd, 0x9a, 0x98, 0, 6, 0, 0, 0]);
+        c.feed(OPCODE_WING_LIST, &[1, 0xa4, 0x67, 0x65, 2, 2]);
+        book.sync("Alpha", &mut c);
+        // Another with a different skin.
+        let mut alt = Collection::default();
+        alt.feed(OPCODE_SKIN_LIST, &[1, 0x3f, 0xb2, 0x98, 0, 1, 0, 0, 0]);
+        book.sync("Beta", &mut alt);
+        // Next run: saved, and either character's skins count as yours.
+        let mut book = CollectionBook::load(&dir);
+        assert!(book.skins_known() && book.wings_known());
+        assert_eq!((book.skin(10_001_101), book.skin(10_007_103), book.skin(1)), (Some(6), Some(1), None));
+        assert_eq!(book.wing(40_200_100), Some(2));
+        let mut later = Collection::default();
+        book.sync("Alpha", &mut later);
+        assert_eq!(later.state().unwrap().skins.keys().copied().collect::<Vec<_>>(), [10_001_101]);
         fs::remove_dir_all(dir).ok();
     }
 

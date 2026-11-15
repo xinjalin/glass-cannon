@@ -21,7 +21,10 @@ const HUNDREDTHS = 100;
 // ---------------------------------------------------------------- the look
 
 // As the settings have it (vitals.rs); these until they're read.
-let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hidden_arcs: [], arc_spots: {} };
+let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
+
+// The side arcs hidden for now because they're full (hide when full).
+const fullNow = new Set();
 
 // Each side arc's spot: a side, outside or in (as at first, unless moved in the settings).
 const SPOTS = { hp: "left-outer", stamina: "left-inner", mp: "right-outer", flight: "right-inner" };
@@ -392,10 +395,14 @@ function cells(from, to) {
   return dashes.join(" ");
 }
 
-function arc(k, share, value, percent) {
+function arc(k, share, value, percent, shielded = false) {
   const p = parts[k];
-  // Turned off: none of it.
-  if (arcOff(k)) {
+  // Hide when full: a side arc at the top (HP with no shield on it) goes until it drops.
+  const full = setup.hide_full && k !== "cast" && share != null && share >= 0.999 && !shielded;
+  if (full) fullNow.add(k);
+  else fullNow.delete(k);
+  // Turned off, or full: none of it.
+  if (arcOff(k) || full) {
     for (const e of [p.frame, p.track, p.fill, p.value, p.pct]) e.style.display = "none";
     return;
   }
@@ -418,15 +425,15 @@ const pair = (v, max, scale = 1) => `${Math.round(v / scale).toLocaleString("en-
 
 function drawArcs(b) {
   const share = (v, max) => (v != null && max ? v / max : null);
-  const side = (cls, v, max, scale) => {
+  const side = (cls, v, max, scale, shielded) => {
     const s = share(v, max);
-    arc(cls, s, s != null ? pair(v, max, scale) : "", s != null ? `${Math.round(Math.min(1, s) * 100)}` : "");
+    arc(cls, s, s != null ? pair(v, max, scale) : "", s != null ? `${Math.round(Math.min(1, s) * 100)}` : "", shielded);
   };
   const hp = share(b && b.hp, b && b.hp_max);
-  side("hp", b && b.hp, b && b.hp_max, 1);
-  drawTrail(hp != null && !arcOff("hp") ? Math.max(0, Math.min(1, hp)) * 100 : null);
   // The shield: on along the arc from the HP's end (a dash after a gap the HP's length).
   const span = b && !arcOff("hp") ? shieldSpan(b.hp, b.hp_max, b.shield) : null;
+  side("hp", b && b.hp, b && b.hp_max, 1, !!span);
+  drawTrail(hp != null && !arcOff("hp") && !fullNow.has("hp") ? Math.max(0, Math.min(1, hp)) * 100 : null);
   parts.shield.style.display = span ? "" : "none";
   // The ticks look's HP notches beside the shield, in its colour.
   for (const l of ticks.querySelectorAll(".arc-tick.hp")) {
@@ -450,6 +457,8 @@ function drawArcs(b) {
   side("stamina", b && b.stamina, b && b.stamina_max, HUNDREDTHS);
   side("mp", b && b.mp, b && b.mp_max, 1);
   side("flight", b && b.flight, b && b.flight_max, HUNDREDTHS);
+  // A full arc's ruler notches go with it.
+  for (const l of ticks.querySelectorAll(".arc-tick")) l.style.display = [...fullNow].some((k) => l.classList.contains(k)) ? "none" : "";
   $("arcs").classList.toggle("low", hp != null && hp < LOW_HP);
   const c = b && b.cast;
   const name = c ? c.skill_name || "casting" : "";

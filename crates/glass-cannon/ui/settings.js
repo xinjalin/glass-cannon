@@ -1066,6 +1066,7 @@ function drawVitals() {
   $("vt-width-up").disabled = v.width >= VT_WIDTH.max;
   drawArcColours(v.colours || {});
   setToggle("vt-always", v.always_show);
+  setToggle("vt-hide-full", v.hide_full);
   setToggle("vt-trail", v.trail);
   setToggle("vt-cast", v.show_cast);
   const hiddenArcs = new Set(v.hidden_arcs || []);
@@ -1159,6 +1160,7 @@ $("vt-text-up").addEventListener("click", () => vitals && setVitals({ textSize: 
 $("vt-width-down").addEventListener("click", () => vitals && setVitals({ width: vitals.width - VT_WIDTH.step }));
 $("vt-width-up").addEventListener("click", () => vitals && setVitals({ width: vitals.width + VT_WIDTH.step }));
 $("vt-always").addEventListener("click", () => vitals && setVitals({ alwaysShow: !vitals.always_show }));
+$("vt-hide-full").addEventListener("click", () => vitals && setVitals({ hideFull: !vitals.hide_full }));
 $("vt-trail").addEventListener("click", () => vitals && setVitals({ trail: !vitals.trail }));
 $("vt-cast").addEventListener("click", () => vitals && setVitals({ showCast: !vitals.show_cast }));
 for (const b of document.querySelectorAll("[data-vt-arc]")) {

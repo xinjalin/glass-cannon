@@ -49,6 +49,7 @@ const ACTIONS = {
   attempts: () => invoke("open_attempts").catch(() => {}),
   checklist: () => invoke("open_checklist").catch(() => {}),
   blackMarket: () => invoke("open_black_market").catch(() => {}),
+  collection: () => invoke("open_collection").catch(() => {}),
 };
 
 // The list's rows: "key - value" on the left, something short on the right. Each is only
@@ -181,6 +182,7 @@ $("pet-map").addEventListener("click", ACTIONS.petMap);
 $("attempts").addEventListener("click", ACTIONS.attempts);
 $("checklist").addEventListener("click", ACTIONS.checklist);
 $("black-market").addEventListener("click", ACTIONS.blackMarket);
+$("collection").addEventListener("click", ACTIONS.collection);
 
 // The Shugo: one of its nyerks, at random (never the same twice running), and a wiggle.
 // An easter egg.

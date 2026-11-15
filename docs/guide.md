@@ -105,7 +105,8 @@ finishes. The widgets:
   stamina, say) and where each goes: left or right, outer or inner (moving one to another's
   spot swaps them; alone on its side, an inner arc moves out to the outer line);
   **always show arcs**, which keeps their tracks up with nothing to
-  fill them; the numbers (kept clear of the arcs, and never resizing them) as value and
+  fill them; **hide when full**, which hides an arc while it's full (HP with no shield on
+  it) until it drops; the numbers (kept clear of the arcs, and never resizing them) as value and
   max, percent, or both; their size; what's behind
   them (an outline, a shadow, a dark plate or nothing); whether they go by the arcs' top
   or bottom ends; and the cast (on or off) as an arc or a thin straight bar with its time
@@ -183,7 +184,10 @@ content, Shugo's…) have no X there but a gold **Confirm** button at the bottom
 meter also looks at a strip there (30% of the game's height wide, its lowest 22%) for
 it. Windows that aren't full screen (Attendance…) have their close X at their own top
 right, on their title bar: the meter also looks over the top of the screen (its top 60%,
-from 30% across) for an X on a title bar. Once seen, they stay aside until the cursor goes (a pop-up over a menu dims its X past
+from 30% across) for an X on a title bar. Pop-ups over the game (the banners at login,
+with **Don't show again today**) dim the rest nearly to black: the meter also looks over
+a band across the middle (from 40% to 95% down) for their flat grey bar, with the dimmed
+game under it (a widget over the bar doesn't hide it). Once seen, they stay aside until the cursor goes (a pop-up over a menu dims its X past
 seeing; closing the menu hides the cursor). The square and the strip are only looked at:
 never saved or sent, and nothing is read while the cursor is hidden, the setting is off
 or the game isn't in front. Keep widgets off the corner and the button (one there hides
@@ -321,17 +325,30 @@ character this hour. Open it in the game's shop (H), on each of its pages (Speci
 Skins), with the meter open: each page's offers show here, with their icon, name, price
 and discount, and whether they're bought. Each pet shows how far your characters have it
 (as the game last sent your pets): its level and the souls toward the next (Lv 2 · 25/75),
-named in red while there's more to get, in the theme's colour once it's maxed;
-**[hide maxed pets]** leaves those out. Skins you own can't be told yet (the game's list of
-your skins uses other numbers than the shop's). Each offer says how often you've seen it on offer: each page of each of
+named in red while there's more to get, in the theme's colour once it's maxed. Skins,
+outfits and wings say whether one of your characters has them (**have**, in the theme's
+colour) or not (**missing**, in red), as the game last sent your collection (see
+**Collection**); **[hide what you have]** leaves out what there's nothing more to get from.
+Hover a Theostone for what it does. Each offer says how often you've seen it on offer: each page of each of
 your characters counts once an hour, so it's only what you've seen (the app never goes
-online). **[worth a look]** shows just the pets you don't have and what you've rarely
-seen. The offers change on the hour, and differ per character: a page from before the
+online). **[worth a look]** shows just the pets, skins and wings you don't have, and what
+you've rarely seen. The offers change on the hour, and differ per character: a page from before the
 hour turned is dimmed until you open it again. When you open the merchant in game, this
 window opens by itself (without taking the focus from the game), once a visit (closed while
 you go through the pages, it stays closed), and goes again when you leave the merchant: its
 Exit back to the Shop, or closing the Shop (the game's cursor hiding). Turn that off in the
 settings (general → **open the black market with the game's**).
+
+**Collection** (the hanger on the launcher): every skin, outfit and wing in the data, by
+kind (weapons, armour, accessories, outfits, wings) and slot, with which of them your
+characters have (in the theme's colour, with the game's count of it, or a wing's enchant)
+and which they're missing (in red), and how many of each slot you have (greatswords 9/56).
+**[have]** and **[missing]** narrow it down; search by name, or the gear that looks like
+it. The game sends your skins and wings when you log in, so log in (or change character)
+with the meter open once; the app keeps each character's, and they count together. A skin
+is tied to its items by its art's number and its slot, which every weapon, armour and
+accessory skin we've seen matches (and eyewear); a few looks with named art can't be tied,
+and the odd skin the game lists that no item in the data looks like isn't shown.
 
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when
@@ -394,7 +411,7 @@ capture. Reinstall Npcap with it unticked.
 
 ## Windows
 
-The launcher, settings, history, attempts, checklist, black market, map and analysis are windows, with the same lights at
+The launcher, settings, history, attempts, checklist, black market, collection, map and analysis are windows, with the same lights at
 the top right of their title bars (keep on top, and close; each with a small mark). The
 launcher also has minimise; the other windows don't, since they have no taskbar button to
 come back from: close one, and its button brings it back. Each opens where you last left it

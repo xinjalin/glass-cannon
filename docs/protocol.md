@@ -743,8 +743,23 @@ seen). The items are the game's item IDs: pets 534760xxx ("Pet: Fungie"), skins
 5357xxxxx to 5360xxxxx. Opening a page also sends `0x5693` (u16 0, u8 page).
 
 The skins you own come at login in `0x8d5b` (Questlog's SkinInfo_NT: varint n, n × (u32
-skin, u16 count, u16)), by skin IDs (10,000,077…) that aren't the shop's item IDs, and no
-data we have links the two.
+skin, u16 count, u16 instances), then totals by kind), and each one unlocked (or counted
+again) since in `0x8d5c` (the same list, then its kind's total). Your wings come at login
+in `0x5672` (WingList_NT: varint n, n × (u32 wing, u8 enchant level)), by the wing IDs of
+the wing data.
+
+A skin ID is its kind, the art's set number and its slot: `1 0SSS 1TT` a weapon (TT as in
+its gear's item ID 11TT…: 01 greatsword, 02 longsword, 03 dagger, 04 bow, 05 spellbook, 06
+orb, 07 mace, 08 staff), `3 0SSS 1PP` armour (21PP…: 01 breastplate, 02 greaves, 03 helm,
+04 pauldrons, 05 gloves, 06 boots, 07 cloak), `4 0SSS 1PP` a whole outfit's pieces, `5 0SSS
+101` earrings and `5 0SSS 103` a necklace. The set number is the four digits in the item's
+icon name (`Icon_GM_0063_T03_Helmet`: 63). Looting the Strange Karma Bow (110450035,
+`Icon_WP_BW_0014_T03`) unlocked 10014104, and its helm (210360027,
+`Icon_GM_0063_T03_Helmet`) 30063103, on 2026-10-26; every weapon, armour and accessory skin
+one character had (201 of 217) is named this way, and each of its outfit sets (4 0063 …)
+has a "Set" skin item with that number. The earrings and necklace numbers were checked in
+game (a Verdant Leaf necklace, 50005103). `7 0SSS 101` is eyewear (Pixel Glasses,
+`Icon_DECO_EW_0007`: 70007101); other 7… slots, and 2… and 8…, have no item in our data.
 
 ## Skill IDs (guess)
 
