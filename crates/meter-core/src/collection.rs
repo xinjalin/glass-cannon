@@ -6,6 +6,8 @@
 //!         then totals by kind (not used)
 //! 0x8d5c  a skin unlocked (or its count up): the same list, then its kind's total
 //! 0x5672  WingList_NT, at login: varint n, n × (i32 wing, u8 enchant level)
+//! 0x8aaf  AgitDecoList_NT, at login: varint n, n × (i32 decoration, u8 Pantheon slot;
+//!         0: not placed): the Pantheon's artworks, statues and colossi you have
 //! ```
 //!
 //! A skin's ID is its kind, the art's set number and its slot: 1 0SSS 1TT a weapon (TT as
@@ -26,6 +28,7 @@ use crate::protocol::read_varint;
 pub const OPCODE_SKIN_LIST: u16 = 0x8d5b;
 pub const OPCODE_SKIN_ADDED: u16 = 0x8d5c;
 pub const OPCODE_WING_LIST: u16 = 0x5672;
+pub const OPCODE_DECORATION_LIST: u16 = 0x8aaf;
 
 /// Your skins (by skin ID, with the game's count) and wings (by wing ID, with their
 /// enchant level), for keeping between runs.
@@ -34,9 +37,12 @@ pub const OPCODE_WING_LIST: u16 = 0x5672;
 pub struct CollectionState {
     pub skins: BTreeMap<u32, u16>,
     pub wings: BTreeMap<u32, u8>,
+    /// Pantheon decorations, by decoration ID, with the slot each is placed in (0: none).
+    pub decorations: BTreeMap<u32, u8>,
     /// Which lists the game has sent (a state saved with only one leaves the other unknown).
     pub skins_known: bool,
     pub wings_known: bool,
+    pub decorations_known: bool,
 }
 
 #[derive(Debug, Default)]
@@ -69,6 +75,14 @@ impl Collection {
                     self.revision += 1;
                 }
             }
+            OPCODE_DECORATION_LIST => {
+                // The same layout as the wings': an ID and a byte each.
+                if let Some(decorations) = parse_wings(p) {
+                    self.state.decorations = decorations.into_iter().collect();
+                    self.state.decorations_known = true;
+                    self.revision += 1;
+                }
+            }
             _ => {}
         }
     }
@@ -79,7 +93,7 @@ impl Collection {
     }
 
     pub fn known(&self) -> bool {
-        self.state.skins_known || self.state.wings_known
+        self.state.skins_known || self.state.wings_known || self.state.decorations_known
     }
 
     pub fn revision(&self) -> u64 {
@@ -97,6 +111,10 @@ impl Collection {
         if !self.state.wings_known {
             self.state.wings = saved.wings.clone();
             self.state.wings_known = saved.wings_known;
+        }
+        if !self.state.decorations_known {
+            self.state.decorations = saved.decorations.clone();
+            self.state.decorations_known = saved.decorations_known;
         }
         self.revision += 1;
     }
@@ -155,6 +173,11 @@ mod tests {
         assert_eq!(s.skins.into_iter().collect::<Vec<_>>(), [(10_001_101, 6), (10_002_105, 1), (10_007_103, 1)]);
         assert_eq!(s.wings.into_iter().collect::<Vec<_>>(), [(40_200_100, 0), (40_200_400, 3)]);
         assert!(s.skins_known && s.wings_known);
+        // Decorations: a statue in slot 13, an artwork not placed.
+        c.feed(OPCODE_DECORATION_LIST, &hex("02 ff 03 00 00 0d 3a 00 00 00 00"));
+        let s = c.state().unwrap();
+        assert_eq!(s.decorations.into_iter().collect::<Vec<_>>(), [(58, 0), (1023, 13)]);
+        assert!(s.decorations_known);
         // Cut short: ignored.
         c.feed(OPCODE_SKIN_LIST, &hex("05 cd 9a 98 00"));
         assert_eq!(c.state().unwrap().skins.len(), 3);
@@ -162,7 +185,7 @@ mod tests {
 
     #[test]
     fn a_saved_state_fills_in_what_the_game_hasnt_sent() {
-        let saved = CollectionState { skins: [(1, 1)].into(), wings: [(9, 2)].into(), skins_known: true, wings_known: true };
+        let saved = CollectionState { skins: [(1, 1)].into(), wings: [(9, 2)].into(), skins_known: true, wings_known: true, ..Default::default() };
         // Started after login: one unlock seen, then the saved lists.
         let mut c = Collection::default();
         c.feed(OPCODE_SKIN_ADDED, &hex("01 3f b2 98 00 01 00 00 00"));

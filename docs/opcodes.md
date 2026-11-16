@@ -194,7 +194,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x5679` | 39 | 6 | 766.9 |  | TitleList_NT |  |
 | `0x5683` | 39 | 6 | 40027.6 |  | AchievementList_NT |  |
 | `0x5712` | 39 | 6 | 40.7 |  |  | Aion DPS Meter: guaranteed reward per dungeon |
-| `0x8aaf` | 39 | 6 | 62.5 |  | GuildDecoList_NT |  |
+| `0x8aaf` | 39 | 6 | 62.5 |  | AgitDecoList_NT | decoded 2026-11-16: your Pantheon decorations (decoration, slot; 0: not placed); see protocol.md |
 | `0x8d09` | 39 | 6 | 3194.8 |  |  | Aion DPS Meter: quest log |
 | `0x8d1c` | 39 | 6 | 1418.0 |  |  | Aion DPS Meter: daily mission list (journal) |
 | `0x8d44` | 39 | 6 | 9.0 |  | ClientEnvSetting_NT |  |

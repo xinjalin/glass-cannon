@@ -543,9 +543,9 @@ function drawWarnings(elapsed) {
 
 function drawTimers(elapsed) {
   const list = $("timers");
-  // The casts worth a warning only (2.5 s or more to cast, or marking the ground, unless
-  // you marked them otherwise), as the warnings themselves.
-  const items = boss ? boss.ahead.upcoming.filter((c) => c.danger).map((c) => ({ c, left: c.in_s - elapsed / 1000 })).filter((x) => x.left > 0) : [];
+  // The casts worth a warning (2.5 s or more to cast, or marking the ground), as the
+  // warnings themselves, unless set otherwise for the timers (the boss casts window).
+  const items = boss ? boss.ahead.upcoming.filter((c) => c.timer).map((c) => ({ c, left: c.in_s - elapsed / 1000 })).filter((x) => x.left > 0) : [];
   while (list.children.length > items.length) list.lastChild.remove();
   items.forEach(({ c, left }, i) => {
     let li = list.children[i];

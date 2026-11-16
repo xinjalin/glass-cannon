@@ -18,6 +18,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
 | `gear.json` (weapon, armour and accessory names, grades and item levels, for the gear players wear) | the same bundle's items | none: used without a licence |
 | `wings.json` (wing names, grades and factions by wing ID, for your collection and the black market's wings) | the same bundle's wings | none: used without a licence |
+| `pantheon.json` (the Pantheon's artworks, statues and colossi by decoration ID: names, sides, stats and icon names, for your collection) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Backend/src/data/aion2/pantheon.json`, from the game's text tables) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `npc-names.json` (NPCs' names: quest givers, merchants and the like, which the mob lists don't have) | the same bundle's NPCs | none: used without a licence |
 | `pet-spawns.json` (which mob types give which pet's souls, and where each pet is found, for the pet tracker) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Client/assets/aion2/pets/`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `pet-map.json` (where the mobs that give each pet's souls spawn on the world and Abyss maps, in metres, for the pet map) | the same (`spawns.json`) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
@@ -68,6 +69,14 @@ sources aren't named; they're here on the same terms and will be removed on requ
   kept).
 - Wings: `packet-lab wings <wings.json> --scraped <date>` from the same kind of scrape (a
   JSON object by wing ID), fetching any wing icon not there yet.
+- Pantheon: `packet-lab pantheon <pantheon.json> --commit <sha>` from Aion DPS Meter's
+  `Backend/src/data/aion2/pantheon.json`, fetching any decoration icon not there yet (one,
+  `icon_AD_pic_L_l_Verteron_ZumionVillage`, isn't on the asset server).
+- Boss skill names: checked on 2026-11-16 against Aion DPS Meter's newer `skill_names.json`
+  (commit e5e8ec4b43be): every boss and mob skill the game's text names (2,814 of 9,625) is
+  already named the same in `skills.json` and `boss-skills.json`; the other 6,811 are only
+  "Attack" in the game, in every language, so they stay unnamed (yours from the boss casts
+  window, or our labels in `boss-mechanics.json`).
 - Pet spawns: `packet-lab pet-spawns <pets.json> <regions.json> --commit <sha>` from Aion DPS
   Meter's `Client/assets/aion2/pets/` at that commit.
 - Boss skill names: `packet-lab boss-skills <skill_names.json> --commit <sha>` from Aion DPS

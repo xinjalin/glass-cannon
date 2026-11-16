@@ -611,6 +611,33 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .col-filters .side-search:focus { border-color: var(--accent); }
 #list .bm-offer > .bm-have { flex: none; margin-left: auto; white-space: nowrap; }
 .col-also { margin-left: 0.4em; }
+/* The boss casts window: each boss with its casts, each with its warn and timer choices. */
+.bc-boss + .bc-boss { margin-top: 0.5em; padding-top: 0.35em; border-top: 1px solid var(--line-faint); }
+.bc-boss-head { display: flex; align-items: baseline; gap: 0.6em; }
+.bc-boss-name { color: var(--text); font-weight: 700; }
+.bc-cast { display: flex; align-items: center; gap: 0.6em; padding: 0.25em 0.1em 0.25em 0.5em; }
+.bc-cast + .bc-cast { border-top: 1px solid var(--line-faint); }
+.bc-cast.set { box-shadow: inset 2px 0 0 var(--accent); }
+.bc-name { padding: 0; color: var(--text); text-align: left; cursor: text; }
+.bc-name:hover { text-decoration: underline dotted; }
+.bc-name.unnamed { color: var(--muted); font-style: italic; }
+.bc-rename {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 0.25em;
+  padding: 0 0.3em;
+  outline: none;
+}
+.bc-sets { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.1em; font-size: 0.9em; }
+.bc-choice { display: flex; align-items: center; gap: 0.15em; white-space: nowrap; }
+.bc-label { color: var(--muted); margin-right: 0.25em; }
+.bc-choice button { color: var(--accent); padding: 0 0.1em; border-radius: 0.2em; }
+.bc-choice button:hover { background: var(--line-faint); }
+.bc-choice button[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
+.bc-none { margin: 0.2em 0 0 0.5em; }
 .bm-pet-bar { width: 3em; height: 0.3em; border-radius: 0.15em; background: var(--line-faint); overflow: hidden; }
 .bm-pet-fill { display: block; height: 100%; background: var(--accent-2); }
 .bm-hidden { margin: 0.3em 0.1em 0; }

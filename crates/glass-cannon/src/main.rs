@@ -34,6 +34,7 @@ mod actionbar;
 mod analysis;
 mod attempts;
 mod blackmarket;
+mod bosscasts;
 mod collection;
 mod checklist;
 mod dummy;
@@ -68,6 +69,7 @@ const ATTEMPTS: &str = "attempts";
 const CHECKLIST: &str = "checklist";
 const BLACK_MARKET: &str = "blackmarket";
 const COLLECTION: &str = "collection";
+const BOSS_CASTS: &str = "bosscasts";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -204,6 +206,8 @@ pub struct AppState {
     bests: Mutex<store::Bests>,
     /// Every boss kill and wipe, per character (the attempts window).
     attempts: Mutex<store::Attempts>,
+    /// Every boss's distinct casts, for the boss casts window.
+    boss_casts: Mutex<store::BossCastBook>,
     pets: Mutex<store::PetBook>,
     /// Each character's skins and wings.
     collection: Mutex<store::CollectionBook>,
@@ -215,6 +219,7 @@ pub struct AppState {
     attempts_placed: AtomicBool,
     checklist_placed: AtomicBool,
     collection_placed: AtomicBool,
+    boss_casts_placed: AtomicBool,
     black_market_placed: AtomicBool,
     /// What the Black Cloud Merchant offers each character (the black market window).
     black_market: Mutex<blackmarket::BlackMarket>,
@@ -302,6 +307,9 @@ struct NextCast {
     lands_ms: u32,
     /// Worth a warning: see [`dangerous`].
     danger: bool,
+    /// Shown by the boss timers: as you set it in the boss casts window, else as the
+    /// warning goes.
+    timer: bool,
     /// Seconds from now.
     in_s: f64,
 }
@@ -338,6 +346,7 @@ fn boss_casts_to_show(
     history: &store::History,
     data: &GameData,
     marks: &std::collections::BTreeMap<u32, bool>,
+    timers: &std::collections::BTreeMap<u32, bool>,
     enc: &mut meter_core::meter::EncounterView,
 ) -> BossAhead {
     let kind = enc.boss_casts.iter().find_map(|c| c.boss_type).or(enc.target_type);
@@ -369,15 +378,19 @@ fn boss_casts_to_show(
     let upcoming = casts
         .iter()
         .filter(|c| c.at_s > now && c.at_s - now <= UPCOMING_S)
-        .filter(|c| marks.get(&c.skill) == Some(&true) || (!routine(c.skill) && (c.cast_ms > 0 || c.lands_ms > 0)))
+        .filter(|c| marks.get(&c.skill) == Some(&true) || timers.get(&c.skill) == Some(&true) || (!routine(c.skill) && (c.cast_ms > 0 || c.lands_ms > 0)))
         .take(UPCOMING)
-        .map(|c| NextCast {
-            skill: c.skill,
-            skill_name: data.boss_skill_name(c.skill),
-            cast_ms: c.cast_ms,
-            lands_ms: c.lands_ms,
-            danger: dangerous(marks, c.skill, c.cast_ms, c.lands_ms),
-            in_s: c.at_s - now,
+        .map(|c| {
+            let danger = dangerous(marks, c.skill, c.cast_ms, c.lands_ms);
+            NextCast {
+                skill: c.skill,
+                skill_name: data.boss_skill_name(c.skill),
+                cast_ms: c.cast_ms,
+                lands_ms: c.lands_ms,
+                danger,
+                timer: timers.get(&c.skill).copied().unwrap_or(danger),
+                in_s: c.at_s - now,
+            }
         })
         .collect();
     BossAhead { cast_danger, upcoming }
@@ -465,6 +478,7 @@ fn pump(app: &AppState) {
         }
         lock(&app.bests).record(&view, ended_ms, self_name.as_deref());
         lock(&app.attempts).record(&view, ended_ms, self_name.as_deref());
+        lock(&app.boss_casts).record(&view, ended_ms);
         history.push(Fight { ended_ms, self_name, view });
     }
 }
@@ -564,13 +578,15 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         for &skill in data.warn_casts() {
             marks.entry(skill).or_insert(true);
         }
-        boss_ahead = boss_casts_to_show(&history, &data, &marks, enc);
+        let timers = lock(&app.settings).boss_skill_timers.clone();
+        boss_ahead = boss_casts_to_show(&history, &data, &marks, &timers, enc);
         boss_next = boss_ahead.upcoming.first().map(|c| NextCast {
             skill: c.skill,
             skill_name: c.skill_name.clone(),
             cast_ms: c.cast_ms,
             lands_ms: c.lands_ms,
             danger: c.danger,
+            timer: c.timer,
             in_s: c.in_s,
         });
     }
@@ -1000,6 +1016,7 @@ fn main() {
     let mut history = History::load(&config_dir);
     history.fill_low_hp(&FightDetails::new(&config_dir));
     let attempts = store::Attempts::load(&config_dir, &history);
+    let boss_casts = store::BossCastBook::load(&config_dir, &history);
     let state = Arc::new(AppState {
         engine: Arc::new(Engine {
             meter: Mutex::new({
@@ -1053,6 +1070,7 @@ fn main() {
         contents: Mutex::new(store::KnownContents::load(&config_dir_for_pvp)),
         bests: Mutex::new(store::Bests::load(&config_dir_for_pvp)),
         attempts: Mutex::new(attempts),
+        boss_casts: Mutex::new(boss_casts),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
         collection: Mutex::new(store::CollectionBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
@@ -1060,6 +1078,7 @@ fn main() {
         attempts_placed: AtomicBool::new(false),
         checklist_placed: AtomicBool::new(false),
         collection_placed: AtomicBool::new(false),
+        boss_casts_placed: AtomicBool::new(false),
         black_market_placed: AtomicBool::new(false),
         black_market: Mutex::new(blackmarket::BlackMarket::load(&config_dir_for_pvp)),
         checklist: Mutex::new(checklist::Checklist::load(&config_dir_for_pvp)),
@@ -1162,6 +1181,9 @@ fn main() {
             settings::open_checklist,
             settings::open_collection,
             collection::collection,
+            bosscasts::boss_casts_setup,
+            bosscasts::set_boss_skill_timer,
+            settings::open_boss_casts,
             collection::collection_icon,
             checklist::checklist,
             checklist::step_checklist,
@@ -1270,7 +1292,7 @@ fn restyle_windows(handle: &AppHandle, appearance: &Appearance) {
 /// Restyles every window but `skip` (its page still gets the new appearance).
 fn restyle_windows_but(handle: &AppHandle, appearance: &Appearance, skip: Option<&str>) {
     // The launcher keeps its own look (styled once, at start).
-    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST, BLACK_MARKET, COLLECTION] {
+    for label in [SETTINGS, ANALYSIS, HISTORY, PET_MAP, ATTEMPTS, CHECKLIST, BLACK_MARKET, COLLECTION, BOSS_CASTS] {
         if Some(label) == skip {
             continue;
         }

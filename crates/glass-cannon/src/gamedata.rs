@@ -45,6 +45,7 @@ const GEAR_FILE: &str = "gear.json";
 /// What the Black Cloud Merchant sells (pets, skins, Theostones), by item ID.
 const SHOP_ITEMS_FILE: &str = "shop-items.json";
 const WINGS_FILE: &str = "wings.json";
+const PANTHEON_FILE: &str = "pantheon.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
@@ -261,6 +262,29 @@ pub struct WingEntry {
     pub icon: Option<String>,
 }
 
+/// The Pantheon's decorations by decoration ID (optional; from SkeeveAN's Aion DPS Meter,
+/// MIT, made with `packet-lab pantheon`).
+#[derive(Debug, Default, Deserialize)]
+struct PantheonFile {
+    #[serde(default)]
+    decorations: BTreeMap<u32, Decoration>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Decoration {
+    /// frame (an artwork), statue or colossus.
+    pub kind: String,
+    pub name: String,
+    /// Light or Dark.
+    #[serde(default)]
+    pub side: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Its stats: (stat, amount).
+    #[serde(default)]
+    pub effects: Vec<(String, i64)>,
+}
+
 /// A pet in the data: its ID, name and genus.
 pub struct PetInfo<'a> {
     pub id: u32,
@@ -414,6 +438,7 @@ pub struct GameData {
     gear: GearFile,
     shop_items: ShopItemFile,
     wings: WingFile,
+    pantheon: PantheonFile,
     /// Dungeon bosses' mechanics, for the boss warnings (optional).
     mechanics: meter_core::mechanics::Book,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
@@ -442,6 +467,7 @@ impl GameData {
             gear: GearFile::default(),
             shop_items: ShopItemFile::default(),
             wings: WingFile::default(),
+            pantheon: PantheonFile::default(),
             mechanics: meter_core::mechanics::Book::default(),
             problem: None,
             last_attempt: None,
@@ -483,6 +509,7 @@ impl GameData {
                     self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
                     self.shop_items = read_json::<ShopItemFile>(&dir.join(SHOP_ITEMS_FILE)).unwrap_or_default();
                     self.wings = read_json::<WingFile>(&dir.join(WINGS_FILE)).unwrap_or_default();
+                    self.pantheon = read_json::<PantheonFile>(&dir.join(PANTHEON_FILE)).unwrap_or_default();
                     self.mechanics = read_json(&dir.join(MECHANICS_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
@@ -543,6 +570,21 @@ impl GameData {
         };
         let (id, d) = self.dungeons.dungeons.get_key_value(dungeon)?;
         Some(DungeonPlace { id, name: &d.name, kind: d.kind.as_deref(), mode })
+    }
+
+    /// Every boss the dungeon lists place (dungeons, raids, strongholds…), with where.
+    pub fn dungeon_bosses(&self) -> impl Iterator<Item = (u32, DungeonPlace<'_>)> {
+        self.dungeons.mobs.keys().filter(|t| self.npc(**t).is_some_and(|(_, boss)| boss)).filter_map(|&t| Some((t, self.dungeon(t)?)))
+    }
+
+    /// The field bosses' mob types, with where each is.
+    pub fn field_boss_types(&self) -> impl Iterator<Item = (u32, Option<String>)> + '_ {
+        self.field_bosses.bosses.values().map(|b| (b.npc, b.place.clone()))
+    }
+
+    /// You gave this skill a name of your own.
+    pub fn skill_renamed(&self, skill: u32) -> bool {
+        self.names.skills.contains_key(&skill)
     }
 
     pub fn dungeon_mob_count(&self) -> usize {
@@ -835,6 +877,11 @@ impl GameData {
     /// Every wing, by wing ID.
     pub fn wings(&self) -> impl Iterator<Item = (u32, &WingEntry)> {
         self.wings.wings.iter().map(|(id, w)| (*id, w))
+    }
+
+    /// Every Pantheon decoration, by decoration ID.
+    pub fn decorations(&self) -> impl Iterator<Item = (u32, &Decoration)> {
+        self.pantheon.decorations.iter().map(|(id, d)| (*id, d))
     }
 
     /// The wings with this name (one per faction, or grade), for a wing item.

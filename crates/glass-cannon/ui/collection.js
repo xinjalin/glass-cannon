@@ -11,6 +11,7 @@ const KINDS = [
   ["accessory", "accessories"],
   ["outfit", "outfits"],
   ["wings", "wings"],
+  ["pantheon", "pantheon"],
 ];
 
 let data = null;
@@ -84,7 +85,7 @@ function icon(e) {
   return ph;
 }
 
-const known = () => (kind === "wings" ? data.wings_known : data.skins_known);
+const known = () => (kind === "wings" ? data.wings_known : kind === "pantheon" ? data.decorations_known : data.skins_known);
 
 function row(e) {
   const state = !known() ? "" : e.owned ? " maxed" : " need";
@@ -95,6 +96,8 @@ function row(e) {
   const line = el("div", "bm-sub");
   const sub = [e.slot, e.faction, e.grade].filter(Boolean).join(" · ");
   if (sub) line.append(el("span", "note", sub));
+  // A decoration's stats.
+  if (e.detail) line.append(el("span", "note col-also", e.detail));
   if (e.also.length) {
     const also = el("span", "note col-also", `looks like ${e.also.slice(0, 2).join(", ")}${e.also.length > 2 ? ` +${e.also.length - 2}` : ""}`);
     also.title = e.also.join("\n");
@@ -103,12 +106,17 @@ function row(e) {
   what.append(line);
   li.append(what);
   if (known()) {
-    const have = el("span", "bm-have", !e.owned ? "missing" : e.kind === "wings" ? (e.count ? `have · +${e.count}` : "have") : e.count > 1 ? `have ×${e.count}` : "have");
+    const have = el(
+      "span",
+      "bm-have",
+      !e.owned ? "missing" : e.kind === "wings" ? (e.count ? `have · +${e.count}` : "have") : e.kind === "pantheon" ? (e.count ? "placed" : "have") : e.count > 1 ? `have ×${e.count}` : "have",
+    );
     have.title = e.owned
       ? e.kind === "wings"
         ? "One of your characters has it (its highest enchant)"
         : "One of your characters has it (the game's count of it)"
       : "None of your characters has it yet";
+    if (e.kind === "pantheon" && e.owned) have.title = e.count ? `In your Pantheon (slot ${e.count})` : "One of your characters has it, not placed in the Pantheon";
     li.append(have);
   }
   return li;
@@ -169,9 +177,10 @@ function draw(force) {
   );
   $("slots").hidden = slots.length < 2;
   for (const b of document.querySelectorAll("#show [data-show]")) b.setAttribute("aria-selected", String(b.dataset.show === show));
-  const skins = data.entries.filter((e) => e.kind !== "wings");
+  const skins = data.entries.filter((e) => e.kind !== "wings" && e.kind !== "pantheon");
   const wings = of("wings");
-  $("count").textContent = data.skins_known || data.wings_known ? `· skins ${tally(skins)} · wings ${tally(wings)}` : "";
+  const decos = of("pantheon");
+  $("count").textContent = data.skins_known || data.wings_known || data.decorations_known ? `· skins ${tally(skins)} · wings ${tally(wings)} · pantheon ${tally(decos)}` : "";
   // Grouped by slot (wings by faction), owned last within each so what's left stands out.
   const shown = all.filter((e) => (!slot || e.slot === slot) && matches(e));
   const groups = new Map();

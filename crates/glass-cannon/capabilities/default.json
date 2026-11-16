@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The launcher, the settings, analysis, history, map, attempts, checklist, black market and collection windows, and the overlay over the game: our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
+  "description": "The launcher, the settings, analysis, history, map, attempts, checklist, black market, collection and boss casts windows, and the overlay over the game: our own commands, events, and moving, closing, minimising, maximising, hiding and pinning windows. No network, file system or shell access from the pages.",
   "windows": [
     "launcher",
     "settings",
@@ -12,6 +12,7 @@
     "checklist",
     "blackmarket",
     "collection",
+    "bosscasts",
     "hud"
   ],
   "permissions": [

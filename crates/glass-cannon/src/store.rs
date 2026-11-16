@@ -167,6 +167,10 @@ pub struct Settings {
     /// dangerous they look).
     #[serde(default)]
     pub boss_skill_alerts: BTreeMap<u32, bool>,
+    /// The same for the boss timers (a cast counting down before it comes): true always
+    /// shows, false never; the rest go by the warnings'.
+    #[serde(default)]
+    pub boss_skill_timers: BTreeMap<u32, bool>,
     /// Dungeon bosses' mechanics in the boss warnings (`gamedata/boss-mechanics.json`).
     #[serde(default = "default_true")]
     pub boss_mechanics: bool,
@@ -1237,6 +1241,76 @@ struct AttemptsFile {
     characters: BTreeMap<String, BTreeMap<u32, Tally>>,
 }
 
+/// One cast a boss has been seen to make, as the meter saw it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct SeenCast {
+    /// Its longest cast time, and the longest from going off to landing (the areas it
+    /// marked on the ground), in ms.
+    pub cast_ms: u32,
+    pub lands_ms: u32,
+    /// How many times, in how many fights, and when last (ms since 1970).
+    pub seen: u32,
+    pub fights: u32,
+    pub last_ms: u64,
+}
+
+/// Every boss's distinct casts, from the fights the meter has seen (`boss-casts.json`): the
+/// game data doesn't say which skills a boss has, so this is what the boss casts window
+/// lists to set up.
+pub struct BossCastBook {
+    path: PathBuf,
+    /// Boss mob type -> skill -> what's been seen of it.
+    pub bosses: BTreeMap<u32, BTreeMap<u32, SeenCast>>,
+}
+
+impl BossCastBook {
+    /// Loads `boss-casts.json`; with none yet, goes over the fights in `history` (so the
+    /// bosses fought before this was kept are there too) and saves them.
+    pub fn load(dir: &Path, history: &History) -> Self {
+        let path = dir.join("boss-casts.json");
+        let saved = read_json::<BTreeMap<u32, BTreeMap<u32, SeenCast>>>(&path);
+        let mut b = Self { path, bosses: saved.clone().unwrap_or_default() };
+        if saved.is_none() {
+            for f in &history.fights {
+                b.count(&f.view, f.ended_ms);
+            }
+            if !b.bosses.is_empty() {
+                b.save();
+            }
+        }
+        b
+    }
+
+    fn save(&self) {
+        if let Ok(s) = serde_json::to_string(&self.bosses) {
+            write_atomic(&self.path, s);
+        }
+    }
+
+    fn count(&mut self, view: &EncounterView, ended_ms: u64) -> bool {
+        let mut fight: BTreeMap<(u32, u32), ()> = BTreeMap::new();
+        for c in &view.boss_casts {
+            let Some(boss) = c.boss_type else { continue };
+            let seen = self.bosses.entry(boss).or_default().entry(c.skill).or_default();
+            seen.cast_ms = seen.cast_ms.max(c.cast_ms);
+            seen.lands_ms = seen.lands_ms.max(c.lands_ms);
+            seen.seen += 1;
+            seen.last_ms = seen.last_ms.max(ended_ms);
+            if fight.insert((boss, c.skill), ()).is_none() {
+                seen.fights += 1;
+            }
+        }
+        !fight.is_empty()
+    }
+
+    /// Adds a finished fight's boss casts, and saves if it had any.
+    pub fn record(&mut self, view: &EncounterView, ended_ms: u64) {
+        if self.count(view, ended_ms) {
+            self.save();
+        }
+    }
+}
+
 impl Attempts {
     /// Loads `attempts.json`; with none yet, counts the fights in `history` (so the tries
     /// before this was kept count too) and saves them.
@@ -1398,6 +1472,16 @@ impl CollectionBook {
 
     pub fn wings_known(&self) -> bool {
         self.by_character.values().any(|s| s.wings_known)
+    }
+
+    pub fn decorations_known(&self) -> bool {
+        self.by_character.values().any(|s| s.decorations_known)
+    }
+
+    /// A Pantheon decoration one of your characters has: the slot it's placed in (0: not
+    /// placed; the highest, if more than one has it).
+    pub fn decoration(&self, id: u32) -> Option<u8> {
+        self.by_character.values().filter_map(|s| s.decorations.get(&id).copied()).max()
     }
 
     /// A skin is yours when any of your characters has it (as pets, a collection they share
@@ -1784,6 +1868,23 @@ mod tests {
         let mut later = Collection::default();
         book.sync("Alpha", &mut later);
         assert_eq!(later.state().unwrap().skins.keys().copied().collect::<Vec<_>>(), [10_001_101]);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn boss_casts_are_kept_per_boss_and_skill() {
+        use meter_core::meter::BossCastView;
+        let dir = temp_dir("boss-casts");
+        let cast = |skill, cast_ms, lands_ms| BossCastView { at_s: 1.0, boss: "Ludra".into(), boss_type: Some(7), skill, skill_name: None, cast_ms, stopped: false, lands_ms, areas: 0 };
+        let mut view = snap(None, Some(18)).encounter.unwrap();
+        view.boss_casts = vec![cast(1, 1500, 0), cast(1, 2500, 4000), cast(2, 0, 0)];
+        let mut book = BossCastBook::load(&dir, &History::load(&dir));
+        book.record(&view, 100);
+        book.record(&view, 200);
+        let book = BossCastBook::load(&dir, &History::load(&dir));
+        let one = &book.bosses[&7][&1];
+        assert_eq!((one.cast_ms, one.lands_ms, one.seen, one.fights, one.last_ms), (2500, 4000, 4, 2, 200));
+        assert_eq!(book.bosses[&7][&2].seen, 2);
         fs::remove_dir_all(dir).ok();
     }
 

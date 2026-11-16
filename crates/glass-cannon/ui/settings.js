@@ -474,6 +474,7 @@ function drawTextStyle(a) {
   }
 }
 
+$("open-boss-casts").addEventListener("click", () => invoke("open_boss_casts").catch(() => {}));
 $("text-op-down").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) - TEXT_OP.step }));
 $("text-op-up").addEventListener("click", () => setAppearance({ textOpacity: (state.appearance.text_opacity || 100) + TEXT_OP.step }));
 for (const b of document.querySelectorAll("[data-text-edge]")) {
