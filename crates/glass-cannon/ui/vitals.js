@@ -21,7 +21,7 @@ const HUNDREDTHS = 100;
 // ---------------------------------------------------------------- the look
 
 // As the settings have it (vitals.rs); these until they're read.
-let setup = { style: "solid", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
+let setup = { style: "solid", effect: "none", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
 
 // The side arcs hidden for now because they're full (hide when full).
 const fullNow = new Set();
@@ -112,7 +112,7 @@ function applySetup() {
   const svg = $("arcs");
   // Ticks are the thin look with marks.
   const look = setup.style === "ticks" ? "look-thin look-ticks" : `look-${setup.style}`;
-  svg.setAttribute("class", `arcs ${look} backing-${setup.text_backing}${svg.classList.contains("low") ? " low" : ""}`);
+  svg.setAttribute("class", `arcs ${look} effect-${setup.effect || "none"} backing-${setup.text_backing}${svg.classList.contains("low") ? " low" : ""}`);
   svg.style.setProperty("--vt", String(setup.text_size / 100));
   // Colours of your own; the rest as built in (panel.css).
   for (const k of ["hp", "stamina", "mp", "flight", "cast", "shield"]) {
@@ -122,6 +122,8 @@ function applySetup() {
   }
   layoutArcs();
   draw(lastBars);
+  flameColours();
+  runFlames();
 }
 
 // ---------------------------------------------------------------- geometry
@@ -143,7 +145,8 @@ function geometry() {
   const gap = thin ? Math.max(4, fs * 0.5) : inner * 0.7;
   // Room past the glow.
   // And past the ticks look's notches (see drawTicks).
-  const pad = outer / 2 + (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0);
+  // And past the flames effect's tongues (see the flames, below).
+  const pad = outer / 2 + (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0) + (setup.effect === "flames" ? fs * FLAME_ROOM * k : 0);
   // Room for the numbers past the arcs' ends (the same at both, so the arcs stay centred),
   // from the overlay's text size alone: the numbers' own settings never move the arcs.
   const room = fs * 1.6;
@@ -212,15 +215,17 @@ function layoutArcs() {
   // place (two arcs, one each side, say).
   const arcs = {};
   const sides = [];
+  // Each side arc's layer as drawn (an inner arc alone on its side is drawn outside).
+  const layers = {};
   for (const side of ["left", "right"]) {
     const left = side === "left";
     const at = (layer) => Object.keys(SPOTS).find((k) => spotOf(k) === `${side}-${layer}`);
     const [o, i] = [at("outer"), at("inner")];
     const outer = [sideArc(g, left, 0), g.outer];
-    if (o) arcs[o] = outer;
-    if (i) arcs[i] = [sideArc(g, left, step), g.inner];
+    if (o) [arcs[o], layers[o]] = [outer, "outer"];
+    if (i) [arcs[i], layers[i]] = [[sideArc(g, left, step), g.inner], "inner"];
     const shown = [o, i].filter((k) => k && !arcOff(k));
-    if (shown.length === 1) arcs[shown[0]] = outer;
+    if (shown.length === 1) [arcs[shown[0]], layers[shown[0]]] = [outer, "outer"];
     if (shown.length) sides.push([shown[0], shown[1], left]);
   }
   const cast = castShape(g);
@@ -240,6 +245,7 @@ function layoutArcs() {
   parts.shield.setAttribute("d", arcs.hp[0].d);
   parts.shield.style.strokeWidth = `${fillWidth(arcs.hp[1])}px`;
   drawTicks(arcs, g, sides.map(([o]) => o));
+  layoutFlames(arcs, layers, g);
 
   // The numbers, the outer arc's over the inner's, beside the chosen ends and inward of
   // both arcs' ends: the arcs bend outward from their ends, so nothing of them is further
@@ -402,6 +408,7 @@ function arc(k, share, value, percent, shielded = false) {
   if (full) fullNow.add(k);
   else fullNow.delete(k);
   // Turned off, or full: none of it.
+  flameShare[k] = arcOff(k) || full || share == null ? null : Math.max(0, Math.min(1, share));
   if (arcOff(k) || full) {
     for (const e of [p.frame, p.track, p.fill, p.value, p.pct]) e.style.display = "none";
     return;
@@ -504,6 +511,233 @@ function drawPlates() {
   plates.replaceChildren(...rects);
 }
 
+// ---------------------------------------------------------------- flames
+
+// The flames effect (settings → vitals arcs → effect): each side arc burns along its fill
+// in its own colour, white-hot where the flames start, its colour, then dark as they die.
+// An outer arc's flames go outward, away from your character, an inner arc's (shorter)
+// inward, toward it: the two never cross, so each arc's colour stays its own. Drawn on a
+// canvas under the arcs, a few hundred small glows at most, and only while it shows.
+
+// Room for the outer arcs' flames past them, in text heights (times the arcs' width).
+const FLAME_ROOM = 2.4;
+const FLAME_FPS = 40;
+// Flames born a second along a full outer arc (an inner one's half that), and how many
+// more at low HP.
+const FLAME_RATE = 450;
+const FLAME_LOW = 1.7;
+// How long a flame lasts, in seconds, and how far it goes in that time, in text heights
+// (outward, and up, as fire goes).
+const FLAME_LIFE = [0.35, 0.8];
+const FLAME_OUT = [0.6, 1.8];
+const FLAME_UP = [0.8, 2.0];
+// Points along each arc that flames start from.
+const FLAME_POINTS = 64;
+
+// Each side arc's share now (null: not shown), as drawn.
+const flameShare = {};
+// Each side arc's points (its fill, bottom to top) and their way out; the flames; the
+// glows in each arc's colour.
+let flameArcs = {};
+let flameList = [];
+let flameSprites = {};
+let flameFs = 13;
+let flameRaf = 0;
+let flameLast = 0;
+
+const rand = ([a, b]) => a + Math.random() * (b - a);
+
+function flameCanvas() {
+  let c = document.getElementById("flames");
+  if (!c) {
+    c = document.createElement("canvas");
+    c.id = "flames";
+    c.className = "flames";
+    $("vitals").prepend(c);
+  }
+  return c;
+}
+
+function layoutFlames(arcs, layers, g) {
+  const c = flameCanvas();
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(g.w * dpr);
+  c.height = Math.round(g.h * dpr);
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  flameFs = g.fs;
+  flameArcs = {};
+  if (setup.effect !== "flames") return;
+  for (const [k, layer] of Object.entries(layers)) {
+    const path = parts[k].fill;
+    const len = path.getTotalLength();
+    if (!len) continue;
+    const out = layer === "outer";
+    const pts = [];
+    for (let i = 0; i < FLAME_POINTS; i++) {
+      const at = (len * i) / (FLAME_POINTS - 1);
+      const [a, b] = [path.getPointAtLength(Math.max(0, at - 0.5)), path.getPointAtLength(Math.min(len, at + 0.5))];
+      const [dx, dy] = [b.x - a.x, b.y - a.y];
+      const n = Math.hypot(dx, dy) || 1;
+      let [nx, ny] = [-dy / n, dx / n];
+      const p = path.getPointAtLength(at);
+      // Away from the middle for an outer arc, toward it for an inner one.
+      const away = (p.x + nx - g.cx) ** 2 > (p.x - g.cx) ** 2;
+      if (away !== out) [nx, ny] = [-nx, -ny];
+      pts.push({ x: p.x, y: p.y, nx, ny });
+    }
+    flameArcs[k] = { pts, width: arcs[k][1], out };
+  }
+}
+
+// A soft round glow in a colour: the hot one white at its middle, the dying one darker.
+function flameSprite(rgb, hot) {
+  const size = 64;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const x = c.getContext("2d");
+  const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  const [r, gr, b] = rgb;
+  const mix = (t, to) => rgb.map((v, i) => Math.round(v + (to[i] - v) * t)).join(",");
+  if (hot) {
+    g.addColorStop(0, `rgba(${mix(0.5, [255, 255, 255])},1)`);
+    g.addColorStop(0.3, `rgba(${mix(0.15, [255, 255, 255])},0.85)`);
+    g.addColorStop(0.65, `rgba(${r},${gr},${b},0.45)`);
+  } else {
+    g.addColorStop(0, `rgba(${r},${gr},${b},0.7)`);
+    g.addColorStop(0.5, `rgba(${mix(0.45, [0, 0, 0])},0.3)`);
+  }
+  g.addColorStop(1, `rgba(${r},${gr},${b},0)`);
+  x.fillStyle = g;
+  x.fillRect(0, 0, size, size);
+  return c;
+}
+
+// The arcs' colours as they are now (their own, or as built in).
+function flameColours() {
+  flameSprites = {};
+  if (setup.effect !== "flames") return;
+  const css = getComputedStyle($("arcs"));
+  const probe = document.createElement("canvas").getContext("2d");
+  for (const k of ["hp", "stamina", "mp", "flight"]) {
+    probe.fillStyle = "#000";
+    probe.fillStyle = css.getPropertyValue(`--arc-${k}`).trim() || "#ffffff";
+    const hex = probe.fillStyle;
+    const rgb = hex.startsWith("#") ? [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) : (hex.match(/\d+/g) || [255, 255, 255]).slice(0, 3).map(Number);
+    flameSprites[k] = { hot: flameSprite(rgb, true), cool: flameSprite(rgb, false) };
+  }
+}
+
+function runFlames() {
+  if (setup.effect === "flames" && !document.hidden) {
+    if (!flameRaf) {
+      flameLast = 0;
+      flameRaf = requestAnimationFrame(flameFrame);
+    }
+    return;
+  }
+  if (flameRaf) cancelAnimationFrame(flameRaf);
+  flameRaf = 0;
+  flameList = [];
+  const c = document.getElementById("flames");
+  if (c) c.getContext("2d").clearRect(0, 0, c.width, c.height);
+}
+
+function flameFrame(now) {
+  flameRaf = requestAnimationFrame(flameFrame);
+  if (flameLast && now - flameLast < 1000 / FLAME_FPS - 2) return;
+  const dt = flameLast ? Math.min(0.1, (now - flameLast) / 1000) : 0;
+  flameLast = now;
+  const fs = flameFs;
+  const k = (setup.width || 100) / 100;
+  const low = $("arcs").classList.contains("low");
+  // New flames along each arc's fill.
+  for (const [key, a] of Object.entries(flameArcs)) {
+    const share = flameShare[key];
+    if (!share || !flameSprites[key]) continue;
+    // As many to the arc's length whatever its thickness: thicker flames, fewer of them
+    // (more would only add up to white, losing the arc's colour).
+    const rate = (FLAME_RATE * share * (a.out ? 1 : 0.5) * (key === "hp" && low ? FLAME_LOW : 1)) / Math.max(1, k);
+    let n = rate * dt;
+    while (n > 0) {
+      if (n < 1 && Math.random() > n) break;
+      n -= 1;
+      const p = a.pts[Math.round(Math.random() * share * (a.pts.length - 1))];
+      // From the edge it burns away from (none across into the gap between two arcs).
+      const across = rand([0.05, 0.5]) * a.width;
+      const reach = a.out ? 1 : 0.5;
+      const life = rand(FLAME_LIFE) * (a.out ? 1 : 0.8);
+      flameList.push({
+        key,
+        x: p.x + p.nx * across,
+        y: p.y + p.ny * across,
+        ox: p.x + p.nx * across,
+        oy: p.y + p.ny * across,
+        vx: (p.nx * rand(FLAME_OUT) * fs * reach * k) / life,
+        vy: (p.ny * rand(FLAME_OUT) * fs * reach * k - rand(FLAME_UP) * fs * reach) / life,
+        size: (a.width * 1.4 + fs * 0.6 * (a.out ? 1 : 0.7)) * rand([0.7, 1.3]),
+        age: 0,
+        life,
+        wob: Math.random() * 6.3,
+      });
+    }
+  }
+  const c = document.getElementById("flames");
+  const x = c.getContext("2d");
+  x.clearRect(0, 0, c.width, c.height);
+  x.globalCompositeOperation = "lighter";
+  // Embers along each arc's burning edge, flickering, so its fire is one.
+  for (const [key, a] of Object.entries(flameArcs)) {
+    const share = flameShare[key];
+    const s = flameSprites[key];
+    if (!share || !s) continue;
+    const last = Math.round(share * (a.pts.length - 1));
+    const r = a.width * 1.1 + fs * 0.25;
+    for (let i = 0; i <= last; i++) {
+      const p = a.pts[i];
+      x.globalAlpha = (a.out ? 0.24 : 0.17) * (0.6 + 0.4 * Math.sin(now * 0.009 + i * 1.7));
+      const [ex, ey] = [p.x + p.nx * a.width * 0.45, p.y + p.ny * a.width * 0.45];
+      x.drawImage(s.hot, ex - r, ey - r, 2 * r, 2 * r);
+    }
+  }
+  const kept = [];
+  for (const f of flameList) {
+    f.age += dt;
+    if (f.age >= f.life || !flameSprites[f.key]) continue;
+    kept.push(f);
+    const t = f.age / f.life;
+    // Fast at first, then slowing, with a flicker side to side.
+    const slow = 1 - t * 0.6;
+    f.x += (f.vx * slow + Math.sin(f.age * 14 + f.wob) * fs * 0.35) * dt;
+    f.y += f.vy * slow * dt;
+    const r = (f.size * (1 - t * 0.7)) / 2;
+    const fade = (1 - t) ** 1.3;
+    const s = flameSprites[f.key];
+    // A tongue from where it started on the arc out to where it's got to, narrower as it
+    // goes; late on, its base lifts off too, and it dies away from the arc.
+    const lift = Math.max(0, (t - 0.45) / 0.55);
+    const [bx, by] = [f.ox + (f.x - f.ox) * lift, f.oy + (f.y - f.oy) * lift];
+    const reach = Math.hypot(f.x - bx, f.y - by);
+    const angle = reach > 0.5 ? Math.atan2(f.y - by, f.x - bx) : Math.atan2(f.vy, f.vx);
+    const [w, len] = [r * (1.1 - t * 0.4), reach + r * 2];
+    x.save();
+    x.translate(bx, by);
+    x.rotate(angle + Math.PI / 2);
+    // White-hot at first, its colour after, dark as it dies.
+    const hot = Math.max(0, 1 - t / 0.4);
+    if (hot > 0) {
+      x.globalAlpha = fade * hot * 0.7;
+      x.drawImage(s.hot, -w, -len, 2 * w, len + r * 0.4);
+    }
+    x.globalAlpha = fade * (1 - hot * 0.5) * 0.85;
+    x.drawImage(s.cool, -w * 1.2, -len * 1.1, 2.4 * w, len * 1.1 + r * 0.4);
+    x.restore();
+  }
+  x.globalAlpha = 1;
+  flameList = kept;
+}
+
+document.addEventListener("visibilitychange", runFlames);
+
 // ---------------------------------------------------------------- refresh
 
 let lastBars = null;
@@ -526,7 +760,12 @@ async function refresh() {
 
 build();
 new ResizeObserver(layoutArcs).observe(document.documentElement);
-tauri.event.listen("appearance", () => requestAnimationFrame(layoutArcs));
+tauri.event.listen("appearance", () =>
+  requestAnimationFrame(() => {
+    layoutArcs();
+    flameColours();
+  }),
+);
 tauri.event.listen("vitals-setup", (e) => {
   if (e.payload) setup = e.payload;
   applySetup();
