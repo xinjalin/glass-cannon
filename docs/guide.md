@@ -294,7 +294,9 @@ fight; right-click again to close it. Tabs:
 
 - **overview**: DPS, crits, positionals and DPS over time with the target's HP.
 - **skills**: every skill with the player's chosen specialties and accuracy (hits the
-  target evaded, resisted or was immune to are misses); hover for the tooltip.
+  target evaded, resisted or was immune to are misses); hover for the tooltip. One row per
+  skill: the extra hits a specialty triggers count in their skill's damage and hits, not
+  as casts of their own.
 - **rotation**: the opener and a zoomable cast timeline that follows a live fight.
 - **buffs**: buff and debuff uptime with icons, and which buffs were up for each skill.
 - **healing** and **taken**: who healed whom (heals on allies, and HP a player's hits

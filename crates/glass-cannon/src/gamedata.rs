@@ -426,6 +426,8 @@ pub struct GameData {
     /// The skills (bases) that give a shield: their description grants a Protective
     /// Shield (and doesn't only break one).
     shield_bases: std::collections::HashSet<u32>,
+    /// Which skill IDs are one skill (by the names, yours included).
+    groups: meter_core::skillgroups::SkillGroups,
     /// Theostone effects and grades (optional).
     theostones: TheostoneFile,
     /// Dungeon mobs, for the history's dungeon runs (optional).
@@ -459,6 +461,7 @@ impl GameData {
             npcs: NpcFile::default(),
             details: DetailsFile::default(),
             shield_bases: std::collections::HashSet::new(),
+            groups: meter_core::skillgroups::SkillGroups::default(),
             theostones: TheostoneFile::default(),
             dungeons: DungeonFile::default(),
             field_bosses: FieldBossFile::default(),
@@ -686,6 +689,12 @@ impl GameData {
         }
     }
 
+    /// Which skill IDs are one skill, by base and name, for one row per skill (see
+    /// [`meter_core::skillgroups`]).
+    pub fn skill_groups(&self) -> &meter_core::skillgroups::SkillGroups {
+        &self.groups
+    }
+
     /// A skill's name and icon key (for skills outside a view, e.g. the timelines).
     pub fn skill_meta(&self, skill: u32) -> (Option<String>, Option<u32>) {
         let resolved = self.resolve_skill(skill);
@@ -781,6 +790,10 @@ impl GameData {
     }
 
     pub fn annotate_view(&self, enc: &mut EncounterView) {
+        // One row per skill (fights saved before rows went by skill have one per ID).
+        for p in enc.players.iter_mut().chain(enc.healing.iter_mut()) {
+            p.skills = self.groups.merge_rows(std::mem::take(&mut p.skills));
+        }
         let rows = enc.players.iter_mut().chain(enc.healing.iter_mut()).chain(enc.taken.iter_mut());
         for row in rows.flat_map(|p| p.skills.iter_mut()) {
             let resolved = self.resolve_skill(row.skill);
@@ -984,6 +997,9 @@ impl GameData {
             e.name = name.clone();
             e.custom = true;
         }
+        self.groups = meter_core::skillgroups::SkillGroups::from_names(
+            self.skills.skills.iter().map(|(id, e)| (*id, e.name.as_str())),
+        );
     }
 
     /// A skill's icon as a `data:` URL, so the page needs no file access.
@@ -1292,11 +1308,51 @@ mod tests {
         let d = GameData::load_first(vec![dir.clone()]);
         let mut v = view_with(Some(2_400_009), &[11_100_048, 3_000_021]);
         d.annotate_view(&mut v);
-        assert_eq!(v.players[0].skills[0].name.as_deref(), Some("Ruinous Blow"));
-        assert_eq!(v.players[0].skills[0].icon_key, Some(11_100_000));
-        assert_eq!(v.players[0].skills[1].name, None);
+        // The variant's row is its skill's.
+        let row = |id: u32| v.players[0].skills.iter().find(|s| s.skill == id).unwrap();
+        assert_eq!(row(11_100_000).name.as_deref(), Some("Ruinous Blow"));
+        assert_eq!(row(11_100_000).icon_key, Some(11_100_000));
+        assert_eq!(row(3_000_021).name, None);
         assert_eq!(v.target.as_deref(), Some("Hardened Drana"));
         assert!(v.target_boss);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_saved_fight_shows_one_row_per_skill() {
+        let dir = temp_dir("one-row");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": {
+                "12240000": { "name": "Judgment" }, "12243450": { "name": "Judgment" },
+                "11010000": { "name": "Rending Blow" }, "11010047": { "name": "Smashing Blow" }
+            } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // Saved before rows went by skill: Judgment 3·4·5, its extra hit, and Smashing Blow.
+        let mut v = view_with(None, &[12_243_450, 12_240_347, 11_010_047]);
+        for (s, (damage, casts)) in v.players[0].skills.iter_mut().zip([(5000, 2), (2000, 2), (900, 1)]) {
+            (s.damage, s.hits, s.min, s.max, s.share) = (damage, casts, damage / 4, damage / 2, damage as f64 / 7900.0);
+            s.outcomes.casts = casts;
+        }
+        d.annotate_view(&mut v);
+        let rows: Vec<(u32, Option<&str>, u64, u64, u64)> = v.players[0]
+            .skills
+            .iter()
+            .map(|s| (s.skill, s.name.as_deref(), s.damage, s.hits, s.outcomes.casts))
+            .collect();
+        assert_eq!(
+            rows,
+            [(12_240_000, Some("Judgment"), 7000, 4, 2), (11_010_047, Some("Smashing Blow"), 900, 1, 1)]
+        );
+        let judgment = &v.players[0].skills[0];
+        assert_eq!((judgment.min, judgment.max), (500, 2500));
+        assert!((judgment.share - 7000.0 / 7900.0).abs() < 1e-9);
+        // Again: rows already by skill stay as they are.
+        let before = v.players[0].skills.clone();
+        d.annotate_view(&mut v);
+        assert_eq!(v.players[0].skills, before);
         fs::remove_dir_all(dir).ok();
     }
 
