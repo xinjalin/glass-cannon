@@ -1,6 +1,6 @@
 {
   "source": {
-    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the Ludra raid's from our own runs (2026-11-06, 2026-11-07, 2026-11-13) and two guides to it (aion2tierlist.com's and dbaion2.ru's: what to do in the grid, Ludra's Trial, and when Rahu splits the arena). The wording is ours.",
+    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the Ludra raid's from our own runs (2026-11-06, 2026-11-07, 2026-11-13) and guides to it (aion2tierlist.com's and dbaion2.ru's: what to do in the grid, Ludra's Trial, and when Rahu splits the arena; Mobalytics' Rahu, Ketu and Ludra guides of 2026-11-09 and MMOPIXEL's Ludra guide, after the 4 November rework: Wheel of Torment's regroup, Ketu's Abyssal Gaze and Eruption of Power, Rahu's Feeding Time, Ludra's opening tail swipe). The dungeon bosses' cast cards marked `source` (Mobalytics' dungeon guides) name moves by the game's own skill names; what to do is from those guides, unconfirmed in our captures. The wording is ours.",
     "note": "`seen`: the date we confirmed it in our own captures. The rest are unconfirmed leads until a run shows them. `bosses` empty: any boss, for one whose type we may not know (a raid boss up before the meter started).",
     "when": "effect: a buff or debuff on the boss (on: boss), on you (you), on another player (ally) or on any player (player). cast: the boss casts one of skills; over when it casts one of until (its own skill: when it goes off). stagger: the boss's stagger check (its gauge turns breakable; over once broken or idle). hit: something on the ground hits you.",
     "times": "max_s: the longest it shows. due_s: when it lands, from its start (a countdown). then: what to do once it's over, for then.s seconds.",
@@ -13,6 +13,7 @@
     "1801840": "weapon smash",
     "1801843": "weapon smash",
     "1801950": "strike",
+    "1803080": "tail swipe",
     "1803110": "heavy strike",
     "1803120": "strike",
     "1803130": "area blast",
@@ -325,7 +326,7 @@
       "bosses": [],
       "when": { "kind": "cast", "skills": [1802900], "until": [1802900] },
       "what": "Rahu · Wheel of Torment",
-      "say": "arena splits in four · stay together, don't cross the lines",
+      "say": "back to the boss · stack on the marked player, circle him together",
       "max_s": 17,
       "priority": 100,
       "seen": "2026-11-06"
@@ -335,7 +336,7 @@
       "bosses": [],
       "when": { "kind": "cast", "skills": [1803010], "until": [1803000] },
       "what": "Eternal Ludra · Ludra's Trial",
-      "say": "find the safe square · everyone in it",
+      "say": "find the safe tile · catch the orbs, then everyone in",
       "max_s": 45,
       "priority": 100,
       "seen": "2026-11-13"
@@ -361,6 +362,97 @@
       "max_s": 5,
       "priority": 95,
       "seen": "2026-11-07"
+    },
+    {
+      "id": "ludra.ketu.gaze",
+      "bosses": [2301007, 2300283],
+      "when": { "kind": "cast", "skills": [1801962, 1801966, 1801969], "until": [] },
+      "what": "Ketu · Abyssal Gaze",
+      "say": "kill the spirits before they reach him · end in the middle",
+      "max_s": 15,
+      "priority": 100,
+      "source": "guide: Mobalytics (2026-11-09)"
+    },
+    {
+      "id": "ludra.ketu.eruption",
+      "bosses": [2301007, 2300283],
+      "when": { "kind": "cast", "skills": [1801970, 1801973], "until": [] },
+      "what": "Ketu · Eruption of Power",
+      "say": "break a crystal just before each hit · stagger them",
+      "max_s": 15,
+      "priority": 100,
+      "source": "guide: Mobalytics (2026-11-09)"
+    },
+    {
+      "id": "ludra.rahu.feeding",
+      "bosses": [2301006, 2300282],
+      "when": { "kind": "cast", "skills": [1802980, 1802981], "until": [] },
+      "what": "Rahu · Feeding Time",
+      "say": "marked: aim the line through a monster · kill them all",
+      "max_s": 15,
+      "priority": 100,
+      "source": "guide: Mobalytics (2026-11-09)"
+    },
+    {
+      "id": "krao.berk.extinction",
+      "bosses": [2300171, 2300172, 2300173, 2300174, 2300178, 2310171, 2310172, 2310173, 2310174, 2310178, 2320171, 2320172, 2320173, 2320174, 2320178, 2330171],
+      "when": { "kind": "cast", "skills": [1800140, 1800141], "until": [] },
+      "what": "Ultimate Berk · Extinction for Eternity",
+      "say": "stagger him before the cast ends · dodge the comets",
+      "max_s": 15,
+      "priority": 100,
+      "source": "guide: Mobalytics (2026-10-22)"
+    },
+    {
+      "id": "hornden.kwapo.thunder",
+      "bosses": [2300908, 2310908, 2320908],
+      "when": { "kind": "cast", "skills": [1606910, 1606911], "until": [] },
+      "what": "Kwapo · Thunder Cry",
+      "say": "pick up the lightning orbs · jump the wave",
+      "max_s": 12,
+      "priority": 95,
+      "source": "guide: Mobalytics (2026-10-19)"
+    },
+    {
+      "id": "hornden.duanka.necromancy",
+      "bosses": [2300909, 2310909, 2320909],
+      "when": { "kind": "cast", "skills": [1607020, 1607027], "until": [] },
+      "what": "Duanka · Mau Necromancy",
+      "say": "take the altar's soul · kill the ghosts",
+      "max_s": 12,
+      "priority": 95,
+      "source": "guide: Mobalytics (2026-10-19)"
+    },
+    {
+      "id": "hornden.duanka.soulcaller",
+      "bosses": [2300909, 2310909, 2320909],
+      "when": { "kind": "cast", "skills": [1607050, 1607051], "until": [] },
+      "what": "Duanka · Soul Caller",
+      "say": "run away from her · dodge the electric balls",
+      "max_s": 12,
+      "priority": 100,
+      "source": "guide: Mobalytics (2026-10-19)"
+    },
+    {
+      "id": "deus.atiel.morphic",
+      "bosses": [2300601, 2310601, 2320601, 2330601, 2340601, 2341601, 2342601, 2343601, 2344601, 2345601, 2346601, 2347601],
+      "when": { "kind": "cast", "skills": [1801530, 1801531], "until": [] },
+      "what": "Atiel · Morphic World",
+      "say": "break his guard in 10 s · or the party wipes",
+      "due_s": 10,
+      "max_s": 11,
+      "priority": 100,
+      "source": "guide: Mobalytics (2026-10-19)"
+    },
+    {
+      "id": "arkanis.talisra.castfall",
+      "bosses": [2300709, 2330709, 2340709, 2350709, 2351709, 2352709, 2353709, 2354709, 2355709, 2356709, 2357709],
+      "when": { "kind": "cast", "skills": [1801678], "until": [] },
+      "what": "Talisra · Cast Fall",
+      "say": "break the pillar she names",
+      "max_s": 12,
+      "priority": 95,
+      "source": "guide: Mobalytics (2026-10-19)"
     }
   ]
 }
