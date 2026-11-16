@@ -35,18 +35,24 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 
 | Launcher | Settings |
 | --- | --- |
-| ![The launcher: status, the overlay, the fight going on and the history](docs/screenshots/launcher.png) | ![Settings: appearance, the overlay's widgets, status, meter, keybinds and tools](docs/screenshots/settings.png) |
+| ![The launcher: status, the overlay, the fight going on and the history](docs/screenshots/launcher.png) | ![Settings: the theme and its parts, text, glass and class colours](docs/screenshots/settings.png) |
 
 | Fight history | Pet tracker |
 | --- | --- |
-| ![Dungeon runs with stage splits and personal bests](docs/screenshots/history.png) | ![The pets you track, with their level and souls](docs/screenshots/pets.png) |
+| ![A raid night grouped into one run, with each attempt and where it wiped](docs/screenshots/history.png) | ![The pets you track, with their level and souls](docs/screenshots/pets.png) |
 
 ![The map: Altgard with its zones, and where each pet's mobs spawn](docs/screenshots/petmap.png)
 
 ![Fight analysis: each player's DPS over the fight and their numbers](docs/screenshots/analysis-overview.png)
 
-<sub>A real dungeon run replayed from a recording over a painted backdrop. Other players'
-names are made up.</sub>
+| Collection | Black market |
+| --- | --- |
+| ![The collection: your greatswords, with the looks each skin shares](docs/screenshots/collection.png) | ![The black market: this hour's offers, with the skins and wings you're missing marked](docs/screenshots/blackmarket.png) |
+
+![Boss casts: Eternal Ludra's casts, a few renamed and set to warn or not](docs/screenshots/bosscasts.png)
+
+<sub>Fights from a real raid night over a painted backdrop. Other players' names are made
+up.</sub>
 
 ## Install
 
