@@ -25,8 +25,10 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
   pets you're working on.
 - **Black market**: what the Black Cloud Merchant offers each character this hour, with the
   pets, skins and wings you don't have yet marked, and Theostones' effects.
-- **Collection**: every skin, outfit and wing, which your characters have and which they're
-  missing, slot by slot.
+- **Collection**: every skin, outfit, wing and Pantheon decoration (artworks, statues,
+  colossi), which your characters have and which they're missing, slot by slot.
+- **Boss casts**: every boss by content, with the casts the meter has seen it make: rename
+  them, and choose which show in the boss warnings and timers.
 - **Weekly checklist**: each character's Odyle energy and its weekly sources.
 
 ## Screenshots

@@ -13,7 +13,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, Physical
 use crate::layout::{self, Rect, Side};
 
 use crate::store::{Appearance, AppearanceChange};
-use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, BLACK_MARKET, CHECKLIST, COLLECTION, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
+use crate::{hud, lock, restyle_windows, restyle_windows_but, AppState, ATTEMPTS, BLACK_MARKET, BOSS_CASTS, CHECKLIST, COLLECTION, HISTORY, LAUNCHER, PET_MAP, SETTINGS};
 
 /// Child processes run without flashing a console window.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -30,6 +30,7 @@ const MIN_PET_MAP: (f64, f64) = (480.0, 320.0);
 const MIN_ATTEMPTS: (f64, f64) = (360.0, 260.0);
 const MIN_CHECKLIST: (f64, f64) = (320.0, 240.0);
 const MIN_COLLECTION: (f64, f64) = (380.0, 300.0);
+const MIN_BOSS_CASTS: (f64, f64) = (420.0, 320.0);
 const MIN_BLACK_MARKET: (f64, f64) = (380.0, 300.0);
 /// Where a window goes beside the launcher, in order of preference.
 pub(crate) const SIDES: [Side; 4] = [Side::Left, Side::Right, Side::Below, Side::Above];
@@ -258,6 +259,7 @@ pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
     s.timer_favourites = old.timer_favourites;
     s.alerts = old.alerts;
     s.boss_skill_alerts = old.boss_skill_alerts;
+    s.boss_skill_timers = old.boss_skill_timers;
     s.dummy_label = old.dummy_label;
     s.overlay_on = old.overlay_on;
     s.launcher_on_top = old.launcher_on_top;
@@ -417,6 +419,12 @@ pub fn open_checklist(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Resul
 #[tauri::command]
 pub fn open_collection(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
     toggle_window(&handle, &app, COLLECTION, &app.collection_placed, MIN_COLLECTION)
+}
+
+/// Shows the boss casts window, or hides it if it's already showing (as the history).
+#[tauri::command]
+pub fn open_boss_casts(handle: AppHandle, app: State<'_, Arc<AppState>>) -> Result<(), String> {
+    toggle_window(&handle, &app, BOSS_CASTS, &app.boss_casts_placed, MIN_BOSS_CASTS)
 }
 
 /// Shows the black market window, or hides it if it's already showing (as the history).

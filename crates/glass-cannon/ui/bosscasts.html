@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon boss casts</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="window.css">
+</head>
+<body data-panel="bosscasts">
+  <main id="panel">
+    <header id="bar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region>boss casts</span>
+      <span id="count" class="note" data-tauri-drag-region></span>
+      <span class="lights">
+        <button id="pin" type="button" class="light green" title="Kept on top · click to let other windows cover it" aria-label="Keep on top" aria-pressed="true"></button>
+        <button id="close" type="button" class="light red" title="Close (Esc)" aria-label="Close"></button>
+      </span>
+    </header>
+    <!-- Content, then which bosses and a search. -->
+    <nav id="kinds" class="tabs" role="tablist" aria-label="Content"></nav>
+    <div class="col-filters">
+      <nav id="show" class="tabs" role="tablist" aria-label="Show">
+        <button type="button" role="tab" data-show="fought" title="The bosses the meter has seen casting">[fought]</button>
+        <button type="button" role="tab" data-show="all" title="Every boss, with the casts seen so far">[all bosses]</button>
+        <button type="button" role="tab" data-show="changed" title="The casts you've named or set">[changed]</button>
+      </nav>
+      <input id="search" class="side-search" type="search" placeholder="search a boss or cast" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="scroll" id="list"></div>
+    <p id="empty" class="empty" hidden></p>
+    <div class="history-foot">
+      <p class="note">casts come from your fights with the meter running · <b>auto</b> warns of a cast that takes 2.5 s or more or marks the ground, and the timers follow the warnings · click a cast's name to rename it</p>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="window.js"></script>
+  <script src="panel.js"></script>
+  <script src="bosscasts.js"></script>
+</body>
+</html>

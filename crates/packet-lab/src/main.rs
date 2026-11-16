@@ -33,6 +33,7 @@ mod npc_names;
 mod pets;
 mod gear;
 mod wings;
+mod pantheon;
 mod pet_icons;
 mod pet_map;
 mod gather_map;
@@ -361,6 +362,18 @@ enum Cmd {
         #[arg(long)]
         scraped: String,
     },
+    /// Build gamedata/pantheon.json (the Pantheon's artworks, statues and colossi by
+    /// decoration ID, for your collection) from SkeeveAN's Aion DPS Meter (MIT), and download
+    /// their icons from NCSOFT's asset server (icons already there are kept)
+    Pantheon {
+        /// Its Backend/src/data/aion2/pantheon.json
+        pantheon: PathBuf,
+        #[arg(long, default_value = "gamedata/pantheon.json")]
+        out: PathBuf,
+        /// The upstream commit the file is from (recorded in the file)
+        #[arg(long)]
+        commit: String,
+    },
     /// Download each pet's portrait (for the pet tracker) from NCSOFT's asset server into
     /// gamedata as pet_<id>.png, by the icon names in a scraped pet database
     PetIcons {
@@ -561,6 +574,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::GearIcons { items, gear, dir } => gear::icons(&items, &gear, &dir),
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::Wings { wings, out, scraped } => wings::run(&wings, &out, &scraped),
+        Cmd::Pantheon { pantheon, out, commit } => pantheon::run(&pantheon, &out, &commit),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::ShopItems { items, pets, gear, theostones, out, scraped } => shop_items::run(&items, &pets, &gear, &theostones, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),

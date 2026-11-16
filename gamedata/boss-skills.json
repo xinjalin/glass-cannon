@@ -1127,7 +1127,7 @@
     "9970": "Keen Strike"
   },
   "source": {
-    "commit": "602d317929dd199f789a11ab79df20596343fab7",
+    "commit": "e5e8ec4b43bee07fb90281113b26937499e0c5ee",
     "from": "SkeeveAN's Aion DPS Meter, Backend/src/data/aion2/skill_names.json (https://github.com/SkeeveAN/Aion-DPS-Meter)",
     "licence": "MIT, Copyright (c) 2026 SkeeveTV",
     "note": "Aion 2 game data; names belong to NCSOFT. The game's own names for the mob and boss skills skills.json doesn't name, or names differently (the game's wins). Made with packet-lab boss-skills."

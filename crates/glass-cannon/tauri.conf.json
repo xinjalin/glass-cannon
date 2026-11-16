@@ -160,6 +160,25 @@
         "skipTaskbar": true,
         "center": false
       },
+        {
+        "label": "bosscasts",
+        "title": "Glass Cannon boss casts",
+        "width": 600,
+        "height": 620,
+        "minWidth": 420,
+        "minHeight": 300,
+        "url": "bosscasts.html",
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true,
+        "resizable": true,
+        "maximizable": false,
+        "minimizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
+      },
       {
         "label": "hud",
         "title": "Glass Cannon overlay",

@@ -748,6 +748,8 @@ again) since in `0x8d5c` (the same list, then its kind's total). Your wings come
 in `0x5672` (WingList_NT: varint n, n × (u32 wing, u8 enchant level)), by the wing IDs of
 the wing data.
 
+Your Pantheon's decorations (artworks, statues, colossi) come at login in `0x8aaf` (Questlog's AgitDecoList_NT: varint n, n × (u32 decoration, u8 Pantheon slot)), slot 0 for one you have but haven't placed. Decoration IDs are the game's, as in Aion DPS Meter's `pantheon.json` (1023 Statue: Asahr's Mirror, 5014 Colossus: Warden Santras).
+
 A skin ID is its kind, the art's set number and its slot: `1 0SSS 1TT` a weapon (TT as in
 its gear's item ID 11TT…: 01 greatsword, 02 longsword, 03 dagger, 04 bow, 05 spellbook, 06
 orb, 07 mace, 08 staff), `3 0SSS 1PP` armour (21PP…: 01 breastplate, 02 greaves, 03 helm,

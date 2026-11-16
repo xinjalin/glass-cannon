@@ -1,5 +1,5 @@
-//! Your collection: every skin and wing in the data, which your characters have, and which
-//! the black market's offers would add.
+//! Your collection: every skin, wing and Pantheon decoration in the data, which your
+//! characters have, and which the black market's offers would add.
 //!
 //! The game lists skins by skin ID (see `meter_core::collection`): its kind, the art's set
 //! number and its slot. Items don't carry it, so it's worked out: the set number is in the
@@ -135,14 +135,18 @@ pub struct Entry {
     pub icon: Option<String>,
     pub faction: Option<String>,
     pub owned: bool,
-    /// The game's count of a skin, or a wing's enchant level.
+    /// The game's count of a skin, a wing's enchant level, or the Pantheon slot a
+    /// decoration is placed in (0: not placed).
     pub count: u16,
+    /// What else there is to say: a decoration's stats ("Destiny +3 · Life +3").
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
 pub struct CollectionView {
     pub skins_known: bool,
     pub wings_known: bool,
+    pub decorations_known: bool,
     /// The characters whose collection is known.
     pub characters: Vec<String>,
     pub entries: Vec<Entry>,
@@ -216,6 +220,7 @@ pub fn view(data: &GameData, book: &CollectionBook) -> CollectionView {
                 faction: None,
                 owned: count.is_some(),
                 count: count.unwrap_or(0),
+                detail: None,
             }
         })
         .collect();
@@ -234,6 +239,7 @@ pub fn view(data: &GameData, book: &CollectionBook) -> CollectionView {
             faction: None,
             owned: have,
             count: 0,
+            detail: None,
         });
     }
     for (id, w) in data.wings() {
@@ -249,9 +255,38 @@ pub fn view(data: &GameData, book: &CollectionBook) -> CollectionView {
             faction: w.faction.clone(),
             owned: level.is_some(),
             count: level.unwrap_or(0).into(),
+            detail: None,
         });
     }
-    CollectionView { skins_known: book.skins_known(), wings_known: book.wings_known(), characters: book.characters(), entries }
+    for (id, d) in data.decorations() {
+        let slot = book.decoration(id);
+        let (kind, prefix) = match d.kind.as_str() {
+            "statue" => ("Statue", "Statue: "),
+            "colossus" => ("Colossus", "Colossus: "),
+            _ => ("Artwork", "Artwork: "),
+        };
+        let effects: Vec<String> = d.effects.iter().map(|(stat, n)| format!("{stat} {n:+}")).collect();
+        entries.push(Entry {
+            kind: "pantheon",
+            slot: Some(kind.to_string()),
+            id,
+            name: Some(d.name.strip_prefix(prefix).unwrap_or(&d.name).to_string()),
+            also: Vec::new(),
+            grade: None,
+            icon: d.icon.clone(),
+            faction: d.side.clone(),
+            owned: slot.is_some(),
+            count: slot.unwrap_or(0).into(),
+            detail: (!effects.is_empty()).then(|| effects.join(" · ")),
+        });
+    }
+    CollectionView {
+        skins_known: book.skins_known(),
+        wings_known: book.wings_known(),
+        decorations_known: book.decorations_known(),
+        characters: book.characters(),
+        entries,
+    }
 }
 
 /// A skin's slot name from its ID.
@@ -281,6 +316,38 @@ pub fn collection_icon(app: State<'_, Arc<AppState>>, icon: String) -> Option<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pantheon_decorations_owned_and_placed() {
+        let dir = std::env::temp_dir().join(format!("gc-pantheon-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("skills.json"), r#"{ "skills": { "1": { "name": "Glide" } } }"#).unwrap();
+        std::fs::write(
+            dir.join("pantheon.json"),
+            r#"{ "decorations": { "58": { "kind": "frame", "name": "Artwork: Artisan Blacksmith", "side": "Light", "effects": [["Destiny", 3], ["Life", 3]] },
+                                  "1023": { "kind": "statue", "name": "Statue: Asahr's Mirror" },
+                                  "5014": { "kind": "colossus", "name": "Colossus: Warden Santras" } } }"#,
+        )
+        .unwrap();
+        let data = GameData::load_for_tests(dir.clone());
+        let mut book = CollectionBook::load(&dir);
+        let mut c = meter_core::collection::Collection::default();
+        // The statue in slot 13, the artwork not placed.
+        c.feed(meter_core::collection::OPCODE_DECORATION_LIST, &[2, 0xff, 3, 0, 0, 13, 58, 0, 0, 0, 0]);
+        book.sync("Alpha", &mut c);
+        let v = view(&data, &book);
+        assert!(v.decorations_known);
+        let decos: Vec<_> = v.entries.iter().filter(|e| e.kind == "pantheon").map(|e| (e.id, e.slot.as_deref(), e.name.as_deref(), e.owned, e.count, e.detail.as_deref())).collect();
+        assert_eq!(
+            decos,
+            [
+                (58, Some("Artwork"), Some("Artisan Blacksmith"), true, 0, Some("Destiny +3 · Life +3")),
+                (1023, Some("Statue"), Some("Asahr's Mirror"), true, 13, None),
+                (5014, Some("Colossus"), Some("Warden Santras"), false, 0, None),
+            ]
+        );
+        std::fs::remove_dir_all(dir).ok();
+    }
 
     #[test]
     fn set_numbers_come_from_icon_names() {

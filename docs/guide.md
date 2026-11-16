@@ -43,8 +43,8 @@ finishes. The widgets:
 - **boss warnings**: a dangerous cast in the middle of the screen, as a card like the other
   alerts: casting, then landing (move), the skill's name, and its time left, with a chime;
   a heads-up 5 s before one is due. Once over, it stays dimmed for 1.5 s. A cast is dangerous when
-  it marks the ground or takes 2.5 s or more; in the analysis window's [boss] tab, click a
-  skill's alert to make it always or never warn. Dungeon bosses' **mechanics** come first
+  it marks the ground or takes 2.5 s or more; set any cast to always or never warn in the
+  **boss casts** window (or the analysis window's [boss] tab, for one fight's). Dungeon bosses' **mechanics** come first
   (settings → boss mechanics): what it is and what to do, with its time left when known.
   They go off on a buff on the boss (Lakshmi's reflect: stop attacking), a debuff on you
   (a bomb or pool to carry away from the party, then "out of the fire") or on an ally (who
@@ -68,7 +68,17 @@ finishes. The widgets:
   wipe) shows as **Boss**: the meter never saw its spawn, so it can't name it, but it
   knows it's a boss by its stagger gauge, and its HP, wipes, casts and warnings work.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
-  down.
+  down: those worth a warning, unless set otherwise in the boss casts window.
+- **Boss casts** (settings → alerts → boss casts [ set up ]): every boss, by content
+  (expeditions, transcendence, raids, the arena, sealed dungeons, strongholds, invasions,
+  field bosses) and dungeon, with each distinct cast the meter has seen it make (its cast
+  time, when it lands, how often seen), the likeliest mechanics first. Click a cast's name
+  to rename it (anywhere it shows), and set it for the **warnings** and the **timers**:
+  **auto** (as the rule above goes: ✓ when it would show), **on** or **off**; the timers on
+  auto follow the warnings. **[fought]** lists the bosses with casts seen, **[all
+  bosses]** every one (a boss you haven't fought with the meter running has none yet),
+  **[changed]** what you've named or set. The game data doesn't say which casts a boss has,
+  so they come from your fights (and the fights already in the history).
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
   sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
   way the cube is: the game never sends your own position as you move (and what your game
@@ -354,8 +364,9 @@ you go through the pages, it stays closed), and goes again when you leave the me
 Exit back to the Shop, or closing the Shop (the game's cursor hiding). Turn that off in the
 settings (general → **open the black market with the game's**).
 
-**Collection** (the hanger on the launcher): every skin, outfit and wing in the data, by
-kind (weapons, armour, accessories, outfits, wings) and slot, with which of them your
+**Collection** (the hanger on the launcher): every skin, outfit, wing and Pantheon
+decoration in the data, by kind (weapons, armour, accessories, outfits, wings, pantheon)
+and slot, with which of them your
 characters have (in the theme's colour, with the game's count of it, or a wing's enchant)
 and which they're missing (in red), and how many of each slot you have (greatswords 9/56).
 **[have]** and **[missing]** narrow it down; search by name, or the gear that looks like
@@ -363,7 +374,9 @@ it. The game sends your skins and wings when you log in, so log in (or change ch
 with the meter open once; the app keeps each character's, and they count together. A skin
 is tied to its items by its art's number and its slot, which every weapon, armour and
 accessory skin we've seen matches (and eyewear); a few looks with named art can't be tied,
-and the odd skin the game lists that no item in the data looks like isn't shown.
+and the odd skin the game lists that no item in the data looks like isn't shown. The
+**pantheon** tab has the Pantheon's artworks, statues and colossi, each with its side
+(Light, Dark or all) and stats, marked **placed** when it's in your Pantheon.
 
 **Checklist** (the checklist icon on the launcher): each character's Odyle energy (basic
 and charged) and its weekly sources, with how much of each is done this week and when
