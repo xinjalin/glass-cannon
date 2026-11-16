@@ -49,6 +49,11 @@ pub struct RunInfo {
 pub struct SkillMeta {
     name: Option<String>,
     icon_key: Option<u32>,
+    /// The skill this ID is part of (its row in the skills tab and its rotation lane).
+    group: u32,
+    /// An extra hit its skill triggered: part of that skill's cast, not a cast of its own.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    triggered: bool,
 }
 
 #[derive(Serialize)]
@@ -256,6 +261,10 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: O
         .chain(a.effects.iter().filter_map(|e| e.skill))
         .chain(a.heals.iter().chain(a.taken.iter()).map(|h| h.skill))
         .chain(a.view.players.iter().flat_map(|p| p.skills.iter().map(|s| s.skill)));
+    let groups = data.skill_groups();
+    // Each skill's own ID too, for its row's name and icon.
+    let ids: Vec<u32> = ids.collect();
+    let ids = ids.iter().copied().chain(ids.iter().map(|id| groups.group(*id)));
     let mut skills = BTreeMap::new();
     for id in ids {
         skills.entry(id).or_insert_with(|| {
@@ -266,7 +275,7 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: O
                 let (mob, _) = data.npc(*a.mob_types.get(&by)?)?;
                 Some(format!("{mob}'s attack"))
             });
-            SkillMeta { name, icon_key }
+            SkillMeta { name, icon_key, group: groups.group(id), triggered: groups.triggered(id) }
         });
     }
     let skill_details: BTreeMap<u32, serde_json::Value> =

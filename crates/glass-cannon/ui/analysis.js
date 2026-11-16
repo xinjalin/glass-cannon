@@ -70,6 +70,26 @@ function skillName(id) {
   return (m && m.name) || String(id);
 }
 
+// The skill an ID is part of: one skill lands under several IDs (its specialties, the extra
+// hits it triggers, charge levels), shown as one row and one rotation lane.
+function groupOf(id) {
+  const m = data && data.skills[id];
+  return m && m.group != null ? m.group : id;
+}
+
+// An extra hit a skill triggered (with its own cast ID): part of that skill's cast.
+function isTriggered(id) {
+  const m = data && data.skills[id];
+  return !!(m && m.triggered);
+}
+
+// How many specialties a class skill's ID shows were chosen (its thousands, hundreds and
+// tens digits, 1 to 5 each).
+function specialtyCount(id) {
+  const tail = id % 10000;
+  return [Math.floor(tail / 1000), Math.floor(tail / 100) % 10, Math.floor(tail / 10) % 10].filter((d) => d >= 1 && d <= 5).length;
+}
+
 // Skill icons as images (for canvases) and data URLs, loaded once each.
 const iconUrls = new Map();
 const iconImages = new Map();
@@ -168,11 +188,11 @@ function emptyStats() {
   return { damage: 0, hits: 0, multiHits: 0, casts: 0, crit: 0, back: 0, front: 0, perfect: 0, double: 0, multi: 0, min: Infinity, max: 0 };
 }
 
-function addHit(s, h) {
+function addHit(s, h, cast = !!(h.flags & HIT.FIRST)) {
   s.damage += h.damage;
   s.hits += 1;
   s.multiHits += h.n;
-  if (h.flags & HIT.FIRST) s.casts += 1;
+  if (cast) s.casts += 1;
   if (h.flags & HIT.CRIT) s.crit += 1;
   if (h.flags & HIT.BACK) s.back += 1;
   if (h.flags & HIT.FRONT) s.front += 1;
@@ -197,29 +217,60 @@ function derive() {
       p = { ...emptyStats(), skills: new Map() };
       players.set(h.player, p);
     }
-    addHit(p, h);
-    let s = p.skills.get(h.skill);
+    addHit(p, h, false);
+    // One row per skill; an extra hit it triggered adds damage and hits, not a cast.
+    const group = groupOf(h.skill);
+    let s = p.skills.get(group);
     if (!s) {
-      s = { ...emptyStats(), castTimes: [] };
-      p.skills.set(h.skill, s);
+      s = { ...emptyStats(), castTimes: [], triggeredCasts: 0, triggeredTimes: [], variants: new Map() };
+      p.skills.set(group, s);
     }
-    addHit(s, h);
-    if (h.flags & HIT.FIRST && !(h.flags & HIT.DOT)) s.castTimes.push(h.t);
+    const isCast = !!(h.flags & HIT.FIRST);
+    const triggered = isTriggered(h.skill);
+    addHit(s, h, isCast && !triggered);
+    if (isCast && triggered) s.triggeredCasts += 1;
+    if (isCast && !(h.flags & HIT.DOT)) (triggered ? s.triggeredTimes : s.castTimes).push(h.t);
+    s.variants.set(h.skill, (s.variants.get(h.skill) || 0) + h.damage);
+  }
+  for (const p of players.values()) {
+    p.casts = 0;
+    for (const s of p.skills.values()) {
+      // A skill only ever triggered here: those are its casts.
+      if (!s.casts && s.triggeredCasts) {
+        s.casts = s.triggeredCasts;
+        s.castTimes = s.triggeredTimes.sort((a, b) => a - b);
+      }
+      p.casts += s.casts;
+      // The ID that shows its specialties best: a cast of its own, the most specialties
+      // chosen, the most damage.
+      s.shown = [...s.variants.entries()].sort(
+        ([a, da], [b, db]) => isTriggered(a) - isTriggered(b) || specialtyCount(b) - specialtyCount(a) || db - da,
+      )[0][0];
+    }
   }
   const durationMs = target == null ? data.view.duration_s * 1000 : Math.max(1000, last - first);
   // Casts with their hits, per player, in time order.
   const casts = new Map();
   const open = new Map();
+  // A skill's latest cast per player: the extra hits it triggers join it.
+  const latest = new Map();
   for (const h of hits) {
     if (h.flags & HIT.DOT) continue;
     const key = `${h.player}/${h.skill}/${h.cast}`;
+    const group = groupOf(h.skill);
     let c = open.get(key);
-    if (h.flags & HIT.FIRST || !c) {
-      c = { player: h.player, skill: h.skill, t: h.t, damage: 0, hits: 0, crit: false, back: false, front: false };
-      open.set(key, c);
+    if (!c && isTriggered(h.skill)) {
+      // Its skill's cast (not another extra hit: a skill only ever triggered has its own).
+      const own = latest.get(`${h.player}/${group}`);
+      if (own && !isTriggered(own.skill)) c = own;
+    }
+    if ((h.flags & HIT.FIRST && !isTriggered(h.skill)) || !c) {
+      c = { player: h.player, skill: h.skill, group, t: h.t, damage: 0, hits: 0, crit: false, back: false, front: false };
       if (!casts.has(h.player)) casts.set(h.player, []);
       casts.get(h.player).push(c);
+      latest.set(`${h.player}/${group}`, c);
     }
+    open.set(key, c);
     c.damage += h.damage;
     c.hits += h.n;
     c.crit = c.crit || !!(h.flags & HIT.CRIT);
@@ -733,11 +784,12 @@ function drawSkills() {
     const tr = el("tr");
     const who = el("td", "left");
     const cell = el("div", "cell-name");
-    cell.dataset.skill = id;
+    // The skill's name and icon; its specialties (and tooltip) as its own casts show them.
+    cell.dataset.skill = s.shown;
     cell.append(iconOrBlank(skillIconUrl(id), "", skillName(id)), el("span", "", skillName(id)));
     who.append(cell);
-    const spec = el("td", "muted", specText(id));
-    spec.dataset.skill = id;
+    const spec = el("td", "muted", specText(s.shown));
+    spec.dataset.skill = s.shown;
     tr.append(
       who,
       spec,
@@ -798,7 +850,7 @@ function flowStats(events, keyOf, otherOf) {
     r.amount += h.damage;
     r.n += 1;
     r.max = Math.max(r.max, h.damage);
-    for (const [map, key] of [[r.skills, h.skill], [r.others, otherOf(h)]]) {
+    for (const [map, key] of [[r.skills, groupOf(h.skill)], [r.others, otherOf(h)]]) {
       const s = map.get(key) || { amount: 0, n: 0, max: 0 };
       s.amount += h.damage;
       s.n += 1;
@@ -1120,7 +1172,7 @@ function drawRotation() {
   const hp = derived.hp;
   if (hp && lanes.length) drawHpArea(ctx, hp, x, (f) => plotBottom - (plotBottom - 2) * f, derived.endMs, 0.07, css("--line-faint"));
   for (const c of casts) {
-    const lane = laneOf.get(c.skill);
+    const lane = laneOf.get(c.group);
     if (lane == null || c.t < t0 - 2000 || c.t > t1 + 2000) continue;
     const cx = x(c.t);
     const cy = lane * LANE_H + LANE_H / 2;
@@ -1207,7 +1259,8 @@ attachTimeline("rotation", "rotation", rotationGutter, (mx, my, e) => {
   const skill = rotationLabelAt(mx, my);
   rotationHover = mx == null || skill != null ? null : [mx, my];
   drawRotation();
-  canvasTip($("rotation"), skill != null ? `skill:${skill}` : null, e, () => buildSkillTip(skill));
+  const shown = skill != null && selectedPlayer() ? selectedPlayer().skills.get(skill).shown : skill;
+  canvasTip($("rotation"), skill != null ? `skill:${shown}` : null, e, () => buildSkillTip(shown));
 });
 
 // ---------------------------------------------------------------- buffs
@@ -1484,7 +1537,7 @@ function drawBuffsPerSkill() {
   for (const [id, s] of skills.slice(0, 18)) {
     const card = el("div", "card");
     const head = el("div", "card-head");
-    head.dataset.skill = id;
+    head.dataset.skill = s.shown;
     head.append(iconOrBlank(skillIconUrl(id), "", skillName(id)), el("span", "name", skillName(id)), el("span", "share", pct(s.damage, p.damage)));
     card.append(head, el("div", "sub", `${s.castTimes.length} casts · ${fmt(s.damage)}`));
     const rows = list.map((lane) => ({ lane, share: s.castTimes.filter((t) => up(lane, t)).length / s.castTimes.length })).filter((r) => r.share > 0);
@@ -2129,7 +2182,7 @@ function buildSkillTip(id) {
   const scaled = d ? appendSkillDetails(tip, d, false) : false;
 
   // From this fight: how often the selected player cast it.
-  const s = selectedPlayer() && selectedPlayer().skills.get(id);
+  const s = selectedPlayer() && selectedPlayer().skills.get(groupOf(id));
   if (s && s.castTimes.length) {
     const t = s.castTimes;
     let shortest = Infinity;

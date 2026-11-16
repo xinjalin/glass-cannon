@@ -35,6 +35,7 @@ pub mod reassembly;
 pub mod recorder;
 pub mod session;
 pub mod shields;
+pub mod skillgroups;
 mod win;
 
 #[cfg(test)]

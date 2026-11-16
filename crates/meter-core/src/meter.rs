@@ -24,6 +24,7 @@ use crate::cast::{
 };
 use crate::cooldowns::{CastCooldowns, CasterCooldown, CooldownView, Cooldowns};
 use crate::pvp::{PvpSession, PvpTracker};
+use crate::skillgroups::SkillGroups;
 use crate::fieldboss::{parse_world_map, FieldBoss, OPCODE_WORLD_MAP};
 use crate::state::{self, Stagger, REMOVED_DIED};
 use crate::hp;
@@ -168,7 +169,7 @@ impl Outcomes {
         self.multi_hits += u64::from(h.hit_count);
     }
 
-    fn merge(&mut self, o: &Outcomes) {
+    pub(crate) fn merge(&mut self, o: &Outcomes) {
         self.casts += o.casts;
         self.crits += o.crits;
         self.back += o.back;
@@ -973,6 +974,8 @@ pub struct Meter {
     /// Dungeon bosses' mechanics (from the app's data), and the stagger gauges and ground
     /// hits they go by.
     mechanics: crate::mechanics::Mechanics,
+    /// Which skill IDs are one skill, for one row per skill (from the app's skill data).
+    skill_groups: SkillGroups,
 }
 
 impl Default for Meter {
@@ -1027,6 +1030,7 @@ impl Meter {
             pulls: HashMap::new(),
             latest_us: 0,
             mechanics: crate::mechanics::Mechanics::default(),
+            skill_groups: SkillGroups::default(),
         }
     }
 
@@ -1050,6 +1054,12 @@ impl Meter {
     /// and in combat the fight waits longer before going idle.
     pub fn set_boss_types(&mut self, types: impl IntoIterator<Item = u32>) {
         self.bosses = types.into_iter().collect();
+    }
+
+    /// Which skill IDs are one skill (see [`crate::skillgroups`]): each player's rows show
+    /// one row per skill.
+    pub fn set_skill_groups(&mut self, groups: SkillGroups) {
+        self.skill_groups = groups;
     }
 
     /// Dungeon bosses' mechanics to warn of (see [`crate::mechanics`]).
@@ -2559,8 +2569,9 @@ impl Meter {
         (rows, total)
     }
 
-    fn row(&self, id: u64, p: &PlayerStats, total: u64, duration_s: f64, skill_cap: Option<usize>) -> PlayerRow {
-        let mut skills: Vec<SkillRow> = p
+    /// A player's skills, one row per skill (see [`SkillGroups::merge_rows`]).
+    fn skill_rows(&self, p: &PlayerStats) -> Vec<SkillRow> {
+        let rows = p
             .skills
             .iter()
             .map(|(skill, s)| SkillRow {
@@ -2576,8 +2587,14 @@ impl Meter {
                 outcomes: s.outcomes,
             })
             .collect();
-        skills.sort_by(|a, b| b.damage.cmp(&a.damage).then(a.skill.cmp(&b.skill)));
+        self.skill_groups.merge_rows(rows)
+    }
+
+    fn row(&self, id: u64, p: &PlayerStats, total: u64, duration_s: f64, skill_cap: Option<usize>) -> PlayerRow {
+        let mut skills = self.skill_rows(p);
         let class_code = skills.iter().find_map(|s| classes::class_code_of_skill(s.skill));
+        // Casts as the rows count them (an extra hit a skill triggered is no cast).
+        let outcomes = Outcomes { casts: skills.iter().map(|s| s.outcomes.casts).sum(), ..p.outcomes };
         if let Some(cap) = skill_cap {
             skills.truncate(cap);
         }
@@ -2592,7 +2609,7 @@ impl Meter {
             share: ratio(p.damage, total),
             hits: p.hits,
             max_hit: p.max_hit,
-            outcomes: p.outcomes,
+            outcomes,
             skills,
             combat_power: self.combat_power_of(id),
         }
@@ -2934,7 +2951,8 @@ mod tests {
         assert_eq!(me.class_name.as_deref(), Some("Chanter"));
         // The target frame's shortcut says the same as the whole snapshot.
         assert_eq!(m.target_and_dps(), (m.snapshot().target, Some(1000.0)));
-        assert_eq!(me.skills[0].skill, 18_040_350);
+        // Rows go by skill (its base, with no skill data): 18040350 is Chanter skill 18040000.
+        assert_eq!(me.skills[0].skill, 18_040_000);
 
         m.set_scope(Scope::Everyone);
         let e = m.snapshot().encounter.unwrap();
@@ -3142,7 +3160,54 @@ mod tests {
         m.feed(2 * S, OPCODE_DOT, &dot);
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.total_damage, 1250);
-        assert!(e.players[0].skills.iter().any(|s| s.skill == 18_730_002));
+        assert!(e.players[0].skills.iter().any(|s| s.skill == 18_730_000));
+    }
+
+    #[test]
+    fn one_row_per_skill() {
+        let mut m = meter_as_me();
+        // Judgment with specialties 3·4·5 (12243450), and 50 ms after each cast its extra
+        // hit (12240347) with a cast ID of its own; then Punishing Strike's extra hit alone.
+        for (i, t) in [S, 3 * S, 5 * S].into_iter().enumerate() {
+            let cast = 10 + 2 * i as u8;
+            m.feed(t, OPCODE_DAMAGE, &hit_full(12_243_450, 3000 + i as u64, cast, 0, None, 0));
+            m.feed(t + 50_000, OPCODE_DAMAGE, &hit_full(12_240_347, 1000, cast + 1, 0, None, 0));
+        }
+        m.feed(6 * S, OPCODE_DAMAGE, &hit_full(12_060_057, 500, 40, 0, None, 0));
+        let e = m.snapshot().encounter.unwrap();
+        let me = &e.players[0];
+        let judgment = me.skills.iter().find(|s| s.skill == 12_240_000).unwrap();
+        assert_eq!((judgment.damage, judgment.hits), (3 * 3000 + 3 + 3 * 1000, 6));
+        assert_eq!((judgment.min, judgment.max), (1000, 3002));
+        assert_eq!(judgment.outcomes.casts, 3, "the extra hits are part of their casts");
+        assert_eq!(me.skills.len(), 2, "{:?}", me.skills);
+        // A skill seen only by its extra hits still has those as casts.
+        let strike = me.skills.iter().find(|s| s.skill == 12_060_000).unwrap();
+        assert_eq!(strike.outcomes.casts, 1);
+        assert_eq!(me.outcomes.casts, 4);
+        assert!((judgment.share + strike.share - 1.0).abs() < 1e-9);
+        // The analysis keeps each hit as it came, for the specialties of each cast.
+        let a = m.analysis(7 * S).unwrap();
+        assert_eq!(a.hits.iter().filter(|h| h.skill == 12_240_347).count(), 3);
+        assert_eq!(a.view.players[0].skills.len(), 2);
+    }
+
+    #[test]
+    fn rows_follow_the_skill_data() {
+        let mut m = meter_as_me();
+        m.set_skill_groups(SkillGroups::from_names([
+            (11_010_000, "Rending Blow"),
+            (11_010_040, "Rending Blow"),
+            (11_010_047, "Smashing Blow"),
+        ]));
+        m.feed(S, OPCODE_DAMAGE, &hit_full(11_010_040, 2000, 1, 0, None, 0));
+        m.feed(S + 50_000, OPCODE_DAMAGE, &hit_full(11_010_047, 900, 2, 0, None, 0));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit_full(11_013_450, 2500, 3, 0, None, 0));
+        let e = m.snapshot().encounter.unwrap();
+        let rows: Vec<(u32, u64, u64)> =
+            e.players[0].skills.iter().map(|s| (s.skill, s.damage, s.outcomes.casts)).collect();
+        // A part the data names apart (Smashing Blow) keeps its row and its cast.
+        assert_eq!(rows, [(11_010_000, 4500, 2), (11_010_047, 900, 1)]);
     }
 
     /// An HP update (0x8d00): entity, mask 0x02, one u64 stat: 0 (HP).
@@ -3200,9 +3265,9 @@ mod tests {
         let healing: Vec<(&str, u64)> = e.healing.iter().map(|p| (p.name.as_str(), p.damage)).collect();
         assert_eq!(healing, [("NeneneTowawa", 1576)], "mine: only your healing");
         assert_eq!(e.total_healing, 1576);
-        let self_heal = e.healing[0].skills.iter().find(|s| s.skill == 18_170_010).unwrap();
+        let self_heal = e.healing[0].skills.iter().find(|s| s.skill == 18_170_000).unwrap();
         assert_eq!(self_heal.damage, 600, "what HP rose by, not the 1000 the message said");
-        assert!(!e.healing[0].skills.iter().any(|s| s.skill == 18_720_001), "a shield isn't a heal");
+        assert!(!e.healing[0].skills.iter().any(|s| s.skill == 18_720_000), "a shield isn't a heal");
         assert_eq!(e.taken.len(), 1);
         assert_eq!((e.taken[0].id, e.taken[0].damage, e.total_taken), (ME, 800, 800));
         assert_eq!(e.taken[0].skills[0].skill, 100_018);
@@ -3218,7 +3283,7 @@ mod tests {
         let e = m.snapshot().encounter.unwrap();
         assert_eq!(e.healing.len(), 3);
         let pingu = e.healing.iter().find(|p| p.name == "Pingu").unwrap();
-        assert_eq!((pingu.damage, pingu.skills[0].skill), (200, 18_730_002));
+        assert_eq!((pingu.damage, pingu.skills[0].skill), (200, 18_730_000));
     }
 
     #[test]
@@ -3733,7 +3798,7 @@ mod tests {
         // The echo (20) and Spirit Communion (559) aren't damage.
         assert_eq!(owner.damage, 22_000 + 6_894 + 3_000);
         let skills: Vec<u32> = owner.skills.iter().map(|s| s.skill).collect();
-        assert_eq!(skills, [16_110_004, 100_028, 16_740_001]);
+        assert_eq!(skills, [16_110_000, 100_028, 16_740_000]);
         assert_eq!((e.target_id, e.target_count), (Some(20644), 1));
 
         let a = m.analysis(4 * S).unwrap();

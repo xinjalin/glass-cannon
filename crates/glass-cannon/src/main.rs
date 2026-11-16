@@ -1023,6 +1023,7 @@ fn main() {
                 let mut m = Meter::default();
                 m.set_boss_types(data.boss_types());
                 m.set_mechanics(data.mechanics());
+                m.set_skill_groups(data.skill_groups().clone());
                 m
             }),
             status: Mutex::new(Status {

@@ -862,7 +862,23 @@ fn new_meter(idle_s: u64, scope: Scope) -> Meter {
     let mut m = Meter::new(idle_s * 1_000_000);
     m.set_scope(scope);
     m.set_boss_types(boss_types());
+    m.set_skill_groups(skill_groups());
     m
+}
+
+/// Which skill IDs are one skill, from `gamedata/skills.json` (in or above the current
+/// folder), so rows are one per skill as in the app. By base alone when it isn't there.
+fn skill_groups() -> meter_core::skillgroups::SkillGroups {
+    let found = std::env::current_dir()
+        .ok()
+        .and_then(|d| d.ancestors().map(|a| a.join("gamedata/skills.json")).find(|p| p.exists()));
+    let json = found
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+    let names = json.as_ref().and_then(|j| j["skills"].as_object()).into_iter().flatten();
+    meter_core::skillgroups::SkillGroups::from_names(
+        names.filter_map(|(id, e)| Some((id.parse().ok()?, e["name"].as_str().unwrap_or("")))),
+    )
 }
 
 /// Boss mob types from `gamedata/npcs.json` (in or above the current folder), so fights
