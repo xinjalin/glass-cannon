@@ -122,7 +122,8 @@ fn merchant_shop_sign<R: Runtime>(handle: &AppHandle<R>, app: &AppState, area: R
 }
 
 /// Whether the game's top-right corner shows a menu's close X or back arrow, our widgets
-/// left out; None when the black market window covers it (it can't be told then).
+/// left out; None when the black market window covers it, or a pop-up is up without the X
+/// showing through its dimming (it can't be told then: buying asks first).
 fn merchant_corner<R: Runtime>(handle: &AppHandle<R>, app: &AppState, area: Rect) -> Option<bool> {
     let mut corner = crate::menus::read_corner((area.left, area.top, area.width(), area.height()))?;
     let side = corner.side() as f64;
@@ -135,7 +136,19 @@ fn merchant_corner<R: Runtime>(handle: &AppHandle<R>, app: &AppState, area: Rect
         }
     }
     corner.blank(&widgets_in_corner(&lock(&app.hud_drawn), f64::from(area.width()) - side, side));
-    Some(corner.has_menu_mark(f64::from(area.height())))
+    let height = f64::from(area.height());
+    if corner.has_menu_mark(height) || corner.has_dimmed_close_x(height) {
+        return Some(true);
+    }
+    let (w, h) = (area.width(), area.height());
+    if let Some(mut band) = crate::menus::read_band((area.left, area.top, w, h)) {
+        let (bx, by, _, _) = crate::menus::band_box(w, h);
+        band.blank(&widgets_in_strip(&lock(&app.hud_drawn), f64::from(bx), f64::from(by)));
+        if band.has_popup_bar(height) {
+            return None;
+        }
+    }
+    Some(false)
 }
 
 /// How far past its box a widget's glow and shadow can reach, in physical pixels.

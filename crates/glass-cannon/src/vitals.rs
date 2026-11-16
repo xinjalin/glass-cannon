@@ -15,6 +15,9 @@ use crate::{lock, AppState};
 /// dark at the bottom and bright at the fill's end; a light frame with the fill inside it;
 /// thin with notches outside them at a quarter, half and three quarters.
 pub const STYLES: [&str; 6] = ["solid", "thin", "segmented", "gradient", "framed", "ticks"];
+/// An effect over any look: none, or flames along each side arc in its own colour (an
+/// outer arc's outward, an inner arc's inward).
+pub const EFFECTS: [&str; 2] = ["none", "flames"];
 /// What's behind the numbers: a dark outline, a soft shadow, a dark plate, nothing.
 pub const TEXT_BACKINGS: [&str; 4] = ["outline", "shadow", "plate", "none"];
 /// Which end of the arcs the numbers go by.
@@ -41,6 +44,8 @@ pub const WIDTHS: RangeInclusive<u16> = 50..=300;
 #[serde(default)]
 pub struct VitalsSetup {
     pub style: String,
+    /// See [`EFFECTS`].
+    pub effect: String,
     pub roundness: u16,
     pub text_size: u16,
     pub text_backing: String,
@@ -68,6 +73,7 @@ impl Default for VitalsSetup {
     fn default() -> Self {
         Self {
             style: STYLES[0].into(),
+            effect: EFFECTS[0].into(),
             roundness: 50,
             text_size: 100,
             text_backing: TEXT_BACKINGS[0].into(),
@@ -91,6 +97,7 @@ impl Default for VitalsSetup {
 #[serde(rename_all = "camelCase")]
 pub struct VitalsChange {
     pub style: Option<String>,
+    pub effect: Option<String>,
     /// Any number: clamped.
     pub roundness: Option<i64>,
     pub text_size: Option<i64>,
@@ -147,6 +154,7 @@ fn clamp(range: &RangeInclusive<u16>, v: i64) -> u16 {
 impl VitalsSetup {
     pub fn update(&mut self, c: VitalsChange) {
         pick(&STYLES, c.style, &mut self.style);
+        pick(&EFFECTS, c.effect, &mut self.effect);
         pick(&TEXT_BACKINGS, c.text_backing, &mut self.text_backing);
         pick(&TEXT_PLACES, c.text_at, &mut self.text_at);
         pick(&NUMBERS, c.numbers, &mut self.numbers);
@@ -198,6 +206,7 @@ impl VitalsSetup {
         let fixed = Self::default();
         let keep = |choices: &[&str], v: String, d: String| if choices.contains(&v.as_str()) { v } else { d };
         self.style = keep(&STYLES, self.style, fixed.style);
+        self.effect = keep(&EFFECTS, self.effect, fixed.effect);
         self.text_backing = keep(&TEXT_BACKINGS, self.text_backing, fixed.text_backing);
         self.text_at = keep(&TEXT_PLACES, self.text_at, fixed.text_at);
         self.numbers = keep(&NUMBERS, self.numbers, fixed.numbers);
@@ -276,6 +285,11 @@ mod tests {
         // The newer looks, and the trail.
         v.update(VitalsChange { style: Some("framed".into()), trail: Some(true), ..Default::default() });
         assert_eq!((v.style.as_str(), v.trail), ("framed", true));
+        // Flames, over any look; an unknown effect ignored.
+        assert_eq!(v.effect, "none");
+        v.update(VitalsChange { effect: Some("flames".into()), ..Default::default() });
+        v.update(VitalsChange { effect: Some("lightning".into()), ..Default::default() });
+        assert_eq!((v.style.as_str(), v.effect.as_str()), ("framed", "flames"));
         // Only HP and stamina: MP and flight power off; an unknown arc ignored.
         for arc in ["mp", "flight", "wings"] {
             v.update(VitalsChange { arc: Some(arc.into()), arc_shown: Some(false), ..Default::default() });
@@ -306,8 +320,8 @@ mod tests {
     fn a_settings_file_without_it_or_with_junk_reads_as_the_defaults() {
         let v: VitalsSetup = serde_json::from_str("{}").unwrap();
         assert_eq!(v, VitalsSetup::default());
-        let v: VitalsSetup = serde_json::from_str(r#"{ "style": "wavy", "text_size": 7, "roundness": 30, "width": 9 }"#).unwrap();
+        let v: VitalsSetup = serde_json::from_str(r#"{ "style": "wavy", "effect": "smoke", "text_size": 7, "roundness": 30, "width": 9 }"#).unwrap();
         let v = v.sanitized();
-        assert_eq!((v.style.as_str(), v.text_size, v.roundness, v.width), ("solid", 100, 30, 100));
+        assert_eq!((v.style.as_str(), v.effect.as_str(), v.text_size, v.roundness, v.width), ("solid", "none", 100, 30, 100));
     }
 }

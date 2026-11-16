@@ -104,6 +104,11 @@ const ARROW_OFF: [(f64, f64); 13] = [
 ];
 /// An arrow: its dimmest point this much brighter than the brightest point around it.
 pub const ARROW_SCORE: f32 = 110.0;
+/// A dimmed X (see `Corner::has_dimmed_close_x`): how far it may be brought back up (the
+/// merchant's purchase pop-up leaves its X at a sixth), and the share of the corner darker
+/// than what's taken for its brightest (its X's strokes).
+const DIM_LIFT: f32 = 10.0;
+const DIM_TOP: f64 = 0.995;
 
 /// The corner is first read this long after the cursor comes up (a menu opening fades in),
 /// then this often while it shows (a menu opened or closed with the cursor up).
@@ -213,6 +218,21 @@ impl Corner {
     /// A menu's mark in the corner: its close X, or a window's back arrow.
     pub fn has_menu_mark(&self, height: f64) -> bool {
         self.has_close_x(height) || self.arrow_score(height) >= ARROW_SCORE
+    }
+
+    /// A menu's close X under a pop-up, which dims everything behind it (buying at the
+    /// merchant asks first): the corner's brightest no brighter than an X's strokes, and an X
+    /// there once it's brought back up to full brightness (up to `DIM_LIFT` times).
+    pub fn has_dimmed_close_x(&self, height: f64) -> bool {
+        let mut lit: Vec<u8> = self.luma.clone();
+        let at = ((lit.len() as f64 * DIM_TOP) as usize).min(lit.len().saturating_sub(1));
+        let top = f32::from(*lit.select_nth_unstable(at).1);
+        if top >= X_BRIGHT || top * DIM_LIFT < 255.0 {
+            return false;
+        }
+        let lift = 255.0 / top;
+        let (score, on) = self.x_score(height);
+        score * lift >= X_SCORE && on * lift >= X_BRIGHT
     }
 }
 
@@ -859,6 +879,27 @@ mod tests {
         }
         // No X: the world.
         assert!(!corner(None).has_close_x(1440.0));
+    }
+
+    #[test]
+    fn a_close_x_dimmed_by_a_popup() {
+        // The merchant's X under a pop-up: everything at under half its brightness, or (its
+        // purchase pop-up) at a sixth.
+        let dim = |c: Corner, by: f32| Corner { side: c.side, luma: c.luma.iter().map(|v| (f32::from(*v) * by) as u8).collect() };
+        for by in [0.45, 0.17] {
+            for k in [40.0, 48.0, 63.0] {
+                let c = dim(corner(Some((k, (k * 0.4_f64).round()))), by);
+                assert!(!c.has_close_x(1440.0), "k {k} at {by}: not seen as it is");
+                assert!(c.has_dimmed_close_x(1440.0), "k {k} at {by}");
+            }
+            assert!(!dim(corner(None), by).has_dimmed_close_x(1440.0), "no X at {by}");
+        }
+        // No X, dimmed or not: the world.
+        assert!(!corner(None).has_dimmed_close_x(1440.0));
+        // An X at full brightness is the plain check's.
+        assert!(!corner(Some((48.0, 19.0))).has_dimmed_close_x(1440.0));
+        // Too dark to tell.
+        assert!(!dim(corner(Some((48.0, 19.0))), 0.07).has_dimmed_close_x(1440.0));
     }
 
     #[test]

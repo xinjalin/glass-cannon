@@ -1171,7 +1171,7 @@ async function setVitals(change) {
 }
 
 for (const b of document.querySelectorAll("[data-vt]")) {
-  const key = { style: "style", numbers: "numbers", text_backing: "textBacking", text_at: "textAt", cast: "cast" }[b.dataset.vt];
+  const key = { style: "style", effect: "effect", numbers: "numbers", text_backing: "textBacking", text_at: "textAt", cast: "cast" }[b.dataset.vt];
   b.addEventListener("click", () => setVitals({ [key]: b.dataset.vtValue }));
 }
 $("vt-round-down").addEventListener("click", () => vitals && setVitals({ roundness: vitals.roundness - VT_ROUND_STEP }));
