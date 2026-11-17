@@ -224,6 +224,7 @@ async function refresh() {
 function setLook(l) {
   if (!l) return;
   look = l;
+  applyCooldownBars(l.bar);
   // The timeline's size: its icons, times and labels all go by its text size.
   $("timeline").style.fontSize = `${(look.size || 100) / 100}em`;
   drawScale();

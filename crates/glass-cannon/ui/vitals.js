@@ -15,13 +15,19 @@
 const POLL_MS = 100;
 // Below this share of HP, the HP arc glows.
 const LOW_HP = 0.3;
+// HP warning colours (settings → vitals arcs): the HP arc yellow from half HP, red from a
+// fifth.
+const HP_WARN = [
+  [0.2, "#e5383b"],
+  [0.5, "#f5c542"],
+];
 // Stamina and flight power are sent in hundredths of what the game shows.
 const HUNDREDTHS = 100;
 
 // ---------------------------------------------------------------- the look
 
 // As the settings have it (vitals.rs); these until they're read.
-let setup = { style: "solid", effect: "none", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
+let setup = { style: "solid", effect: "none", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hp_warn: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
 
 // The side arcs hidden for now because they're full (hide when full).
 const fullNow = new Set();
@@ -120,10 +126,27 @@ function applySetup() {
     if (isHexColor(c)) svg.style.setProperty(`--arc-${k}`, c);
     else svg.style.removeProperty(`--arc-${k}`);
   }
+  hpColourNow = undefined;
   layoutArcs();
   draw(lastBars);
   flameColours();
   runFlames();
+}
+
+// The HP arc's colour as its HP has it (HP warning colours): null, its own.
+let hpColourNow;
+function hpColour(hp) {
+  const warn = setup.hp_warn && hp != null ? HP_WARN.find(([at]) => hp <= at) : null;
+  const colour = warn ? warn[1] : null;
+  if (colour === hpColourNow) return;
+  hpColourNow = colour;
+  const svg = $("arcs");
+  const own = (setup.colours || {}).hp;
+  if (colour) svg.style.setProperty("--arc-hp", colour);
+  else if (isHexColor(own)) svg.style.setProperty("--arc-hp", own);
+  else svg.style.removeProperty("--arc-hp");
+  // The flames in it too.
+  flameColours();
 }
 
 // ---------------------------------------------------------------- geometry
@@ -467,6 +490,7 @@ function drawArcs(b) {
   // A full arc's ruler notches go with it.
   for (const l of ticks.querySelectorAll(".arc-tick")) l.style.display = [...fullNow].some((k) => l.classList.contains(k)) ? "none" : "";
   $("arcs").classList.toggle("low", hp != null && hp < LOW_HP);
+  hpColour(hp);
   const c = b && b.cast;
   const name = c ? c.skill_name || "casting" : "";
   const left = c ? (c.remaining_ms / 1000).toFixed(1) : "";

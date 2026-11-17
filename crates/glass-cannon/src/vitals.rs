@@ -65,6 +65,8 @@ pub struct VitalsSetup {
     pub colours: BTreeMap<String, String>,
     /// HP lost stays as a pale trail for a moment, then shrinks away.
     pub trail: bool,
+    /// The HP arc turns yellow at half HP and red at a fifth.
+    pub hp_warn: bool,
     /// The side arcs turned off (see [`SIDE_ARCS`]); the others show.
     pub hidden_arcs: BTreeSet<String>,
 }
@@ -87,6 +89,7 @@ impl Default for VitalsSetup {
             show_cast: true,
             colours: BTreeMap::new(),
             trail: false,
+            hp_warn: false,
             hidden_arcs: BTreeSet::new(),
         }
     }
@@ -113,6 +116,7 @@ pub struct VitalsChange {
     /// The colours of your own, all of them (an empty map: the built-in ones).
     pub colours: Option<BTreeMap<String, String>>,
     pub trail: Option<bool>,
+    pub hp_warn: Option<bool>,
     /// A side arc to show or hide, with `arc_shown`, or to move, with `spot` (the arc there
     /// moves to where this one was).
     pub arc: Option<String>,
@@ -182,6 +186,9 @@ impl VitalsSetup {
         }
         if let Some(t) = c.trail {
             self.trail = t;
+        }
+        if let Some(w) = c.hp_warn {
+            self.hp_warn = w;
         }
         let arc = c.arc.filter(|a| SIDE_ARCS.contains(&a.as_str()));
         if let (Some(arc), Some(spot)) = (&arc, c.spot.filter(|s| SPOTS.contains(&s.as_str()))) {
@@ -290,6 +297,9 @@ mod tests {
         v.update(VitalsChange { effect: Some("flames".into()), ..Default::default() });
         v.update(VitalsChange { effect: Some("lightning".into()), ..Default::default() });
         assert_eq!((v.style.as_str(), v.effect.as_str()), ("framed", "flames"));
+        assert!(!v.hp_warn);
+        v.update(VitalsChange { hp_warn: Some(true), ..Default::default() });
+        assert!(v.hp_warn);
         // Only HP and stamina: MP and flight power off; an unknown arc ignored.
         for arc in ["mp", "flight", "wings"] {
             v.update(VitalsChange { arc: Some(arc.into()), arc_shown: Some(false), ..Default::default() });

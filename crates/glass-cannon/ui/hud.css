@@ -39,8 +39,15 @@ body {
 /* Faded outside combat (settings → fade outside combat): the fight widgets go, and come
    back in the next fight; the meter under the mouse too. Never while arranging. */
 .widget.fades { transition: opacity 0.4s ease; }
-.faded .widget.fades { opacity: 0; transition: opacity 1.2s ease; }
+/* Hide empty notes (settings): a widget with only its note to show goes, but not while
+   arranging. */
+.quiet-notes:not(.editing) .widget.blank { visibility: hidden; }
+
+/* The meter on a fade of its own (settings → meter fades). */
+.faded .widget.fades:where(:not([data-widget="meter"])),
+.meter-faded .widget.fades:where([data-widget="meter"]) { opacity: 0; transition: opacity 1.2s ease; }
 .faded .widget.fades:hover,
+.meter-faded .widget.fades:hover,
 .editing .widget.fades { opacity: 1; transition: opacity 0.2s ease; }
 
 /* ---------------------------------------------------------------- boss warnings */

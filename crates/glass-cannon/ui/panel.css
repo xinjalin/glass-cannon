@@ -95,7 +95,11 @@ button {
 .cd-main { display: flex; flex-direction: column; gap: 0.2em; min-width: 0; }
 .cd-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cd-bar { height: 0.35em; border-radius: 0.2em; background: var(--line-faint); overflow: hidden; }
-.cd-fill { height: 100%; background: var(--bar, var(--accent-fill)); }
+.cd-fill { height: 100%; background: var(--cd-cooling, var(--bar, var(--accent-fill))); }
+/* In the action bar's colours and background (settings → cooldowns): a ready skill's bar
+   full in its ready colour, as on the action bar. */
+.cd-bar-look .cd.ready .cd-fill { width: 100% !important; background: var(--cd-ready); }
+.cd-no-track .cd-bar { background: transparent; }
 .cd-time { color: var(--accent-2); font-variant-numeric: tabular-nums; text-align: right; min-width: 3.2em; }
 .cd-charges { color: var(--ok); font-size: 0.85em; }
 .cd.soon .cd-time { color: var(--ok); }

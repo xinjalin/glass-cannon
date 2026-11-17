@@ -104,14 +104,18 @@ pub struct CooldownsLook {
     pub size: u16,
     /// "percent" or "time".
     pub scale: String,
+    /// The action bar's bar colours and background, for the cooldown widgets' bars (yours
+    /// and the party's), when they take them (else their own).
+    pub bar: Option<crate::actionbar::BarLook>,
 }
 
-fn cooldowns_look_of(s: &crate::store::Settings) -> CooldownsLook {
+pub fn cooldowns_look_of(s: &crate::store::Settings) -> CooldownsLook {
     let look = if crate::store::COOLDOWNS_LOOKS.contains(&s.cooldowns_look.as_str()) { s.cooldowns_look.clone() } else { "list".into() };
     let sizes = crate::store::COOLDOWNS_SIZES;
     let scales = crate::store::COOLDOWNS_SCALES;
     let scale = if scales.contains(&s.cooldowns_scale.as_str()) { s.cooldowns_scale.clone() } else { scales[0].to_string() };
-    CooldownsLook { look, ready_right: s.cooldowns_ready_right, size: s.cooldowns_size.clamp(*sizes.start(), *sizes.end()), scale }
+    let bar = s.cooldowns_bar_look.then(|| s.action_bar_look.clone());
+    CooldownsLook { look, ready_right: s.cooldowns_ready_right, size: s.cooldowns_size.clamp(*sizes.start(), *sizes.end()), scale, bar }
 }
 
 #[tauri::command]
@@ -130,6 +134,7 @@ pub fn set_cooldowns_look(
     ready_right: bool,
     size: Option<i64>,
     scale: Option<String>,
+    bar_look: Option<bool>,
 ) -> Result<CooldownsLook, String> {
     if !crate::store::COOLDOWNS_LOOKS.contains(&look.as_str()) {
         return Err(format!("no such look: {look}"));
@@ -141,6 +146,9 @@ pub fn set_cooldowns_look(
     if let Some(size) = size {
         let sizes = crate::store::COOLDOWNS_SIZES;
         s.cooldowns_size = size.clamp(i64::from(*sizes.start()), i64::from(*sizes.end())) as u16;
+    }
+    if let Some(b) = bar_look {
+        s.cooldowns_bar_look = b;
     }
     s.cooldowns_look = look;
     s.cooldowns_ready_right = ready_right;
@@ -295,11 +303,20 @@ pub fn set_alert_lead(handle: AppHandle, app: State<'_, Arc<AppState>>, minutes:
     let _ = handle.emit("timer-settings", ());
 }
 
-/// Seconds after combat before the meter fades (0: never).
+/// Seconds after combat before the fading widgets fade (0: never).
 #[tauri::command]
 pub fn set_hide_after(app: State<'_, Arc<AppState>>, seconds: u32) {
     let mut s = lock(&app.settings);
     s.hide_after_s = seconds.min(600);
+    s.save(&app.config_dir);
+}
+
+/// Seconds after combat before the meter fades, apart from the other widgets (0: never;
+/// none: as they do).
+#[tauri::command]
+pub fn set_meter_hide_after(app: State<'_, Arc<AppState>>, seconds: Option<u32>) {
+    let mut s = lock(&app.settings);
+    s.meter_hide_after_s = seconds.map(|v| v.min(600));
     s.save(&app.config_dir);
 }
 

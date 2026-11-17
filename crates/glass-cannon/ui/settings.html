@@ -227,6 +227,20 @@
                 <button type="button" data-fade-choice="60" title="A minute after combat">[60s]</button>
               </span>
             </div>
+            <button id="quiet-notes" type="button" class="opt" data-keywords="hide empty notes messages not in a party all your skills are ready no target waiting" aria-pressed="false" title="A widget with nothing to show but its note (&quot;not in a party&quot;, &quot;all your skills are ready&quot;, &quot;no target&quot;…) goes until it has something; it shows while you arrange the overlay">
+              <span class="key">hide empty notes</span><span class="state">[off]</span>
+            </button>
+            <div class="line" data-keywords="meter fade hide idle out of combat own timer separate">
+              <span class="key">meter fades</span>
+              <span class="choice" role="radiogroup" aria-label="When the meter fades outside combat, apart from the other widgets">
+                <button type="button" data-meter-fade="same" title="When the other widgets do (fade outside combat)">[same]</button>
+                <button type="button" data-meter-fade="0" title="Never: the meter stays up">[off]</button>
+                <button type="button" data-meter-fade="10" title="10 s after combat">[10s]</button>
+                <button type="button" data-meter-fade="30" title="30 s after combat">[30s]</button>
+                <button type="button" data-meter-fade="60" title="A minute after combat">[60s]</button>
+                <button type="button" data-meter-fade="120" title="Two minutes after combat">[2m]</button>
+              </span>
+            </div>
           </fieldset>
           <p class="hint subtabs-hint">each widget's own settings</p>
           <!-- Each widget's own settings, a tab each (settings.js), so the page stays short;
@@ -248,6 +262,9 @@
                 <button type="button" data-cd-look="timeline" title="A bar from Ready to 100%: each skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready as it runs down">[timeline]</button>
               </span>
             </div>
+            <button id="cd-bar-look" type="button" class="opt" data-keywords="cooldowns party cooldowns bars colours colors action bar background same" aria-pressed="false" title="The bars of your cooldowns and the party's in the action bar's colours and background (settings → action bar): cooling in its cooling colour, a ready skill full in its ready colour">
+              <span class="key">action bar's colours</span><span class="state">[off]</span>
+            </button>
             <div class="line" data-keywords="cooldowns timeline scale percent time marks seconds minutes">
               <span class="key">timeline scale</span>
               <span class="choice" role="radiogroup" aria-label="What the cooldowns timeline goes by">
@@ -343,6 +360,9 @@
                 <button id="vt-width-up" type="button" title="Thicker arcs">[+]</button>
               </span>
             </div>
+            <button id="vt-hp-warn" type="button" class="opt" data-keywords="hp warning colour color yellow red low health half" aria-pressed="false" title="Your HP arc turns yellow at half HP and red at a fifth, whatever its own colour">
+              <span class="key">HP warning colours</span><span class="state">[off]</span>
+            </button>
             <button id="vt-trail" type="button" class="opt" data-keywords="damage trail hit lost hp ghost" aria-pressed="false" title="HP you lose stays on the HP arc as a pale trail for a moment, then shrinks away: how big a hit was, at a glance">
               <span class="key">damage trail</span><span class="state">[off]</span>
             </button>

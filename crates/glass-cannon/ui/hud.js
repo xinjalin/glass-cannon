@@ -103,13 +103,17 @@ function reportRects() {
     const r = el.getBoundingClientRect();
     return { x: r.left * dpr, y: r.top * dpr, width: r.width * dpr, height: r.height * dpr };
   };
-  const shown = [...document.querySelectorAll(".widget:not([hidden])")];
+  // A widget showing only its note is gone with settings → hide empty notes (not while
+  // arranging): nothing of it to click or put a plate behind.
+  const quiet = document.documentElement.classList.contains("quiet-notes") && !editing;
+  const shown = [...document.querySelectorAll(".widget:not([hidden])")].filter((el) => !(quiet && el.classList.contains("blank")));
   const rects = shown.filter((el) => !el.classList.contains("passive")).map(box);
   // The widgets with a panel get a frosted plate behind it (when frosted is chosen), but
   // not while they're faded.
-  const faded = document.documentElement.classList.contains("faded") && !editing;
+  const html = document.documentElement.classList;
+  const out = (el) => !editing && el.classList.contains("fades") && html.contains(el.dataset.widget === "meter" ? "meter-faded" : "faded");
   const panels = shown
-    .filter((el) => el.querySelector("iframe") && el.dataset.bare === undefined && !(faded && el.classList.contains("fades")))
+    .filter((el) => el.querySelector("iframe") && el.dataset.bare === undefined && !out(el))
     .map(box);
   // Every widget on screen, bare ones too: the menu check leaves them out of the corner
   // it reads, so a widget there isn't taken for a menu's close X.
@@ -355,8 +359,10 @@ tauri.event.listen("hud-widgets", (e) => showWidgets(e.payload));
 // The widgets that fade outside combat (the arrange menu's fade column): each one's
 // "fades" class, which the faded overlay hides.
 let fading = new Set();
+// The meter on a fade of its own (settings → meter fades): it fades, in the column or not.
+let meterOwnFade = false;
 function applyFading() {
-  for (const el of document.querySelectorAll(".widget")) el.classList.toggle("fades", fading.has(el.dataset.widget));
+  for (const el of document.querySelectorAll(".widget")) el.classList.toggle("fades", fading.has(el.dataset.widget) || (meterOwnFade && el.dataset.widget === "meter"));
 }
 function setFading(names) {
   fading = new Set(names || []);
@@ -389,7 +395,11 @@ let boss = null;
 let bossAt = 0;
 window.addEventListener("message", (e) => {
   const m = e.data || {};
-  if (m.type === "gc-fit" && m.widget) {
+  if (m.type === "gc-empty" && m.widget) {
+    const w = document.querySelector(`.widget[data-widget="${CSS.escape(m.widget)}"]`);
+    if (w) w.classList.toggle("blank", !!m.empty);
+    reportRects();
+  } else if (m.type === "gc-fit" && m.widget) {
     // No height: it's no longer fitted (the meter at the height given it while arranging).
     if (m.height == null) delete fitted[m.widget];
     else fitted[m.widget] = Math.ceil(m.height);
@@ -398,6 +408,12 @@ window.addEventListener("message", (e) => {
     drawCubes(m.cubes || [], !!m.sound);
   } else if (m.type === "gc-fade") {
     document.documentElement.classList.toggle("faded", !!m.faded);
+    // The meter on a fade of its own (settings → meter fades); as the others before it.
+    document.documentElement.classList.toggle("meter-faded", m.meter ?? !!m.faded);
+    if (meterOwnFade !== !!m.own) {
+      meterOwnFade = !!m.own;
+      applyFading();
+    }
     reportRects();
   } else if (m.type === "gc-boss") {
     boss = m.boss;
@@ -606,7 +622,11 @@ function frame() {
 (async () => {
   const a = await invoke("appearance").catch(() => null);
   if (a) applyAppearance(a);
-  tauri.event.listen("appearance", (e) => applyAppearance(e.payload));
+  tauri.event.listen("appearance", (e) => {
+    applyAppearance(e.payload);
+    // Hide empty notes may have changed: what can be clicked and plated with it.
+    reportRects();
+  });
   await loadLayout();
   fading = new Set(await invoke("widgets_fading").catch(() => []));
   showWidgets(await invoke("widgets_shown").catch(() => []));
