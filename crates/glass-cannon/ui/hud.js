@@ -29,6 +29,7 @@ const DEFAULTS = {
   "action-bar-5": { x: 0.18, y: 0.66, w: 300, h: 50 },
   "action-bar-6": { x: 0.18, y: 0.6, w: 300, h: 50 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
+  "timer-pins": { x: 0.3, y: 0.06, w: 300, h: 80 },
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
   pets: { x: 0.79, y: 0.5, w: 320, h: 230 },
 };
@@ -52,6 +53,8 @@ const SIDE_WIDGETS = {
   ),
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, grows: true },
   timers: { page: "timers.html", label: "world timers", passive: false },
+  // No box, as big as what it shows, set up beside it while arranging (⚙).
+  "timer-pins": { page: "timerpins.html", label: "timer pins", passive: true, grows: true, bare: true, fitWidth: true, settings: "timerpinsettings.html" },
   pets: { page: "pets.html", label: "pet tracker", passive: false },
 };
 // Every widget's name in the arrange menu, in the settings' order.
@@ -73,6 +76,7 @@ const LABELS = [
   ["action-bar-6", "action bar 6"],
   ["party-cooldowns", "party cooldowns"],
   ["timers", "world timers"],
+  ["timer-pins", "timer pins"],
   ["pets", "pet tracker"],
 ];
 // The grids widgets can snap to while arranging (CSS pixels; 0: none), and the default.

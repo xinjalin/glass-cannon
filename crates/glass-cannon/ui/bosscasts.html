@@ -31,6 +31,12 @@
     <div class="scroll" id="list"></div>
     <p id="empty" class="empty" hidden></p>
     <div class="history-foot">
+      <p class="bc-share">
+        <button id="export" type="button" title="Save your cast names and warning and timer choices to a file in the exports folder beside the app, to share">[export]</button>
+        <button id="import" type="button" title="Take in a file exported from here: its names and choices go over yours">[import]</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden>
+        <span id="share-note" class="note"></span>
+      </p>
       <p class="note">casts come from your fights with the meter running · <b>auto</b> warns of a cast that takes 2.5 s or more or marks the ground, and the timers follow the warnings · click a cast's name to rename it</p>
     </div>
   </main>

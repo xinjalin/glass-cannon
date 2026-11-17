@@ -72,6 +72,9 @@ fn tidy(label: &mut String) {
 const PLAYER_SKILL_MIN: u32 = 10_000_000;
 const FIELD_BOSSES_FILE: &str = "field-bosses.json";
 const MECHANICS_FILE: &str = "boss-mechanics.json";
+/// Boss casts' names, and whether each warns and has a timer, as the app has them at first
+/// (an exported boss cast mapping, made the default): yours from the boss casts window win.
+const CAST_DEFAULTS_FILE: &str = "boss-cast-defaults.json";
 
 /// Field bosses by their world-map ID: map, mob type, level and where (field-bosses.json).
 #[derive(Debug, Default, Deserialize)]
@@ -375,6 +378,26 @@ struct Theostone {
     cooldown_s: Option<f64>,
 }
 
+/// A boss cast mapping: boss casts' names, and whether each warns and has a timer, by skill
+/// (the boss casts window exports and imports one; `boss-cast-defaults.json` is the app's).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct CastMapping {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<serde_json::Value>,
+    #[serde(default)]
+    pub casts: BTreeMap<u32, CastChoice>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct CastChoice {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warn: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timer: Option<bool>,
+}
+
 /// Your own names for skills and mob types (`names.json` in the settings folder).
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Names {
@@ -443,6 +466,7 @@ pub struct GameData {
     pantheon: PantheonFile,
     /// Dungeon bosses' mechanics, for the boss warnings (optional).
     mechanics: meter_core::mechanics::Book,
+    cast_defaults: CastMapping,
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
@@ -472,6 +496,7 @@ impl GameData {
             wings: WingFile::default(),
             pantheon: PantheonFile::default(),
             mechanics: meter_core::mechanics::Book::default(),
+            cast_defaults: CastMapping::default(),
             problem: None,
             last_attempt: None,
         };
@@ -514,6 +539,7 @@ impl GameData {
                     self.wings = read_json::<WingFile>(&dir.join(WINGS_FILE)).unwrap_or_default();
                     self.pantheon = read_json::<PantheonFile>(&dir.join(PANTHEON_FILE)).unwrap_or_default();
                     self.mechanics = read_json(&dir.join(MECHANICS_FILE)).unwrap_or_default();
+                    self.cast_defaults = read_json(&dir.join(CAST_DEFAULTS_FILE)).unwrap_or_default();
                     // NPCs' names fill in the types the mob lists don't name (your own names
                     // still go on top, below).
                     let npc_names = read_json::<NpcNameFile>(&dir.join(NPC_NAMES_FILE)).unwrap_or_default();
@@ -776,6 +802,40 @@ impl GameData {
     }
 
     /// Boss skills the data says always to warn about.
+    /// The app's default warn and timer choices for boss casts (boss-cast-defaults.json).
+    pub fn default_cast_warns(&self) -> BTreeMap<u32, bool> {
+        self.cast_defaults.casts.iter().filter_map(|(id, c)| Some((*id, c.warn?))).collect()
+    }
+
+    pub fn default_cast_timers(&self) -> BTreeMap<u32, bool> {
+        self.cast_defaults.casts.iter().filter_map(|(id, c)| Some((*id, c.timer?))).collect()
+    }
+
+    /// Your own names for boss and mob skills (not players' skills, `11xxxxxx` up), for a
+    /// boss cast mapping.
+    pub fn boss_skill_renames(&self) -> BTreeMap<u32, String> {
+        self.names.skills.iter().filter(|(id, _)| **id < 10_000_000).map(|(id, n)| (*id, n.clone())).collect()
+    }
+
+    /// Names boss skills (a mapping's), all at once; a name that won't do is skipped. Saved
+    /// to names.json. How many were named.
+    pub fn rename_skills(&mut self, names: &BTreeMap<u32, String>) -> Result<usize> {
+        let mut n = 0;
+        for (id, name) in names {
+            if *id >= 10_000_000 {
+                continue;
+            }
+            if let Ok(name) = check_name(name) {
+                if !name.is_empty() {
+                    set_or_clear(&mut self.names.skills, *id, name);
+                    n += 1;
+                }
+            }
+        }
+        self.save_names()?;
+        Ok(n)
+    }
+
     pub fn warn_casts(&self) -> &[u32] {
         &self.mechanics.warn_casts
     }
@@ -1006,8 +1066,14 @@ impl GameData {
         }
     }
 
-    /// Puts your names over the data's.
+    /// Puts the app's boss cast names (boss-cast-defaults.json) over the data's, then yours
+    /// over both.
     fn apply_names(&mut self) {
+        for (id, c) in &self.cast_defaults.casts {
+            if let Some(name) = c.name.as_ref().filter(|n| check_name(n).is_ok_and(|n| !n.is_empty())) {
+                self.skills.skills.entry(*id).or_default().name = name.clone();
+            }
+        }
         for (id, name) in &self.names.skills {
             let e = self.skills.skills.entry(*id).or_default();
             e.name = name.clone();

@@ -98,7 +98,7 @@ function castRow(c) {
   const sets = el("div", "bc-sets");
   sets.append(
     choice("warn", c.warn, c.auto_warn, (v) => invoke("set_boss_skill_alert", { skill: c.skill, alert: v }), "In the boss warnings: as it looks (auto), always, or never"),
-    choice("timer", c.timer, c.warn ?? c.auto_warn, (v) => invoke("set_boss_skill_timer", { skill: c.skill, timer: v }), "In the boss timers (its countdown before it comes): as its warning goes (auto), always, or never"),
+    choice("timer", c.timer, c.auto_timer ?? c.warn ?? c.auto_warn, (v) => invoke("set_boss_skill_timer", { skill: c.skill, timer: v }), "In the boss timers (its countdown before it comes): as its warning goes (auto), always, or never"),
   );
   li.append(sets);
   return li;
@@ -186,6 +186,32 @@ async function load(force) {
     // Next time, then.
   }
 }
+
+// Sharing a mapping: your names and choices to a file, or someone's file over yours.
+function shareNote(text) {
+  $("share-note").textContent = text;
+}
+$("export").addEventListener("click", async () => {
+  try {
+    const path = await invoke("export_boss_casts");
+    shareNote(`saved to ${path}`);
+  } catch (e) {
+    shareNote(String(e));
+  }
+});
+$("import").addEventListener("click", () => $("import-file").click());
+$("import-file").addEventListener("change", async () => {
+  const file = $("import-file").files[0];
+  $("import-file").value = "";
+  if (!file) return;
+  try {
+    const got = await invoke("import_boss_casts", { json: await file.text() });
+    shareNote(`took in ${got.names} name${got.names === 1 ? "" : "s"}, ${got.warns} warning and ${got.timers} timer choice${got.timers === 1 ? "" : "s"}`);
+    await load(true);
+  } catch (e) {
+    shareNote(String(e));
+  }
+});
 
 for (const b of document.querySelectorAll("#show [data-show]")) {
   b.addEventListener("click", () => {

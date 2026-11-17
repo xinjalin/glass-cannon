@@ -286,7 +286,11 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .end-tag.kill { color: var(--ok); }
 .end-tag.wipe { color: var(--bad); }
 
-.timer { grid-template-columns: auto auto minmax(0, 1fr) auto; column-gap: 0.4em; }
+.timer { grid-template-columns: auto auto auto minmax(0, 1fr) auto; column-gap: 0.4em; }
+/* 📌: on the timer pins. */
+.pin-toggle { padding: 0; font-size: 0.85em; opacity: 0.35; filter: grayscale(1); }
+.pin-toggle.on { opacity: 1; filter: none; }
+.pin-toggle:hover { opacity: 1; }
 .bell { padding: 0; font-size: 0.9em; opacity: 0.45; filter: grayscale(1); }
 .bell-space { display: inline-block; width: 1.3em; }
 .bell.on { opacity: 1; filter: none; }
@@ -730,3 +734,37 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 /* Hide empty notes (settings): a widget's note never shows; the widget itself goes only when
    the note is all it has (panel.js tells the overlay). */
 .widget.quiet-notes #empty { display: none !important; }
+
+/* The boss casts window: sharing a mapping. */
+.bc-share { display: flex; align-items: center; gap: 0.4em; margin: 0 0 0.3em; flex-wrap: wrap; }
+.bc-share button { color: var(--accent); }
+
+/* ---------------------------------------------------------------- timer pins */
+
+/* Timer pins (timerpins.js): no box, as big as what they show. A grid of icons with the
+   time under each (and the name), or a slim row each. Rings: green while on or up, the
+   accent when soon, pulsing when an alert's due. */
+.pins-page #panel.pins { display: grid; grid-template-columns: repeat(var(--cols), max-content); gap: 0.5em 0.6em; width: max-content; height: auto; padding: 4px; background: none; border-radius: 0; --pin: 40px; --cols: 6; --pin-on: #79dcaa; --pin-soon: var(--accent); }
+.pins[data-layout="list"] { grid-template-columns: max-content !important; gap: 0.25em !important; }
+.pin { display: flex; flex-direction: column; align-items: center; gap: 0.15em; width: calc(var(--pin) * 1.6); text-align: center; }
+.pin-ring { display: grid; place-items: center; width: var(--pin); height: var(--pin); border-radius: 50%; background: rgba(10, 10, 14, 0.72); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28); color: var(--text); }
+.pin-ring .timer-icon { width: 62%; height: 62%; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.pin.up .pin-ring, .pin.on .pin-ring { box-shadow: 0 0 0 2.5px var(--pin-on); color: var(--pin-on); }
+.pin.soon .pin-ring { box-shadow: 0 0 0 2.5px var(--pin-soon); color: var(--pin-soon); }
+.pin.stale .pin-ring { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18); opacity: 0.6; }
+.pin.alert .pin-ring { animation: pin-alert 1s ease-in-out infinite alternate; }
+@keyframes pin-alert { to { box-shadow: 0 0 0 3px var(--pin-soon), 0 0 0.9em 0.2em var(--pin-soon); } }
+@media (prefers-reduced-motion: reduce) { .pin.alert .pin-ring { animation: none; box-shadow: 0 0 0 3px var(--pin-soon); } }
+.pin-time { font-weight: 700; font-size: calc(var(--pin) * 0.32); font-variant-numeric: tabular-nums; text-shadow: 0 0 3px #000, 0 0 3px #000; line-height: 1.1; }
+.pin.up .pin-time, .pin.on .pin-time { color: var(--pin-on); }
+.pin-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(var(--pin) * 0.26); color: var(--muted); text-shadow: 0 0 3px #000, 0 0 3px #000; }
+.pin.train .pin-name { font-style: italic; }
+/* A slim row each. */
+.pin.pin-row { flex-direction: row; width: max-content; min-width: 16em; gap: 0.5em; padding: 0.2em 0.5em 0.2em 0.25em; border-radius: calc(var(--pin) * 0.3); background: rgba(10, 10, 14, 0.62); border-left: 3px solid rgba(255, 255, 255, 0.2); text-align: left; }
+.pin-row.up, .pin-row.on { border-left-color: var(--pin-on); }
+.pin-row.soon { border-left-color: var(--pin-soon); }
+.pin-row .pin-ring { width: calc(var(--pin) * 0.7); height: calc(var(--pin) * 0.7); }
+.pin-row .pin-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.pin-row .pin-name { color: var(--text); font-size: calc(var(--pin) * 0.32); max-width: 18em; }
+.pin-meta { color: var(--muted); font-size: calc(var(--pin) * 0.24); white-space: nowrap; }
+.pin-row .pin-time { margin-left: auto; padding-left: 0.6em; }

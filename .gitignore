@@ -6,3 +6,5 @@
 /crates/packet-lab-gui/gen
 # Release zips built by scripts/package.ps1
 /dist
+# Exports from the app (boss cast mappings)
+/exports

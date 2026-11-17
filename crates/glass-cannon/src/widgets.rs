@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use meter_core::fieldboss::FieldBoss;
@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 18] = [
+pub const WIDGETS: [&str; 19] = [
     "meter",
     "boss-warnings",
     "boss-timers",
@@ -31,6 +31,7 @@ pub const WIDGETS: [&str; 18] = [
     "action-bar-5",
     "action-bar-6",
     "party-cooldowns",
+    "timer-pins",
     "timers",
     "pets",
 ];
@@ -447,6 +448,126 @@ pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
         favourites: s.timer_favourites.clone(),
         favourites_only: s.timer_favourites_only,
     }
+}
+
+// ---------------------------------------------------------------- timer pins
+
+/// The timer pins' layouts: a grid of icons, or a slim row each.
+pub const PIN_LAYOUTS: [&str; 2] = ["icons", "list"];
+/// How they're ordered: by time, or as pinned.
+pub const PIN_SORTS: [&str; 2] = ["time", "pinned"];
+pub const PIN_ICON_SIZES: std::ops::RangeInclusive<u16> = 24..=72;
+pub const PIN_COLUMNS: std::ops::RangeInclusive<u16> = 1..=12;
+/// How far ahead the world boss train looks, in minutes.
+pub const TRAIN_MINUTES: std::ops::RangeInclusive<u16> = 5..=180;
+const MAX_PINS: usize = 40;
+
+/// How the timer pins widget looks, and whether the world boss train adds every field
+/// boss up or spawning soon.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct PinsLook {
+    /// One of [`PIN_LAYOUTS`].
+    pub layout: String,
+    /// Icons' size (CSS pixels), and how many to a row.
+    pub icon_size: u16,
+    pub columns: u16,
+    /// Each one's name under its icon.
+    pub names: bool,
+    /// One of [`PIN_SORTS`].
+    pub sort: String,
+    /// The world boss train: every field boss up, or spawning within `train_min`.
+    pub train: bool,
+    pub train_min: u16,
+}
+
+impl Default for PinsLook {
+    fn default() -> Self {
+        Self { layout: PIN_LAYOUTS[0].into(), icon_size: 40, columns: 6, names: true, sort: PIN_SORTS[0].into(), train: false, train_min: 30 }
+    }
+}
+
+impl PinsLook {
+    pub fn sanitized(mut self) -> Self {
+        let fixed = Self::default();
+        if !PIN_LAYOUTS.contains(&self.layout.as_str()) {
+            self.layout = fixed.layout;
+        }
+        if !PIN_SORTS.contains(&self.sort.as_str()) {
+            self.sort = fixed.sort;
+        }
+        self.icon_size = self.icon_size.clamp(*PIN_ICON_SIZES.start(), *PIN_ICON_SIZES.end());
+        self.columns = self.columns.clamp(*PIN_COLUMNS.start(), *PIN_COLUMNS.end());
+        self.train_min = self.train_min.clamp(*TRAIN_MINUTES.start(), *TRAIN_MINUTES.end());
+        self
+    }
+}
+
+/// Pins as kept: an event's ID or `boss:<id>`, each once, at most [`MAX_PINS`].
+pub fn clean_pins(pins: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for p in pins {
+        let ok = !p.is_empty() && p.len() <= 64 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ':' || c == '_');
+        if ok && !out.contains(&p) && out.len() < MAX_PINS {
+            out.push(p);
+        }
+    }
+    out
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PinsView {
+    pub pins: Vec<String>,
+    pub look: PinsLook,
+}
+
+#[tauri::command]
+pub fn timer_pins(app: State<'_, Arc<AppState>>) -> PinsView {
+    let s = lock(&app.settings);
+    PinsView { pins: s.timer_pins.clone(), look: s.pins_look.clone() }
+}
+
+fn pins_changed(handle: &AppHandle, app: &AppState) {
+    let s = lock(&app.settings);
+    let view = PinsView { pins: s.timer_pins.clone(), look: s.pins_look.clone() };
+    drop(s);
+    let _ = handle.emit("timer-pins", view);
+}
+
+/// Pins (or unpins) an event or field boss to the timer pins widget.
+#[tauri::command]
+pub fn set_timer_pinned(handle: AppHandle, app: State<'_, Arc<AppState>>, id: String, on: bool) {
+    let mut s = lock(&app.settings);
+    let mut pins = std::mem::take(&mut s.timer_pins);
+    pins.retain(|p| p != &id);
+    if on {
+        pins.push(id);
+    }
+    s.timer_pins = clean_pins(pins);
+    s.save(&app.config_dir);
+    drop(s);
+    pins_changed(&handle, &app);
+}
+
+/// The pins in a new order (or some taken off).
+#[tauri::command]
+pub fn set_timer_pins(handle: AppHandle, app: State<'_, Arc<AppState>>, pins: Vec<String>) {
+    let mut s = lock(&app.settings);
+    s.timer_pins = clean_pins(pins);
+    s.save(&app.config_dir);
+    drop(s);
+    pins_changed(&handle, &app);
+}
+
+#[tauri::command]
+pub fn set_pins_look(handle: AppHandle, app: State<'_, Arc<AppState>>, look: PinsLook) -> PinsLook {
+    let mut s = lock(&app.settings);
+    s.pins_look = look.sanitized();
+    let out = s.pins_look.clone();
+    s.save(&app.config_dir);
+    drop(s);
+    pins_changed(&handle, &app);
+    out
 }
 
 /// Stars (or unstars) an event or field boss in the world timers.
@@ -958,4 +1079,20 @@ pub fn party_gear(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<S
             Some((m.name.clone(), rows))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod pin_tests {
+    use super::*;
+
+    #[test]
+    fn pins_and_their_look_stay_valid() {
+        let pins = clean_pins(vec!["spacetime-rift".into(), "boss:2100040".into(), "spacetime-rift".into(), "".into(), "bad id!".into()]);
+        assert_eq!(pins, ["spacetime-rift", "boss:2100040"]);
+        assert_eq!(clean_pins((0..60).map(|i| format!("boss:{i}")).collect()).len(), MAX_PINS);
+        let l = PinsLook { layout: "hexes".into(), sort: "random".into(), icon_size: 900, columns: 0, train_min: 1, ..PinsLook::default() }.sanitized();
+        assert_eq!((l.layout.as_str(), l.sort.as_str(), l.icon_size, l.columns, l.train_min), ("icons", "time", 72, 1, 5));
+        let old: PinsLook = serde_json::from_str("{}").unwrap();
+        assert_eq!(old, PinsLook::default());
+    }
 }

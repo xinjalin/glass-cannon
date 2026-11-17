@@ -77,7 +77,11 @@ finishes. The widgets:
   **auto** (as the rule above goes: ✓ when it would show), **on** or **off**; the timers on
   auto follow the warnings. **[fought]** lists the bosses with casts seen, **[all
   bosses]** every one (a boss you haven't fought with the meter running has none yet),
-  **[changed]** what you've named or set. The game data doesn't say which casts a boss has,
+  **[changed]** what you've named or set. **[export]** saves your names and choices (a boss
+  cast mapping) to a file in the `exports` folder beside the app, to share; **[import]** takes one in, its names and
+  choices over yours. The app's own defaults come from `gamedata/boss-cast-defaults.json`
+  (an exported mapping put there): auto goes by them where they have a choice, and their
+  names show where you haven't named a cast yourself. The game data doesn't say which casts a boss has,
   so they come from your fights (and the fights already in the history).
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
   sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
@@ -167,6 +171,14 @@ finishes. The widgets:
   Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
+- **timer pins**: the events and field bosses you pin (📌 in the world timers, or in the
+  pins' settings) as icons counting down, with no box: green while on or up, the accent
+  when soon, pulsing when its 🔔 alert is due; the time under each, and its name. Or a slim
+  row each, with where a field boss is. The **world boss train** adds every field boss up
+  or spawning within a time you pick (in italics). Set up beside it on the overlay
+  (arrange, then ⚙): what's pinned, the train, icons or rows, their size, how many to a
+  row, names, and by time or as pinned. Field bosses come from the world map, so open it
+  in game now and then; nothing is read from the internet.
 
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every

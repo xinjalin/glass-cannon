@@ -575,11 +575,18 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let mut boss_next = None;
     let mut boss_ahead = BossAhead::default();
     if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
+        // Yours, then the app's defaults (boss-cast-defaults.json), then our data's.
         let mut marks = lock(&app.settings).boss_skill_alerts.clone();
+        for (skill, on) in data.default_cast_warns() {
+            marks.entry(skill).or_insert(on);
+        }
         for &skill in data.warn_casts() {
             marks.entry(skill).or_insert(true);
         }
-        let timers = lock(&app.settings).boss_skill_timers.clone();
+        let mut timers = lock(&app.settings).boss_skill_timers.clone();
+        for (skill, on) in data.default_cast_timers() {
+            timers.entry(skill).or_insert(on);
+        }
         boss_ahead = boss_casts_to_show(&history, &data, &marks, &timers, enc);
         boss_next = boss_ahead.upcoming.first().map(|c| NextCast {
             skill: c.skill,
@@ -1187,6 +1194,8 @@ fn main() {
             collection::collection,
             bosscasts::boss_casts_setup,
             bosscasts::set_boss_skill_timer,
+            bosscasts::export_boss_casts,
+            bosscasts::import_boss_casts,
             settings::open_boss_casts,
             collection::collection_icon,
             checklist::checklist,
@@ -1213,6 +1222,10 @@ fn main() {
             widgets::party_gear,
             widgets::timer_settings,
             widgets::set_timer_favourite,
+            widgets::timer_pins,
+            widgets::set_timer_pinned,
+            widgets::set_timer_pins,
+            widgets::set_pins_look,
             widgets::set_timer_favourites_only,
             widgets::party_cooldowns,
             launcher::launcher_state,

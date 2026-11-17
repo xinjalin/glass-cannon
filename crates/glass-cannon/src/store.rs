@@ -216,6 +216,12 @@ pub struct Settings {
     /// How the action bars' bars look (the bars look): their background and colours.
     #[serde(default)]
     pub action_bar_look: crate::actionbar::BarLook,
+    /// The timer pins widget: the events and field bosses pinned to it (in order), and how
+    /// it looks.
+    #[serde(default)]
+    pub timer_pins: Vec<String>,
+    #[serde(default)]
+    pub pins_look: crate::widgets::PinsLook,
     /// Each class's action bar as it was before there were several (carried over to `bars`).
     #[serde(default)]
     pub action_bars: BTreeMap<String, crate::actionbar::ActionBarSetup>,
@@ -705,6 +711,8 @@ impl Settings {
         s.vitals = std::mem::take(&mut s.vitals).sanitized();
         s.target = std::mem::take(&mut s.target).sanitized();
         s.action_bar_look = std::mem::take(&mut s.action_bar_look).sanitized();
+        s.pins_look = std::mem::take(&mut s.pins_look).sanitized();
+        s.timer_pins = crate::widgets::clean_pins(std::mem::take(&mut s.timer_pins));
         // The one bar each class had, carried over to its bars once.
         if s.bars.is_empty() && !s.action_bars.is_empty() {
             s.bars = crate::actionbar::carried_over(&s.action_bars, &s.action_bar_look);
