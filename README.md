@@ -5,7 +5,7 @@ A DPS meter and overlay for **Aion 2** on Windows.
 Glass Cannon reads the game's network traffic passively through [Npcap](https://npcap.com).
 It never reads or writes the game's memory, needs no admin rights, and never goes online.
 
-![The overlay in a boss fight: world timers, the target frame, your HP and MP, party cooldowns, the meter and party frames](docs/screenshots/overlay.png)
+![The overlay in a boss fight: world timers, the target frame, two action bars (buffs, and cooldowns with a gap), party cooldowns, the meter and party frames](docs/screenshots/overlay.png)
 
 ## Features
 
@@ -52,6 +52,8 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 
 ![Boss casts: Eternal Ludra's casts, a few renamed and set to warn or not](docs/screenshots/bosscasts.png)
 
+![Action bars: a buffs bar and a cooldowns bar, and bar 1's settings beside it on the overlay (what it tracks, its skills laid out with a gap, your class's active and stigma skills)](docs/screenshots/actionbars.png)
+
 <sub>Fights from a real raid night over a painted backdrop. Other players' names are made
 up.</sub>
 
@@ -67,7 +69,10 @@ Requires Windows 10 or 11 with WebView2 (built into Windows 11).
 3. Run `glass-cannon.exe`. The program isn't code-signed, so SmartScreen may ask:
    **More info → Run anyway**.
 
-To update, extract a new release over the old one. Settings and history are kept.
+To update, extract a new release over the old one (or anywhere else). Your settings, layout
+and history aren't in the program's folder: they're in `%APPDATA%\io.github.xinjalin.glass-cannon`
+(paste that into Explorer's address bar), so every version finds them. To start afresh,
+delete that folder while the meter's closed.
 
 **Ping reducers and VPNs** (ExitLag and the like) work: the meter follows the game's
 connection to wherever it goes, a relay on your PC included. If the launcher says Npcap
