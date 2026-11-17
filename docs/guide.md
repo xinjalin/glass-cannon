@@ -224,9 +224,11 @@ back with the next one (the meter under the mouse too). Which ones fade is up to
 arrange menu has a column for it, **[fades]** or **[stays]** for each widget (at first the
 meter, boss timers, target frame, cooldowns and party cooldowns fade). **Meter fades** gives
 the meter a time of its own (or never): with one set, the meter fades then whatever the
-column says; **[same]** keeps it with the others. **Hide empty notes** hides a widget that
-has nothing to show but its note ("not in a party", "all your skills are ready", "no
-target"…) until it has something; it shows while you arrange the overlay. With the **frosted**
+column says; **[same]** keeps it with the others. **Hide empty notes** takes the widgets' notes away ("not in a party", "all your skills are
+ready", "no target", "your HP and MP show once you're in game"…): a widget showing something
+else keeps that (the vitals arcs' stamina and flight power before your HP comes, say), and
+one with nothing but its note goes until it has something (it shows while you arrange the
+overlay). With the **frosted**
 background, Windows lightly blurs the game behind each widget.
 
 ## The meter

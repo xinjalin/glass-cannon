@@ -125,20 +125,43 @@ function applyCooldownBars(l) {
   document.body.classList.toggle("cd-no-track", !!l && !l.background);
 }
 
-// A widget with nothing to show but its note (#empty: "not in a party", "all your skills
-// are ready"…): told to the overlay, which hides it then with settings → hide empty notes.
+// A widget's note (#empty: "not in a party", "all your skills are ready", "your HP and MP
+// show once you're in game"…): with settings → hide empty notes, the note's text never
+// shows (panel.css). The widget itself goes only when that note is all it has to show (no
+// empty box left on the screen): what else it has showing is anything drawn (an icon, a
+// canvas, a shape) or text, outside the note. Told to the overlay, which hides it then.
 if (WIDGET) {
   const note = document.getElementById("empty");
   if (note) {
     let sent = null;
+    let timer = null;
+    const shows = (e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden";
+    // The note's up, as the widget has it (whether hidden by the setting or not).
+    const noteUp = () => !note.hidden && !!note.textContent.trim() && (!note.parentElement || shows(note.parentElement));
+    const DRAWN = new Set(["IMG", "CANVAS", "path", "circle", "rect", "line", "polyline", "polygon", "ellipse", "image"]);
+    const somethingElse = () => {
+      for (const e of document.body.querySelectorAll("*")) {
+        if (e === note || note.contains(e) || e.tagName === "SCRIPT" || e.firstElementChild) continue;
+        const drawn = DRAWN.has(e.tagName) || !!e.textContent.trim();
+        if (!drawn || !shows(e)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return true;
+      }
+      return false;
+    };
     const tell = () => {
-      const empty = !note.hidden && note.offsetParent !== null;
+      timer = null;
+      const empty = noteUp() && !somethingElse();
       if (empty === sent) return;
       sent = empty;
       window.parent.postMessage({ type: "gc-empty", widget: document.body.dataset.panel || "meter", empty }, "*");
     };
-    new MutationObserver(tell).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "class"] });
-    window.addEventListener("load", tell);
-    tell();
+    // At most every quarter second (a widget redraws often).
+    const soon = () => {
+      if (!timer) timer = setTimeout(tell, 250);
+    };
+    new MutationObserver(soon).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden", "class", "style", "d"] });
+    window.addEventListener("load", soon);
+    soon();
   }
 }

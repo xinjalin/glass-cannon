@@ -726,3 +726,7 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bar-name, .bar-left { position: relative; line-height: calc(var(--icon) * 0.6); padding: 0 0.4em; white-space: nowrap; text-shadow: 0 0 2px #000, 0 1px 2px #000; }
 .bar-name { display: block; overflow: hidden; text-overflow: ellipsis; max-width: 72%; }
 .bar-left { position: absolute; right: 0; top: 0; font-variant-numeric: tabular-nums; }
+
+/* Hide empty notes (settings): a widget's note never shows; the widget itself goes only when
+   the note is all it has (panel.js tells the overlay). */
+.widget.quiet-notes #empty { display: none !important; }
