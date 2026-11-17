@@ -18,9 +18,11 @@
     </nav>
 
     <section class="bs-tab" data-tab="pins">
+      <div class="bs-line"><span title="Your pins show only while on (or up), or starting within this long; at 0, always">pins show within</span><input type="range" min="0" max="360" step="15" id="tp-within"><span class="bs-value" id="tp-within-value"></span></div>
       <div class="bs-line"><span title="Every field boss up, or spawning within the time below, added (in italics)">world boss train</span><button type="button" id="tp-train" class="bs-toggle"></button></div>
       <div class="bs-line" id="tp-train-line"><span>spawning within</span><input type="range" min="5" max="180" step="5" id="tp-train-min"><span class="bs-value" id="tp-train-value"></span></div>
-      <p class="bs-head">events · click to pin or unpin</p>
+      <p class="bs-note" id="tp-alerts-note"></p>
+      <p class="bs-head">events · click to pin or unpin · 🔔 for an alert</p>
       <div id="tp-events" class="tp-list"></div>
       <p class="bs-head">field bosses · from the world map (open it in game)</p>
       <div id="tp-bosses" class="tp-list"></div>
@@ -42,7 +44,7 @@
           <button type="button" data-v="pinned" title="As you pinned them (the train after)">[as pinned]</button>
         </span>
       </div>
-      <p class="bs-note">Alerts (🔔) are set in the world timers; a pin pulses when its alert is due.</p>
+      <p class="bs-note">A pin pulses when its 🔔 alert is due (set beside each in the pins tab, or in the world timers).</p>
     </section>
   </main>
   <script src="theme.js"></script>

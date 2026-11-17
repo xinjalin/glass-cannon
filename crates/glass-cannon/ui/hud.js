@@ -259,7 +259,9 @@ function openWidgetPanel(id) {
   panelFor = id;
   const box = $("widget-panel");
   const frame = $("widget-panel-frame");
-  if (!frame.src.endsWith(page)) {
+  // Read afresh each time it opens: what it showed last may have changed since (another
+  // character, a setup taken in), and a change made in it saves all it shows.
+  if (box.hidden || !frame.src.endsWith(page)) {
     frame.src = page;
     // At its most until the page says how tall it is.
     box.style.height = "";
@@ -543,6 +545,10 @@ window.addEventListener("message", (e) => {
     setTimeout(() => openWidgetPanel(m.widget), 150);
   } else if (m.type === "gc-close-settings") {
     closeWidgetPanel();
+  } else if (m.type === "gc-timer-alert") {
+    // A world timer's alert (the 🔔): a bell's three notes, rising as it's due, and
+    // falling as it starts.
+    chime(m.starting ? [...TIMER_NOTES].reverse() : TIMER_NOTES);
   } else if (m.type === "gc-cubes") {
     drawCubes(m.cubes || [], !!m.sound);
   } else if (m.type === "gc-fade") {
@@ -585,6 +591,7 @@ let audio = null;
 const BOSS_NOTES = [880, 1320];
 const ON_YOU_NOTES = [587, 880];
 const CUBE_NOTES = [1568, 1175];
+const TIMER_NOTES = [1047, 1319, 1568];
 function chime(notes = BOSS_NOTES) {
   try {
     audio = audio || new AudioContext();
@@ -794,6 +801,8 @@ tauri.event.listen("setup-imported", async () => {
   setFading(await invoke("widgets_fading").catch(() => []));
   showWidgets(await invoke("widgets_shown").catch(() => []));
   for (const f of document.querySelectorAll(".widget iframe")) f.src = f.src;
+  // An open settings panel too, or a change in it would save what it had before.
+  if (!$("widget-panel").hidden) $("widget-panel-frame").src = $("widget-panel-frame").src;
   const a = await invoke("appearance").catch(() => null);
   if (a) applyAppearance(a);
   place();

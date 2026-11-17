@@ -4,6 +4,9 @@
 
 let view = null;
 let region = "as";
+let alerts = [];
+let lead = 5;
+let sound = true;
 let bosses = [];
 let tab = "pins";
 
@@ -33,7 +36,14 @@ async function pin(id, on) {
   await invoke("set_timer_pinned", { id, on }).catch(() => {});
 }
 
-// One event or field boss to pin: its icon, name, and whether it's pinned.
+async function alert(id, on) {
+  alerts = on ? [...alerts.filter((a) => a !== id), id] : alerts.filter((a) => a !== id);
+  draw();
+  await invoke("set_alert", { id, on }).catch(() => {});
+}
+
+// One event or field boss to pin: its icon, name, and whether it's pinned; and its alert
+// (the bell, as in the world timers).
 function choice(id, name, meta) {
   const on = view.pins.includes(id);
   const b = el("button", `tp-item${on ? " on" : ""}`);
@@ -47,7 +57,16 @@ function choice(id, name, meta) {
   if (meta) text.append(el("span", "tp-meta", meta));
   b.append(ring, text, el("span", "tp-state", on ? "📌" : ""));
   b.addEventListener("click", () => pin(id, !on));
-  return b;
+  const ringing = alerts.includes(id);
+  const bell = el("button", `tp-bell${ringing ? " on" : ""}`, "🔔");
+  bell.type = "button";
+  bell.setAttribute("aria-pressed", String(ringing));
+  bell.setAttribute("aria-label", `Alert for ${name}`);
+  bell.title = ringing ? `Alert ${lead} min before ${name}, and as it starts · click to stop` : `Alert ${lead} min before ${name}, and as it starts`;
+  bell.addEventListener("click", () => alert(id, !ringing));
+  const row = el("div", "tp-row");
+  row.append(b, bell);
+  return row;
 }
 
 function draw() {
@@ -60,6 +79,9 @@ function draw() {
   $("tp-train-min").disabled = !look.train;
   if (document.activeElement !== $("tp-train-min")) $("tp-train-min").value = String(look.train_min);
   $("tp-train-value").textContent = `${look.train_min} min`;
+  if (document.activeElement !== $("tp-within")) $("tp-within").value = String(look.within_min || 0);
+  $("tp-within-value").textContent = look.within_min ? withinText(look.within_min) : "always";
+  $("tp-alerts-note").textContent = `🔔 alerts show on the meter ${lead} min before and as it starts, ${sound ? "with a chime" : "silently (alert sound is off)"}; the lead time and sound are in the world timers' settings.`;
   const { events } = regionEvents(region);
   $("tp-events").replaceChildren(...Object.keys(events).map((id) => choice(id, EVENTS[id] || id, "")));
   const known = [...bosses].sort((a, b) => (a.map_name || "").localeCompare(b.map_name || "") || (a.name || "").localeCompare(b.name || ""));
@@ -87,7 +109,12 @@ async function load() {
   try {
     const [v, s, b] = await Promise.all([invoke("timer_pins"), invoke("timer_settings"), invoke("field_bosses")]);
     view = v;
-    region = (s && s.region) || region;
+    if (s) {
+      region = s.region || region;
+      alerts = s.alerts || alerts;
+      lead = s.alert_lead_min || lead;
+      sound = s.alert_sound !== false;
+    }
     bosses = b || [];
   } catch {
     // Next time, then.
@@ -103,6 +130,7 @@ for (const b of document.querySelectorAll(".bs-tabs [data-tab]")) {
 }
 $("tp-train").addEventListener("click", () => view && setLook({ train: !view.look.train }));
 $("tp-train-min").addEventListener("input", () => view && setLook({ train_min: Number($("tp-train-min").value) }, true));
+$("tp-within").addEventListener("input", () => view && setLook({ within_min: Number($("tp-within").value) }, true));
 for (const c of document.querySelectorAll(".bs-choice[data-key]")) {
   for (const b of c.children) b.addEventListener("click", () => view && setLook({ [c.dataset.key]: b.dataset.v }));
 }
@@ -112,6 +140,7 @@ for (const t of document.querySelectorAll(".bs-toggle[data-key]")) {
 for (const r of document.querySelectorAll("input[type='range'][data-key]")) {
   r.addEventListener("input", () => view && setLook({ [r.dataset.key]: Number(r.value) }, true));
 }
+tauri.event.listen("timer-settings", () => load());
 tauri.event.listen("timer-pins", (e) => {
   if (e.payload && view && !setLook.timer) {
     view = e.payload;

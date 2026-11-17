@@ -673,6 +673,8 @@ async function checkAlerts() {
     alerted.add(key);
     if (left <= 0) notice(`🔔 ${x.name} is starting`, ALERT_MS, "alert");
     else notice(`🔔 ${x.name} in ${Math.ceil(left / 60_000)} min (${timeOfDay(x.start)})`, ALERT_MS, "alert");
+    // And a chime (settings → alert sound): the HUD plays it.
+    if (v.alert_sound) toHud({ type: "gc-timer-alert", starting: left <= 0 });
   }
 }
 setInterval(checkAlerts, 5000);

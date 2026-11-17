@@ -53,3 +53,8 @@
 .tp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-meta { color: var(--muted); font-size: 0.82em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tp-state { flex: none; }
+.tp-row { display: flex; align-items: center; gap: 2px; }
+.tp-row .tp-item { flex: 1; min-width: 0; }
+.tp-bell { flex: none; padding: 0.2em 0.35em; border-radius: 0.3em; opacity: 0.3; filter: grayscale(1); }
+.tp-bell:hover { opacity: 0.8; background: rgba(255, 255, 255, 0.06); }
+.tp-bell.on { opacity: 1; filter: none; }
