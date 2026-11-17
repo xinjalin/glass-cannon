@@ -1,0 +1,44 @@
+/* An action bar's settings panel (barsettings.html), beside the bar on the overlay. */
+#bs { height: 100%; overflow-y: auto; overflow-x: hidden; padding: 0.4em 0.7em 0.8em; box-sizing: border-box; font-size: 0.95em; text-shadow: none; }
+#bs::-webkit-scrollbar { width: 6px; }
+#bs::-webkit-scrollbar-thumb { background: var(--line-faint, rgba(255, 255, 255, 0.15)); border-radius: 3px; }
+.bs-note { color: var(--muted); margin: 0.6em 0; }
+.bs-bars { display: flex; flex-wrap: wrap; gap: 0.2em; margin-bottom: 0.3em; }
+.bs-bars button[aria-pressed="true"], .bs-tabs [aria-selected="true"], .bs-choice [aria-pressed="true"] { background: var(--accent-fill); color: var(--ink); }
+.bs-tabs { display: flex; gap: 0.3em; margin: 0.2em 0 0.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--line-faint, rgba(255, 255, 255, 0.1)); }
+.bs-tabs button, .bs-choice button, .bs-bars button, .bs-actions button { color: var(--accent); }
+.bs-line { display: flex; align-items: center; justify-content: space-between; gap: 0.6em; min-height: 1.9em; }
+.bs-line > span:first-child { color: var(--text); }
+.bs-line input[type="range"] { flex: 1; max-width: 9.5em; accent-color: var(--accent); }
+.bs-value { min-width: 3.4em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bs-choice { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.1em; }
+.bs-toggle { min-width: 3em; text-align: right; color: var(--muted); }
+.bs-toggle[aria-pressed="true"] { color: var(--accent); }
+.bs-head { margin: 0.55em 0 0.25em; color: var(--muted); font-size: 0.85em; }
+.bs-picks { display: flex; flex-wrap: wrap; gap: 0.25em; padding: 0.3em; border-radius: 0.35em; background: rgba(0, 0, 0, 0.22); min-height: 2.3em; }
+.bs-pick { position: relative; width: 2.1em; height: 2.1em; padding: 0; border: 1px solid var(--line-faint, rgba(255, 255, 255, 0.12)); border-radius: 0.25em; overflow: hidden; background: rgba(0, 0, 0, 0.3); cursor: pointer; }
+.bs-pick .icon { width: 100%; height: 100%; display: block; object-fit: cover; }
+.bs-pick .icon.blank { display: grid; place-items: center; color: var(--muted); font-size: 0.8em; }
+.bs-pick.chosen { opacity: 0.3; }
+.bs-pick.unlearned { opacity: 0.5; filter: grayscale(0.7); }
+.bs-pick:hover { opacity: 1; border-color: var(--accent); filter: none; }
+.bs-on .bs-pick { cursor: grab; border-color: var(--accent); }
+.bs-on .bs-pick.dragging { opacity: 0.3; }
+.bs-on .bs-pick.drop-before { box-shadow: -3px 0 0 var(--accent); }
+.bs-on .bs-pick.drop-after { box-shadow: 3px 0 0 var(--accent); }
+.bs-on .bs-pick { touch-action: none; }
+.bs-mark { display: grid; place-items: center; color: var(--muted); background: transparent; border-style: dashed; }
+.bs-mark.row { width: 1.4em; }
+.bs-add-mark { color: var(--accent); align-self: center; }
+.bs-swatches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.2em; }
+.bs-swatch { position: relative; width: 1.15em; height: 1.15em; padding: 0; border-radius: 0.2em; background: var(--swatch, #888); border: 1px solid rgba(0, 0, 0, 0.4); }
+.bs-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text); }
+.bs-swatch.custom { background: conic-gradient(#f87070, #f1c073, #79dcaa, #6aa8f0, #c8b4f7, #f87070); }
+.bs-swatch.custom.picked { background: var(--swatch); }
+.bs-swatch input { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.bs-actions { display: flex; justify-content: space-between; margin-top: 0.9em; padding-top: 0.5em; border-top: 1px solid var(--line-faint, rgba(255, 255, 255, 0.1)); }
+.bs-danger { color: var(--bad, #f87070) !important; }
+[hidden] { display: none !important; }
+/* A setting with no effect as the bar is: greyed, and it takes no clicks. */
+.bs-line.off { opacity: 0.38; }
+.bs-line.off button, .bs-line.off input { cursor: default; pointer-events: none; }

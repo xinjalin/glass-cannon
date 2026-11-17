@@ -1,111 +1,172 @@
-// The action bar: the skills chosen in the settings, each with its cooldown (a sweep over
-// the icon and the time left, or a bar), its charges, and a glow when it's ready again;
-// then the buffs on you that you follow, with their time left. Names come from the game
+// One action bar (barid.js says which): what it tracks as set up beside it on the overlay
+// (actionbar.rs). Skills with their cooldowns (a sweep over the icon and the time left, or
+// a timer bar), their charges, and a glow when ready again; buffs and debuffs with their
+// time left and stacks; an effect with no set length as its icon alone. In rows and with
+// gaps as laid out, at its icon size and spacing, in a row or a column, in its colours.
+// Hidden out of combat if set so, and with nothing set up for your class; while you
+// arrange the overlay it shows anyway, with a hint when empty. Names come from the game
 // data and are set with textContent, never innerHTML.
 
 const POLL_MS = 100;
 // How long a skill glows once it's ready again.
 const READY_GLOW_MS = 1200;
 
+// Arranging the overlay (the overlay says): an empty or hidden bar shows a hint to grab.
+let editing = false;
+window.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "gc-editing") {
+    editing = !!e.data.on;
+    lastKey = "";
+    refresh();
+  }
+});
+
 let lastKey = "";
 // Each skill's time left last time, to see it come off cooldown.
 const before = new Map();
 const glowing = new Map();
 
-function seconds(ms) {
+// "9", "2.4" (tenths in the last 3 s, if set), "4m".
+function timeText(ms, tenths) {
   if (ms >= 60_000) return `${Math.ceil(ms / 60_000)}m`;
-  return ms < 10_000 ? (ms / 1000).toFixed(1) : String(Math.ceil(ms / 1000));
+  if (tenths && ms < 3000) return (ms / 1000).toFixed(1);
+  return String(Math.ceil(ms / 1000));
 }
 
-// An icon, with the sweep and time over it (square and round looks).
-function iconSlot(label, iconKey, remaining, duration, now) {
-  const slot = el("li", "ab-slot");
-  slot.append(iconFor(iconKey, label, () => (lastKey = "")));
-  if (remaining > 0 && duration > 0) {
+// The countdown's colour (if set): amber in its last 10 s, red in its last 3.
+const urgency = (ms) => (ms <= 3000 ? " urgent" : ms <= 10_000 ? " soon" : "");
+
+const isEffect = (s) => s.kind === "buff" || s.kind === "debuff" || s.buff;
+
+function tip(s) {
+  const label = s.name || `#${s.id}`;
+  if (s.missing) return `${label}: not on you`;
+  if (isEffect(s)) return label + (s.endless ? "" : `: ${timeText(s.remaining_ms, false)} s left`) + (s.stacks > 1 ? ` · ${s.stacks} on you` : "");
+  return label + (s.remaining_ms > 0 ? `: ready in ${timeText(s.remaining_ms, false)} s` : ": ready") + (s.charges != null ? ` · ${s.charges} charge${s.charges === 1 ? "" : "s"}` : "");
+}
+
+// An icon, with the sweep and time over it.
+function iconSlot(s, st, glow) {
+  const label = s.name || `#${s.id}`;
+  const slot = el("div", `bar-slot ${s.kind}`);
+  slot.append(iconFor(s.icon_key, label, () => (lastKey = "")));
+  const effect = isEffect(s);
+  if (s.missing) slot.classList.add("missing");
+  if (effect && s.running) slot.classList.add("on");
+  const timed = s.running && !s.endless && s.remaining_ms > 0;
+  if (timed && !effect) {
     slot.classList.add("cooling");
-    const sweep = el("span", "ab-sweep");
-    sweep.style.setProperty("--done", `${(1 - remaining / duration) * 360}deg`);
-    slot.append(sweep, el("span", "ab-time", seconds(remaining)));
+    if (st.grey) slot.classList.add("grey");
   }
-  slot.title = label;
+  if (timed && s.duration_ms > 0) {
+    // A cooldown: dark over what's left; an effect: over what's gone.
+    const left = Math.min(1, s.remaining_ms / s.duration_ms);
+    const sweep = el("span", "bar-sweep");
+    sweep.style.setProperty("--done", `${(effect ? left : 1 - left) * 360}deg`);
+    slot.append(sweep);
+  }
+  if (timed && st.countdown) slot.append(el("span", "bar-time" + (st.colours ? urgency(s.remaining_ms) : ""), timeText(s.remaining_ms, st.tenths)));
+  const count = effect ? (s.stacks > 1 ? s.stacks : null) : s.charges;
+  if (count != null) slot.append(el("span", "bar-count", String(count)));
+  if (glow) slot.classList.add("glow");
+  slot.title = tip(s);
   return slot;
 }
 
-// A bar with the name and time left (bars look). A skill: full in the ready colour when
-// ready, else in the cooldown colour as far as its cooldown has left; a buff: in the
-// running colour as far as it has left (full with no set length).
-function barSlot(label, iconKey, remaining, duration, buff) {
-  const slot = el("li", "ab-bar-slot");
-  slot.append(iconFor(iconKey, label, () => (lastKey = "")));
-  const bar = el("div", "ab-bar");
-  const fill = el("span", "ab-fill");
-  const share = remaining > 0 && duration > 0 ? remaining / duration : buff || remaining <= 0 ? 1 : 0;
+// A timer bar with its icon, name and time left: a skill full in the ready colour when
+// ready, else in the cooldown colour as far as its cooldown has left; an effect in the
+// running colour (a debuff: the cooldown colour) as far as it has left, full when endless.
+function barSlot(s, st, glow) {
+  const label = s.name || `#${s.id}`;
+  const effect = isEffect(s);
+  const slot = el("div", `bar-line ${s.kind}`);
+  if (s.missing) slot.classList.add("missing");
+  slot.append(iconFor(s.icon_key, label, () => (lastKey = "")));
+  const track = el("div", "bar-track");
+  const fill = el("span", "bar-fill");
+  const timed = s.running && !s.endless && s.remaining_ms > 0 && s.duration_ms > 0;
+  const share = timed ? s.remaining_ms / s.duration_ms : s.missing ? 0 : 1;
   fill.style.width = `${Math.min(1, share) * 100}%`;
-  const time = buff ? (remaining > 0 ? seconds(remaining) : "") : remaining > 0 ? seconds(remaining) : "ready";
-  bar.append(fill, el("span", "ab-bar-name", label), el("span", "ab-bar-time", time));
-  slot.append(bar);
-  slot.classList.add(buff ? "running" : remaining > 0 ? "cooling" : "ready");
+  slot.classList.add(effect ? (s.kind === "debuff" ? "debuffed" : "on") : s.running ? "cooling" : "ready");
+  const time = s.missing ? "" : timed || (!effect && s.remaining_ms > 0) ? (st.countdown ? timeText(s.remaining_ms, st.tenths) : "") : effect ? "" : "ready";
+  const count = effect ? (s.stacks > 1 ? ` ×${s.stacks}` : "") : s.charges != null ? ` ×${s.charges}` : "";
+  track.append(fill, el("span", "bar-name", label + count), el("span", "bar-left" + (st.colours && timed ? urgency(s.remaining_ms) : ""), time));
+  slot.append(track);
+  if (glow) slot.classList.add("glow");
+  slot.title = tip(s);
   return slot;
 }
 
-function applyBarLook(l) {
-  if (!l) return;
-  const s = document.body.style;
-  s.setProperty("--ab-ready", barColour(l.ready));
-  s.setProperty("--ab-running", barColour(l.running));
-  s.setProperty("--ab-cooling", barColour(l.cooling));
-  document.body.classList.toggle("ab-no-track", !l.background);
+function applyStyle(st) {
+  const p = $("panel");
+  p.style.setProperty("--icon", `${st.icon_size}px`);
+  p.style.setProperty("--space", `${st.spacing}px`);
+  p.style.setProperty("--bar-w", `${st.bar_width}px`);
+  p.style.setProperty("--ab-ready", barColour(st.ready));
+  p.style.setProperty("--ab-running", barColour(st.running));
+  p.style.setProperty("--ab-cooling", barColour(st.cooling));
+  p.style.opacity = String(st.opacity / 100);
+  p.dataset.look = st.look;
+  p.classList.toggle("vertical", st.vertical);
+  p.classList.toggle("round", st.shape === "round");
+  p.classList.toggle("no-track", !st.background);
 }
 
 async function refresh() {
   let view;
   try {
-    view = await invoke("action_bar");
+    view = await invoke("action_bar", { bar: BAR });
   } catch {
     return;
   }
   const now = performance.now();
   // Skills that just came off cooldown glow a moment.
-  for (const s of view.skills) {
-    const was = before.get(s.skill);
-    if (was > 0 && s.remaining_ms === 0) glowing.set(s.skill, now + READY_GLOW_MS);
-    before.set(s.skill, s.remaining_ms);
+  for (const s of view.slots) {
+    if (s.kind !== "skill" || s.buff) continue;
+    const was = before.get(s.id);
+    if (was > 0 && s.remaining_ms === 0) glowing.set(s.id, now + READY_GLOW_MS);
+    before.set(s.id, s.remaining_ms);
   }
-  const glow = [...glowing].filter(([, until]) => until > now).map(([k]) => k);
-  const key = JSON.stringify([view, glow]);
+  const glow = view.style.glow ? [...glowing].filter(([, until]) => until > now).map(([k]) => k) : [];
+  const key = JSON.stringify([view, glow, editing]);
   if (key === lastKey) return;
   lastKey = key;
-  const bars = view.style === "bars";
-  document.body.dataset.look = view.style;
-  applyBarLook(view.bar_look);
-  $("ab-slots").replaceChildren(
-    ...view.skills.map((s) => {
-      const label = s.name || `#${s.skill}`;
-      // Bars: the charges by the name; icons: in the corner.
-      const shown = bars && s.charges != null ? `${label} ×${s.charges}` : label;
-      const slot = bars ? barSlot(shown, s.icon_key, s.remaining_ms, s.duration_ms, false) : iconSlot(label, s.icon_key, s.remaining_ms, s.duration_ms, now);
-      if (!bars && s.charges != null) slot.append(el("span", "ab-charges", String(s.charges)));
-      if (glow.includes(s.skill)) slot.classList.add("glow");
-      slot.title = `${label}` + (s.remaining_ms > 0 ? `: ready in ${seconds(s.remaining_ms)} s` : ": ready") + (s.charges != null ? ` · ${s.charges} charge${s.charges === 1 ? "" : "s"}` : "");
-      return slot;
-    }),
+  applyStyle(view.style);
+  const p = $("panel");
+  const hidden = !view.exists || (view.hide_idle && !view.in_combat);
+  const content = view.slots.some((s) => s.kind !== "gap" && s.kind !== "row");
+  if ((hidden || !content) && !editing) {
+    p.replaceChildren();
+    return;
+  }
+  if (!content) {
+    const hint = view.class == null ? "use a skill in game first" : view.exists ? "⚙ to choose what it shows" : "not set up for this class · ⚙";
+    p.replaceChildren(el("div", "bar-hint", `action bar ${BAR} · ${hint}`));
+    return;
+  }
+  // A row each up to a row mark (a column each, for a vertical bar), gaps where put.
+  const rows = [[]];
+  for (const s of view.slots) {
+    if (s.kind === "row") rows.push([]);
+    else rows[rows.length - 1].push(s);
+  }
+  const bars = view.style.look === "bars";
+  p.replaceChildren(
+    ...rows
+      .filter((r) => r.length)
+      .map((r) => {
+        const row = el("div", "bar-row");
+        row.append(
+          ...r.map((s) => {
+            if (s.kind === "gap") return el("div", "bar-gap");
+            const g = glow.includes(s.id) && s.kind === "skill";
+            return bars ? barSlot(s, view.style, g) : iconSlot(s, view.style, g);
+          }),
+        );
+        return row;
+      }),
   );
-  $("ab-buffs").replaceChildren(
-    ...view.buffs.map((b) => {
-      const label = b.name || `#${b.effect}`;
-      const left = b.remaining_ms ?? 0;
-      const shown = bars && b.stacks > 1 ? `${label} ×${b.stacks}` : label;
-      const slot = bars ? barSlot(shown, b.icon_key, left, b.duration_ms, true) : iconSlot(label, b.icon_key, left, b.duration_ms, now);
-      slot.classList.add("buff");
-      if (!bars && b.stacks > 1) slot.append(el("span", "ab-charges", String(b.stacks)));
-      slot.title = label + (b.remaining_ms != null ? `: ${seconds(left)} s left` : "") + (b.stacks > 1 ? ` · ${b.stacks} on you` : "");
-      return slot;
-    }),
-  );
-  $("ab-buffs").hidden = view.buffs.length === 0;
-  const empty = view.unset;
-  $("empty").hidden = !empty;
-  $("empty").textContent = view.class == null ? "use a skill in game: the bar is chosen per class" : "choose its skills and buffs in the settings (overlay → action bar)";
+  if (editing && hidden) p.append(el("div", "bar-hint", view.exists ? "hidden out of combat" : "not set up for this class"));
 }
 
 setInterval(() => {

@@ -1254,6 +1254,33 @@ impl Meter {
             .collect()
     }
 
+    /// Whether an entity is a player (you included), as far as the meter knows: what isn't
+    /// is a mob or an NPC.
+    pub fn is_known_player(&self, id: u64) -> bool {
+        self.registry.player_name(id).is_some()
+    }
+
+    /// Whether you're in combat now: a fight going on, or the game saying you are.
+    pub fn in_combat_now(&self) -> bool {
+        self.current.is_some() || self.registry.self_id().is_some_and(|me| self.combat.get(&me).is_some_and(|(c, _)| *c))
+    }
+
+    /// Every buff and debuff that's been on you in the last `within_us`, each once: (effect,
+    /// skill behind it, whether a player put it on you).
+    pub fn effects_seen_on_you_by(&self, now_us: u64, within_us: u64) -> Vec<(u32, Option<u32>, bool)> {
+        let Some(me) = self.registry.self_id() else { return Vec::new() };
+        let mut seen: Vec<(u32, Option<u32>, bool)> = self
+            .effects
+            .spans(now_us.saturating_sub(within_us), now_us)
+            .into_iter()
+            .filter(|s| s.target == me)
+            .map(|s| (s.effect, s.skill, self.registry.player_name(s.source).is_some()))
+            .collect();
+        seen.sort_unstable();
+        seen.dedup_by_key(|(e, _, _)| *e);
+        seen
+    }
+
     /// Every buff and debuff that's been on you in the last `within_us`: (effect, skill
     /// behind it), each once.
     pub fn effects_seen_on_you(&self, now_us: u64, within_us: u64) -> Vec<(u32, Option<u32>)> {

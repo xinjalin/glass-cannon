@@ -11,9 +11,10 @@ const $ = (id) => document.getElementById(id);
 // A page that fits its content (the target frame) tells the overlay how tall it is.
 if (WIDGET && document.body.hasAttribute("data-fit")) {
   document.documentElement.classList.add("fit");
+  const wide = document.body.hasAttribute("data-fit-width");
   // Its full height (scrollHeight: what it would take, not the box it has now), whenever
   // its content changes.
-  let sent = 0;
+  let sent = "";
   const report = () => {
     // With the box shorter than the content, the list scrolls inside it: count what's
     // scrolled away too, or the box could never grow back.
@@ -21,9 +22,11 @@ if (WIDGET && document.body.hasAttribute("data-fit")) {
     const hidden = scroll ? scroll.scrollHeight - scroll.clientHeight : 0;
     // (A pixel spare: heights in fractions of one round down.)
     const h = Math.ceil($("panel").scrollHeight + hidden) + 1;
-    if (h === sent) return;
-    sent = h;
-    window.parent.postMessage({ type: "gc-fit", widget: document.body.dataset.panel, height: h }, "*");
+    // One that fits its width too (an action bar): as wide as what it shows.
+    const w = wide ? Math.ceil($("panel").scrollWidth) + 1 : null;
+    if (`${h}/${w}` === sent) return;
+    sent = `${h}/${w}`;
+    window.parent.postMessage({ type: "gc-fit", widget: document.body.dataset.panel, height: h, width: w }, "*");
   };
   new ResizeObserver(report).observe($("panel"));
   new MutationObserver(report).observe($("panel"), { childList: true, subtree: true, characterData: true, attributes: true });

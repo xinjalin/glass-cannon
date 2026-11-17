@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 13] = [
+pub const WIDGETS: [&str; 18] = [
     "meter",
     "boss-warnings",
     "boss-timers",
@@ -25,6 +25,11 @@ pub const WIDGETS: [&str; 13] = [
     "party",
     "cooldowns",
     "action-bar",
+    "action-bar-2",
+    "action-bar-3",
+    "action-bar-4",
+    "action-bar-5",
+    "action-bar-6",
     "party-cooldowns",
     "timers",
     "pets",
@@ -104,23 +109,26 @@ pub struct CooldownsLook {
     pub size: u16,
     /// "percent" or "time".
     pub scale: String,
-    /// The action bar's bar colours and background, for the cooldown widgets' bars (yours
-    /// and the party's), when they take them (else their own).
+    /// Action bar 1's colours and background (your class's), for the cooldown widgets'
+    /// bars (yours and the party's), when they take them (else their own).
     pub bar: Option<crate::actionbar::BarLook>,
 }
 
-pub fn cooldowns_look_of(s: &crate::store::Settings) -> CooldownsLook {
+pub fn cooldowns_look_of(s: &crate::store::Settings, class: Option<u32>) -> CooldownsLook {
     let look = if crate::store::COOLDOWNS_LOOKS.contains(&s.cooldowns_look.as_str()) { s.cooldowns_look.clone() } else { "list".into() };
     let sizes = crate::store::COOLDOWNS_SIZES;
     let scales = crate::store::COOLDOWNS_SCALES;
     let scale = if scales.contains(&s.cooldowns_scale.as_str()) { s.cooldowns_scale.clone() } else { scales[0].to_string() };
-    let bar = s.cooldowns_bar_look.then(|| s.action_bar_look.clone());
+    let bar = s.cooldowns_bar_look.then(|| {
+        class.and_then(|c| s.bars.get(&c.to_string())).and_then(|b| b.get(&1)).map_or_else(|| s.action_bar_look.clone(), |b| b.style.look())
+    });
     CooldownsLook { look, ready_right: s.cooldowns_ready_right, size: s.cooldowns_size.clamp(*sizes.start(), *sizes.end()), scale, bar }
 }
 
 #[tauri::command]
 pub fn cooldowns_look(app: State<'_, Arc<AppState>>) -> CooldownsLook {
-    cooldowns_look_of(&lock(&app.settings))
+    let class = lock(&app.profile).class_code;
+    cooldowns_look_of(&lock(&app.settings), class)
 }
 
 /// Sets the cooldowns widget's look ("list" or "timeline"), which end of the timeline is
@@ -153,7 +161,8 @@ pub fn set_cooldowns_look(
     s.cooldowns_look = look;
     s.cooldowns_ready_right = ready_right;
     s.save(&app.config_dir);
-    let out = cooldowns_look_of(&s);
+    let class = lock(&app.profile).class_code;
+    let out = cooldowns_look_of(&s, class);
     drop(s);
     let _ = tauri::Emitter::emit(&handle, "cooldowns-look", out.clone());
     Ok(out)

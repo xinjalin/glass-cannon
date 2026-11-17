@@ -138,18 +138,23 @@ finishes. The widgets:
   (the last seconds get the most room; longer cooldowns wait at the end). Icons that
   overlap take turns going see-through, so those under them show; clear of the others,
   they're solid.
-- **action bar**: the skills you choose, each with its cooldown sweeping round its icon
-  and the time left, its charges, and a glow when it's ready again; then the buffs on you
-  that you choose to follow, with their time left (and how many, when more than one is on
-  you). Choose them in the settings (overlay → action bar): click a skill or buff to put it
-  on the bar or take it off; they go on in the order you add them. Its look: square icons,
-  round icons, or a bar each with its name and time. The bars' colours are yours to pick:
-  a ready skill's (full, green at first), a running buff's (blue) and a skill on
-  cooldown's (red), each a colour of the list, the bar colour, or any colour; and the
-  faint track behind them can be turned off. Each class has its own bar, picked
-  by the class you're playing. The skills to choose from are your class's, from the list
-  the game sends at login and the ones you've used; the buffs, those on you in the last
-  hour.
+- **action bars**: up to six per class, each a widget of its own with no box, as big as what
+  it shows. Each is set up beside it on the overlay: arrange the overlay, then **⚙** on a bar
+  (the settings' action bars section starts arranging for you). A bar tracks your skills'
+  **cooldowns**, the **buffs** on you, **both** (a skill shows the buff it gave you while that
+  runs, else its cooldown), or the **debuffs** on you (what mobs put on you). Skills come
+  from your class's own, under **active** and **stigma** (a stigma you haven't equipped can
+  be left off); click one to add it, and on the bar as laid out, drag one to move it or
+  click it to take it off; **[+ gap]** puts a gap in (as between your hotbar's groups) and
+  **[+ row]** starts a new row. Buffs and debuffs: **every one on you**, or only those you
+  pick from the named ones on you in the last hour. An effect with no set length (an
+  aura), or one of an hour or more, shows as its icon alone, for as long as it's on you.
+  Each bar's **style**: icons or timer bars; icon size and spacing; a row or a column;
+  square or round; the countdown, with tenths under 3 s, coloured (amber in the last 10 s,
+  red in the last 3); grey icons on cooldown; a glow when ready; the bars' width,
+  background and colours (ready, buffs, cooldown); its opacity. Its **preferences**: show
+  everything, or only what's running, ready or missing (a buff not on you), and hide out
+  of combat. **[+ add a bar]** adds one (shown at once); **[remove this bar]** takes one away.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used). Settings' **party cooldowns by** lists
   them by player, or by class: each class's skills with who has them, ready first.

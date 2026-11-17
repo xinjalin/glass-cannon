@@ -216,9 +216,13 @@ pub struct Settings {
     /// How the action bars' bars look (the bars look): their background and colours.
     #[serde(default)]
     pub action_bar_look: crate::actionbar::BarLook,
-    /// Each class's action bar (by class code): its skills, buffs and look.
+    /// Each class's action bar as it was before there were several (carried over to `bars`).
     #[serde(default)]
     pub action_bars: BTreeMap<String, crate::actionbar::ActionBarSetup>,
+    /// Each class's action bars (by class code, then bar number): what each tracks, its
+    /// skills or effects, its look.
+    #[serde(default)]
+    pub bars: BTreeMap<String, BTreeMap<u8, crate::actionbar::BarSetup>>,
     /// How the vitals arcs widget looks.
     #[serde(default)]
     pub vitals: crate::vitals::VitalsSetup,
@@ -701,6 +705,16 @@ impl Settings {
         s.vitals = std::mem::take(&mut s.vitals).sanitized();
         s.target = std::mem::take(&mut s.target).sanitized();
         s.action_bar_look = std::mem::take(&mut s.action_bar_look).sanitized();
+        // The one bar each class had, carried over to its bars once.
+        if s.bars.is_empty() && !s.action_bars.is_empty() {
+            s.bars = crate::actionbar::carried_over(&s.action_bars, &s.action_bar_look);
+        }
+        for bars in s.bars.values_mut() {
+            bars.retain(|b, _| (1..=crate::actionbar::BARS).contains(b));
+            for setup in bars.values_mut() {
+                *setup = std::mem::take(setup).sanitized();
+            }
+        }
         if std::mem::take(&mut s.everyone) && s.scope == Scope::Mine {
             s.scope = Scope::Everyone;
         }

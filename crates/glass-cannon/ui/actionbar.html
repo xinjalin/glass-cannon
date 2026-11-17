@@ -7,14 +7,13 @@
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="panel.css">
 </head>
-<body data-panel="action-bar" data-fit>
-  <main id="panel">
-    <!-- The skills chosen (settings → overlay → action bar), then the buffs on you. -->
-    <ol id="ab-slots" class="ab-row"></ol>
-    <ol id="ab-buffs" class="ab-row buffs"></ol>
-    <p id="empty" class="empty" hidden></p>
-  </main>
+<!-- One action bar (actionbar.html?bar=N): no box, just what it shows, as big as that (it
+     tells the overlay its width and height). Set up from the panel beside it while you
+     arrange the overlay (⚙). -->
+<body data-panel="action-bar" data-fit data-fit-width class="bar-page">
+  <main id="panel" class="bar"></main>
   <script src="theme.js"></script>
+  <script src="barid.js"></script>
   <script src="panel.js"></script>
   <script src="actionbar.js"></script>
 </body>
