@@ -266,6 +266,7 @@ struct View {
     alerts: Vec<String>,
     alert_lead_min: u32,
     hide_after_s: u32,
+    meter_hide_after_s: Option<u32>,
     boss_hp: bool,
     boss_casts: bool,
     /// The meter's target line is on (settings → on the meter → target), the target frame
@@ -626,6 +627,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         alerts: settings.alerts,
         alert_lead_min: settings.alert_lead_min,
         hide_after_s: settings.hide_after_s,
+        meter_hide_after_s: settings.meter_hide_after_s,
         boss_hp: settings.boss_hp && !target_frame,
         boss_casts: settings.boss_casts && !target_frame,
         target_line,
@@ -1147,6 +1149,7 @@ fn main() {
             widgets::set_alert,
             widgets::set_alert_lead,
             widgets::set_hide_after,
+            widgets::set_meter_hide_after,
             widgets::set_boss_hp,
             widgets::set_boss_casts,
             widgets::set_boss_mechanics,

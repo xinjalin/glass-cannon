@@ -684,15 +684,23 @@ setInterval(checkAlerts, 5000);
 // fades them, as the meter says.
 let lastCombatAt = Date.now();
 let fadedSent = null;
+// The meter's own fade (settings → meter fades), or, with none, the others'.
 function fadeOutsideCombat(view) {
   const enc = view.meter.encounter;
   // Over a party-finder lobby the meter is there to be read: not faded.
   if (view.meter.in_combat || (enc && enc.active) || mode !== "live" || view.lobby_menu) lastCombatAt = Date.now();
+  const idle = Date.now() - lastCombatAt;
   const after = (view.hide_after_s || 0) * 1000;
-  const faded = after > 0 && Date.now() - lastCombatAt > after;
-  if (faded === fadedSent) return;
-  fadedSent = faded;
-  toHud({ type: "gc-fade", faded });
+  const meterAfter = view.meter_hide_after_s == null ? after : view.meter_hide_after_s * 1000;
+  const faded = after > 0 && idle > after;
+  const meter = meterAfter > 0 && idle > meterAfter;
+  // A fade of its own: the meter fades whether or not it's in the arrange menu's fade
+  // column.
+  const own = view.meter_hide_after_s != null;
+  const key = `${faded}/${meter}/${own}`;
+  if (key === fadedSent) return;
+  fadedSent = key;
+  toHud({ type: "gc-fade", faded, meter, own });
 }
 
 function drawTotals(enc) {

@@ -291,13 +291,18 @@ pub fn set_action_bar(app: State<'_, Arc<AppState>>, skills: Vec<u32>, buffs: Ve
     Ok(())
 }
 
-/// Changes how the bars look (every class's); saved.
+/// Changes how the bars look (every class's); saved, and sent to the cooldown widgets
+/// (which can take the same colours).
 #[tauri::command]
-pub fn set_action_bar_look(app: State<'_, Arc<AppState>>, change: BarLookChange) -> BarLook {
+pub fn set_action_bar_look(handle: tauri::AppHandle, app: State<'_, Arc<AppState>>, change: BarLookChange) -> BarLook {
     let mut s = lock(&app.settings);
     s.action_bar_look.update(change);
     s.save(&app.config_dir);
-    s.action_bar_look.clone()
+    let look = s.action_bar_look.clone();
+    let cooldowns = crate::widgets::cooldowns_look_of(&s);
+    drop(s);
+    let _ = tauri::Emitter::emit(&handle, "cooldowns-look", cooldowns);
+    look
 }
 
 #[cfg(test)]

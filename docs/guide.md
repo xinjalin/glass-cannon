@@ -111,7 +111,8 @@ finishes. The widgets:
   (thin, with notches outside them like a ruler's, at a quarter, half and three quarters) arcs; an
   **effect** over any look: **flames**, each arc burning along its fill in its own colour, the outer
   arcs' flames outward and the inner arcs' inward, toward your character (more of them at low
-  HP); a **damage trail**, where HP
+  HP); **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
+  its own colour; a **damage trail**, where HP
   you lose stays as a pale strip for a moment before shrinking away; each arc's colour (HP, stamina, MP,
   flight power, cast, and the shield over HP), picked from a swatch; how round they are, from straight to
   very round; how wide; **which arcs show** (HP, stamina, MP, flight power: only HP and
@@ -216,7 +217,11 @@ the mouse, so they can be moved and resized.
 **Fade outside combat** (settings) fades widgets a while after the last fight; they come
 back with the next one (the meter under the mouse too). Which ones fade is up to you: the
 arrange menu has a column for it, **[fades]** or **[stays]** for each widget (at first the
-meter, boss timers, target frame, cooldowns and party cooldowns fade). With the **frosted**
+meter, boss timers, target frame, cooldowns and party cooldowns fade). **Meter fades** gives
+the meter a time of its own (or never): with one set, the meter fades then whatever the
+column says; **[same]** keeps it with the others. **Hide empty notes** hides a widget that
+has nothing to show but its note ("not in a party", "all your skills are ready", "no
+target"…) until it has something; it shows while you arrange the overlay. With the **frosted**
 background, Windows lightly blurs the game behind each widget.
 
 ## The meter

@@ -127,6 +127,7 @@ function drawAppearance(a) {
   drawClassColours(a.class_palette || {});
   drawTextStyle(a);
   setToggle("info-bar", a.info_bar);
+  setToggle("quiet-notes", a.quiet_notes);
   setToggle("show-cp", a.combat_power !== false);
   setToggle("show-odyle", a.odyle !== false);
   setToggle("fill-tint", !!a.fill_tint);
@@ -213,6 +214,11 @@ async function refresh() {
     for (const b of document.querySelectorAll("[data-fade-choice]")) {
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(Number(b.dataset.fadeChoice) === state.hide_after_s));
+    }
+    for (const b of document.querySelectorAll("[data-meter-fade]")) {
+      b.setAttribute("role", "radio");
+      const own = state.meter_hide_after_s;
+      b.setAttribute("aria-checked", String(b.dataset.meterFade === "same" ? own == null : Number(b.dataset.meterFade) === own));
     }
     // Capture is already running, so a changed choice applies next time.
     const pending = state.record !== state.recording_now;
@@ -559,6 +565,7 @@ for (const b of document.querySelectorAll("[data-bar-choice]")) {
   b.addEventListener("click", () => setAppearance({ barColor: b.dataset.barChoice }));
 }
 $("info-bar").addEventListener("click", () => setAppearance({ infoBar: !state.appearance.info_bar }));
+$("quiet-notes").addEventListener("click", () => setAppearance({ quietNotes: !state.appearance.quiet_notes }));
 $("show-cp").addEventListener("click", () => setAppearance({ combatPower: state.appearance.combat_power === false }));
 $("show-odyle").addEventListener("click", () => setAppearance({ odyle: state.appearance.odyle === false }));
 $("fill-tint").addEventListener("click", () => setAppearance({ fillTint: !state.appearance.fill_tint }));
@@ -978,6 +985,7 @@ function drawCdLook() {
     b.setAttribute("aria-checked", String(b.dataset.cdScale === cdLook.scale));
     b.disabled = !timeline;
   }
+  setToggle("cd-bar-look", !!cdLook.bar);
   $("cd-size-value").textContent = `${cdLook.size}%`;
   $("cd-size-down").disabled = !timeline || cdLook.size <= CD_SIZE.min;
   $("cd-size-up").disabled = !timeline || cdLook.size >= CD_SIZE.max;
@@ -985,7 +993,7 @@ function drawCdLook() {
 
 async function setCdLook(next) {
   try {
-    cdLook = await invoke("set_cooldowns_look", { look: next.look, readyRight: next.ready_right, size: next.size, scale: next.scale });
+    cdLook = await invoke("set_cooldowns_look", { look: next.look, readyRight: next.ready_right, size: next.size, scale: next.scale, barLook: next.barLook });
   } catch {
     // Unchanged, then.
   }
@@ -1001,6 +1009,7 @@ for (const b of document.querySelectorAll("[data-cd-ready]")) {
 for (const b of document.querySelectorAll("[data-cd-scale]")) {
   b.addEventListener("click", () => cdLook && setCdLook({ ...cdLook, scale: b.dataset.cdScale }));
 }
+$("cd-bar-look").addEventListener("click", () => cdLook && setCdLook({ ...cdLook, barLook: !cdLook.bar }));
 $("cd-size-down").addEventListener("click", () => cdLook && setCdLook({ ...cdLook, size: cdLook.size - CD_SIZE.step }));
 $("cd-size-up").addEventListener("click", () => cdLook && setCdLook({ ...cdLook, size: cdLook.size + CD_SIZE.step }));
 invoke("cooldowns_look")
@@ -1089,6 +1098,7 @@ function drawVitals() {
   setToggle("vt-always", v.always_show);
   setToggle("vt-hide-full", v.hide_full);
   setToggle("vt-trail", v.trail);
+  setToggle("vt-hp-warn", v.hp_warn);
   setToggle("vt-cast", v.show_cast);
   const hiddenArcs = new Set(v.hidden_arcs || []);
   for (const b of document.querySelectorAll("[data-vt-arc]")) {
@@ -1183,6 +1193,7 @@ $("vt-width-up").addEventListener("click", () => vitals && setVitals({ width: vi
 $("vt-always").addEventListener("click", () => vitals && setVitals({ alwaysShow: !vitals.always_show }));
 $("vt-hide-full").addEventListener("click", () => vitals && setVitals({ hideFull: !vitals.hide_full }));
 $("vt-trail").addEventListener("click", () => vitals && setVitals({ trail: !vitals.trail }));
+$("vt-hp-warn").addEventListener("click", () => vitals && setVitals({ hpWarn: !vitals.hp_warn }));
 $("vt-cast").addEventListener("click", () => vitals && setVitals({ showCast: !vitals.show_cast }));
 for (const b of document.querySelectorAll("[data-vt-arc]")) {
   b.addEventListener("click", () => vitals && setVitals({ arc: b.dataset.vtArc, arcShown: b.getAttribute("aria-checked") !== "true" }));
@@ -1220,6 +1231,14 @@ for (const b of document.querySelectorAll("[data-party-cd-choice]")) {
 for (const b of document.querySelectorAll("[data-fade-choice]")) {
   b.addEventListener("click", async () => {
     await invoke("set_hide_after", { seconds: Number(b.dataset.fadeChoice) });
+    refresh();
+  });
+}
+
+for (const b of document.querySelectorAll("[data-meter-fade]")) {
+  b.addEventListener("click", async () => {
+    const v = b.dataset.meterFade;
+    await invoke("set_meter_hide_after", { seconds: v === "same" ? null : Number(v) });
     refresh();
   });
 }

@@ -150,6 +150,7 @@ function applyAppearance(a) {
     root.style.removeProperty("--bar-ink");
   }
   root.classList.toggle("info-bar", a.info_bar);
+  root.classList.toggle("quiet-notes", !!a.quiet_notes);
   // The meter's rows: blocks beside the numbers, or the row filled as far as its share;
   // the fill solid or as see-through as the tint; combat power by the names.
   root.dataset.rowStyle = a.row_style || "blocks";

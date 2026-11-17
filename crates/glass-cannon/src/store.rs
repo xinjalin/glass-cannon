@@ -150,6 +150,9 @@ pub struct Settings {
     /// don't), and come back in the next fight (the meter under the mouse too).
     #[serde(default)]
     pub hide_after_s: u32,
+    /// The meter's own fade: seconds after combat (0: never); None, as the other widgets.
+    #[serde(default)]
+    pub meter_hide_after_s: Option<u32>,
     /// The boss's HP and enrage timer under the target's name.
     #[serde(default = "default_true")]
     pub boss_hp: bool,
@@ -206,6 +209,10 @@ pub struct Settings {
     /// time left, marked 1, 10, 30, 1m, 2m, 5m).
     #[serde(default = "default_cooldowns_scale")]
     pub cooldowns_scale: String,
+    /// The cooldown widgets' bars (yours and the party's) in the action bar's colours and
+    /// background, not their own.
+    #[serde(default)]
+    pub cooldowns_bar_look: bool,
     /// How the action bars' bars look (the bars look): their background and colours.
     #[serde(default)]
     pub action_bar_look: crate::actionbar::BarLook,
@@ -393,6 +400,10 @@ pub struct Appearance {
     /// A thin strip at the top with the local time.
     #[serde(default)]
     pub info_bar: bool,
+    /// A widget with nothing to show but its note ("not in a party", "all your skills are
+    /// ready"…) goes until it has (it shows while you arrange the overlay).
+    #[serde(default)]
+    pub quiet_notes: bool,
     /// One of [`ROW_STYLES`].
     #[serde(default = "default_row_style")]
     pub row_style: String,
@@ -503,6 +514,7 @@ impl Default for Appearance {
             opacity: default_opacity(),
             backdrop: default_backdrop(),
             info_bar: false,
+            quiet_notes: false,
             row_style: default_row_style(),
             fill_tint: false,
             combat_power: true,
@@ -535,6 +547,7 @@ pub struct AppearanceChange {
     pub opacity: Option<i64>,
     pub backdrop: Option<String>,
     pub info_bar: Option<bool>,
+    pub quiet_notes: Option<bool>,
     pub row_style: Option<String>,
     pub fill_tint: Option<bool>,
     pub combat_power: Option<bool>,
@@ -585,6 +598,9 @@ impl Appearance {
         }
         if let Some(v) = c.info_bar {
             self.info_bar = v;
+        }
+        if let Some(v) = c.quiet_notes {
+            self.quiet_notes = v;
         }
         if let Some(r) = c.row_style.filter(|r| ROW_STYLES.contains(&r.as_str())) {
             self.row_style = r;
@@ -1961,6 +1977,7 @@ mod tests {
             opacity: Some(0),
             backdrop: Some("clear".into()),
             info_bar: Some(true),
+            quiet_notes: Some(true),
             row_style: Some("fill".into()),
             fill_tint: Some(true),
             combat_power: Some(false),

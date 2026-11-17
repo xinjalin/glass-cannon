@@ -134,3 +134,10 @@ setInterval(() => {
   if (!document.hidden) refresh();
 }, POLL_MS);
 refresh();
+
+// The bars in the action bar's colours, when the settings say so (cooldowns → action bar's
+// colours).
+invoke("cooldowns_look")
+  .then((l) => applyCooldownBars(l && l.bar))
+  .catch(() => {});
+tauri.event.listen("cooldowns-look", (e) => applyCooldownBars(e.payload && e.payload.bar));

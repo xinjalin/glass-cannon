@@ -48,10 +48,6 @@ function barSlot(label, iconKey, remaining, duration, buff) {
   return slot;
 }
 
-// The bars' colours (settings → action bar): a name, or a colour picked.
-const BAR_COLOURS = { green: "#79dcaa", blue: "#6aa8f0", red: "#f87070", amber: "#f1c073", lavender: "#c8b4f7", rose: "#f2a8a4", mono: "#dcdcdc" };
-const barColour = (c) => (c === "theme" ? "var(--bar, var(--accent-fill))" : BAR_COLOURS[c] || c);
-
 function applyBarLook(l) {
   if (!l) return;
   const s = document.body.style;
