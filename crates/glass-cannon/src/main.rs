@@ -1223,6 +1223,8 @@ fn main() {
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::timer_pins,
+            widgets::party_look,
+            widgets::set_party_look,
             widgets::set_timer_pinned,
             widgets::set_timer_pins,
             widgets::set_pins_look,

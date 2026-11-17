@@ -1041,16 +1041,179 @@ pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::Sel
     Some(bars)
 }
 
+// ---------------------------------------------------------------- party frames
+
+pub const PARTY_LAYOUTS: [&str; 2] = ["grid", "list"];
+/// What a tile's HP says: the share, the value, or nothing.
+pub const PARTY_HP_TEXTS: [&str; 3] = ["percent", "value", "none"];
+/// The effects on each tile: none, the buffs you put on them, their debuffs, or both.
+pub const PARTY_EFFECTS: [&str; 4] = ["none", "mine", "debuffs", "both"];
+/// Their order: as the party has them, the lowest HP first, or by class.
+pub const PARTY_SORTS: [&str; 3] = ["roster", "hp", "class"];
+pub const PARTY_COLUMNS: std::ops::RangeInclusive<u16> = 0..=8;
+pub const PARTY_SIZES: std::ops::RangeInclusive<u16> = 70..=200;
+/// At most this many effects on a tile.
+const PARTY_EFFECTS_MAX: usize = 6;
+/// An effect this long or longer shows with no time.
+const ENDLESS_MS: u32 = 60 * 60 * 1000;
+
+/// How the party frames look (settings beside them on the overlay).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct PartyLook {
+    /// One of [`PARTY_LAYOUTS`].
+    pub layout: String,
+    /// Tiles to a row (grid; 0: as many as fit).
+    pub columns: u16,
+    /// In percent.
+    pub size: u16,
+    /// One of [`PARTY_HP_TEXTS`].
+    pub hp_text: String,
+    pub names: bool,
+    /// One of [`PARTY_EFFECTS`].
+    pub effects: String,
+    /// One of [`PARTY_SORTS`].
+    pub sort: String,
+    /// A member's HP yellow from half, red from a fifth.
+    pub hp_warn: bool,
+    /// HP lost stays a moment as a pale trail.
+    pub trail: bool,
+    /// The one your target is attacking, outlined.
+    pub target_mark: bool,
+}
+
+impl Default for PartyLook {
+    fn default() -> Self {
+        Self {
+            layout: PARTY_LAYOUTS[0].into(),
+            columns: 0,
+            size: 100,
+            hp_text: PARTY_HP_TEXTS[0].into(),
+            names: true,
+            effects: "both".into(),
+            sort: PARTY_SORTS[0].into(),
+            hp_warn: false,
+            trail: false,
+            target_mark: true,
+        }
+    }
+}
+
+impl PartyLook {
+    pub fn sanitized(mut self) -> Self {
+        let fixed = Self::default();
+        let keep = |choices: &[&str], v: String, d: String| if choices.contains(&v.as_str()) { v } else { d };
+        self.layout = keep(&PARTY_LAYOUTS, self.layout, fixed.layout);
+        self.hp_text = keep(&PARTY_HP_TEXTS, self.hp_text, fixed.hp_text);
+        self.effects = keep(&PARTY_EFFECTS, self.effects, fixed.effects);
+        self.sort = keep(&PARTY_SORTS, self.sort, fixed.sort);
+        self.columns = self.columns.clamp(*PARTY_COLUMNS.start(), *PARTY_COLUMNS.end());
+        self.size = self.size.clamp(*PARTY_SIZES.start(), *PARTY_SIZES.end());
+        self
+    }
+}
+
+#[tauri::command]
+pub fn party_look(app: State<'_, Arc<AppState>>) -> PartyLook {
+    lock(&app.settings).party_look.clone()
+}
+
+#[tauri::command]
+pub fn set_party_look(handle: AppHandle, app: State<'_, Arc<AppState>>, look: PartyLook) -> PartyLook {
+    let mut s = lock(&app.settings);
+    s.party_look = look.sanitized();
+    let out = s.party_look.clone();
+    s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("party-look", out.clone());
+    out
+}
+
+/// A buff or debuff on a party member's tile.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct FrameEffect {
+    pub effect: u32,
+    pub name: Option<String>,
+    pub icon_key: Option<u32>,
+    /// None: no set length (or an hour or more).
+    pub remaining_ms: Option<u32>,
+    pub duration_ms: u32,
+    pub stacks: u32,
+    /// Put on them by something that isn't a player.
+    pub debuff: bool,
+}
+
+/// A party member's frame: what the meter knows of them, the effects to show, and whether
+/// your target is attacking them.
+#[derive(Debug, Serialize)]
+pub struct FrameView {
+    #[serde(flatten)]
+    pub frame: meter_core::meter::PartyFrame,
+    pub effects: Vec<FrameEffect>,
+    pub targeted: bool,
+}
+
 /// Your party as frames (the party frames widget).
 #[tauri::command]
-pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<meter_core::meter::PartyFrame> {
+pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<FrameView> {
+    let now = app.engine.now();
+    let which = lock(&app.settings).party_look.effects.clone();
     let meter = app.engine.meter();
     let data = lock(&app.data);
+    let me = meter.self_entity();
+    // Who your target's attacking, by name.
+    let attacked = meter.target().and_then(|t| t.attacking);
     let mut frames = meter.party_frames();
     for f in &mut frames {
         f.shield = f.entity.map(|e| meter.shields_on(e, &|s| data.is_shield_skill(s))).filter(|s| *s > 0);
     }
     frames
+        .into_iter()
+        .map(|frame| {
+            let mut effects: Vec<FrameEffect> = Vec::new();
+            if let (Some(e), true) = (frame.entity, which != "none") {
+                let spans = meter.effects_on(e, now);
+                for s in &spans {
+                    let mine = me.is_some_and(|m| s.source == m);
+                    let debuff = !meter.is_known_player(s.source);
+                    let wanted = match which.as_str() {
+                        "mine" => mine,
+                        "debuffs" => debuff,
+                        _ => mine || debuff,
+                    };
+                    if !wanted || effects.iter().any(|x| x.effect == s.effect) {
+                        continue;
+                    }
+                    let same: Vec<_> = spans.iter().filter(|x| x.effect == s.effect && (me.is_some_and(|m| x.source == m) || !meter.is_known_player(x.source))).collect();
+                    let longest = same.iter().max_by_key(|x| x.start_us + u64::from(x.duration_ms) * 1000).copied().unwrap_or(s);
+                    let (name, icon_key) = data.effect_meta(s.effect);
+                    let skill = longest.skill.map(|k| data.skill_meta(k));
+                    let name = name.or_else(|| skill.as_ref().and_then(|k| k.0.clone()));
+                    let icon_key = icon_key.or_else(|| skill.and_then(|k| k.1));
+                    // Only the ones that can be told apart.
+                    if name.is_none() && icon_key.is_none() {
+                        continue;
+                    }
+                    let ends = longest.start_us + u64::from(longest.duration_ms) * 1000;
+                    let endless = longest.duration_ms == 0 || longest.duration_ms >= ENDLESS_MS;
+                    effects.push(FrameEffect {
+                        effect: s.effect,
+                        name,
+                        icon_key,
+                        remaining_ms: (!endless).then(|| (ends.saturating_sub(now) / 1000) as u32),
+                        duration_ms: longest.duration_ms,
+                        stacks: same.len() as u32,
+                        debuff,
+                    });
+                }
+                // Debuffs first, then the soonest out.
+                effects.sort_by_key(|x| (!x.debuff, x.remaining_ms.unwrap_or(u32::MAX)));
+                effects.truncate(PARTY_EFFECTS_MAX);
+            }
+            let targeted = attacked.as_deref().is_some_and(|a| a == frame.view.member.name);
+            FrameView { frame, effects, targeted }
+        })
+        .collect()
 }
 
 /// A piece of a player's gear, named.
@@ -1084,6 +1247,14 @@ pub fn party_gear(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<S
 #[cfg(test)]
 mod pin_tests {
     use super::*;
+
+    #[test]
+    fn the_party_look_stays_valid() {
+        let l = PartyLook { layout: "circle".into(), hp_text: "roman".into(), effects: "all".into(), sort: "random".into(), columns: 99, size: 5, ..PartyLook::default() }.sanitized();
+        assert_eq!((l.layout.as_str(), l.hp_text.as_str(), l.effects.as_str(), l.sort.as_str(), l.columns, l.size), ("grid", "percent", "both", "roster", 8, 70));
+        let old: PartyLook = serde_json::from_str("{}").unwrap();
+        assert_eq!(old, PartyLook::default());
+    }
 
     #[test]
     fn pins_and_their_look_stay_valid() {

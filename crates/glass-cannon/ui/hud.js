@@ -57,6 +57,21 @@ const SIDE_WIDGETS = {
   "timer-pins": { page: "timerpins.html", label: "timer pins", passive: true, grows: true, bare: true, fitWidth: true, settings: "timerpinsettings.html" },
   pets: { page: "pets.html", label: "pet tracker", passive: false },
 };
+// The other widgets' settings, beside them while arranging (⚙): their sections of the
+// settings page (settings.html?frame=…), or a page of their own.
+const WIDGET_SETTINGS = {
+  meter: "settings.html?frame=meter",
+  "boss-warnings": "settings.html?frame=boss-warnings",
+  "boss-timers": "settings.html?frame=boss-timers",
+  cubes: "settings.html?frame=cubes",
+  cooldowns: "settings.html?frame=cooldowns",
+  "party-cooldowns": "settings.html?frame=party-cooldowns",
+  vitals: "settings.html?frame=vitals",
+  target: "settings.html?frame=target",
+  timers: "settings.html?frame=timers",
+  party: "partysettings.html",
+};
+const settingsOf = (id) => (SIDE_WIDGETS[id] && SIDE_WIDGETS[id].settings) || WIDGET_SETTINGS[id];
 // Every widget's name in the arrange menu, in the settings' order.
 const LABELS = [
   ["meter", "meter"],
@@ -239,13 +254,16 @@ function drawGrid() {
 // a slider out from under the mouse). Every change shows on the widget at once.
 let panelFor = null;
 function openWidgetPanel(id) {
-  const own = SIDE_WIDGETS[id];
-  if (!own || !own.settings) return;
+  const page = settingsOf(id);
+  if (!page) return;
   panelFor = id;
   const box = $("widget-panel");
   const frame = $("widget-panel-frame");
-  if (!frame.src.endsWith(own.settings)) frame.src = own.settings;
-  $("widget-panel-title").textContent = own.label;
+  if (!frame.src.endsWith(page)) frame.src = page;
+  const named = LABELS.find(([k]) => k === id);
+  $("widget-panel-title").textContent = named ? named[1] : id;
+  // The settings page's sections are wider than a widget's own page.
+  box.classList.toggle("wide", page.startsWith("settings.html"));
   box.hidden = false;
   box.dataset.moved = "";
   delete box.dataset.moved;
@@ -375,13 +393,12 @@ function setUp(el) {
   grip.className = "grip";
   el.append(grip);
   // Its settings beside it (an action bar's), from ⚙ while arranging.
-  const own = SIDE_WIDGETS[el.dataset.widget];
-  if (own && own.settings) {
+  if (settingsOf(el.dataset.widget)) {
     const gear = document.createElement("button");
     gear.type = "button";
     gear.className = "gear";
     gear.textContent = "⚙";
-    gear.title = `The ${own.label}'s settings`;
+    gear.title = `The ${el.dataset.label || el.dataset.widget}'s settings`;
     gear.addEventListener("pointerdown", (e) => e.stopPropagation());
     gear.addEventListener("click", (e) => {
       e.stopPropagation();

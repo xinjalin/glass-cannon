@@ -256,7 +256,7 @@
             <button type="button" role="tab" data-subtab="target" aria-selected="false" tabindex="-1">[target frame]</button>
           </div>
           <div id="subpanels" class="subpanels">
-          <fieldset class="box subpanel" data-subtab="cooldowns" data-keywords="cooldowns timeline list">
+          <fieldset class="box subpanel" data-for="cooldowns" data-subtab="cooldowns" data-keywords="cooldowns timeline list">
             <legend>cooldowns</legend>
             <div class="line" data-keywords="cooldowns timeline list bar scroll slide look">
               <span class="key">cooldowns</span>
@@ -291,7 +291,7 @@
               </span>
             </div>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="party-cooldowns" data-keywords="party cooldowns">
+          <fieldset class="box subpanel" data-for="party-cooldowns" data-subtab="party-cooldowns" data-keywords="party cooldowns">
             <legend>party cooldowns</legend>
             <div class="line" data-keywords="group sort class player">
               <span class="key">party cooldowns by</span>
@@ -308,7 +308,7 @@
               <span class="key">set up the bars</span><span class="state">[ arrange ]</span>
             </button>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
+          <fieldset class="box subpanel" data-for="vitals" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
             <legend>vitals arcs</legend>
             <div class="line" data-keywords="look style thin segmented solid gradient framed glass ticks marks">
               <span class="key">look</span>
@@ -457,7 +457,7 @@
               <span class="key">reset</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="target" data-keywords="target frame pvp player class rank">
+          <fieldset class="box subpanel" data-for="target" data-subtab="target" data-keywords="target frame pvp player class rank">
             <legend>target frame</legend>
             <div class="line" data-keywords="class colour color pvp player name frame background tint">
               <span class="key">class colour</span>
@@ -521,7 +521,7 @@
         </section>
         <section class="tab-panel" id="tab-alerts" role="tabpanel" aria-labelledby="tab-button-alerts" data-tab="alerts">
           <h2 class="panel-title">alerts</h2>
-          <fieldset class="box">
+          <fieldset class="box" data-for="boss-warnings boss-timers">
             <legend>boss warnings</legend>
             <button id="boss-mechanics" data-keywords="warnings dungeon raid" type="button" class="opt" aria-pressed="false" title="In the boss warnings, before the casts: dungeon bosses' mechanics and what to do (a buff on the boss not to attack into, a debuff on you or an ally, a cue cast, a stagger check, a pool you're standing in)">
               <span class="key">boss mechanics</span><span class="state">[on]</span>
@@ -533,13 +533,13 @@
               <span class="key">boss casts</span><span class="state">[ set up ]</span>
             </button>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="boss-warnings boss-timers cubes">
             <legend>sound</legend>
             <button id="alert-sound" data-keywords="audio chime volume beep mute noise" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
               <span class="key">alert sound</span><span class="state">[on]</span>
             </button>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="timers timer-pins">
             <legend>world timers</legend>
             <div class="line" data-keywords="server timezone schedule events world timers field boss asia na eu la korea taiwan">
               <span class="key">region</span>
@@ -572,7 +572,7 @@
         </section>
         <section class="tab-panel" id="tab-meter" role="tabpanel" aria-labelledby="tab-button-meter" data-tab="meter">
           <h2 class="panel-title">meter</h2>
-          <fieldset class="box">
+          <fieldset class="box" data-for="meter">
             <legend>counting</legend>
             <div class="line" data-keywords="scope party mine everyone all whose damage">
               <span class="key">count</span>
@@ -595,7 +595,7 @@
               </span>
             </div>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="meter">
             <legend>rows</legend>
             <div class="line" data-keywords="color colour class damage rows">
               <span class="key">bars</span>
@@ -647,7 +647,7 @@
               <span class="key">combat power</span><span class="state">[on]</span>
             </button>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="meter">
             <legend>on the meter</legend>
             <button id="boss-hp" data-keywords="target health hp berserk timer enrage stagger time to kill cast" type="button" class="opt" aria-pressed="false" title="A line under the fight's name with its target's HP, time to kill, stagger and enrage (and its name, when it's one you picked), and its cast under it, in live fights. Only while the target frame widget is off: it has it all">
               <span class="key">target hp, stagger &amp; more</span><span class="state">[on]</span>
@@ -728,6 +728,7 @@
       <span class="sign">Xinjalin</span>
     </footer>
   </main>
+  <script src="framemode.js"></script>
   <script src="theme.js"></script>
   <script src="window.js"></script>
   <script src="settings.js"></script>

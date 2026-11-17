@@ -408,7 +408,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .pb-time { position: absolute; right: 0.5em; top: 0; line-height: 1.15em; color: var(--text); }
 
 /* Party frames: a grid of tiles, each filled by the member's HP in their class's colour. */
-.frames { list-style: none; margin: 0; padding: 0.25em; display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5em, 1fr)); gap: 0.25em; }
+.frames { list-style: none; margin: 0; padding: 0.25em; display: grid; grid-template-columns: var(--cols, repeat(auto-fill, minmax(7.5em, 1fr))); gap: 0.25em; }
+.frames[data-layout="list"] { grid-template-columns: 1fr !important; }
 .frame { --class: var(--accent); position: relative; height: 2.4em; border-radius: 0.25em; overflow: hidden; background: var(--line-faint); font-size: 0.85em; }
 .fr-hp { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--class) 55%, transparent); transition: width 0.2s linear; }
 .fr-name { position: absolute; left: 0.45em; right: 2.8em; top: 0.25em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 700; }
@@ -768,3 +769,20 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .pin-row .pin-name { color: var(--text); font-size: calc(var(--pin) * 0.32); max-width: 18em; }
 .pin-meta { color: var(--muted); font-size: calc(var(--pin) * 0.24); white-space: nowrap; }
 .pin-row .pin-time { margin-left: auto; padding-left: 0.6em; }
+
+/* Party frames' extras (party.js): the damage trail under the fill, the buffs you put on a
+   member and their debuffs (rimmed red), the one your target's attacking, a dead member. */
+.fr-trail { position: absolute; inset: 0 auto 0 0; background: rgba(255, 255, 255, 0.28); transition: width 0.5s ease-out; }
+.fr-effects { position: absolute; left: 0.4em; bottom: 0.35em; display: flex; gap: 2px; }
+.frame.has-effects { height: 3.1em; }
+.fr-effect { position: relative; width: 1.15em; height: 1.15em; border-radius: 0.2em; overflow: hidden; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
+.fr-effect .icon { width: 100%; height: 100%; display: block; object-fit: cover; }
+.fr-effect .icon.blank { display: grid; place-items: center; font-size: 0.6em; background: rgba(0, 0, 0, 0.5); }
+.fr-effect.debuff { box-shadow: 0 0 0 1.5px var(--bad, #f87070); }
+.fr-effect-time, .fr-effect-stacks { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 0.62em; font-weight: 700; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.fr-effect-stacks { inset: auto 0 0 auto; place-items: end; font-size: 0.55em; }
+.frame.targeted { box-shadow: inset 0 0 0 2px var(--bad, #f87070); animation: fr-targeted 0.9s ease-in-out infinite alternate; }
+@keyframes fr-targeted { to { box-shadow: inset 0 0 0 2px var(--bad, #f87070), 0 0 0.6em 0.05em var(--bad, #f87070); } }
+@media (prefers-reduced-motion: reduce) { .frame.targeted { animation: none; } }
+.fr-target { position: absolute; right: 0.4em; bottom: 0.3em; font-size: 0.85em; color: var(--bad, #f87070); text-shadow: 0 0 2px #000; }
+.frame.dead { filter: grayscale(1); opacity: 0.65; }

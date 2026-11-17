@@ -28,7 +28,9 @@ from the game, and lets the mouse through except over the meter and the world ti
 
 **Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
 moves widgets and resizes them by their
-corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
+corner, and each widget with settings has a **⚙** over it: its settings in a panel beside
+it, each change showing on it at once (the panel moves by its title, and goes when you
+close it or finish arranging; the settings window has them all too). Widgets snap to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
 dashed lines mark the screen's centre: a widget dragged near it snaps to it, and the line
 lights up; its edges and centre also snap to another widget's edges or centre, with a
 line showing the line-up. Widgets
@@ -131,8 +133,14 @@ finishes. The widgets:
   left and whole time at its ends.
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
-  "dead" when they are. Shields show striped white past their HP, with the amount in the
-  tile's tooltip.
+  greyed with ☠ while dead. Shields show striped white past their HP, with the amount in
+  the tile's tooltip. The buffs you put on a member and their debuffs (from mobs, rimmed
+  red) show as small icons on their tile, with the last seconds counted; the one your
+  target is attacking is outlined red, with ⚔. Set up beside it (⚙): a grid or a list, how
+  many to a row, their size, the HP as a percent, a value or nothing, names, which
+  effects, **HP warning colours** (yellow from half, red from a fifth), a **damage trail**
+  (HP lost stays a moment as a pale strip), and the order (the party's, the lowest HP
+  first, or by class).
 - **cooldowns**: your skills that aren't ready, with time left and charges: as a **list**,
   or as a **timeline** (settings → overlay → cooldowns), a bar from Ready to 100% with each
   skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready

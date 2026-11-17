@@ -53,6 +53,8 @@ function fitWindow() {
 // The window fits the tab shown (the others take no room), and fits again as you change
 // tabs; search results scroll in the size it had instead.
 function measureAndFit() {
+  // In a widget's panel on the overlay there's no window of ours to size.
+  if (typeof FRAME !== "undefined" && FRAME) return;
   if (searching()) return;
   const fs = parseFloat(getComputedStyle(document.documentElement).fontSize);
   const width = Math.ceil(WIDTH_EM * fs);

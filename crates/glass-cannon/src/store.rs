@@ -216,6 +216,9 @@ pub struct Settings {
     /// How the action bars' bars look (the bars look): their background and colours.
     #[serde(default)]
     pub action_bar_look: crate::actionbar::BarLook,
+    /// How the party frames look.
+    #[serde(default)]
+    pub party_look: crate::widgets::PartyLook,
     /// The timer pins widget: the events and field bosses pinned to it (in order), and how
     /// it looks.
     #[serde(default)]
@@ -712,6 +715,7 @@ impl Settings {
         s.target = std::mem::take(&mut s.target).sanitized();
         s.action_bar_look = std::mem::take(&mut s.action_bar_look).sanitized();
         s.pins_look = std::mem::take(&mut s.pins_look).sanitized();
+        s.party_look = std::mem::take(&mut s.party_look).sanitized();
         s.timer_pins = crate::widgets::clean_pins(std::mem::take(&mut s.timer_pins));
         // The one bar each class had, carried over to its bars once.
         if s.bars.is_empty() && !s.action_bars.is_empty() {
