@@ -311,12 +311,16 @@ background, Windows lightly blurs the game behind each widget.
   analysis, end the fight, arrange the overlay, history, and **≡** for the settings, in tabs: **appearance** (theme:
   *night*, the default, or rose, lavender, mint, sky, amber, mono, the palette themes
   seafoam (and seafoam light, a light theme), scarlet, teal and indigo, or any colour, and
-  its parts; text; glass; class colours), **overlay** (its widgets, how they behave over
-  the game, each widget's own settings),
-  **alerts** (boss warnings and their sound), **meter** (whose damage counts, update rate:
-  *live* or every 0.2–2 s, its rows, what shows on it), **keybinds** and **general**
-  (status checks, closing with the game, recording, resets; a dot on it when a check
-  needs a look).
+  its parts; text; glass; class colours), **overlay** (its widgets and how they behave over
+  the game), **alerts** (notices), **keybinds** and **general** (status checks, closing with
+  the game, recording, sharing your setup, resets; a dot on it when a check needs a look).
+  Each widget's own settings (the meter's included) are on the overlay: arrange, then ⚙
+  on the widget.
+- **Share your setup** (settings → general, or the arrange menu): **[export]** saves your
+  **layout** (where each widget is, which show, which fade), **theme** and **settings**
+  (each widget's and the app's), as you pick, to a file in the `exports` folder beside the
+  app; **[import]** takes one in, the parts picked that it has over yours. What's yours
+  alone never goes in a file: the pets you track, hotkeys, recording, the dummy's label.
   The search over the tabs (**Ctrl+F** or **/**) is forgiving: letters in order find a
   setting ("alrt snd": alert sound), a slip is fine ("soudn"), and common words find
   theirs ("opacity": tint, "fps": update rate). **Enter** goes to the best match, **Esc**

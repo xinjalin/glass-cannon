@@ -50,6 +50,7 @@ mod ping;
 mod placement;
 mod runs;
 mod settings;
+mod setup;
 mod store;
 mod style;
 mod targetframe;
@@ -1223,6 +1224,8 @@ fn main() {
             widgets::timer_settings,
             widgets::set_timer_favourite,
             widgets::timer_pins,
+            setup::export_setup,
+            setup::import_setup,
             widgets::party_look,
             widgets::set_party_look,
             widgets::set_timer_pinned,

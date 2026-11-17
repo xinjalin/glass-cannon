@@ -259,7 +259,11 @@ function openWidgetPanel(id) {
   panelFor = id;
   const box = $("widget-panel");
   const frame = $("widget-panel-frame");
-  if (!frame.src.endsWith(page)) frame.src = page;
+  if (!frame.src.endsWith(page)) {
+    frame.src = page;
+    // At its most until the page says how tall it is.
+    box.style.height = "";
+  }
   const named = LABELS.find(([k]) => k === id);
   $("widget-panel-title").textContent = named ? named[1] : id;
   // The settings page's sections are wider than a widget's own page.
@@ -528,6 +532,12 @@ window.addEventListener("message", (e) => {
     else fitted[m.widget] = Math.ceil(m.height);
     if (m.width) fittedWidth[m.widget] = Math.ceil(m.width);
     place();
+  } else if (m.type === "gc-panel-height" && m.height) {
+    // The panel as tall as what it shows, up to the most it may take.
+    const box = $("widget-panel");
+    const most = Math.min(640, innerHeight * 0.9);
+    box.style.height = `${Math.min(most, Math.ceil(m.height) + $("widget-panel-head").offsetHeight + 2)}px`;
+    placeWidgetPanel();
   } else if (m.type === "gc-open-settings" && m.widget) {
     // The panel's [+ add a bar]: the new bar's panel, beside it once it's there.
     setTimeout(() => openWidgetPanel(m.widget), 150);
@@ -761,3 +771,30 @@ function frame() {
   showWidgets(await invoke("widgets_shown").catch(() => []));
   requestAnimationFrame(frame);
 })();
+
+// Sharing a setup from the arrange menu: all of it out, and in, what a file has (setup.rs).
+$("setup-export").addEventListener("click", async () => {
+  try {
+    await invoke("export_setup", { parts: ["layout", "theme", "settings"] });
+  } catch {
+    // Nothing to say it with here; the settings window's share says why.
+  }
+});
+$("setup-import").addEventListener("click", () => $("setup-file").click());
+$("setup-file").addEventListener("change", async () => {
+  const file = $("setup-file").files[0];
+  $("setup-file").value = "";
+  if (!file) return;
+  await invoke("import_setup", { json: await file.text(), parts: ["layout", "theme", "settings"] }).catch(() => {});
+});
+// A setup taken in: its layout, widgets and theme, each widget's page again (for its
+// settings); arranging goes on.
+tauri.event.listen("setup-imported", async () => {
+  await loadLayout();
+  setFading(await invoke("widgets_fading").catch(() => []));
+  showWidgets(await invoke("widgets_shown").catch(() => []));
+  for (const f of document.querySelectorAll(".widget iframe")) f.src = f.src;
+  const a = await invoke("appearance").catch(() => null);
+  if (a) applyAppearance(a);
+  place();
+});

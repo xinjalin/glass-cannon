@@ -12,3 +12,26 @@ if (FRAME) {
     }
   });
 }
+
+// The panel as tall as what it shows (up to the most the overlay gives it): its height,
+// told to the overlay as it changes.
+function tellPanelHeight(box) {
+  let sent = 0;
+  const tell = () => {
+    const top = box.getBoundingClientRect().top - box.scrollTop;
+    let bottom = 0;
+    for (const k of box.children) {
+      if (!k.getClientRects().length) continue;
+      bottom = Math.max(bottom, k.getBoundingClientRect().bottom + parseFloat(getComputedStyle(k).marginBottom || 0));
+    }
+    const h = Math.ceil(bottom - top + box.getBoundingClientRect().top + 14);
+    if (Math.abs(h - sent) < 2) return;
+    sent = h;
+    window.parent.postMessage({ type: "gc-panel-height", height: h }, "*");
+  };
+  new ResizeObserver(tell).observe(box);
+  for (const k of box.children) new ResizeObserver(tell).observe(k);
+  new MutationObserver(tell).observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
+  tell();
+}
+if (FRAME) document.addEventListener("DOMContentLoaded", () => tellPanelHeight(document.getElementById("panels")));

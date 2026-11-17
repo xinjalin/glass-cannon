@@ -463,3 +463,11 @@ kbd {
 .framed .box:not(.frame-show) { display: none !important; }
 .framed .subpanels > .subpanel.frame-show { display: block !important; }
 .framed .tab-panel:not(:has(.frame-show)) { display: none !important; }
+
+/* The settings window has no widget settings: those are on the overlay (⚙ while
+   arranging), where the sections marked data-for show in each widget's panel. */
+html:not(.framed) [data-for],
+html:not(.framed) #subtabs,
+html:not(.framed) .subpanels,
+html:not(.framed) .subtabs-hint { display: none !important; }
+.framed .widget-settings-note { display: none !important; }

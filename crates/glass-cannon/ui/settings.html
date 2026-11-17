@@ -245,6 +245,7 @@
               </span>
             </div>
           </fieldset>
+          <p class="note widget-settings-note">Each widget's own settings are on the overlay: <b>arrange</b> (above), then <b>⚙</b> on the widget.</p>
           <p class="hint subtabs-hint">each widget's own settings</p>
           <!-- Each widget's own settings, a tab each (settings.js), so the page stays short;
                while searching, every one shows. -->
@@ -533,7 +534,7 @@
               <span class="key">boss casts</span><span class="state">[ set up ]</span>
             </button>
           </fieldset>
-          <fieldset class="box" data-for="boss-warnings boss-timers cubes">
+          <fieldset class="box" data-for="boss-warnings boss-timers cubes timers">
             <legend>sound</legend>
             <button id="alert-sound" data-keywords="audio chime volume beep mute noise" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
               <span class="key">alert sound</span><span class="state">[on]</span>
@@ -700,6 +701,26 @@
               <span class="key">record fights</span><span class="state">[off]</span>
             </button>
             <p class="hint" id="record-hint">save packets to the captures folder</p>
+          </fieldset>
+          <fieldset class="box" data-keywords="share export import setup layout theme settings file">
+            <legend>share your setup</legend>
+            <div class="line" data-keywords="share export import setup parts">
+              <span class="key">what goes in</span>
+              <span class="choice" role="group" aria-label="What a setup file has">
+                <button type="button" data-share="layout" role="checkbox" aria-checked="true" title="Where each widget is, which show, which fade">[layout]</button>
+                <button type="button" data-share="theme" role="checkbox" aria-checked="true" title="The theme and appearance">[theme]</button>
+                <button type="button" data-share="settings" role="checkbox" aria-checked="true" title="Each widget's settings and the app's (not your tracked pets, hotkeys or recording)">[settings]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="share export import setup file">
+              <span class="key">setup file</span>
+              <span class="choice">
+                <button type="button" id="setup-export" title="Save those parts to a file in the exports folder beside the app, to share">[export]</button>
+                <button type="button" id="setup-import" title="Take in a setup file: the parts picked that it has go over yours">[import]</button>
+              </span>
+            </div>
+            <input id="setup-file" type="file" accept=".json,application/json" hidden>
+            <p id="setup-note" class="hint">others can take in your file with [import]; what's yours alone (tracked pets, hotkeys, recording) never goes in</p>
           </fieldset>
           <fieldset class="box">
             <legend>reset</legend>

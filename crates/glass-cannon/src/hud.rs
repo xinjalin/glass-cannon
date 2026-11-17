@@ -222,7 +222,12 @@ pub fn hud_layout(app: State<'_, Arc<AppState>>) -> Value {
 
 #[tauri::command]
 pub fn set_hud_layout(app: State<'_, Arc<AppState>>, layout: Value) {
-    let path = layout_path(&app.config_dir);
+    write_layout(&app.config_dir, &layout);
+}
+
+/// Saves the widgets' places and sizes (hud.json).
+pub fn write_layout(dir: &Path, layout: &Value) {
+    let path = layout_path(dir);
     if let Some(dir) = path.parent() {
         let _ = fs::create_dir_all(dir);
     }
@@ -238,7 +243,7 @@ fn layout_path(dir: &Path) -> PathBuf {
     dir.join(LAYOUT_FILE)
 }
 
-fn read_layout(dir: &Path) -> Value {
+pub fn read_layout(dir: &Path) -> Value {
     fs::read(layout_path(dir)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null)
 }
 

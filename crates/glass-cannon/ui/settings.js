@@ -52,6 +52,16 @@ function fitWindow() {
 
 // The window fits the tab shown (the others take no room), and fits again as you change
 // tabs; search results scroll in the size it had instead.
+// A tab with nothing left but widget settings (those are on the overlay now) has no button.
+function hideEmptyTabs() {
+  if (typeof FRAME !== "undefined" && FRAME) return;
+  for (const b of document.querySelectorAll("#tabs [data-tab]")) {
+    const panel = document.getElementById(`tab-${b.dataset.tab}`);
+    const boxes = panel ? [...panel.querySelectorAll(".box")] : [];
+    b.hidden = boxes.length > 0 && boxes.every((x) => x.hasAttribute("data-for"));
+  }
+}
+
 function measureAndFit() {
   // In a widget's panel on the overlay there's no window of ours to size.
   if (typeof FRAME !== "undefined" && FRAME) return;
@@ -1620,3 +1630,56 @@ showTab(storedTab() || "appearance");
 new ResizeObserver(fitWindow).observe($("panels"));
 refresh();
 setInterval(refresh, 2000);
+
+hideEmptyTabs();
+if ([...document.querySelectorAll("#tabs [data-tab]")].some((b) => b.hidden && b.getAttribute("aria-selected") === "true")) showTab("appearance");
+
+// ---------------------------------------------------------------- sharing a setup
+
+// What goes in a setup file (remembered), and its export and import (setup.rs).
+const SHARE_KEY = "settings-share-parts";
+let shareParts = ["layout", "theme", "settings"];
+try {
+  const kept = JSON.parse(localStorage.getItem(SHARE_KEY));
+  if (Array.isArray(kept)) shareParts = kept;
+} catch {
+  // As at first, then.
+}
+function drawShare() {
+  for (const b of document.querySelectorAll("[data-share]")) b.setAttribute("aria-checked", String(shareParts.includes(b.dataset.share)));
+}
+for (const b of document.querySelectorAll("[data-share]")) {
+  b.addEventListener("click", () => {
+    const p = b.dataset.share;
+    shareParts = shareParts.includes(p) ? shareParts.filter((x) => x !== p) : [...shareParts, p];
+    try {
+      localStorage.setItem(SHARE_KEY, JSON.stringify(shareParts));
+    } catch {
+      // Not remembered, then.
+    }
+    drawShare();
+  });
+}
+drawShare();
+$("setup-export").addEventListener("click", async () => {
+  try {
+    const path = await invoke("export_setup", { parts: shareParts });
+    $("setup-note").textContent = `saved to ${path}`;
+  } catch (e) {
+    $("setup-note").textContent = String(e);
+  }
+});
+$("setup-import").addEventListener("click", () => $("setup-file").click());
+$("setup-file").addEventListener("change", async () => {
+  const file = $("setup-file").files[0];
+  $("setup-file").value = "";
+  if (!file) return;
+  try {
+    const took = await invoke("import_setup", { json: await file.text(), parts: shareParts });
+    $("setup-note").textContent = `took in its ${took.join(", ")}`;
+  } catch (e) {
+    $("setup-note").textContent = String(e);
+  }
+});
+// A setup taken in (here or from the arrange menu): the page again, with it.
+tauri.event.listen("setup-imported", () => setTimeout(() => location.reload(), 300));
