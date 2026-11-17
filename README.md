@@ -12,7 +12,8 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 - **Meter**: damage, healing and damage taken for you, your party or everyone nearby, with
   each player's skills and combat power.
 - **Overlay**: the meter, target frame, boss warnings and timers, player bars, party
-  frames, an action bar of your cooldowns and buffs, and world timers as widgets over the
+  frames, action bars of your cooldowns, buffs and debuffs (each set up beside it), and
+  world timers as widgets over the
   game. Arrange them freely; they
   step aside for the world map and full-screen menus.
 - **Boss warnings**: dangerous casts, dungeon and raid mechanics with what to do, and when

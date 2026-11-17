@@ -193,8 +193,8 @@
               <button type="button" class="opt" data-widget="cooldowns" aria-pressed="false" title="Your skills' cooldowns">
                 <span class="key">cooldowns</span><span class="state">[off]</span>
               </button>
-              <button type="button" class="opt" data-widget="action-bar" data-keywords="skills cooldowns buffs hotbar bars icons" aria-pressed="false" title="The skills you choose, with their cooldowns and a glow when ready, and the buffs on you you choose, with their time left (choose them below)">
-                <span class="key">action bar</span><span class="state">[off]</span>
+              <button type="button" class="opt" data-widget="action-bar" data-keywords="skills cooldowns buffs hotbar bars icons" aria-pressed="false" title="Your first action bar (more, and each one's settings: arrange the overlay, then ⚙ on a bar)">
+                <span class="key">action bar 1</span><span class="state">[off]</span>
               </button>
               <button type="button" class="opt" data-widget="party-cooldowns" aria-pressed="false" title="Your party's long cooldowns and party buffs: ready, or how long left">
                 <span class="key">party cooldowns</span><span class="state">[off]</span>
@@ -262,8 +262,8 @@
                 <button type="button" data-cd-look="timeline" title="A bar from Ready to 100%: each skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready as it runs down">[timeline]</button>
               </span>
             </div>
-            <button id="cd-bar-look" type="button" class="opt" data-keywords="cooldowns party cooldowns bars colours colors action bar background same" aria-pressed="false" title="The bars of your cooldowns and the party's in the action bar's colours and background (settings → action bar): cooling in its cooling colour, a ready skill full in its ready colour">
-              <span class="key">action bar's colours</span><span class="state">[off]</span>
+            <button id="cd-bar-look" type="button" class="opt" data-keywords="cooldowns party cooldowns bars colours colors action bar background same" aria-pressed="false" title="The bars of your cooldowns and the party's in action bar 1's colours and background (your class's): cooling in its cooling colour, a ready skill full in its ready colour">
+              <span class="key">action bar 1's colours</span><span class="state">[off]</span>
             </button>
             <div class="line" data-keywords="cooldowns timeline scale percent time marks seconds minutes">
               <span class="key">timeline scale</span>
@@ -298,27 +298,12 @@
               </span>
             </div>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="action-bar" id="ab-box" data-keywords="action bar hotbar skills cooldowns buffs icons round square bars">
-            <legend>action bar</legend>
-            <p id="ab-class" class="note"></p>
-            <div class="line" data-keywords="look style icons round square timer bars">
-              <span class="key">look</span>
-              <span class="choice" role="radiogroup" aria-label="How the action bar looks">
-                <button type="button" data-ab-style="square" title="Square icons, with the cooldown sweeping over them">[square]</button>
-                <button type="button" data-ab-style="round" title="Round icons">[round]</button>
-                <button type="button" data-ab-style="bars" title="A bar each, with its name and time left">[bars]</button>
-              </span>
-            </div>
-            <!-- The bars look's colours and background (actionbar.rs's BarLook): swatches drawn
-                 by settings.js. -->
-            <div id="ab-colours"></div>
-            <button id="ab-track" type="button" class="opt" data-keywords="action bar background track bars" aria-pressed="true" title="The faint track behind each bar (bars look): off, only what's filled shows">
-              <span class="key">bar background</span><span class="state">[on]</span>
+          <fieldset class="box subpanel" data-subtab="action-bar" id="ab-box" data-keywords="action bar bars hotbar skills cooldowns buffs debuffs icons round square stigma">
+            <legend>action bars</legend>
+            <p class="note">Each action bar is set up beside it on the overlay: arrange the overlay, then ⚙ on a bar. What it tracks (cooldowns, buffs, both, or debuffs), its skills or effects, its look and when it shows are its own, and each class has its own bars (up to six: ⚙ → [+ add a bar]).</p>
+            <button id="ab-arrange" type="button" class="opt" data-keywords="arrange set up action bar" title="Arrange the overlay (the game must be in front), then ⚙ on a bar">
+              <span class="key">set up the bars</span><span class="state">[ arrange ]</span>
             </button>
-            <p class="note ab-head">skills · click to add or take off; on the bar in the order added</p>
-            <div id="ab-skills" class="ab-picks"></div>
-            <p class="note ab-head">buffs on you · those of the last hour</p>
-            <div id="ab-buffs" class="ab-picks"></div>
           </fieldset>
           <fieldset class="box subpanel" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
             <legend>vitals arcs</legend>

@@ -22,6 +22,12 @@ const DEFAULTS = {
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   // Under your character, above the game's own skill bar.
   "action-bar": { x: 0.36, y: 0.72, w: 0.28, h: 80 },
+  // The other action bars, above the first.
+  "action-bar-2": { x: 0.36, y: 0.66, w: 300, h: 50 },
+  "action-bar-3": { x: 0.36, y: 0.6, w: 300, h: 50 },
+  "action-bar-4": { x: 0.36, y: 0.54, w: 300, h: 50 },
+  "action-bar-5": { x: 0.18, y: 0.66, w: 300, h: 50 },
+  "action-bar-6": { x: 0.18, y: 0.6, w: 300, h: 50 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
   pets: { x: 0.79, y: 0.5, w: 320, h: 230 },
@@ -39,7 +45,11 @@ const SIDE_WIDGETS = {
   party: { page: "party.html", label: "party frames", passive: true },
   // Always as tall as it shows: its list grows with the skills, its timeline is a bar.
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, grows: true },
-  "action-bar": { page: "actionbar.html", label: "action bar", passive: true, grows: true },
+  // The action bars: no box, as wide and tall as what they show, each set up from a panel
+  // beside it while arranging (⚙).
+  ...Object.fromEntries(
+    [1, 2, 3, 4, 5, 6].map((n) => [n === 1 ? "action-bar" : `action-bar-${n}`, { page: `actionbar.html?bar=${n}`, label: `action bar ${n}`, passive: true, grows: true, bare: true, fitWidth: true, settings: `barsettings.html?bar=${n}` }]),
+  ),
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, grows: true },
   timers: { page: "timers.html", label: "world timers", passive: false },
   pets: { page: "pets.html", label: "pet tracker", passive: false },
@@ -55,7 +65,12 @@ const LABELS = [
   ["vitals", "vitals arcs"],
   ["party", "party frames"],
   ["cooldowns", "cooldowns"],
-  ["action-bar", "action bar"],
+  ["action-bar", "action bar 1"],
+  ["action-bar-2", "action bar 2"],
+  ["action-bar-3", "action bar 3"],
+  ["action-bar-4", "action bar 4"],
+  ["action-bar-5", "action bar 5"],
+  ["action-bar-6", "action bar 6"],
   ["party-cooldowns", "party cooldowns"],
   ["timers", "world timers"],
   ["pets", "pet tracker"],
@@ -74,6 +89,8 @@ const snap = (v) => (grid() ? Math.round(v / grid()) * grid() : v);
 // Heights the widgets asked for to fit (the meter's rows), kept apart from the saved
 // layout so loading it doesn't undo them.
 const fitted = {};
+// Widths the widgets that fit their width asked for (the action bars).
+const fittedWidth = {};
 let editing = false;
 
 function place() {
@@ -86,7 +103,14 @@ function place() {
     // other. A growing side widget moves up rather than run off the bottom.
     const grows = el.dataset.grows !== undefined;
     if (fitted[id]) p.h = el.dataset.side === undefined || grows ? fitted[id] : editing ? p.h : Math.min(fitted[id], p.h);
-    const w = px(p.w);
+    // One that fits its width (an action bar) is as wide as it shows; while arranging, never
+    // too small to grab.
+    let w = px(p.w);
+    if (el.dataset.fitWidth !== undefined && fittedWidth[id]) w = fittedWidth[id];
+    if (el.dataset.fitWidth !== undefined && editing) {
+      w = Math.max(w, 120);
+      p.h = Math.max(p.h, 36);
+    }
     const x = Math.min(Math.max(0, p.x * innerWidth), innerWidth - Math.min(w, innerWidth));
     const y = Math.max(0, Math.min(p.y * innerHeight, innerHeight - (grows ? p.h : 40)));
     Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${p.h}px` });
@@ -144,6 +168,9 @@ window.addEventListener("resize", place);
 function setEditing(on) {
   editing = on;
   document.documentElement.classList.toggle("editing", on);
+  // The widgets that show a hint while arranging (an empty action bar) are told.
+  for (const f of document.querySelectorAll(".widget iframe")) f.contentWindow?.postMessage({ type: "gc-editing", on }, "*");
+  if (!on) closeWidgetPanel();
   $("arrange-menu").hidden = !on;
   drawMenu();
   // On or off with arranging (drawMenu only draws while arranging).
@@ -156,7 +183,8 @@ function setEditing(on) {
 function drawMenu() {
   if (!editing) return;
   $("menu-widgets").replaceChildren(
-    ...LABELS.flatMap(([id, label]) => {
+    // Action bars 2 to 6 only once added (⚙ on a bar → add a bar).
+    ...LABELS.filter(([id]) => !/^action-bar-\d$/.test(id) || shown.has(id)).flatMap(([id, label]) => {
       const name = Object.assign(document.createElement("span"), { className: "menu-label", textContent: label });
       const b = document.createElement("button");
       b.type = "button";
@@ -200,6 +228,62 @@ function drawGrid() {
   document.documentElement.classList.toggle("gridded", editing && g > 0);
   document.documentElement.style.setProperty("--grid", `${g}px`);
 }
+
+// A widget's settings beside it (⚙ while arranging): its own page in a panel, next to it
+// on whichever side has room when opened, and there until moved by its title, closed, or
+// arranging's done (it doesn't follow the widget as it grows or shrinks, which would move
+// a slider out from under the mouse). Every change shows on the widget at once.
+let panelFor = null;
+function openWidgetPanel(id) {
+  const own = SIDE_WIDGETS[id];
+  if (!own || !own.settings) return;
+  panelFor = id;
+  const box = $("widget-panel");
+  const frame = $("widget-panel-frame");
+  if (!frame.src.endsWith(own.settings)) frame.src = own.settings;
+  $("widget-panel-title").textContent = own.label;
+  box.hidden = false;
+  box.dataset.moved = "";
+  delete box.dataset.moved;
+  placeWidgetPanel();
+}
+function closeWidgetPanel() {
+  panelFor = null;
+  $("widget-panel").hidden = true;
+}
+function placeWidgetPanel() {
+  const box = $("widget-panel");
+  if (box.hidden || box.dataset.moved !== undefined) return;
+  const el = panelFor && document.querySelector(`.widget[data-widget="${panelFor}"]`);
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const w = box.offsetWidth;
+  const h = box.offsetHeight;
+  const gap = 12;
+  const left = r.right + gap + w <= innerWidth ? r.right + gap : Math.max(0, r.left - gap - w);
+  const top = Math.min(Math.max(0, r.top), Math.max(0, innerHeight - h));
+  Object.assign(box.style, { left: `${left}px`, top: `${top}px` });
+}
+$("widget-panel-close").addEventListener("click", closeWidgetPanel);
+$("widget-panel-head").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || e.target.closest("button")) return;
+  const box = $("widget-panel");
+  const r = box.getBoundingClientRect();
+  const start = { x: e.clientX, y: e.clientY, left: r.left, top: r.top };
+  $("widget-panel-head").setPointerCapture(e.pointerId);
+  const move = (m) => {
+    box.dataset.moved = "";
+    const left = Math.min(Math.max(0, start.left + m.clientX - start.x), innerWidth - r.width);
+    const top = Math.min(Math.max(0, start.top + m.clientY - start.y), innerHeight - r.height);
+    Object.assign(box.style, { left: `${left}px`, top: `${top}px` });
+  };
+  const up = () => {
+    $("widget-panel-head").removeEventListener("pointermove", move);
+    $("widget-panel-head").removeEventListener("pointerup", up);
+  };
+  $("widget-panel-head").addEventListener("pointermove", move);
+  $("widget-panel-head").addEventListener("pointerup", up);
+});
 
 // The menu moves by its title.
 $("menu-head").addEventListener("pointerdown", (e) => {
@@ -286,6 +370,21 @@ function setUp(el) {
   const grip = document.createElement("span");
   grip.className = "grip";
   el.append(grip);
+  // Its settings beside it (an action bar's), from ⚙ while arranging.
+  const own = SIDE_WIDGETS[el.dataset.widget];
+  if (own && own.settings) {
+    const gear = document.createElement("button");
+    gear.type = "button";
+    gear.className = "gear";
+    gear.textContent = "⚙";
+    gear.title = `The ${own.label}'s settings`;
+    gear.addEventListener("pointerdown", (e) => e.stopPropagation());
+    gear.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openWidgetPanel(el.dataset.widget);
+    });
+    el.append(gear);
+  }
   el.addEventListener("pointerdown", (e) => {
     if (!editing || e.button !== 0) return;
     const id = el.dataset.widget;
@@ -297,7 +396,7 @@ function setUp(el) {
       const dy = m.clientY - start.y;
       const p = { ...DEFAULTS[id], ...(layout[id] || {}) };
       if (resizing) {
-        p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
+        if (el.dataset.fitWidth === undefined) p.w = Math.max(160, snap(start.left + start.w + dx) - start.left);
         // The meter's height too, when it isn't fitted to what it shows (settings).
         if ((id !== "meter" || !fitted.meter) && el.dataset.grows === undefined) p.h = Math.max(60, snap(start.top + start.h + dy) - start.top);
       } else {
@@ -341,10 +440,13 @@ function showWidgets(names) {
     el.dataset.side = "";
     if (w.grows) el.dataset.grows = "";
     if (w.bare) el.dataset.bare = "";
+    if (w.fitWidth) el.dataset.fitWidth = "";
     el.dataset.label = w.label;
     const frame = document.createElement("iframe");
     frame.src = w.page;
     frame.title = w.label;
+    // Told whether the overlay's being arranged once it's loaded.
+    frame.addEventListener("load", () => frame.contentWindow?.postMessage({ type: "gc-editing", on: editing }, "*"));
     el.append(frame);
     $("widgets").append(el);
     setUp(el);
@@ -403,7 +505,13 @@ window.addEventListener("message", (e) => {
     // No height: it's no longer fitted (the meter at the height given it while arranging).
     if (m.height == null) delete fitted[m.widget];
     else fitted[m.widget] = Math.ceil(m.height);
+    if (m.width) fittedWidth[m.widget] = Math.ceil(m.width);
     place();
+  } else if (m.type === "gc-open-settings" && m.widget) {
+    // The panel's [+ add a bar]: the new bar's panel, beside it once it's there.
+    setTimeout(() => openWidgetPanel(m.widget), 150);
+  } else if (m.type === "gc-close-settings") {
+    closeWidgetPanel();
   } else if (m.type === "gc-cubes") {
     drawCubes(m.cubes || [], !!m.sound);
   } else if (m.type === "gc-fade") {

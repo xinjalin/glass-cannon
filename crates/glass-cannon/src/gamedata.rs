@@ -713,6 +713,27 @@ impl GameData {
         self.shield_bases.contains(&(skill - skill % 10_000))
     }
 
+    /// A class's skills that can go on an action bar, as the skill details have them: its
+    /// Active and Stigma skills (bases, `ccxx0000`, not `cc00xxxx`: dodging, weapons), each
+    /// with whether it's a stigma, by ID.
+    pub fn class_skills(&self, class: u32) -> Vec<(u32, bool)> {
+        self.details
+            .skills
+            .iter()
+            .filter(|(id, _)| **id / 1_000_000 == class && **id % 10_000 == 0 && **id % 1_000_000 >= 10_000)
+            .filter_map(|(id, v)| match v.get("type").and_then(|t| t.as_str()) {
+                Some("Active") => Some((*id, false)),
+                Some("Stigma") => Some((*id, true)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Whether a skill (any variant) is a stigma.
+    pub fn is_stigma(&self, skill: u32) -> bool {
+        self.details.skills.get(&(skill - skill % 10_000)).and_then(|v| v.get("type")).and_then(|t| t.as_str()) == Some("Stigma")
+    }
+
     pub fn skill_details(&self, skill: u32) -> Option<serde_json::Value> {
         // A Theostone: its grade and effect, in the shape the tooltips read (no specialties).
         if THEOSTONE_SKILLS.contains(&skill) {
@@ -1604,5 +1625,18 @@ mod tests {
         assert_eq!(d.gear_icon(110120003).as_deref(), Some("data:image/png;base64,U0tJTg=="));
         assert_eq!(d.gear_icon(1), None);
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_classs_bar_skills_are_its_active_and_stigma_ones() {
+        let d = GameData::load_for_tests(PathBuf::from("../../gamedata"));
+        let chanter = d.class_skills(18);
+        let has = |id: u32| chanter.iter().find(|(s, _)| *s == id).map(|(_, stigma)| *stigma);
+        assert_eq!(has(18_010_000), Some(false), "Onslaught: active");
+        assert_eq!(has(18_140_000), Some(true), "Focused Defense: a stigma");
+        assert_eq!(has(18_000_100), None, "dodging is no bar skill");
+        assert_eq!(has(18_710_000), None, "a passive");
+        assert!(chanter.iter().all(|(s, _)| s / 1_000_000 == 18 && s % 10_000 == 0));
+        assert!(d.is_stigma(18_140_340) && !d.is_stigma(18_010_000));
     }
 }

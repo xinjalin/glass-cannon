@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" class="widget">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon action bar settings</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="barsettings.css">
+</head>
+<!-- An action bar's settings (barsettings.html?bar=N), in a panel beside the bar while the
+     overlay's arranged: what it tracks and shows, its look, when it shows. Each change goes
+     to the bar at once (barsettings.js). -->
+<body data-panel="bar-settings">
+  <main id="bs">
+    <p id="bs-note" class="bs-note" hidden></p>
+    <div id="bs-body">
+      <div class="bs-bars" id="bs-bars"></div>
+      <nav class="bs-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="skills" aria-selected="true">[skills]</button>
+        <button type="button" role="tab" data-tab="style" aria-selected="false">[style]</button>
+        <button type="button" role="tab" data-tab="prefs" aria-selected="false">[preferences]</button>
+      </nav>
+
+      <section class="bs-tab" data-tab="skills">
+        <div class="bs-line"><span>show this bar</span><button type="button" id="bs-shown" class="bs-toggle"></button></div>
+        <div class="bs-line"><span>tracks</span>
+          <span class="bs-choice" id="bs-tracks">
+            <button type="button" data-v="cooldowns" title="Your skills' cooldowns">[cooldowns]</button>
+            <button type="button" data-v="buffs" title="The buffs on you (from you and other players)">[buffs]</button>
+            <button type="button" data-v="both" title="Your skills: the buff a skill gave you while it runs, else its cooldown">[both]</button>
+            <button type="button" data-v="debuffs" title="The debuffs on you (from mobs)">[debuffs]</button>
+          </span>
+        </div>
+        <div id="bs-skills">
+          <p class="bs-head">on the bar · drag to move, click to take off</p>
+          <div id="bs-on" class="bs-picks bs-on"></div>
+          <p class="bs-head">active · click to add</p>
+          <div id="bs-active" class="bs-picks"></div>
+          <p class="bs-head" id="bs-stigma-head">stigma · click to add</p>
+          <div id="bs-stigma" class="bs-picks"></div>
+          <div class="bs-line"><span title="A stigma you haven't equipped stays off the bar, and out of the list above">hide unequipped stigmas</span><button type="button" id="bs-unequipped" class="bs-toggle"></button></div>
+          <p id="bs-stigmas-unknown" class="bs-note" hidden>which stigmas you have equipped comes with your skill list, at login and as you switch loadouts: until the meter's seen it, none is hidden</p>
+        </div>
+        <div id="bs-effects" hidden>
+          <div class="bs-line"><span id="bs-all-label">every buff on you</span><button type="button" id="bs-all" class="bs-toggle"></button></div>
+          <div id="bs-picked-effects">
+            <p class="bs-head">on the bar · drag to move, click to take off</p>
+            <div id="bs-effects-on" class="bs-picks bs-on"></div>
+            <p class="bs-head" id="bs-effects-head">on you in the last hour · click to add</p>
+            <div id="bs-effects-seen" class="bs-picks"></div>
+          </div>
+        </div>
+        <div class="bs-actions">
+          <button type="button" id="bs-add">[+ add a bar]</button>
+          <button type="button" id="bs-remove" class="bs-danger">[remove this bar]</button>
+        </div>
+      </section>
+
+      <section class="bs-tab" data-tab="style" hidden>
+        <div class="bs-line"><span>look</span>
+          <span class="bs-choice" data-key="look">
+            <button type="button" data-v="icons">[icons]</button>
+            <button type="button" data-v="bars">[bars]</button>
+          </span>
+        </div>
+        <div class="bs-line"><span>icon size</span><input type="range" min="20" max="96" step="2" data-key="icon_size"><span class="bs-value" data-for="icon_size"></span></div>
+        <div class="bs-line"><span>spacing</span><input type="range" min="0" max="24" step="1" data-key="spacing"><span class="bs-value" data-for="spacing"></span></div>
+        <div class="bs-line" data-only="icons"><span>shape</span>
+          <span class="bs-choice" data-key="shape">
+            <button type="button" data-v="square">[square]</button>
+            <button type="button" data-v="round">[round]</button>
+          </span>
+        </div>
+        <div class="bs-line" data-only="icons"><span>vertical</span><button type="button" class="bs-toggle" data-key="vertical"></button></div>
+        <div class="bs-line"><span>countdown</span><button type="button" class="bs-toggle" data-key="countdown"></button></div>
+        <div class="bs-line" data-needs="countdown"><span>tenths under 3 s</span><button type="button" class="bs-toggle" data-key="tenths"></button></div>
+        <div class="bs-line" data-needs="countdown"><span title="Amber in the last 10 s, red in the last 3">countdown colours</span><button type="button" class="bs-toggle" data-key="colours"></button></div>
+        <div class="bs-line" data-only="icons" data-skills><span>grey icon on cooldown</span><button type="button" class="bs-toggle" data-key="grey"></button></div>
+        <div class="bs-line" data-skills><span>glow when ready</span><button type="button" class="bs-toggle" data-key="glow"></button></div>
+        <div class="bs-line" data-only="bars"><span>bar width</span><input type="range" min="120" max="480" step="10" data-key="bar_width"><span class="bs-value" data-for="bar_width"></span></div>
+        <div class="bs-line" data-only="bars"><span>bar background</span><button type="button" class="bs-toggle" data-key="background"></button></div>
+        <div id="bs-colours"></div>
+        <div class="bs-line"><span>opacity</span><input type="range" min="10" max="100" step="5" data-key="opacity"><span class="bs-value" data-for="opacity"></span></div>
+      </section>
+
+      <section class="bs-tab" data-tab="prefs" hidden>
+        <div class="bs-line"><span>show</span>
+          <span class="bs-choice" id="bs-show">
+            <button type="button" data-v="always" title="Everything on it">[always]</button>
+            <button type="button" data-v="running" title="Only what's on cooldown, or on you">[running]</button>
+            <button type="button" data-v="ready" title="Only skills that are ready">[ready]</button>
+            <button type="button" data-v="missing" title="Only what's ready, or a buff that isn't on you">[missing]</button>
+          </span>
+        </div>
+        <div class="bs-line"><span>hide out of combat</span><button type="button" id="bs-idle" class="bs-toggle"></button></div>
+      </section>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="panel.js"></script>
+  <script src="barsettings.js"></script>
+</body>
+</html>

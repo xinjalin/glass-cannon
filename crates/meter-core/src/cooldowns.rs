@@ -16,10 +16,12 @@ use crate::protocol::read_varint;
 /// time in ms (0: ready).
 pub const OPCODE_COOLDOWN: u16 = 0x3847;
 
-/// Your skills, sent at login and on entering a dungeon: a u8 count, then entries of a
-/// tag, a u32 id and more by kind (not all of them skills). The skills are the ids of a
-/// player skill's base form (`xxyy0000`), all of one class.
+/// Your skills, sent at login, on entering a dungeon and when you switch skill loadouts:
+/// a u8 count, then entries of a tag, a u32 id and more by kind (not all of them skills).
+/// The skills are the ids of a player skill's base form (`xxyy0000`), all of one class:
+/// the loadout's, so of the stigmas only those it has equipped.
 pub const OPCODE_SKILL_LIST: u16 = 0x5100;
+
 
 /// The base skill ids in a skill list, found by their shape: of the 8-digit ids with no
 /// variant, the ones of the class most of them are.
@@ -288,6 +290,25 @@ mod tests {
         c.feed(S, OPCODE_SKILL_LIST, &p, None);
         assert_eq!(c.known(), &skills[..]);
         assert!(parse_skill_list(&[0, 1, 2]).is_empty());
+    }
+
+    #[test]
+    fn a_loadout_switch_sends_its_skills() {
+        // Switching skill loadouts (a Chanter, loadouts 2 and 3): the list again, with that
+        // loadout's stigmas and no others.
+        let mut c = Cooldowns::default();
+        c.feed(S, OPCODE_SKILL_LIST, &hex(include_str!("../testdata/skill-list-loadout2.hex")), None);
+        // Impeding Authority, Power of the Storm, Marchutan's Wrath, Guardian Blessing.
+        for stigma in [18_240_000, 18_250_000, 18_330_000, 18_420_000] {
+            assert!(c.known().contains(&stigma), "{stigma}");
+        }
+        assert!(!c.known().contains(&18_160_000) && !c.known().contains(&18_140_000));
+        c.feed(S, OPCODE_SKILL_LIST, &hex(include_str!("../testdata/skill-list-loadout3.hex")), None);
+        // Focused Defense, Sprint Mantra, Undefeated Mantra, Guardian Blessing.
+        for stigma in [18_140_000, 18_160_000, 18_190_000, 18_420_000] {
+            assert!(c.known().contains(&stigma), "{stigma}");
+        }
+        assert!(!c.known().contains(&18_240_000) && !c.known().contains(&18_330_000));
     }
 
     #[test]

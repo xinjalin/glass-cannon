@@ -393,7 +393,8 @@ Named in Questlog's message list, checked on our captures:
 | `0x8d52` | varint entity | a mob took aggro for the first time (a boss's pull) |
 | `0x8d26` | varint entity | a player came back to life |
 | `0x572e` | u32 mob type | a dungeon's middle boss was killed |
-| `0x5100` | u8 count, entries of a tag, u32 id and more by kind | your skills, at login and on entering a dungeon (just before `0x3633`) |
+| `0x5100` | u8 count, entries of a tag, u32 id and more by kind | your skills, at login, on entering a dungeon (just before `0x3633`) and when you switch skill loadouts: the loadout's, so of the stigmas only those equipped |
+| `0x3900` | varint count, then each: u32 base skill id, varint count, then each slot: u8 type, u32 part (0 empty) | your specialised skills, at login only (not sent again on a loadout switch, so the meter goes by `0x5100`) |
 
 Of the 184 cast starts followed by the caster's `0x3802` of the same skill, all went off
 within 20 % (or 300 ms) of their cast time; the times are round (1,000, 1,500, 2,000,
