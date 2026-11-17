@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" class="widget">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon timer pins settings</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="barsettings.css">
+</head>
+<!-- The timer pins' settings, in a panel beside them while the overlay's arranged: what's
+     pinned, the world boss train, and how they look (timerpinsettings.js). -->
+<body data-panel="timer-pins-settings">
+  <main id="bs">
+    <nav class="bs-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="pins" aria-selected="true">[pins]</button>
+      <button type="button" role="tab" data-tab="style" aria-selected="false">[style]</button>
+    </nav>
+
+    <section class="bs-tab" data-tab="pins">
+      <div class="bs-line"><span title="Every field boss up, or spawning within the time below, added (in italics)">world boss train</span><button type="button" id="tp-train" class="bs-toggle"></button></div>
+      <div class="bs-line" id="tp-train-line"><span>spawning within</span><input type="range" min="5" max="180" step="5" id="tp-train-min"><span class="bs-value" id="tp-train-value"></span></div>
+      <p class="bs-head">events · click to pin or unpin</p>
+      <div id="tp-events" class="tp-list"></div>
+      <p class="bs-head">field bosses · from the world map (open it in game)</p>
+      <div id="tp-bosses" class="tp-list"></div>
+    </section>
+
+    <section class="bs-tab" data-tab="style" hidden>
+      <div class="bs-line"><span>layout</span>
+        <span class="bs-choice" data-key="layout">
+          <button type="button" data-v="icons" title="A grid of icons, the time under each">[icons]</button>
+          <button type="button" data-v="list" title="A slim row each: icon, name, where, time">[list]</button>
+        </span>
+      </div>
+      <div class="bs-line"><span>size</span><input type="range" min="24" max="72" step="2" data-key="icon_size"><span class="bs-value" data-for="icon_size"></span></div>
+      <div class="bs-line" data-only="icons"><span>per row</span><input type="range" min="1" max="12" step="1" data-key="columns"><span class="bs-value" data-for="columns"></span></div>
+      <div class="bs-line" data-only="icons"><span>names</span><button type="button" class="bs-toggle" data-key="names"></button></div>
+      <div class="bs-line"><span>order</span>
+        <span class="bs-choice" data-key="sort">
+          <button type="button" data-v="time" title="Soonest first (on and up first)">[by time]</button>
+          <button type="button" data-v="pinned" title="As you pinned them (the train after)">[as pinned]</button>
+        </span>
+      </div>
+      <p class="bs-note">Alerts (🔔) are set in the world timers; a pin pulses when its alert is due.</p>
+    </section>
+  </main>
+  <script src="theme.js"></script>
+  <script src="panel.js"></script>
+  <script src="schedule.js"></script>
+  <script src="timericons.js"></script>
+  <script src="timerpinsettings.js"></script>
+</body>
+</html>

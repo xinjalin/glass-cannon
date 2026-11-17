@@ -1254,6 +1254,20 @@ impl Meter {
             .collect()
     }
 
+    /// Your entity, when known.
+    pub fn self_entity(&self) -> Option<u64> {
+        self.registry.self_id()
+    }
+
+    /// The buffs and debuffs on an entity now (one with a set length only until it runs out).
+    pub fn effects_on(&self, entity: u64, now_us: u64) -> Vec<EffectSpan> {
+        self.effects
+            .active_on(entity)
+            .filter(|s| s.duration_ms == 0 || s.start_us + u64::from(s.duration_ms) * 1000 > now_us)
+            .cloned()
+            .collect()
+    }
+
     /// Whether an entity is a player (you included), as far as the meter knows: what isn't
     /// is a mob or an NPC.
     pub fn is_known_player(&self, id: u64) -> bool {

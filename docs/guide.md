@@ -28,7 +28,9 @@ from the game, and lets the mouse through except over the meter and the world ti
 
 **Arrange** (on the launcher, the meter, in the settings, or **Ctrl+Shift+F10** in game)
 moves widgets and resizes them by their
-corner, snapping to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
+corner, and each widget with settings has a **⚙** over it: its settings in a panel beside
+it, each change showing on it at once (the panel moves by its title, and goes when you
+close it or finish arranging; the settings window has them all too). Widgets snap to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
 dashed lines mark the screen's centre: a widget dragged near it snaps to it, and the line
 lights up; its edges and centre also snap to another widget's edges or centre, with a
 line showing the line-up. Widgets
@@ -77,7 +79,11 @@ finishes. The widgets:
   **auto** (as the rule above goes: ✓ when it would show), **on** or **off**; the timers on
   auto follow the warnings. **[fought]** lists the bosses with casts seen, **[all
   bosses]** every one (a boss you haven't fought with the meter running has none yet),
-  **[changed]** what you've named or set. The game data doesn't say which casts a boss has,
+  **[changed]** what you've named or set. **[export]** saves your names and choices (a boss
+  cast mapping) to a file in the `exports` folder beside the app, to share; **[import]** takes one in, its names and
+  choices over yours. The app's own defaults come from `gamedata/boss-cast-defaults.json`
+  (an exported mapping put there): auto goes by them where they have a choice, and their
+  names show where you haven't named a cast yourself. The game data doesn't say which casts a boss has,
   so they come from your fights (and the fights already in the history).
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
   sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
@@ -127,8 +133,14 @@ finishes. The widgets:
   left and whole time at its ends.
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
-  "dead" when they are. Shields show striped white past their HP, with the amount in the
-  tile's tooltip.
+  greyed with ☠ while dead. Shields show striped white past their HP, with the amount in
+  the tile's tooltip. The buffs you put on a member and their debuffs (from mobs, rimmed
+  red) show as small icons on their tile, with the last seconds counted; the one your
+  target is attacking is outlined red, with ⚔. Set up beside it (⚙): a grid or a list, how
+  many to a row, their size, the HP as a percent, a value or nothing, names, which
+  effects, **HP warning colours** (yellow from half, red from a fifth), a **damage trail**
+  (HP lost stays a moment as a pale strip), and the order (the party's, the lowest HP
+  first, or by class).
 - **cooldowns**: your skills that aren't ready, with time left and charges: as a **list**,
   or as a **timeline** (settings → overlay → cooldowns), a bar from Ready to 100% with each
   skill's icon on it as far from Ready as the share of its cooldown left, sliding to Ready
@@ -167,6 +179,14 @@ finishes. The widgets:
   Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
+- **timer pins**: the events and field bosses you pin (📌 in the world timers, or in the
+  pins' settings) as icons counting down, with no box: green while on or up, the accent
+  when soon, pulsing when its 🔔 alert is due; the time under each, and its name. Or a slim
+  row each, with where a field boss is. The **world boss train** adds every field boss up
+  or spawning within a time you pick (in italics). Set up beside it on the overlay
+  (arrange, then ⚙): what's pinned, the train, icons or rows, their size, how many to a
+  row, names, and by time or as pinned. Field bosses come from the world map, so open it
+  in game now and then; nothing is read from the internet.
 
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every
@@ -291,12 +311,16 @@ background, Windows lightly blurs the game behind each widget.
   analysis, end the fight, arrange the overlay, history, and **≡** for the settings, in tabs: **appearance** (theme:
   *night*, the default, or rose, lavender, mint, sky, amber, mono, the palette themes
   seafoam (and seafoam light, a light theme), scarlet, teal and indigo, or any colour, and
-  its parts; text; glass; class colours), **overlay** (its widgets, how they behave over
-  the game, each widget's own settings),
-  **alerts** (boss warnings and their sound), **meter** (whose damage counts, update rate:
-  *live* or every 0.2–2 s, its rows, what shows on it), **keybinds** and **general**
-  (status checks, closing with the game, recording, resets; a dot on it when a check
-  needs a look).
+  its parts; text; glass; class colours), **overlay** (its widgets and how they behave over
+  the game), **alerts** (notices), **keybinds** and **general** (status checks, closing with
+  the game, recording, sharing your setup, resets; a dot on it when a check needs a look).
+  Each widget's own settings (the meter's included) are on the overlay: arrange, then ⚙
+  on the widget.
+- **Share your setup** (settings → general, or the arrange menu): **[export]** saves your
+  **layout** (where each widget is, which show, which fade), **theme** and **settings**
+  (each widget's and the app's), as you pick, to a file in the `exports` folder beside the
+  app; **[import]** takes one in, the parts picked that it has over yours. What's yours
+  alone never goes in a file: the pets you track, hotkeys, recording, the dummy's label.
   The search over the tabs (**Ctrl+F** or **/**) is forgiving: letters in order find a
   setting ("alrt snd": alert sound), a slip is fine ("soudn"), and common words find
   theirs ("opacity": tint, "fps": update rate). **Enter** goes to the best match, **Esc**

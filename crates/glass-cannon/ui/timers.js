@@ -88,13 +88,30 @@ function bell(id, name) {
   return b;
 }
 
+// Pinned to the timer pins widget (an icon counting down, anywhere on the overlay).
+let pins = new Set();
+function pinButton(id, name) {
+  const on = pins.has(id);
+  const b = el("button", "pin-toggle" + (on ? " on" : ""), "📌");
+  b.type = "button";
+  b.title = on ? `${name} is on the timer pins · click to take it off` : `Pin ${name} to the timer pins (show the timer pins widget to see them)`;
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (on) pins.delete(id);
+    else pins.add(id);
+    invoke("set_timer_pinned", { id, on: !on }).catch(() => {});
+    draw();
+  });
+  return b;
+}
+
 function row(name, meta, when, cls, id, title) {
   const li = el("li", "timer " + cls);
   const text = el("div", "timer-text");
   text.append(el("span", "timer-name", name), el("span", "timer-meta", meta));
   const w = el("span", "timer-when", when);
   if (title) w.title = title;
-  li.append(star(id, name), bell(id, name), text, w);
+  li.append(star(id, name), bell(id, name), pinButton(id, name), text, w);
   return li;
 }
 
@@ -181,7 +198,7 @@ function plainRow(name, meta, when, cls, title) {
   text.append(el("span", "timer-name", name), el("span", "timer-meta", meta));
   const w = el("span", "timer-when", when);
   if (title) w.title = title;
-  li.append(el("span", "bell-space"), el("span", "bell-space"), text, w);
+  li.append(el("span", "bell-space"), el("span", "bell-space"), el("span", "bell-space"), text, w);
   return li;
 }
 
@@ -278,3 +295,18 @@ setInterval(() => {
     loadContents();
   }
 }, 15_000);
+
+// The pins, as the timer pins widget has them.
+function loadPins() {
+  invoke("timer_pins")
+    .then((v) => {
+      pins = new Set((v && v.pins) || []);
+      draw();
+    })
+    .catch(() => {});
+}
+tauri.event.listen("timer-pins", (e) => {
+  pins = new Set((e.payload && e.payload.pins) || []);
+  draw();
+});
+loadPins();

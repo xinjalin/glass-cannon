@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use meter_core::fieldboss::FieldBoss;
@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 18] = [
+pub const WIDGETS: [&str; 19] = [
     "meter",
     "boss-warnings",
     "boss-timers",
@@ -31,6 +31,7 @@ pub const WIDGETS: [&str; 18] = [
     "action-bar-5",
     "action-bar-6",
     "party-cooldowns",
+    "timer-pins",
     "timers",
     "pets",
 ];
@@ -447,6 +448,126 @@ pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
         favourites: s.timer_favourites.clone(),
         favourites_only: s.timer_favourites_only,
     }
+}
+
+// ---------------------------------------------------------------- timer pins
+
+/// The timer pins' layouts: a grid of icons, or a slim row each.
+pub const PIN_LAYOUTS: [&str; 2] = ["icons", "list"];
+/// How they're ordered: by time, or as pinned.
+pub const PIN_SORTS: [&str; 2] = ["time", "pinned"];
+pub const PIN_ICON_SIZES: std::ops::RangeInclusive<u16> = 24..=72;
+pub const PIN_COLUMNS: std::ops::RangeInclusive<u16> = 1..=12;
+/// How far ahead the world boss train looks, in minutes.
+pub const TRAIN_MINUTES: std::ops::RangeInclusive<u16> = 5..=180;
+const MAX_PINS: usize = 40;
+
+/// How the timer pins widget looks, and whether the world boss train adds every field
+/// boss up or spawning soon.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct PinsLook {
+    /// One of [`PIN_LAYOUTS`].
+    pub layout: String,
+    /// Icons' size (CSS pixels), and how many to a row.
+    pub icon_size: u16,
+    pub columns: u16,
+    /// Each one's name under its icon.
+    pub names: bool,
+    /// One of [`PIN_SORTS`].
+    pub sort: String,
+    /// The world boss train: every field boss up, or spawning within `train_min`.
+    pub train: bool,
+    pub train_min: u16,
+}
+
+impl Default for PinsLook {
+    fn default() -> Self {
+        Self { layout: PIN_LAYOUTS[0].into(), icon_size: 40, columns: 6, names: true, sort: PIN_SORTS[0].into(), train: false, train_min: 30 }
+    }
+}
+
+impl PinsLook {
+    pub fn sanitized(mut self) -> Self {
+        let fixed = Self::default();
+        if !PIN_LAYOUTS.contains(&self.layout.as_str()) {
+            self.layout = fixed.layout;
+        }
+        if !PIN_SORTS.contains(&self.sort.as_str()) {
+            self.sort = fixed.sort;
+        }
+        self.icon_size = self.icon_size.clamp(*PIN_ICON_SIZES.start(), *PIN_ICON_SIZES.end());
+        self.columns = self.columns.clamp(*PIN_COLUMNS.start(), *PIN_COLUMNS.end());
+        self.train_min = self.train_min.clamp(*TRAIN_MINUTES.start(), *TRAIN_MINUTES.end());
+        self
+    }
+}
+
+/// Pins as kept: an event's ID or `boss:<id>`, each once, at most [`MAX_PINS`].
+pub fn clean_pins(pins: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for p in pins {
+        let ok = !p.is_empty() && p.len() <= 64 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ':' || c == '_');
+        if ok && !out.contains(&p) && out.len() < MAX_PINS {
+            out.push(p);
+        }
+    }
+    out
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct PinsView {
+    pub pins: Vec<String>,
+    pub look: PinsLook,
+}
+
+#[tauri::command]
+pub fn timer_pins(app: State<'_, Arc<AppState>>) -> PinsView {
+    let s = lock(&app.settings);
+    PinsView { pins: s.timer_pins.clone(), look: s.pins_look.clone() }
+}
+
+fn pins_changed(handle: &AppHandle, app: &AppState) {
+    let s = lock(&app.settings);
+    let view = PinsView { pins: s.timer_pins.clone(), look: s.pins_look.clone() };
+    drop(s);
+    let _ = handle.emit("timer-pins", view);
+}
+
+/// Pins (or unpins) an event or field boss to the timer pins widget.
+#[tauri::command]
+pub fn set_timer_pinned(handle: AppHandle, app: State<'_, Arc<AppState>>, id: String, on: bool) {
+    let mut s = lock(&app.settings);
+    let mut pins = std::mem::take(&mut s.timer_pins);
+    pins.retain(|p| p != &id);
+    if on {
+        pins.push(id);
+    }
+    s.timer_pins = clean_pins(pins);
+    s.save(&app.config_dir);
+    drop(s);
+    pins_changed(&handle, &app);
+}
+
+/// The pins in a new order (or some taken off).
+#[tauri::command]
+pub fn set_timer_pins(handle: AppHandle, app: State<'_, Arc<AppState>>, pins: Vec<String>) {
+    let mut s = lock(&app.settings);
+    s.timer_pins = clean_pins(pins);
+    s.save(&app.config_dir);
+    drop(s);
+    pins_changed(&handle, &app);
+}
+
+#[tauri::command]
+pub fn set_pins_look(handle: AppHandle, app: State<'_, Arc<AppState>>, look: PinsLook) -> PinsLook {
+    let mut s = lock(&app.settings);
+    s.pins_look = look.sanitized();
+    let out = s.pins_look.clone();
+    s.save(&app.config_dir);
+    drop(s);
+    pins_changed(&handle, &app);
+    out
 }
 
 /// Stars (or unstars) an event or field boss in the world timers.
@@ -920,16 +1041,179 @@ pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::Sel
     Some(bars)
 }
 
+// ---------------------------------------------------------------- party frames
+
+pub const PARTY_LAYOUTS: [&str; 2] = ["grid", "list"];
+/// What a tile's HP says: the share, the value, or nothing.
+pub const PARTY_HP_TEXTS: [&str; 3] = ["percent", "value", "none"];
+/// The effects on each tile: none, the buffs you put on them, their debuffs, or both.
+pub const PARTY_EFFECTS: [&str; 4] = ["none", "mine", "debuffs", "both"];
+/// Their order: as the party has them, the lowest HP first, or by class.
+pub const PARTY_SORTS: [&str; 3] = ["roster", "hp", "class"];
+pub const PARTY_COLUMNS: std::ops::RangeInclusive<u16> = 0..=8;
+pub const PARTY_SIZES: std::ops::RangeInclusive<u16> = 70..=200;
+/// At most this many effects on a tile.
+const PARTY_EFFECTS_MAX: usize = 6;
+/// An effect this long or longer shows with no time.
+const ENDLESS_MS: u32 = 60 * 60 * 1000;
+
+/// How the party frames look (settings beside them on the overlay).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct PartyLook {
+    /// One of [`PARTY_LAYOUTS`].
+    pub layout: String,
+    /// Tiles to a row (grid; 0: as many as fit).
+    pub columns: u16,
+    /// In percent.
+    pub size: u16,
+    /// One of [`PARTY_HP_TEXTS`].
+    pub hp_text: String,
+    pub names: bool,
+    /// One of [`PARTY_EFFECTS`].
+    pub effects: String,
+    /// One of [`PARTY_SORTS`].
+    pub sort: String,
+    /// A member's HP yellow from half, red from a fifth.
+    pub hp_warn: bool,
+    /// HP lost stays a moment as a pale trail.
+    pub trail: bool,
+    /// The one your target is attacking, outlined.
+    pub target_mark: bool,
+}
+
+impl Default for PartyLook {
+    fn default() -> Self {
+        Self {
+            layout: PARTY_LAYOUTS[0].into(),
+            columns: 0,
+            size: 100,
+            hp_text: PARTY_HP_TEXTS[0].into(),
+            names: true,
+            effects: "both".into(),
+            sort: PARTY_SORTS[0].into(),
+            hp_warn: false,
+            trail: false,
+            target_mark: true,
+        }
+    }
+}
+
+impl PartyLook {
+    pub fn sanitized(mut self) -> Self {
+        let fixed = Self::default();
+        let keep = |choices: &[&str], v: String, d: String| if choices.contains(&v.as_str()) { v } else { d };
+        self.layout = keep(&PARTY_LAYOUTS, self.layout, fixed.layout);
+        self.hp_text = keep(&PARTY_HP_TEXTS, self.hp_text, fixed.hp_text);
+        self.effects = keep(&PARTY_EFFECTS, self.effects, fixed.effects);
+        self.sort = keep(&PARTY_SORTS, self.sort, fixed.sort);
+        self.columns = self.columns.clamp(*PARTY_COLUMNS.start(), *PARTY_COLUMNS.end());
+        self.size = self.size.clamp(*PARTY_SIZES.start(), *PARTY_SIZES.end());
+        self
+    }
+}
+
+#[tauri::command]
+pub fn party_look(app: State<'_, Arc<AppState>>) -> PartyLook {
+    lock(&app.settings).party_look.clone()
+}
+
+#[tauri::command]
+pub fn set_party_look(handle: AppHandle, app: State<'_, Arc<AppState>>, look: PartyLook) -> PartyLook {
+    let mut s = lock(&app.settings);
+    s.party_look = look.sanitized();
+    let out = s.party_look.clone();
+    s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("party-look", out.clone());
+    out
+}
+
+/// A buff or debuff on a party member's tile.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct FrameEffect {
+    pub effect: u32,
+    pub name: Option<String>,
+    pub icon_key: Option<u32>,
+    /// None: no set length (or an hour or more).
+    pub remaining_ms: Option<u32>,
+    pub duration_ms: u32,
+    pub stacks: u32,
+    /// Put on them by something that isn't a player.
+    pub debuff: bool,
+}
+
+/// A party member's frame: what the meter knows of them, the effects to show, and whether
+/// your target is attacking them.
+#[derive(Debug, Serialize)]
+pub struct FrameView {
+    #[serde(flatten)]
+    pub frame: meter_core::meter::PartyFrame,
+    pub effects: Vec<FrameEffect>,
+    pub targeted: bool,
+}
+
 /// Your party as frames (the party frames widget).
 #[tauri::command]
-pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<meter_core::meter::PartyFrame> {
+pub fn party_frames(app: State<'_, Arc<AppState>>) -> Vec<FrameView> {
+    let now = app.engine.now();
+    let which = lock(&app.settings).party_look.effects.clone();
     let meter = app.engine.meter();
     let data = lock(&app.data);
+    let me = meter.self_entity();
+    // Who your target's attacking, by name.
+    let attacked = meter.target().and_then(|t| t.attacking);
     let mut frames = meter.party_frames();
     for f in &mut frames {
         f.shield = f.entity.map(|e| meter.shields_on(e, &|s| data.is_shield_skill(s))).filter(|s| *s > 0);
     }
     frames
+        .into_iter()
+        .map(|frame| {
+            let mut effects: Vec<FrameEffect> = Vec::new();
+            if let (Some(e), true) = (frame.entity, which != "none") {
+                let spans = meter.effects_on(e, now);
+                for s in &spans {
+                    let mine = me.is_some_and(|m| s.source == m);
+                    let debuff = !meter.is_known_player(s.source);
+                    let wanted = match which.as_str() {
+                        "mine" => mine,
+                        "debuffs" => debuff,
+                        _ => mine || debuff,
+                    };
+                    if !wanted || effects.iter().any(|x| x.effect == s.effect) {
+                        continue;
+                    }
+                    let same: Vec<_> = spans.iter().filter(|x| x.effect == s.effect && (me.is_some_and(|m| x.source == m) || !meter.is_known_player(x.source))).collect();
+                    let longest = same.iter().max_by_key(|x| x.start_us + u64::from(x.duration_ms) * 1000).copied().unwrap_or(s);
+                    let (name, icon_key) = data.effect_meta(s.effect);
+                    let skill = longest.skill.map(|k| data.skill_meta(k));
+                    let name = name.or_else(|| skill.as_ref().and_then(|k| k.0.clone()));
+                    let icon_key = icon_key.or_else(|| skill.and_then(|k| k.1));
+                    // Only the ones that can be told apart.
+                    if name.is_none() && icon_key.is_none() {
+                        continue;
+                    }
+                    let ends = longest.start_us + u64::from(longest.duration_ms) * 1000;
+                    let endless = longest.duration_ms == 0 || longest.duration_ms >= ENDLESS_MS;
+                    effects.push(FrameEffect {
+                        effect: s.effect,
+                        name,
+                        icon_key,
+                        remaining_ms: (!endless).then(|| (ends.saturating_sub(now) / 1000) as u32),
+                        duration_ms: longest.duration_ms,
+                        stacks: same.len() as u32,
+                        debuff,
+                    });
+                }
+                // Debuffs first, then the soonest out.
+                effects.sort_by_key(|x| (!x.debuff, x.remaining_ms.unwrap_or(u32::MAX)));
+                effects.truncate(PARTY_EFFECTS_MAX);
+            }
+            let targeted = attacked.as_deref().is_some_and(|a| a == frame.view.member.name);
+            FrameView { frame, effects, targeted }
+        })
+        .collect()
 }
 
 /// A piece of a player's gear, named.
@@ -958,4 +1242,28 @@ pub fn party_gear(app: State<'_, Arc<AppState>>) -> std::collections::BTreeMap<S
             Some((m.name.clone(), rows))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod pin_tests {
+    use super::*;
+
+    #[test]
+    fn the_party_look_stays_valid() {
+        let l = PartyLook { layout: "circle".into(), hp_text: "roman".into(), effects: "all".into(), sort: "random".into(), columns: 99, size: 5, ..PartyLook::default() }.sanitized();
+        assert_eq!((l.layout.as_str(), l.hp_text.as_str(), l.effects.as_str(), l.sort.as_str(), l.columns, l.size), ("grid", "percent", "both", "roster", 8, 70));
+        let old: PartyLook = serde_json::from_str("{}").unwrap();
+        assert_eq!(old, PartyLook::default());
+    }
+
+    #[test]
+    fn pins_and_their_look_stay_valid() {
+        let pins = clean_pins(vec!["spacetime-rift".into(), "boss:2100040".into(), "spacetime-rift".into(), "".into(), "bad id!".into()]);
+        assert_eq!(pins, ["spacetime-rift", "boss:2100040"]);
+        assert_eq!(clean_pins((0..60).map(|i| format!("boss:{i}")).collect()).len(), MAX_PINS);
+        let l = PinsLook { layout: "hexes".into(), sort: "random".into(), icon_size: 900, columns: 0, train_min: 1, ..PinsLook::default() }.sanitized();
+        assert_eq!((l.layout.as_str(), l.sort.as_str(), l.icon_size, l.columns, l.train_min), ("icons", "time", 72, 1, 5));
+        let old: PinsLook = serde_json::from_str("{}").unwrap();
+        assert_eq!(old, PinsLook::default());
+    }
 }

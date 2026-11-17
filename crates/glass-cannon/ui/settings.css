@@ -452,3 +452,22 @@ kbd {
 .ab-pick .icon { width: 100%; height: 100%; display: block; object-fit: cover; }
 .ab-pick .icon.blank { display: grid; place-items: center; color: var(--muted); font-size: 0.8em; }
 .ab-pick .ab-order { position: absolute; left: 0.1em; top: 0; color: #fff; font-size: 0.65em; font-weight: 700; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+
+/* In a widget's panel on the overlay (framemode.js): just that widget's sections, one after
+   another, scrolling; no title bar, search, tabs or footer. */
+.framed #bar, .framed #search-row, .framed #tabs, .framed #footer, .framed #subtabs, .framed .panel-title { display: none !important; }
+.framed #panel { padding-top: 0.5em; }
+.framed #panels { display: block; overflow-y: auto; flex: 1; min-height: 0; }
+.framed .tab-panel { display: flex !important; }
+.framed .tab-panel + .tab-panel { margin-top: 0.6em; }
+.framed .box:not(.frame-show) { display: none !important; }
+.framed .subpanels > .subpanel.frame-show { display: block !important; }
+.framed .tab-panel:not(:has(.frame-show)) { display: none !important; }
+
+/* The settings window has no widget settings: those are on the overlay (⚙ while
+   arranging), where the sections marked data-for show in each widget's panel. */
+html:not(.framed) [data-for],
+html:not(.framed) #subtabs,
+html:not(.framed) .subpanels,
+html:not(.framed) .subtabs-hint { display: none !important; }
+.framed .widget-settings-note { display: none !important; }

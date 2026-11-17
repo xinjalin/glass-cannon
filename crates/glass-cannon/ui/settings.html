@@ -202,6 +202,9 @@
               <button type="button" class="opt" data-widget="timers" data-keywords="field boss world event schedule alerts" aria-pressed="false" title="When the world events and field bosses start, with alerts">
                 <span class="key">world timers</span><span class="state">[off]</span>
               </button>
+              <button type="button" class="opt" data-widget="timer-pins" data-keywords="timer pins icons anchor world boss train countdown" aria-pressed="false" title="Events and field bosses you pin (📌 in the world timers) as icons counting down, or a slim row each; the world boss train adds every field boss up or spawning soon (settings beside it: arrange, then ⚙)">
+                <span class="key">timer pins</span><span class="state">[off]</span>
+              </button>
               <button type="button" class="opt" data-widget="pets" data-keywords="pet tracker souls" aria-pressed="false" title="The pets you track: level, souls toward the next one, where they're found, and their mobs in view">
                 <span class="key">pet tracker</span><span class="state">[off]</span>
               </button>
@@ -242,6 +245,7 @@
               </span>
             </div>
           </fieldset>
+          <p class="note widget-settings-note">Each widget's own settings are on the overlay: <b>arrange</b> (above), then <b>⚙</b> on the widget.</p>
           <p class="hint subtabs-hint">each widget's own settings</p>
           <!-- Each widget's own settings, a tab each (settings.js), so the page stays short;
                while searching, every one shows. -->
@@ -253,7 +257,7 @@
             <button type="button" role="tab" data-subtab="target" aria-selected="false" tabindex="-1">[target frame]</button>
           </div>
           <div id="subpanels" class="subpanels">
-          <fieldset class="box subpanel" data-subtab="cooldowns" data-keywords="cooldowns timeline list">
+          <fieldset class="box subpanel" data-for="cooldowns" data-subtab="cooldowns" data-keywords="cooldowns timeline list">
             <legend>cooldowns</legend>
             <div class="line" data-keywords="cooldowns timeline list bar scroll slide look">
               <span class="key">cooldowns</span>
@@ -288,7 +292,7 @@
               </span>
             </div>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="party-cooldowns" data-keywords="party cooldowns">
+          <fieldset class="box subpanel" data-for="party-cooldowns" data-subtab="party-cooldowns" data-keywords="party cooldowns">
             <legend>party cooldowns</legend>
             <div class="line" data-keywords="group sort class player">
               <span class="key">party cooldowns by</span>
@@ -305,7 +309,7 @@
               <span class="key">set up the bars</span><span class="state">[ arrange ]</span>
             </button>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
+          <fieldset class="box subpanel" data-for="vitals" data-subtab="vitals" id="vt-box" data-keywords="vitals arcs hp mp stamina flight power cast look style round straight text numbers size shadow outline background percent top bottom">
             <legend>vitals arcs</legend>
             <div class="line" data-keywords="look style thin segmented solid gradient framed glass ticks marks">
               <span class="key">look</span>
@@ -454,7 +458,7 @@
               <span class="key">reset</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>
-          <fieldset class="box subpanel" data-subtab="target" data-keywords="target frame pvp player class rank">
+          <fieldset class="box subpanel" data-for="target" data-subtab="target" data-keywords="target frame pvp player class rank">
             <legend>target frame</legend>
             <div class="line" data-keywords="class colour color pvp player name frame background tint">
               <span class="key">class colour</span>
@@ -518,7 +522,7 @@
         </section>
         <section class="tab-panel" id="tab-alerts" role="tabpanel" aria-labelledby="tab-button-alerts" data-tab="alerts">
           <h2 class="panel-title">alerts</h2>
-          <fieldset class="box">
+          <fieldset class="box" data-for="boss-warnings boss-timers">
             <legend>boss warnings</legend>
             <button id="boss-mechanics" data-keywords="warnings dungeon raid" type="button" class="opt" aria-pressed="false" title="In the boss warnings, before the casts: dungeon bosses' mechanics and what to do (a buff on the boss not to attack into, a debuff on you or an ally, a cue cast, a stagger check, a pool you're standing in)">
               <span class="key">boss mechanics</span><span class="state">[on]</span>
@@ -530,13 +534,13 @@
               <span class="key">boss casts</span><span class="state">[ set up ]</span>
             </button>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="boss-warnings boss-timers cubes timers">
             <legend>sound</legend>
             <button id="alert-sound" data-keywords="audio chime volume beep mute noise" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning and each hidden cube that comes into view">
               <span class="key">alert sound</span><span class="state">[on]</span>
             </button>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="timers timer-pins">
             <legend>world timers</legend>
             <div class="line" data-keywords="server timezone schedule events world timers field boss asia na eu la korea taiwan">
               <span class="key">region</span>
@@ -569,7 +573,7 @@
         </section>
         <section class="tab-panel" id="tab-meter" role="tabpanel" aria-labelledby="tab-button-meter" data-tab="meter">
           <h2 class="panel-title">meter</h2>
-          <fieldset class="box">
+          <fieldset class="box" data-for="meter">
             <legend>counting</legend>
             <div class="line" data-keywords="scope party mine everyone all whose damage">
               <span class="key">count</span>
@@ -592,7 +596,7 @@
               </span>
             </div>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="meter">
             <legend>rows</legend>
             <div class="line" data-keywords="color colour class damage rows">
               <span class="key">bars</span>
@@ -644,7 +648,7 @@
               <span class="key">combat power</span><span class="state">[on]</span>
             </button>
           </fieldset>
-          <fieldset class="box">
+          <fieldset class="box" data-for="meter">
             <legend>on the meter</legend>
             <button id="boss-hp" data-keywords="target health hp berserk timer enrage stagger time to kill cast" type="button" class="opt" aria-pressed="false" title="A line under the fight's name with its target's HP, time to kill, stagger and enrage (and its name, when it's one you picked), and its cast under it, in live fights. Only while the target frame widget is off: it has it all">
               <span class="key">target hp, stagger &amp; more</span><span class="state">[on]</span>
@@ -698,6 +702,26 @@
             </button>
             <p class="hint" id="record-hint">save packets to the captures folder</p>
           </fieldset>
+          <fieldset class="box" data-keywords="share export import setup layout theme settings file">
+            <legend>share your setup</legend>
+            <div class="line" data-keywords="share export import setup parts">
+              <span class="key">what goes in</span>
+              <span class="choice" role="group" aria-label="What a setup file has">
+                <button type="button" data-share="layout" role="checkbox" aria-checked="true" title="Where each widget is, which show, which fade">[layout]</button>
+                <button type="button" data-share="theme" role="checkbox" aria-checked="true" title="The theme and appearance">[theme]</button>
+                <button type="button" data-share="settings" role="checkbox" aria-checked="true" title="Each widget's settings and the app's (not your tracked pets, hotkeys or recording)">[settings]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="share export import setup file">
+              <span class="key">setup file</span>
+              <span class="choice">
+                <button type="button" id="setup-export" title="Save those parts to a file in the exports folder beside the app, to share">[export]</button>
+                <button type="button" id="setup-import" title="Take in a setup file: the parts picked that it has go over yours">[import]</button>
+              </span>
+            </div>
+            <input id="setup-file" type="file" accept=".json,application/json" hidden>
+            <p id="setup-note" class="hint">others can take in your file with [import]; what's yours alone (tracked pets, hotkeys, recording) never goes in</p>
+          </fieldset>
           <fieldset class="box">
             <legend>reset</legend>
             <button id="reset" data-keywords="default restore" type="button" class="opt" title="Theme, font, colours and background back to the defaults (the overlay's layout resets while arranging it)">
@@ -725,6 +749,7 @@
       <span class="sign">Xinjalin</span>
     </footer>
   </main>
+  <script src="framemode.js"></script>
   <script src="theme.js"></script>
   <script src="window.js"></script>
   <script src="settings.js"></script>

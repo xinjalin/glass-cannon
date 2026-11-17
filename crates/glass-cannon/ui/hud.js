@@ -29,6 +29,7 @@ const DEFAULTS = {
   "action-bar-5": { x: 0.18, y: 0.66, w: 300, h: 50 },
   "action-bar-6": { x: 0.18, y: 0.6, w: 300, h: 50 },
   "party-cooldowns": { x: 0.015, y: 0.68, w: 330, h: 220 },
+  "timer-pins": { x: 0.3, y: 0.06, w: 300, h: 80 },
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
   pets: { x: 0.79, y: 0.5, w: 320, h: 230 },
 };
@@ -52,8 +53,25 @@ const SIDE_WIDGETS = {
   ),
   "party-cooldowns": { page: "party-cooldowns.html", label: "party cooldowns", passive: true, grows: true },
   timers: { page: "timers.html", label: "world timers", passive: false },
+  // No box, as big as what it shows, set up beside it while arranging (⚙).
+  "timer-pins": { page: "timerpins.html", label: "timer pins", passive: true, grows: true, bare: true, fitWidth: true, settings: "timerpinsettings.html" },
   pets: { page: "pets.html", label: "pet tracker", passive: false },
 };
+// The other widgets' settings, beside them while arranging (⚙): their sections of the
+// settings page (settings.html?frame=…), or a page of their own.
+const WIDGET_SETTINGS = {
+  meter: "settings.html?frame=meter",
+  "boss-warnings": "settings.html?frame=boss-warnings",
+  "boss-timers": "settings.html?frame=boss-timers",
+  cubes: "settings.html?frame=cubes",
+  cooldowns: "settings.html?frame=cooldowns",
+  "party-cooldowns": "settings.html?frame=party-cooldowns",
+  vitals: "settings.html?frame=vitals",
+  target: "settings.html?frame=target",
+  timers: "settings.html?frame=timers",
+  party: "partysettings.html",
+};
+const settingsOf = (id) => (SIDE_WIDGETS[id] && SIDE_WIDGETS[id].settings) || WIDGET_SETTINGS[id];
 // Every widget's name in the arrange menu, in the settings' order.
 const LABELS = [
   ["meter", "meter"],
@@ -73,6 +91,7 @@ const LABELS = [
   ["action-bar-6", "action bar 6"],
   ["party-cooldowns", "party cooldowns"],
   ["timers", "world timers"],
+  ["timer-pins", "timer pins"],
   ["pets", "pet tracker"],
 ];
 // The grids widgets can snap to while arranging (CSS pixels; 0: none), and the default.
@@ -235,13 +254,20 @@ function drawGrid() {
 // a slider out from under the mouse). Every change shows on the widget at once.
 let panelFor = null;
 function openWidgetPanel(id) {
-  const own = SIDE_WIDGETS[id];
-  if (!own || !own.settings) return;
+  const page = settingsOf(id);
+  if (!page) return;
   panelFor = id;
   const box = $("widget-panel");
   const frame = $("widget-panel-frame");
-  if (!frame.src.endsWith(own.settings)) frame.src = own.settings;
-  $("widget-panel-title").textContent = own.label;
+  if (!frame.src.endsWith(page)) {
+    frame.src = page;
+    // At its most until the page says how tall it is.
+    box.style.height = "";
+  }
+  const named = LABELS.find(([k]) => k === id);
+  $("widget-panel-title").textContent = named ? named[1] : id;
+  // The settings page's sections are wider than a widget's own page.
+  box.classList.toggle("wide", page.startsWith("settings.html"));
   box.hidden = false;
   box.dataset.moved = "";
   delete box.dataset.moved;
@@ -371,13 +397,12 @@ function setUp(el) {
   grip.className = "grip";
   el.append(grip);
   // Its settings beside it (an action bar's), from ⚙ while arranging.
-  const own = SIDE_WIDGETS[el.dataset.widget];
-  if (own && own.settings) {
+  if (settingsOf(el.dataset.widget)) {
     const gear = document.createElement("button");
     gear.type = "button";
     gear.className = "gear";
     gear.textContent = "⚙";
-    gear.title = `The ${own.label}'s settings`;
+    gear.title = `The ${el.dataset.label || el.dataset.widget}'s settings`;
     gear.addEventListener("pointerdown", (e) => e.stopPropagation());
     gear.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -507,6 +532,12 @@ window.addEventListener("message", (e) => {
     else fitted[m.widget] = Math.ceil(m.height);
     if (m.width) fittedWidth[m.widget] = Math.ceil(m.width);
     place();
+  } else if (m.type === "gc-panel-height" && m.height) {
+    // The panel as tall as what it shows, up to the most it may take.
+    const box = $("widget-panel");
+    const most = Math.min(640, innerHeight * 0.9);
+    box.style.height = `${Math.min(most, Math.ceil(m.height) + $("widget-panel-head").offsetHeight + 2)}px`;
+    placeWidgetPanel();
   } else if (m.type === "gc-open-settings" && m.widget) {
     // The panel's [+ add a bar]: the new bar's panel, beside it once it's there.
     setTimeout(() => openWidgetPanel(m.widget), 150);
@@ -740,3 +771,30 @@ function frame() {
   showWidgets(await invoke("widgets_shown").catch(() => []));
   requestAnimationFrame(frame);
 })();
+
+// Sharing a setup from the arrange menu: all of it out, and in, what a file has (setup.rs).
+$("setup-export").addEventListener("click", async () => {
+  try {
+    await invoke("export_setup", { parts: ["layout", "theme", "settings"] });
+  } catch {
+    // Nothing to say it with here; the settings window's share says why.
+  }
+});
+$("setup-import").addEventListener("click", () => $("setup-file").click());
+$("setup-file").addEventListener("change", async () => {
+  const file = $("setup-file").files[0];
+  $("setup-file").value = "";
+  if (!file) return;
+  await invoke("import_setup", { json: await file.text(), parts: ["layout", "theme", "settings"] }).catch(() => {});
+});
+// A setup taken in: its layout, widgets and theme, each widget's page again (for its
+// settings); arranging goes on.
+tauri.event.listen("setup-imported", async () => {
+  await loadLayout();
+  setFading(await invoke("widgets_fading").catch(() => []));
+  showWidgets(await invoke("widgets_shown").catch(() => []));
+  for (const f of document.querySelectorAll(".widget iframe")) f.src = f.src;
+  const a = await invoke("appearance").catch(() => null);
+  if (a) applyAppearance(a);
+  place();
+});

@@ -165,3 +165,25 @@ if (WIDGET) {
     soon();
   }
 }
+
+// A widget's settings panel beside it on the overlay (#bs: action bars, timer pins, party
+// frames): as tall as what it shows, up to the most the overlay gives it.
+if (WIDGET && document.getElementById("bs")) {
+  const box = document.getElementById("bs");
+  let sent = 0;
+  const tell = () => {
+    let bottom = 0;
+    for (const k of box.children) {
+      if (!k.getClientRects().length) continue;
+      bottom = Math.max(bottom, k.getBoundingClientRect().bottom + box.scrollTop + parseFloat(getComputedStyle(k).marginBottom || 0));
+    }
+    const h = Math.ceil(bottom + parseFloat(getComputedStyle(box).paddingBottom || 0) + 2);
+    if (Math.abs(h - sent) < 2) return;
+    sent = h;
+    window.parent.postMessage({ type: "gc-panel-height", height: h }, "*");
+  };
+  new ResizeObserver(tell).observe(box);
+  new MutationObserver(() => requestAnimationFrame(tell)).observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
+  window.addEventListener("load", tell);
+  tell();
+}

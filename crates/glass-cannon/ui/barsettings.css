@@ -42,3 +42,14 @@
 /* A setting with no effect as the bar is: greyed, and it takes no clicks. */
 .bs-line.off { opacity: 0.38; }
 .bs-line.off button, .bs-line.off input { cursor: default; pointer-events: none; }
+/* The timer pins' settings: events and field bosses to pin. */
+.tp-list { display: flex; flex-direction: column; gap: 2px; }
+.tp-item { display: flex; align-items: center; gap: 0.5em; width: 100%; padding: 0.2em 0.35em; border-radius: 0.3em; text-align: left; opacity: 0.75; }
+.tp-item:hover { background: rgba(255, 255, 255, 0.06); opacity: 1; }
+.tp-item.on { opacity: 1; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.tp-icon { display: grid; place-items: center; flex: none; width: 1.6em; height: 1.6em; border-radius: 50%; background: rgba(0, 0, 0, 0.35); }
+.tp-icon .timer-icon { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tp-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.tp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-meta { color: var(--muted); font-size: 0.82em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-state { flex: none; }

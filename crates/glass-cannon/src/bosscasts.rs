@@ -2,13 +2,18 @@
 //! dungeon and name, with the distinct casts the meter has seen it make. Each cast can be
 //! renamed (names.json, as anywhere) and set to show or not in the boss warnings and the
 //! boss timers; left on auto, it goes by the general rule (a long cast, or one that marks
-//! the ground, or one our data says to warn of).
+//! the ground, or one our data says to warn of), or as the app's defaults have it.
+//!
+//! A boss cast mapping (your names and choices) can be exported to a file and imported
+//! from one; one made the app's `gamedata/boss-cast-defaults.json` is everyone's start.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::State;
+
+use crate::gamedata::{CastChoice, CastMapping};
 
 use crate::gamedata::GameData;
 use crate::store::{BossCastBook, SeenCast};
@@ -31,10 +36,12 @@ pub struct CastSetup {
     pub seen: u32,
     pub fights: u32,
     pub last_ms: u64,
-    /// Your choices (None: auto), and what auto does for each.
+    /// Your choices (None: auto), and what auto does for each (the app's default, else the
+    /// rule).
     pub warn: Option<bool>,
     pub timer: Option<bool>,
     pub auto_warn: bool,
+    pub auto_timer: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -113,6 +120,7 @@ pub fn view(data: &GameData, book: &BossCastBook, warn: &BTreeMap<u32, bool>, ti
         }
     }
     let warn_casts: BTreeSet<u32> = data.warn_casts().iter().copied().collect();
+    let (default_warns, default_timers) = (data.default_cast_warns(), data.default_cast_timers());
     let mut kinds: Vec<KindSetup> = tree
         .into_iter()
         .map(|(kind, places)| KindSetup {
@@ -141,7 +149,13 @@ pub fn view(data: &GameData, book: &BossCastBook, warn: &BTreeMap<u32, bool>, ti
                                     last_ms: s.last_ms,
                                     warn: warn.get(&skill).copied(),
                                     timer: timer.get(&skill).copied(),
-                                    auto_warn: warn_casts.contains(&skill) || crate::dangerous(&BTreeMap::new(), skill, s.cast_ms, s.lands_ms),
+                                    auto_warn: default_warns
+                                        .get(&skill)
+                                        .copied()
+                                        .unwrap_or_else(|| warn_casts.contains(&skill) || crate::dangerous(&BTreeMap::new(), skill, s.cast_ms, s.lands_ms)),
+                                    auto_timer: default_timers.get(&skill).copied().unwrap_or_else(|| {
+                                        warn.get(&skill).copied().or_else(|| default_warns.get(&skill).copied()).unwrap_or_else(|| warn_casts.contains(&skill) || crate::dangerous(&BTreeMap::new(), skill, s.cast_ms, s.lands_ms))
+                                    }),
                                 })
                                 .collect(),
                         })
@@ -153,6 +167,79 @@ pub fn view(data: &GameData, book: &BossCastBook, warn: &BTreeMap<u32, bool>, ti
     let order = |k: &str| KINDS.iter().position(|x| *x == k).unwrap_or(KINDS.len());
     kinds.sort_by_key(|k| order(&k.kind));
     BossCastsView { kinds }
+}
+
+/// Your boss cast mapping: your names for boss skills, and your warn and timer choices.
+fn mapping(data: &GameData, warn: &BTreeMap<u32, bool>, timer: &BTreeMap<u32, bool>) -> CastMapping {
+    let mut casts: BTreeMap<u32, CastChoice> = BTreeMap::new();
+    for (id, name) in data.boss_skill_renames() {
+        casts.entry(id).or_default().name = Some(name);
+    }
+    for (id, on) in warn {
+        casts.entry(*id).or_default().warn = Some(*on);
+    }
+    for (id, on) in timer {
+        casts.entry(*id).or_default().timer = Some(*on);
+    }
+    let made = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    CastMapping { source: Some(serde_json::json!({ "made_by": "Glass Cannon's boss casts window", "version": env!("CARGO_PKG_VERSION"), "unix_time": made })), casts }
+}
+
+/// Saves your boss cast mapping to a file in the `exports` folder beside the app (as
+/// recordings go to `captures`), named for the time, and shows it in Explorer; its path.
+#[tauri::command]
+pub fn export_boss_casts(app: State<'_, Arc<AppState>>) -> Result<String, String> {
+    let (warn, timer) = {
+        let s = lock(&app.settings);
+        (s.boss_skill_alerts.clone(), s.boss_skill_timers.clone())
+    };
+    let m = mapping(&lock(&app.data), &warn, &timer);
+    if m.casts.is_empty() {
+        return Err("nothing to export yet: name a cast, or set one to warn or not".into());
+    }
+    let dir = app.exe_dir.join("exports");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("couldn't make {}: {e}", dir.display()))?;
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let path = dir.join(format!("glass-cannon-boss-casts-{secs}.json"));
+    let json = serde_json::to_vec_pretty(&m).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| format!("couldn't save {}: {e}", path.display()))?;
+    let _ = std::process::Command::new("explorer").arg(format!("/select,{}", path.display())).spawn();
+    Ok(path.display().to_string())
+}
+
+/// What an import changed.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Imported {
+    pub names: usize,
+    pub warns: usize,
+    pub timers: usize,
+}
+
+/// Takes in a boss cast mapping (a file's text): its names and choices go over yours.
+#[tauri::command]
+pub fn import_boss_casts(app: State<'_, Arc<AppState>>, json: String) -> Result<Imported, String> {
+    let m: CastMapping = serde_json::from_str(&json).map_err(|_| "that isn't a boss cast mapping (a file exported from this window)".to_string())?;
+    // Boss and mob skills only (players' skills are 11xxxxxx and up).
+    let casts: Vec<(u32, CastChoice)> = m.casts.into_iter().filter(|(id, _)| *id < 10_000_000).collect();
+    if casts.is_empty() {
+        return Err("no boss casts in that file".into());
+    }
+    let names: BTreeMap<u32, String> = casts.iter().filter_map(|(id, c)| Some((*id, c.name.clone()?))).collect();
+    let named = if names.is_empty() { 0 } else { lock(&app.data).rename_skills(&names).map_err(|e| format!("{e:#}"))? };
+    let mut s = lock(&app.settings);
+    let (mut warns, mut timers) = (0, 0);
+    for (id, c) in &casts {
+        if let Some(on) = c.warn {
+            s.boss_skill_alerts.insert(*id, on);
+            warns += 1;
+        }
+        if let Some(on) = c.timer {
+            s.boss_skill_timers.insert(*id, on);
+            timers += 1;
+        }
+    }
+    s.save(&app.config_dir);
+    Ok(Imported { names: named, warns, timers })
 }
 
 #[tauri::command]
@@ -220,6 +307,40 @@ mod tests {
         assert_eq!((attack.name.as_deref(), attack.warn, attack.auto_warn), (None, Some(false), false));
         // Rahu, never fought: listed with no casts.
         assert!(place.bosses[1].casts.is_empty());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn the_apps_mapping_names_and_sets_casts_and_yours_wins() {
+        let dir = std::env::temp_dir().join(format!("gc-castmap-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("skills.json"), r#"{ "skills": { "1803200": { "name": "Attack" }, "1803010": { "name": "Ludra's Trial" } } }"#).unwrap();
+        fs::write(dir.join("npcs.json"), r#"{ "npcs": { "2301014": { "name": "Eternal Ludra", "boss": true } } }"#).unwrap();
+        fs::write(
+            dir.join("boss-cast-defaults.json"),
+            r#"{ "casts": { "1803200": { "name": "tail swipe", "warn": true }, "1803010": { "timer": false }, "1803300": { "name": "bad\nname" } } }"#,
+        )
+        .unwrap();
+        let data = GameData::load_for_tests(dir.clone());
+        // Its name over the game's "Attack"; one that won't do left out.
+        assert_eq!(data.boss_skill_name(1_803_200).as_deref(), Some("tail swipe"));
+        assert_eq!(data.boss_skill_name(1_803_300), None);
+        assert_eq!(data.default_cast_warns(), [(1_803_200, true)].into());
+        assert_eq!(data.default_cast_timers(), [(1_803_010, false)].into());
+        let mut book = BossCastBook::load(&dir, &crate::store::History::load(&dir));
+        let seen = |cast_ms| SeenCast { cast_ms, lands_ms: 0, seen: 1, fights: 1, last_ms: 0 };
+        book.bosses.insert(2_301_014, [(1_803_200, seen(1000)), (1_803_010, seen(4000))].into());
+        // Auto is the app's choice where it has one; yours over it.
+        let v = view(&data, &book, &BTreeMap::new(), &[(1_803_010, true)].into());
+        let casts = &v.kinds[0].places[0].bosses[0].casts;
+        let swipe = casts.iter().find(|c| c.skill == 1_803_200).unwrap();
+        assert_eq!((swipe.auto_warn, swipe.auto_timer, swipe.renamed), (true, true, false));
+        let trial = casts.iter().find(|c| c.skill == 1_803_010).unwrap();
+        assert_eq!((trial.auto_timer, trial.timer), (false, Some(true)));
+        // Your mapping: your names and choices only.
+        let m = mapping(&data, &[(1_803_200, false)].into(), &BTreeMap::new());
+        assert_eq!(m.casts.keys().copied().collect::<Vec<_>>(), [1_803_200]);
+        assert_eq!(m.casts[&1_803_200], CastChoice { name: None, warn: Some(false), timer: None });
         fs::remove_dir_all(dir).ok();
     }
 }
