@@ -217,7 +217,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x3616` | 33 | 4 | 27.8 |  |  | a2_protocol-research: game server info |
 | `0xe261` | 30 | 3 | 2.0 |  |  | Aion DPS Meter: right after a `0xe262` |
 | `0x920d` | 29 | 4 | 145.1 |  | PartyAddMember_NT | Aion2Flow: party profile; read now: a member joined your party (confirmed 2026-10-24) |
-| `0x3907` | 28 | 2 | 21.4 |  |  | Aion DPS Meter: one skill's specialization slots |
+| `0x3907` | 28 | 2 | 21.4 |  |  | Aion DPS Meter: one skill's specialization slots; read now: a stigma specced (put on) |
 | `0x3650` | 27 | 3 | 3098.7 |  |  | Aion DPS Meter: another player's character window (inspect) |
 | `0x900d` | 26 | 4 | 12.1 |  | RideSoulPointIncrease_NT |  |
 | `0x5676` | 24 | 3 | 7.0 | yes | WingChange_NT |  |
@@ -399,7 +399,7 @@ No name anywhere. Sorted by count; the busy ones are the most worth a look.
 | `0x8c09` | 7 | 3 | 15.0 |  | `00 06 38 1b 0f 00 01 b8 50 29` |
 | `0x9011` | 7 | 2 | 7.0 |  | `01 01 05 00 00 00 02` |
 | `0xe229` | 7 | 1 | 5.0 |  | `01 81 5c 0c 00` |
-| `0x5608` | 6 | 3 | 12.5 |  | `0f 00 00 06 00 c0 44 13 01 01` |
+| `0x5608` | 6 | 3 | 12.5 |  | `0f 00 00 06 00 c0 44 13 01 01` (your hotbar changed) |
 | `0x5673` | 6 | 3 | 9.0 |  | `e6 2f 00 00 85 fb 69 02 00` |
 | `0x8d4e` | 6 | 3 | 6.0 | yes | `84 39 24 f4 cb 1f` |
 | `0xe26e` | 6 | 1 | 51.0 |  | `24 32 42 35 39 46 37 42 32 2d` |
@@ -432,7 +432,7 @@ No name anywhere. Sorted by count; the busy ones are the most worth a look.
 | `0xe24a` | 3 | 2 | 15.0 |  | `3f 04 7b a1 13 00 00 c6 00 00` |
 | `0x372c` | 2 | 2 | 21.0 | yes | `9f 7c f6 ec 96 c7 cc 94 03 c8` |
 | `0x3736` | 2 | 1 | 30.0 | yes | `df 56 01 01 cf e7 14 47 90 22` |
-| `0x3844` | 2 | 2 | 17.0 |  | `00 00 02 90 b1 17 01 01 90 b1` |
+| `0x3844` | 2 | 2 | 17.0 |  | `00 00 02 90 b1 17 01 01 90 b1` (read now: a stigma reset, taken off) |
 | `0x5636` | 2 | 1 | 15.0 |  | `00 00 d3 78 0a 00 00 79 01 00` |
 | `0x567c` | 2 | 2 | 6.0 | yes | `ac 55 87 bd 40 01` |
 | `0x8d39` | 2 | 1 | 14.0 |  | `00 00 20 03 00 00 01 00 00 00` |

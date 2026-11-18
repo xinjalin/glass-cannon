@@ -14,7 +14,8 @@
 //!
 //! Everything here comes from what the meter already reads: your casts and cooldown
 //! changes (`0x3802`, `0x3847`), your skill list (`0x5100`: your loadout's, its stigmas the
-//! equipped ones, sent again as you switch loadouts) and the effects on you
+//! equipped ones, sent again as you switch loadouts, and changed as you spec or reset a
+//! stigma in the skill window: `0x3907`, `0x3844`) and the effects on you
 //! (`0x382a`-`0x382c`).
 
 use std::collections::BTreeMap;

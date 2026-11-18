@@ -395,6 +395,9 @@ Named in Questlog's message list, checked on our captures:
 | `0x572e` | u32 mob type | a dungeon's middle boss was killed |
 | `0x5100` | u8 count, entries of a tag, u32 id and more by kind | your skills, at login, on entering a dungeon (just before `0x3633`) and when you switch skill loadouts: the loadout's, so of the stigmas only those equipped |
 | `0x3900` | varint count, then each: u32 base skill id, varint count, then each slot: u8 type, u32 part (0 empty) | your specialised skills, at login only (not sent again on a loadout switch, so the meter goes by `0x5100`) |
+| `0x3907` | u32 base skill id, then its levels: u8 level, u32 id (0 past the last) | you specced a skill in the skill window: for a stigma, that puts it on (the meter adds it to `0x5100`'s list, which isn't sent again; confirmed 2026-11-18) |
+| `0x3844` | `00 00 02`, u32 base skill id, `01`, the id again, `00 01 02 0f 00` | you reset or unspecced a skill: for a stigma, that takes it off (the meter drops it from the list; confirmed 2026-11-18) |
+| `0x5608` | e.g. `00 00 00 01 03`, u32 skill (0 when emptied), `01`; longer when two slots swap (not fully read) | you changed your hotbar: a skill dragged to, off or between its slots (not read by the meter) |
 
 Of the 184 cast starts followed by the caster's `0x3802` of the same skill, all went off
 within 20 % (or 300 ms) of their cast time; the times are round (1,000, 1,500, 2,000,

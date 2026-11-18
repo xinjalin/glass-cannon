@@ -40,9 +40,11 @@ target/release/packet-lab capture --process AION2
 target/release/packet-lab meter captures/<session> --party
 target/release/packet-lab live
 
-# Every message of one type, or which messages contain a number you saw in game
+# Every message of one type, or which messages contain a number or a text (UTF-8 or
+# UTF-16LE: a name, a label) you saw in game
 target/release/packet-lab messages captures/<session> 8d00
 target/release/packet-lab find captures/<session> 2674
+target/release/packet-lab find-text captures/<session> "Shugo Festival"
 
 # Count the message types, or write every message of recordings as JSON lines
 # (session, flow, time, opcode, payload in hex) for analysis in other tools

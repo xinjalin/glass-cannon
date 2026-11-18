@@ -104,6 +104,16 @@ enum Cmd {
         #[arg(long, value_enum, default_value = "in")]
         side: SideArg,
     },
+    /// Find messages carrying a text (as UTF-8 or UTF-16LE) in the game stream, and show
+    /// each in hex: what a chat line, a name or a label rides in
+    FindText {
+        /// A session folder or a flow folder
+        path: PathBuf,
+        /// The text to look for (case as typed)
+        text: String,
+        #[arg(long, value_enum, default_value = "in")]
+        side: SideArg,
+    },
     /// List damage events (opcode 0x3804) and total them per attacker
     Damage {
         /// A session folder or a flow folder
@@ -526,6 +536,7 @@ fn run(cli: Cli) -> Result<()> {
             bytes,
         } => chunks(&flow, side, limit, bytes),
         Cmd::Opcodes { path, side } => opcodes(&path, side),
+        Cmd::FindText { path, text, side } => find_text(&path, &text, side),
         Cmd::Damage {
             path,
             mine,
@@ -678,6 +689,27 @@ fn opcodes(path: &Path, side: SideArg) -> Result<()> {
     for (op, (count, bytes)) in rows {
         println!("{op:#08x} {count:>8} {:>9.1}", bytes as f64 / count as f64);
     }
+    Ok(())
+}
+
+fn find_text(path: &Path, text: &str, side: SideArg) -> Result<()> {
+    let (_, m) = load_messages(path, side)?;
+    let utf8 = text.as_bytes().to_vec();
+    let utf16: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let at = |hay: &[u8], needle: &[u8]| hay.windows(needle.len()).position(|w| w == needle);
+    let mut found = 0;
+    for (i, msg) in m.messages.iter().enumerate() {
+        let hit = at(&msg.payload, &utf8).map(|p| (p, "utf-8")).or_else(|| at(&msg.payload, &utf16).map(|p| (p, "utf-16le")));
+        let Some((pos, enc)) = hit else { continue };
+        found += 1;
+        println!("#{i} opcode {:#06x}, {} bytes, {enc} at {pos}:", msg.opcode, msg.payload.len());
+        for (row, chunk) in msg.payload.chunks(16).enumerate() {
+            let hex: Vec<String> = chunk.iter().map(|b| format!("{b:02x}")).collect();
+            let ascii: String = chunk.iter().map(|&b| if (0x20..0x7f).contains(&b) { b as char } else { '.' }).collect();
+            println!("  {:04x}  {:<47}  {ascii}", row * 16, hex.join(" "));
+        }
+    }
+    println!("{found} message(s) with {text:?}");
     Ok(())
 }
 
