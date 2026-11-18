@@ -111,7 +111,8 @@ finishes. The widgets:
   top end, and your cast on a small arc under your feet. It starts in the middle of the
   screen; arrange it around your character (wider than tall), and the arcs take its box.
   HP glows below 30%. Stamina and flight power show full until they change (the game
-  sends them only then). Its look is in the settings (overlay → vitals arcs): **solid**,
+  sends them only then). Its settings are beside it on the overlay (arrange, then ⚙), a tab
+  each for the look, the effect, the numbers, the arcs and the cast: **solid**,
   **thin** (glowing lines), **segmented** (cells), **gradient** (dark at the bottom, bright
   where the fill ends), **framed** (a light frame like glass, the fill inside it) or **ticks**
   (thin, with notches outside them like a ruler's, at a quarter, half and three quarters) arcs; an
@@ -123,11 +124,14 @@ finishes. The widgets:
   heartbeat pulse; **earth**, a crust of stone crumbling off in chips and dust; **nature**,
   vines winding along it, leaves budding and fluttering off; **void**, dark motes pulled into
   it, swirling; **wind**, streaks rushing up along it (with Windows' animation effects off, each
-  holds still); **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
+  holds still). An effect only draws over and around the arcs: choosing one never moves or
+  resizes them. Each has its own **strength** (how much of it), **brightness** (how clearly it
+  shows: turn it up if it's hard to see), **size** (how far it reaches off the arcs) and
+  **speed**, and changing one doesn't restart it; **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
   its own colour; a **damage trail**, where HP
   you lose stays as a pale strip for a moment before shrinking away; each arc's colour (HP, stamina, MP,
   flight power, cast, and the shield over HP), picked from a swatch; how round they are, from straight to
-  very round; how wide; **which arcs show** (HP, stamina, MP, flight power: only HP and
+  very round; how wide (the arcs thicken inward: their outer edges and their height stay put); **which arcs show** (HP, stamina, MP, flight power: only HP and
   stamina, say) and where each goes: left or right, outer or inner (moving one to another's
   spot swaps them; alone on its side, an inner arc moves out to the outer line);
   **always show arcs**, which keeps their tracks up with nothing to

@@ -42,7 +42,7 @@ const SIDE_WIDGETS = {
   target: { page: "target.html", label: "target", passive: true, grows: true },
   player: { page: "player.html", label: "player bars", passive: true },
   // No panel: no frosted plate behind it either.
-  vitals: { page: "vitals.html", label: "vitals arcs", passive: true, bare: true },
+  vitals: { page: "vitals.html", label: "vitals arcs", passive: true, bare: true, bleed: 240 },
   party: { page: "party.html", label: "party frames", passive: true },
   // Always as tall as it shows: its list grows with the skills, its timeline is a bar.
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, grows: true },
@@ -472,6 +472,13 @@ function showWidgets(names) {
     const frame = document.createElement("iframe");
     frame.src = w.page;
     frame.title = w.label;
+    // A widget whose drawing reaches past its box (the vitals arcs' effects): its page
+    // bigger than the box by its bleed all round, and told so (the box, and so the widget,
+    // is as it would be without). Never in the mouse's way.
+    if (w.bleed) {
+      frame.src = `${w.page}?bleed=${w.bleed}`;
+      Object.assign(frame.style, { position: "absolute", left: `${-w.bleed}px`, top: `${-w.bleed}px`, width: `calc(100% + ${2 * w.bleed}px)`, height: `calc(100% + ${2 * w.bleed}px)`, pointerEvents: "none" });
+    }
     // Told whether the overlay's being arranged once it's loaded.
     frame.addEventListener("load", () => frame.contentWindow?.postMessage({ type: "gc-editing", on: editing }, "*"));
     el.append(frame);

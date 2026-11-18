@@ -313,8 +313,14 @@ legend {
 .stepper button:hover,
 .choice button:hover { background: var(--line-faint); }
 .choice .sep { color: var(--faint); padding: 0 0.1em; }
-/* Choices too many for one line, wrapping to the right. */
-.choice.wrap { flex-wrap: wrap; justify-content: flex-end; row-gap: 0.15em; }
+/* The vitals arcs' settings: a tab each (look, effect, numbers, arcs, cast), so the panel's
+   as short as the one showing. The effects: a grid of names, five to a row. */
+.vt-tabs { margin: 0 0 0.3em; }
+.vt-tab[hidden] { display: none; }
+.fx-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.25em 0.3em; margin: 0.1em 0 0.4em; white-space: normal; }
+.fx-grid button { padding: 0.15em 0; text-align: center; background: var(--line-faint); }
+/* An effect's own settings, with no effect chosen. */
+.vt-fx.off { opacity: 0.45; }
 .stepper button:disabled { color: var(--faint); cursor: default; background: none; }
 .step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
 
