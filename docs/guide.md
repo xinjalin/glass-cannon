@@ -115,9 +115,15 @@ finishes. The widgets:
   **thin** (glowing lines), **segmented** (cells), **gradient** (dark at the bottom, bright
   where the fill ends), **framed** (a light frame like glass, the fill inside it) or **ticks**
   (thin, with notches outside them like a ruler's, at a quarter, half and three quarters) arcs; an
-  **effect** over any look: **flames**, each arc burning along its fill in its own colour, the outer
-  arcs' flames outward and the inner arcs' inward, toward your character (more of them at low
-  HP); **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
+  **effect** over any look, each along each arc's fill in that arc's own colour, the outer arcs'
+  outward and the inner arcs' inward, toward your character: **flames**, each arc burning
+  (more of them at low HP); **lightning**, jagged bolts crackling and flickering along it;
+  **holy**, a soft halo with rays of light and twinkling motes rising; **darkness**, smoky
+  wisps curling off it; **blood**, drops beading, running down it and dripping off, with a
+  heartbeat pulse; **earth**, a crust of stone crumbling off in chips and dust; **nature**,
+  vines winding along it, leaves budding and fluttering off; **void**, dark motes pulled into
+  it, swirling; **wind**, streaks rushing up along it (with Windows' animation effects off, each
+  holds still); **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
   its own colour; a **damage trail**, where HP
   you lose stays as a pale strip for a moment before shrinking away; each arc's colour (HP, stamina, MP,
   flight power, cast, and the shield over HP), picked from a swatch; how round they are, from straight to

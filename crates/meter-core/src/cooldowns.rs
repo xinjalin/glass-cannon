@@ -19,8 +19,24 @@ pub const OPCODE_COOLDOWN: u16 = 0x3847;
 /// Your skills, sent at login, on entering a dungeon and when you switch skill loadouts:
 /// a u8 count, then entries of a tag, a u32 id and more by kind (not all of them skills).
 /// The skills are the ids of a player skill's base form (`xxyy0000`), all of one class:
-/// the loadout's, so of the stigmas only those it has equipped.
+/// the loadout's, so of the stigmas only those it has equipped. Speccing or resetting a
+/// stigma in the skill window doesn't send it again ([`OPCODE_STIGMA_ON`],
+/// [`OPCODE_STIGMA_OFF`] change it).
 pub const OPCODE_SKILL_LIST: u16 = 0x5100;
+
+/// A stigma specced (put on, in the skill window) without a loadout switch: its u32 base id
+/// first, then its levels (a u8 level and the u32 id each). Only yours.
+pub const OPCODE_STIGMA_ON: u16 = 0x3907;
+
+/// A stigma reset or unspecced (taken off): `00 00 02`, then its u32 base id (twice, a
+/// `01` between). Only yours.
+pub const OPCODE_STIGMA_OFF: u16 = 0x3844;
+
+/// A player skill's base id (`xxyy0000`) at `at`, if that's what's there.
+fn base_skill_at(p: &[u8], at: usize) -> Option<u32> {
+    let v = u32::from_le_bytes(p.get(at..at + 4)?.try_into().ok()?);
+    ((11_000_000..20_000_000).contains(&v) && v % 10_000 == 0).then_some(v)
+}
 
 
 /// The base skill ids in a skill list, found by their shape: of the 8-digit ids with no
@@ -111,6 +127,22 @@ impl Cooldowns {
                 let skills = parse_skill_list(payload);
                 if !skills.is_empty() {
                     self.known = skills;
+                }
+            }
+            // A stigma put on or taken off in the skill window: the list changed without
+            // being sent again. Only once there is a list (a stigma alone isn't your
+            // skills), and only your class's.
+            OPCODE_STIGMA_ON | OPCODE_STIGMA_OFF => {
+                let at = if opcode == OPCODE_STIGMA_ON { 0 } else { 3 };
+                let Some(skill) = base_skill_at(payload, at) else { return };
+                let Some(first) = self.known.first() else { return };
+                if first / 1_000_000 != skill / 1_000_000 {
+                    return;
+                }
+                if opcode == OPCODE_STIGMA_OFF {
+                    self.known.retain(|s| *s != skill);
+                } else if let Err(i) = self.known.binary_search(&skill) {
+                    self.known.insert(i, skill);
                 }
             }
             OPCODE_COOLDOWN => {
@@ -290,6 +322,42 @@ mod tests {
         c.feed(S, OPCODE_SKILL_LIST, &p, None);
         assert_eq!(c.known(), &skills[..]);
         assert!(parse_skill_list(&[0, 1, 2]).is_empty());
+    }
+
+    #[test]
+    fn stigmas_put_on_and_taken_off_change_the_list() {
+        // A Chanter in the skill window, no loadout switch: Guardian Blessing reset, then
+        // Marchutan's Wrath specced, then unspecced, then Guardian Blessing specced again.
+        const BLESSING: u32 = 18_420_000;
+        const WRATH: u32 = 18_330_000;
+        const SPRINT: u32 = 18_160_000;
+        let off_blessing = hex("00 00 02 20 11 19 01 01 20 11 19 01 00 01 02 0f 00");
+        let on_wrath = hex("90 b1 17 01 05 01 9a b1 17 01 02 a4 b1 17 01 03 ae b1 17 01 04 b8 b1 17 01 05 00 00 00 00");
+        let off_wrath = hex("00 00 02 90 b1 17 01 01 90 b1 17 01 00 01 02 0f 00");
+        let on_blessing = hex("20 11 19 01 05 01 2a 11 19 01 02 34 11 19 01 03 3e 11 19 01 04 48 11 19 01 05 00 00 00 00");
+
+        let mut c = Cooldowns::default();
+        // Before any skill list, a stigma alone isn't taken for your skills.
+        c.feed(S, OPCODE_STIGMA_ON, &on_wrath, None);
+        assert!(c.known().is_empty());
+        c.feed(S, OPCODE_SKILL_LIST, &hex(include_str!("../testdata/skill-list-stigma-swap.hex")), None);
+        assert!(c.known().contains(&BLESSING) && c.known().contains(&SPRINT) && !c.known().contains(&WRATH));
+        let others = c.known().len();
+        c.feed(S, OPCODE_STIGMA_OFF, &off_blessing, None);
+        assert!(!c.known().contains(&BLESSING));
+        c.feed(S, OPCODE_STIGMA_ON, &on_wrath, None);
+        assert!(c.known().contains(&WRATH));
+        assert_eq!(c.known().len(), others);
+        c.feed(S, OPCODE_STIGMA_OFF, &off_wrath, None);
+        c.feed(S, OPCODE_STIGMA_ON, &on_blessing, None);
+        c.feed(S, OPCODE_STIGMA_ON, &on_blessing, None);
+        assert!(c.known().contains(&BLESSING) && c.known().contains(&SPRINT) && !c.known().contains(&WRATH));
+        assert_eq!(c.known().len(), others);
+        assert!(c.known().windows(2).all(|w| w[0] < w[1]));
+        // Another class's skill (or something else) changes nothing.
+        c.feed(S, OPCODE_STIGMA_ON, &hex("20 11 19 02 00"), None);
+        c.feed(S, OPCODE_STIGMA_OFF, &hex("00 00"), None);
+        assert_eq!(c.known().len(), others);
     }
 
     #[test]
