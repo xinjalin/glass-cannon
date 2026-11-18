@@ -585,8 +585,8 @@ Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen
 length`, UTF-8 name, then level, class, legion name and other fields. In group rosters
 (`0x9702`, `0x970b`) two bytes come first: flags (`0x0c` always, `0x02` ready, `0x10`
 inside the dungeon) and the slot (1 = the leader, who starts rather than readies).
-Seen in the Vakron capture's party finder: robi03, TAQE and Chandra readied (TAQE
-unreadied and readied again) by `0x9716`, ours by `0x9715`, and robi03 leaving at the end
+Seen in the Vakron capture's party finder: vexo07, MIRO and Sandrel readied (MIRO
+unreadied and readied again) by `0x9716`, ours by `0x9715`, and vexo07 leaving at the end
 by `0x971e` and `0x9221` together. A kick hasn't been captured; the meter takes
 `0x9219` and `0x972a`, and `0x9221`/`0x971e` with your own character ID, as you being removed. Entries aren't at
 fixed offsets, so the meter scans for that shape (`entities::parse_roster`).

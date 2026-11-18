@@ -172,7 +172,19 @@ function reportRects() {
 
 async function loadLayout() {
   const saved = await invoke("hud_layout").catch(() => null);
-  layout = saved && typeof saved === "object" ? saved : {};
+  layout = {};
+  // Only what's a number: a place that isn't (a hand-edited file) would leave the widget
+  // wherever it was.
+  for (const [name, v] of Object.entries(saved && typeof saved === "object" ? saved : {})) {
+    if (name === "_grid") {
+      layout._grid = v;
+      continue;
+    }
+    if (!v || typeof v !== "object") continue;
+    const p = {};
+    for (const k of ["x", "y", "w", "h"]) if (Number.isFinite(v[k])) p[k] = v[k];
+    if (Object.keys(p).length) layout[name] = p;
+  }
   place();
 }
 

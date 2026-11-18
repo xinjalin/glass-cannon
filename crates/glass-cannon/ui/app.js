@@ -662,6 +662,11 @@ async function checkAlerts() {
   }
   const lead = v.alert_lead_min * 60_000;
   const soon = upcoming(v.timer_region, now, lead).map((x) => ({ id: x.id, name: x.name, start: x.start }));
+  // One with no length (a reset) is over the moment it starts, so it's never "the one
+  // going on": its start in the last few seconds counts as starting.
+  for (const x of upcoming(v.timer_region, now - 10_000, lead)) {
+    if (!x.minutes && x.start <= now) soon.push({ id: x.id, name: x.name, start: x.start });
+  }
   for (const b of fieldBosses) {
     if (b.time_ms > now - 5000 && b.time_ms - now <= lead) soon.push({ id: `boss:${b.id}`, name: b.name || `Field boss ${b.id}`, start: b.time_ms });
   }
@@ -881,7 +886,12 @@ function drawBossCast(enc, t) {
   tickCastLine();
 }
 
+// One loop, however often the line's redrawn: each redraw starts it again, so the one
+// running is stopped first (they used to pile up, hundreds to a boss fight).
+let castLineFrame = 0;
 function tickCastLine() {
+  cancelAnimationFrame(castLineFrame);
+  castLineFrame = 0;
   const c = castLine;
   if (!c || $("boss-cast").hidden) return;
   const left = Math.max(0, c.left - (performance.now() - lastViewAt));
@@ -893,7 +903,7 @@ function tickCastLine() {
     $("bc-time").textContent = c.kind === "landing" ? `lands ${(left / 1000).toFixed(1)}s` : `${(left / 1000).toFixed(1)}s`;
   }
   $("boss-cast").classList.toggle("soon", c.kind !== "casting" && left <= (c.kind === "next" ? 5000 : 1000));
-  if (left > 0) requestAnimationFrame(tickCastLine);
+  if (left > 0) castLineFrame = requestAnimationFrame(tickCastLine);
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";

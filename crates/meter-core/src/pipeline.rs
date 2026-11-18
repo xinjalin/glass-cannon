@@ -289,7 +289,21 @@ impl Pipeline {
         self.tick(now_us)
     }
 
+    /// Parked packets nobody has claimed go once they're old. Here as well as when a matcher
+    /// is set: with the game closed no matcher is, and other programs' packets would fill
+    /// limbo for good.
+    fn age_limbo(&mut self, now_us: u64) {
+        let mut bytes = 0;
+        self.limbo.retain(|_, queue| {
+            queue.retain(|(ts, _)| now_us.saturating_sub(*ts) <= LIMBO_MAX_AGE_US);
+            bytes += queue.iter().map(|(_, p)| p.len()).sum::<usize>();
+            !queue.is_empty()
+        });
+        self.limbo_bytes = bytes;
+    }
+
     pub fn tick(&mut self, now_us: u64) -> Result<()> {
+        self.age_limbo(now_us);
         for flow in self.flows.values_mut() {
             for side in [Side::Out, Side::In] {
                 let half = match side {
@@ -772,6 +786,23 @@ mod tests {
         // The game's own still counts.
         p.ingest(5, &ipv4_tcp(SERVER, 7777, ME, 50000, 501, ACK, b"hit")).unwrap();
         assert_eq!(p.stats().packets_matched, 1);
+    }
+
+    #[test]
+    fn held_packets_age_out_with_no_matcher_set() {
+        // The game closed: nothing sets a matcher any more, only time passes. Another
+        // program's new connection is held, then let go once it's old.
+        let mut p = Pipeline::new(Matcher::Live(LiveMatcher::default()), None);
+        use tcp_flags::*;
+        p.ingest(1_000_000, &ipv4_tcp(ME, 50_010, SERVER, 443, 1, ACK, &[0; 500])).unwrap();
+        p.tick(1_000_000 + LIMBO_MAX_AGE_US).unwrap();
+        assert_eq!(p.limbo.len(), 1, "still young");
+        p.ingest(4_500_000, &ipv4_tcp(ME, 50_010, SERVER, 443, 501, ACK, &[0; 300])).unwrap();
+        p.tick(1_000_001 + LIMBO_MAX_AGE_US).unwrap();
+        assert!(p.limbo_bytes >= 300 && p.limbo_bytes < 500, "the old packet went, the new one stays");
+        p.tick(4_500_001 + LIMBO_MAX_AGE_US).unwrap();
+        assert!(p.limbo.is_empty());
+        assert_eq!(p.limbo_bytes, 0);
     }
 
     #[test]

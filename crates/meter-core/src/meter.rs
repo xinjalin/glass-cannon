@@ -1969,7 +1969,10 @@ impl Meter {
         let killer = d.killer_name.clone().or_else(|| d.killer.map(|k| self.registry.label(k)));
         self.pvp.death(ts_us, d.entity, me == Some(d.entity), by_you, killer);
         self.died.insert(d.entity, ts_us);
-        self.died.retain(|_, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US);
+        // Old deaths go, but not those of the fight's own targets: its bosses can die minutes
+        // apart, and it's a kill once all of them are dead.
+        let current = &self.current;
+        self.died.retain(|id, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US || current.as_ref().is_some_and(|e| e.targets.contains_key(id)));
         // Players the game has named (an unnamed "player" may be a mob we missed the spawn of).
         if self.registry.is_self(d.entity) || self.registry.player_name(d.entity).is_some() {
             if let Some(enc) = self.current.as_mut() {
@@ -3405,6 +3408,31 @@ mod tests {
         // Damage still ticking on the corpse doesn't start another fight.
         m.feed(4 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 300));
         assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+    }
+
+    #[test]
+    fn two_bosses_dying_minutes_apart_is_still_a_kill() {
+        // A fight with two bosses: the first dies, the second well over two minutes later
+        // (deaths were forgotten after two, so the first was "alive" again and the fight
+        // never ended as a kill).
+        const SECOND: u64 = 17150;
+        let mut m = meter_with_boss();
+        let spawn = [
+            0xfe, 0x85, 0x01, 0x05, 0x20, 0x00, 0x02, 0x9f, 0x24, 0x00, 0x40, 0x02, 0xcc, 0x98, 0xa6, 0xc7, 0xd3, 0xef,
+            0xaa, 0xc7, 0x00, 0xd4, 0xe1, 0x46, 0x15, 0xdd, 0x3f, 0x43, 0x70, 0x88, 0x01, 0xe3, 0xd6, 0x04, 0x94, 0xa7,
+            0x07, 0x64, 0x00, 0x00, 0x00,
+        ];
+        m.feed(0, crate::entities::OPCODE_MOB_SPAWN, &spawn);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(SECOND, ME, 18_010_340, 5000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert!(ends(&mut m).is_empty(), "one boss is still up");
+        // Hits on the second all the while, then it dies 137 s after the first.
+        for t in (5..140).step_by(5) {
+            m.feed(t * S, OPCODE_DAMAGE, &hit(SECOND, ME, 18_010_340, 1000));
+        }
+        m.feed(140 * S, OPCODE_DEATH, &death(SECOND, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
     }
 
     #[test]

@@ -740,6 +740,19 @@ impl Settings {
             }
         }
         s.widgets.retain(|w| crate::widgets::WIDGETS.contains(&w.as_str()));
+        // The rest that a hand-edited file or someone's setup can have out of range: each
+        // as its own setting allows (a dummy run's length sizes what's kept of it).
+        if !crate::dummy::RUN_LENGTHS.contains(&s.dummy_run_s) {
+            s.dummy_run_s = default_dummy_run_s();
+        }
+        s.alert_lead_min = s.alert_lead_min.clamp(1, 60);
+        s.hide_after_s = s.hide_after_s.min(600);
+        s.meter_hide_after_s = s.meter_hide_after_s.map(|v| v.min(600));
+        s.fading.retain(|w| crate::widgets::WIDGETS.contains(&w.as_str()));
+        s.alerts = crate::widgets::clean_timer_ids(std::mem::take(&mut s.alerts), crate::widgets::MAX_TIMER_PICKS);
+        s.timer_favourites = crate::widgets::clean_timer_ids(std::mem::take(&mut s.timer_favourites), crate::widgets::MAX_TIMER_PICKS);
+        // Bars are by class code.
+        s.bars.retain(|class, _| class.parse::<u32>().is_ok());
         s
     }
 
@@ -1580,7 +1593,9 @@ impl CollectionBook {
 /// One line of the history list.
 #[derive(Debug, Clone, Serialize)]
 pub struct FightSummary {
-    /// Position in the list (pass to `history_fight`).
+    /// The fight's number (pass to `history_fight`): its own for as long as the app runs,
+    /// whatever older fights are dropped meanwhile (it used to be its place in the list,
+    /// which moved once the history was full).
     pub index: usize,
     pub started_ms: u64,
     pub ended_ms: u64,
@@ -1619,6 +1634,10 @@ pub struct FightSummary {
 pub struct History {
     path: PathBuf,
     fights: Vec<Fight>,
+    /// Each fight's number, beside it: given as it's loaded or saved, rising, never used
+    /// again while the app runs. What the windows name a fight by (see [`FightSummary`]).
+    numbers: Vec<usize>,
+    next_number: usize,
     /// Lines in the file, and whether some couldn't be read (by this version).
     on_disk: usize,
     unread: bool,
@@ -1629,8 +1648,9 @@ impl History {
         let path = dir.join("history.jsonl");
         let (mut fights, lines): (Vec<Fight>, usize) = read_lines(&path);
         let read = fights.len();
-        Self::trim(&mut fights);
-        let mut history = Self { path, fights, on_disk: lines, unread: lines > read };
+        let mut numbers: Vec<usize> = (0..read).collect();
+        Self::trim(&mut fights, &mut numbers);
+        let mut history = Self { path, fights, numbers, next_number: read, on_disk: lines, unread: lines > read };
         // Fights older than are kept: off the file too.
         if read > history.fights.len() {
             history.compact();
@@ -1645,10 +1665,14 @@ impl History {
         self.unread = false;
     }
 
-    /// Keeps the newest [`HISTORY_LIMIT`] boss fights and as many others.
-    fn trim(fights: &mut Vec<Fight>) {
-        let mut drop = beyond_limit(fights, HISTORY_LIMIT, |f| f.view.target_boss).into_iter();
-        fights.retain(|_| !drop.next().unwrap_or(false));
+    /// Keeps the newest [`HISTORY_LIMIT`] boss fights and as many others (their numbers with
+    /// them).
+    fn trim(fights: &mut Vec<Fight>, numbers: &mut Vec<usize>) {
+        let drop = beyond_limit(fights, HISTORY_LIMIT, |f| f.view.target_boss);
+        let mut d = drop.iter();
+        fights.retain(|_| !d.next().copied().unwrap_or(false));
+        let mut d = drop.iter();
+        numbers.retain(|_| !d.next().copied().unwrap_or(false));
     }
 
     pub fn push(&mut self, fight: Fight) {
@@ -1662,7 +1686,9 @@ impl History {
             }
         }
         self.fights.push(fight);
-        Self::trim(&mut self.fights);
+        self.numbers.push(self.next_number);
+        self.next_number += 1;
+        Self::trim(&mut self.fights, &mut self.numbers);
         if self.on_disk > self.fights.len() + HISTORY_LIMIT {
             self.compact();
         }
@@ -1676,9 +1702,9 @@ impl History {
     pub fn summaries(&self, details: &FightDetails) -> Vec<FightSummary> {
         self.fights
             .iter()
-            .enumerate()
+            .zip(&self.numbers)
             .rev()
-            .map(|(index, f)| FightSummary {
+            .map(|(f, &index)| FightSummary {
                 index,
                 started_ms: f.view.start_us / 1000,
                 ended_ms: f.ended_ms,
@@ -1716,8 +1742,10 @@ impl History {
         }
     }
 
+    /// The fight with this number (a summary's `index`); none once it's been dropped.
     pub fn fight(&self, index: usize) -> Option<&Fight> {
-        self.fights.get(index)
+        let at = self.numbers.binary_search(&index).ok()?;
+        self.fights.get(at)
     }
 
     pub fn newest_first(&self) -> impl Iterator<Item = &Fight> {
@@ -1726,6 +1754,7 @@ impl History {
 
     pub fn clear(&mut self) {
         self.fights.clear();
+        self.numbers.clear();
         let _ = fs::remove_file(&self.path);
         (self.on_disk, self.unread) = (0, false);
     }
@@ -1801,6 +1830,39 @@ mod tests {
         fs::write(dir.join("settings.json"), r#"{ "widgets": ["target", "nonsense"], "overlay_on": false }"#).unwrap();
         let s = Settings::load(&dir);
         assert_eq!((s.widgets, s.overlay_on), (vec!["target".to_string()], false));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn settings_out_of_range_in_a_file_are_put_right() {
+        // As a hand-edited file or someone's setup could have them.
+        let dir = temp_dir("ranges");
+        fs::write(
+            dir.join("settings.json"),
+            r#"{
+                "dummy_run_s": 4000000000, "alert_lead_min": 0, "hide_after_s": 99999, "meter_hide_after_s": 99999,
+                "fading": ["meter", "not-a-widget"],
+                "alerts": ["shugo-festival", "", "boss:101003", "<b>", "shugo-festival"],
+                "timer_favourites": ["daily-reset", "a b"],
+                "bars": { "18": {}, "chanter": {} }
+            }"#,
+        )
+        .unwrap();
+        let s = Settings::load(&dir);
+        assert_eq!(s.dummy_run_s, crate::dummy::DEFAULT_RUN_S);
+        assert_eq!((s.alert_lead_min, s.hide_after_s, s.meter_hide_after_s), (1, 600, Some(600)));
+        assert_eq!(s.fading, ["meter"]);
+        assert_eq!(s.alerts, ["shugo-festival", "boss:101003"]);
+        assert_eq!(s.timer_favourites, ["daily-reset"]);
+        assert_eq!(s.bars.keys().collect::<Vec<_>>(), ["18"]);
+        // A dummy run of no length would divide by nothing.
+        fs::write(dir.join("settings.json"), r#"{ "dummy_run_s": 0, "alert_lead_min": 500 }"#).unwrap();
+        let s = Settings::load(&dir);
+        assert_eq!((s.dummy_run_s, s.alert_lead_min), (crate::dummy::DEFAULT_RUN_S, 60));
+        // What's in range stays.
+        fs::write(dir.join("settings.json"), r#"{ "dummy_run_s": 120, "alert_lead_min": 10, "hide_after_s": 30 }"#).unwrap();
+        let s = Settings::load(&dir);
+        assert_eq!((s.dummy_run_s, s.alert_lead_min, s.hide_after_s, s.meter_hide_after_s), (120, 10, 30, None));
         fs::remove_dir_all(dir).ok();
     }
 
@@ -2096,7 +2158,39 @@ mod tests {
         }
         assert_eq!(h.len(), HISTORY_LIMIT + 1);
         assert_eq!(h.fight(0).map(|f| f.ended_ms), Some(0), "the boss fight stays");
-        assert_eq!(h.fight(1).map(|f| f.ended_ms), Some(2), "the oldest other fight goes");
+        assert!(h.fight(1).is_none(), "the oldest other fight goes");
+        // The fights after it keep their numbers: a window showing fight 2 still gets
+        // fight 2, not the one that moved into its place.
+        assert_eq!(h.fight(2).map(|f| f.ended_ms), Some(2));
+        let newest = HISTORY_LIMIT + 1;
+        assert_eq!(h.fight(newest).map(|f| f.ended_ms), Some(newest as u64));
+        let list = h.summaries(&FightDetails::new(&dir));
+        assert_eq!((list[0].index, list[0].ended_ms), (newest, newest as u64), "newest first, by its number");
+        assert_eq!(list.last().map(|s| s.index), Some(0));
+        // One more: another goes, and no number's used twice.
+        h.push(Fight { ended_ms: 999, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        assert!(h.fight(2).is_none());
+        assert_eq!(h.fight(3).map(|f| f.ended_ms), Some(3));
+        assert_eq!(h.fight(newest + 1).map(|f| f.ended_ms), Some(999));
+        // Cleared: old numbers name nothing, and the next fight gets a new one.
+        h.clear();
+        assert!(h.fight(3).is_none());
+        h.push(Fight { ended_ms: 5, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        assert!(h.fight(0).is_none());
+        assert_eq!(h.fight(newest + 2).map(|f| f.ended_ms), Some(5));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_boss_fight_is_still_there_after_a_reload() {
+        let dir = temp_dir("history-bosses-again");
+        let mut h = History::load(&dir);
+        let mut boss = snap(None, Some(18)).encounter.unwrap();
+        boss.target_boss = true;
+        h.push(Fight { ended_ms: 0, self_name: None, view: boss });
+        for i in 1..=(HISTORY_LIMIT as u64 + 1) {
+            h.push(Fight { ended_ms: i, self_name: None, view: snap(None, Some(18)).encounter.unwrap() });
+        }
         let again = History::load(&dir);
         assert_eq!((again.len(), again.fight(0).map(|f| f.ended_ms)), (HISTORY_LIMIT + 1, Some(0)));
         fs::remove_dir_all(dir).ok();

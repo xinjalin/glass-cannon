@@ -225,6 +225,32 @@ pub fn set_hud_layout(app: State<'_, Arc<AppState>>, layout: Value) {
     write_layout(&app.config_dir, &layout);
 }
 
+/// A layout as kept: each widget's `x`, `y`, `w` and `h` when they're numbers, and the grid.
+/// What someone's setup (or a hand-edited file) has that isn't is dropped, so the widget
+/// takes its own place.
+pub fn clean_layout(layout: &Value) -> Value {
+    let Some(all) = layout.as_object() else { return Value::Object(serde_json::Map::new()) };
+    let mut out = serde_json::Map::new();
+    for (name, v) in all {
+        if name == "_grid" {
+            if v.as_f64().is_some_and(|g| g.is_finite() && (0.0..=200.0).contains(&g)) {
+                out.insert(name.clone(), v.clone());
+            }
+            continue;
+        }
+        let Some(place) = v.as_object() else { continue };
+        let kept: serde_json::Map<String, Value> = place
+            .iter()
+            .filter(|(k, n)| ["x", "y", "w", "h"].contains(&k.as_str()) && n.as_f64().is_some_and(|n| n.is_finite() && (0.0..=20_000.0).contains(&n)))
+            .map(|(k, n)| (k.clone(), n.clone()))
+            .collect();
+        if !kept.is_empty() && name.len() <= 64 {
+            out.insert(name.clone(), Value::Object(kept));
+        }
+    }
+    Value::Object(out)
+}
+
 /// Saves the widgets' places and sizes (hud.json).
 pub fn write_layout(dir: &Path, layout: &Value) {
     let path = layout_path(dir);
@@ -521,6 +547,27 @@ fn pointer_on_widget<R: Runtime>(handle: &AppHandle<R>, w: &tauri::WebviewWindow
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_layout_keeps_only_places_that_are_numbers() {
+        let given = serde_json::json!({
+            "_grid": 8,
+            "meter": { "x": 0.5, "y": 0.25, "w": 320, "h": 400 },
+            "vitals": { "x": "left", "y": null, "w": 0.34, "h": 300, "z": 9 },
+            "party": "top",
+            "target": { "x": -4, "h": 1e12 },
+            "timers": { "x": 0.1 }
+        });
+        let kept = clean_layout(&given);
+        assert_eq!(kept["_grid"], 8);
+        assert_eq!(kept["meter"], given["meter"]);
+        assert_eq!(kept["vitals"], serde_json::json!({ "w": 0.34, "h": 300 }));
+        assert!(kept.get("party").is_none() && kept.get("target").is_none());
+        assert_eq!(kept["timers"], serde_json::json!({ "x": 0.1 }));
+        // Not a layout at all.
+        assert_eq!(clean_layout(&serde_json::json!([1, 2])), serde_json::json!({}));
+        assert!(clean_layout(&serde_json::json!({ "_grid": "big" })).get("_grid").is_none());
+    }
 
     #[test]
     fn leaving_the_merchant_is_its_close_x_gone_once_seen() {

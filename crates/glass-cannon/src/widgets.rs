@@ -518,10 +518,20 @@ impl PinsLook {
 
 /// Pins as kept: an event's ID or `boss:<id>`, each once, at most [`MAX_PINS`].
 pub fn clean_pins(pins: Vec<String>) -> Vec<String> {
+    clean_timer_ids(pins, MAX_PINS)
+}
+
+/// The most events and field bosses starred, or with an alert.
+pub const MAX_TIMER_PICKS: usize = 400;
+
+/// Events and field bosses picked (pinned, starred, alerted) as kept: an event's ID or
+/// `boss:<id>`, each once, at most `most`. What a hand-edited file or someone's setup
+/// has that isn't one is dropped.
+pub fn clean_timer_ids(ids: Vec<String>, most: usize) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for p in pins {
+    for p in ids {
         let ok = !p.is_empty() && p.len() <= 64 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ':' || c == '_');
-        if ok && !out.contains(&p) && out.len() < MAX_PINS {
+        if ok && !out.contains(&p) && out.len() < most {
             out.push(p);
         }
     }

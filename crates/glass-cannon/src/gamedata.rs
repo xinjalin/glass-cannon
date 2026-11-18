@@ -470,6 +470,9 @@ pub struct GameData {
     /// Why no skills are loaded (missing files, unreadable, bad JSON…).
     problem: Option<String>,
     last_attempt: Option<Instant>,
+    /// What the meter takes from here (boss types, mechanics, skill groups) has changed
+    /// since it was last given it: loaded late, or a skill renamed.
+    meter_stale: bool,
 }
 
 impl GameData {
@@ -499,6 +502,7 @@ impl GameData {
             cast_defaults: CastMapping::default(),
             problem: None,
             last_attempt: None,
+            meter_stale: false,
         };
         d.reload();
         d
@@ -1087,6 +1091,12 @@ impl GameData {
         self.groups = meter_core::skillgroups::SkillGroups::from_names(
             self.skills.skills.iter().map(|(id, e)| (*id, e.name.as_str())),
         );
+        self.meter_stale = true;
+    }
+
+    /// Whether the meter needs what it takes from here again (once: asking clears it).
+    pub fn take_meter_stale(&mut self) -> bool {
+        std::mem::take(&mut self.meter_stale)
     }
 
     /// A skill's icon as a `data:` URL, so the page needs no file access.

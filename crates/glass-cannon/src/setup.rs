@@ -204,10 +204,10 @@ pub fn import_setup(handle: AppHandle, app: State<'_, Arc<AppState>>, json: Stri
     let loaded = Settings::load(&app.config_dir);
     let appearance = loaded.appearance.clone();
     *lock(&app.settings) = loaded;
-    // The windows' and widgets' look, at once.
-    let _ = handle.emit("appearance", &appearance);
+    // The windows' frames and every page's look, at once.
+    crate::restyle_windows(&handle, &appearance);
     if let Some(hud) = hud {
-        crate::hud::write_layout(&app.config_dir, &hud);
+        crate::hud::write_layout(&app.config_dir, &crate::hud::clean_layout(&hud));
     }
     let _ = handle.emit("setup-imported", &taken);
     Ok(taken)

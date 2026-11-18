@@ -991,10 +991,10 @@ pub(crate) mod tests {
     // Prefixes below are from our own captures.
 
     // From the Vakron Sky Island capture (2026-10-22): a party of five in an expedition.
-    const VAKRON_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 ff 01 02 05 1e 01 80 62 01 00 00 00 e5 05 03 41 6a 61 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 9e 11 04 52 3e 01 00 00 00 00 00 00 ad 00 00 00 00 00 00 00 01 00 1e 02 a7 de 03 00 00 00 df 05 06 72 6f 62 69 30 33 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 9e 11 04 73 47 01 00 00 00 00 00 00 3b 00 00 00 00 00 00 00 01 00 1e 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 9e 11 04 d2 58 01 00 00 00 00 00 00 8f 00 00 00 00 00 00 00 01 00 1e 04 0f 1a 04 00 00 00 e4 05 04 54 41 51 45 0e 00 00 00 2d 00 00 00 c3 05 00 00 07 e4 05 9e 11 04 f6 f9 00 00 00 00 00 00 00 59 00 00 00 00 00 00 00 01 00 1e 05 5b 3c 03 00 00 00 e1 05 07 43 68 61 6e 64 72 61 22 00 00 00 2d 00 00 00 57 06 00 00 e1 05 9e 11 04 1a 39 01 00 00 00 00 00 00 6d 00 00 00 00 00 00 00 01 00 00 07";
-    const ROBI_UPDATE: &str = "a7 de 03 00 00 00 df 05 1d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 10 07 00 00 00 00 00 00 00 01 73 47 01 00 00 00 00 00 00";
-    const CHANDRA_UPDATE: &str = "5b 3c 03 00 00 00 e1 05 22 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 57 06 00 00 0c 45 74 65 72 6e 61 6c 57 69 6e 47 73 01 00 00 00 01 1a 39 01 00 00 00 00 00 00";
-    const AJA_COPY: &str = "b3 d1 05 1c 00 01 03 41 6a 61 ac 8f 2c 00 00 02 39 ba 80 46 f5 af 7f 46 00 52 1c 47";
+    const VAKRON_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 ff 01 02 05 1e 01 80 62 01 00 00 00 e5 05 03 5a 65 64 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 9e 11 04 52 3e 01 00 00 00 00 00 00 ad 00 00 00 00 00 00 00 01 00 1e 02 a7 de 03 00 00 00 df 05 06 76 65 78 6f 30 37 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 9e 11 04 73 47 01 00 00 00 00 00 00 3b 00 00 00 00 00 00 00 01 00 1e 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 9e 11 04 d2 58 01 00 00 00 00 00 00 8f 00 00 00 00 00 00 00 01 00 1e 04 0f 1a 04 00 00 00 e4 05 04 4d 49 52 4f 0e 00 00 00 2d 00 00 00 c3 05 00 00 07 e4 05 9e 11 04 f6 f9 00 00 00 00 00 00 00 59 00 00 00 00 00 00 00 01 00 1e 05 5b 3c 03 00 00 00 e1 05 07 53 61 6e 64 72 65 6c 22 00 00 00 2d 00 00 00 57 06 00 00 e1 05 9e 11 04 1a 39 01 00 00 00 00 00 00 6d 00 00 00 00 00 00 00 01 00 00 07";
+    const VEXO_UPDATE: &str = "a7 de 03 00 00 00 df 05 1d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 10 07 00 00 00 00 00 00 00 01 73 47 01 00 00 00 00 00 00";
+    const SANDREL_UPDATE: &str = "5b 3c 03 00 00 00 e1 05 22 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 4a 15 47 ba ee 62 47 00 68 21 47 2d 00 00 00 00 00 00 00 57 06 00 00 0c 51 75 69 65 74 48 61 72 62 6f 75 72 01 00 00 00 01 1a 39 01 00 00 00 00 00 00";
+    const ZED_COPY: &str = "b3 d1 05 1c 00 01 03 5a 65 64 ac 8f 2c 00 00 02 39 ba 80 46 f5 af 7f 46 00 52 1c 47";
 
     #[test]
     fn combat_power_from_a_players_spawn() {
@@ -1056,13 +1056,13 @@ pub(crate) mod tests {
         assert_eq!(
             got,
             vec![
-                ("Aja", Some(45), Some(1635), Some(81_490)),
-                ("robi03", Some(45), Some(1808), Some(83_827)),
+                ("Zed", Some(45), Some(1635), Some(81_490)),
+                ("vexo07", Some(45), Some(1808), Some(83_827)),
                 // In game: gear score 2,023 and combat power 88.27K.
                 ("NeneneTowawa", Some(45), Some(2023), Some(88_274)),
                 // The server comes a byte later in this entry.
-                ("TAQE", Some(45), Some(1475), Some(63_990)),
-                ("Chandra", Some(45), Some(1623), Some(80_154)),
+                ("MIRO", Some(45), Some(1475), Some(63_990)),
+                ("Sandrel", Some(45), Some(1623), Some(80_154)),
             ]
         );
         assert_eq!((m[2].character, m[2].server), (253_528, 2503));
@@ -1110,27 +1110,27 @@ pub(crate) mod tests {
 
     #[test]
     fn member_updates_fill_in_the_party() {
-        let u = parse_member_update(&hex(ROBI_UPDATE)).unwrap();
+        let u = parse_member_update(&hex(VEXO_UPDATE)).unwrap();
         assert_eq!((u.character, u.level, u.gear_score, u.combat_power, u.legion), (253_607, Some(45), Some(1808), Some(83_827), None));
-        let c = parse_member_update(&hex(CHANDRA_UPDATE)).unwrap();
-        assert_eq!((c.gear_score, c.combat_power, c.legion.as_deref()), (Some(1623), Some(80_154), Some("EternalWinGs")));
+        let c = parse_member_update(&hex(SANDREL_UPDATE)).unwrap();
+        assert_eq!((c.gear_score, c.combat_power, c.legion.as_deref()), (Some(1623), Some(80_154), Some("QuietHarbour")));
 
         let mut r = Registry::default();
         r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
         assert!(r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER)).is_some());
         assert_eq!(r.party().len(), 5);
-        r.observe(OPCODE_PARTY_MEMBER, &hex(CHANDRA_UPDATE));
-        let chandra = r.party().iter().find(|m| m.name == "Chandra").unwrap();
-        assert_eq!(chandra.legion.as_deref(), Some("EternalWinGs"));
+        r.observe(OPCODE_PARTY_MEMBER, &hex(SANDREL_UPDATE));
+        let sandrel = r.party().iter().find(|m| m.name == "Sandrel").unwrap();
+        assert_eq!(sandrel.legion.as_deref(), Some("QuietHarbour"));
         // The roster again (resent often) keeps the legion it doesn't carry.
         assert!(r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER)).is_none());
-        assert_eq!(r.party()[4].legion.as_deref(), Some("EternalWinGs"));
+        assert_eq!(r.party()[4].legion.as_deref(), Some("QuietHarbour"));
     }
 
     /// From the Vakron capture, in the party finder before the start: the group's roster
-    /// (Aja leads; robi03 and you not ready), TAQE joining, and the ready messages.
-    const ROOM_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 0f 01 00 05 0c 01 80 62 01 00 00 00 e5 05 03 41 6a 61 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 e5 05 04 52 3e 01 00 00 00 00 00 00 01 01 0c 02 a7 de 03 00 00 00 df 05 06 72 6f 62 69 30 33 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 df 05 04 73 47 01 00 00 00 00 00 00 01 01 0c 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 c7 09 04 d2 58 01 00 00 00 00 00 00 01 02 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 02";
-    const TAQE_JOINS: &str = "0c 04 0f 1a 04 00 00 00 e4 05 04 54 41 51 45 0e 00 00 00 2d 00 00 00 c3 05 00 00 01 e4 05 e4 05 04 f6 f9 00 00 00 00 00 00 00 01 01";
+    /// (Zed leads; vexo07 and you not ready), MIRO joining, and the ready messages.
+    const ROOM_ROSTER: &str = "e6 76 04 00 06 38 30 6b 20 33 62 05 08 28 09 00 00 03 80 62 01 00 00 00 e5 05 0f 01 00 05 0c 01 80 62 01 00 00 00 e5 05 03 5a 65 64 09 00 00 00 2d 00 00 00 63 06 00 00 e5 05 e5 05 04 52 3e 01 00 00 00 00 00 00 01 01 0c 02 a7 de 03 00 00 00 df 05 06 76 65 78 6f 30 37 1d 00 00 00 2d 00 00 00 10 07 00 00 df 05 df 05 04 73 47 01 00 00 00 00 00 00 01 01 0c 03 58 de 03 00 00 00 c7 09 0c 4e 65 6e 65 6e 65 54 6f 77 61 77 61 24 00 00 00 2d 00 00 00 e7 07 00 00 c7 09 c7 09 04 d2 58 01 00 00 00 00 00 00 01 02 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 02";
+    const MIRO_JOINS: &str = "0c 04 0f 1a 04 00 00 00 e4 05 04 4d 49 52 4f 0e 00 00 00 2d 00 00 00 c3 05 00 00 01 e4 05 e4 05 04 f6 f9 00 00 00 00 00 00 00 01 01";
 
     #[test]
     fn group_members_ready_up() {
@@ -1139,15 +1139,15 @@ pub(crate) mod tests {
         r.observe(OPCODE_GROUP_ROSTER, &hex(ROOM_ROSTER));
         let ready = |r: &Registry| r.party().iter().map(|m| (m.name.clone(), m.ready)).collect::<Vec<_>>();
         let s = |n: &str| n.to_string();
-        assert_eq!(ready(&r), [(s("Aja"), None), (s("robi03"), Some(false)), (s("NeneneTowawa"), Some(false))]);
+        assert_eq!(ready(&r), [(s("Zed"), None), (s("vexo07"), Some(false)), (s("NeneneTowawa"), Some(false))]);
         r.observe(OPCODE_GROUP_READY, &hex("a7 de 03 00 00 00 df 05 01"));
         r.observe(OPCODE_GROUP_SELF_READY, &hex("00 00 01"));
-        assert!(r.observe(OPCODE_GROUP_JOIN, &hex(TAQE_JOINS)).is_some());
+        assert!(r.observe(OPCODE_GROUP_JOIN, &hex(MIRO_JOINS)).is_some());
         assert_eq!(r.party()[3].ready, Some(false));
         r.observe(OPCODE_GROUP_READY, &hex("0f 1a 04 00 00 00 e4 05 01"));
         assert_eq!(
             ready(&r),
-            [(s("Aja"), None), (s("robi03"), Some(true)), (s("NeneneTowawa"), Some(true)), (s("TAQE"), Some(true))]
+            [(s("Zed"), None), (s("vexo07"), Some(true)), (s("NeneneTowawa"), Some(true)), (s("MIRO"), Some(true))]
         );
         // Inside the dungeon the group roster marks everyone as in: no ready marks.
         r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER));
@@ -1159,12 +1159,12 @@ pub(crate) mod tests {
         let mut r = Registry::default();
         r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
         r.observe(OPCODE_GROUP_ROSTER, &hex(VAKRON_ROSTER));
-        // robi03 leaves (from the end of the Vakron run).
+        // vexo07 leaves (from the end of the Vakron run).
         assert_eq!(
             r.observe(OPCODE_GROUP_MEMBER_LEFT, &hex("a7 de 03 00 00 00 df 05")),
             Some(Change::PartyChanged { members: 4 })
         );
-        assert!(r.party().iter().all(|m| m.name != "robi03"));
+        assert!(r.party().iter().all(|m| m.name != "vexo07"));
         assert_eq!(r.observe(OPCODE_PARTY_MEMBER_LEFT, &hex("a7 de 03 00 00 00 df 05")), None);
         // The same message with your own ID: you're out (kicked), so the party is gone.
         assert_eq!(
@@ -1180,7 +1180,7 @@ pub(crate) mod tests {
         r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "NeneneTowawa", ""));
         r.observe(OPCODE_GROUP_ROSTER, &hex(ROOM_ROSTER));
         let leader = |r: &Registry| r.party().iter().find(|m| m.leader).map(|m| m.name.clone());
-        assert_eq!(leader(&r).as_deref(), Some("Aja"), "the group's first slot leads");
+        assert_eq!(leader(&r).as_deref(), Some("Zed"), "the group's first slot leads");
         // Vakron Sky Island, near the end: you became the leader, then the party broke up.
         r.observe(OPCODE_PARTY_LEADER, &hex("58 de 03 00 00 00 c7 09"));
         assert_eq!(leader(&r).as_deref(), Some("NeneneTowawa"));
@@ -1194,11 +1194,11 @@ pub(crate) mod tests {
 
     #[test]
     fn a_bosss_copy_of_a_player_is_a_mob() {
-        // Tiere's copy of Aja (Vakron Sky Island): it attacks the party with mob skills.
+        // Tiere's copy of Zed (Vakron Sky Island): it attacks the party with mob skills.
         let mut r = Registry::default();
-        r.observe(OPCODE_PLAYER_SPAWN, &with_name("8b 26 01 20 a2 01 07", "Aja", ""));
-        assert_eq!(parse_player_copy(&hex(AJA_COPY)), Some((92_339, "Aja".to_string(), 2_920_364)));
-        r.observe(OPCODE_MOB_SPAWN, &hex(AJA_COPY));
+        r.observe(OPCODE_PLAYER_SPAWN, &with_name("8b 26 01 20 a2 01 07", "Zed", ""));
+        assert_eq!(parse_player_copy(&hex(ZED_COPY)), Some((92_339, "Zed".to_string(), 2_920_364)));
+        r.observe(OPCODE_MOB_SPAWN, &hex(ZED_COPY));
         assert_eq!(r.mob_type(92_339), Some(2_920_364));
         assert_eq!(r.player_name(92_339), None, "not a player");
     }

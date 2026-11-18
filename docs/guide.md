@@ -123,8 +123,11 @@ finishes. The widgets:
   wisps curling off it; **blood**, drops beading, running down it and dripping off, with a
   heartbeat pulse; **earth**, a crust of stone crumbling off in chips and dust; **nature**,
   vines winding along it, leaves budding and fluttering off; **void**, dark motes pulled into
-  it, swirling; **wind**, streaks rushing up along it (with Windows' animation effects off, each
-  holds still). An effect only draws over and around the arcs: choosing one never moves or
+  it, swirling; **wind**, streaks rushing up along it; **frost**, shards of ice riming it, with
+  snowflakes drifting down; **feathers**, the arc plumed like a wing, a feather coming loose now
+  and then and floating down (more at low HP); **pulse**, nothing but light, its glow breathing
+  with a wave of light running up it, quicker on your HP when it's low (with Windows' animation
+  effects off, each holds still). An effect only draws over and around the arcs: choosing one never moves or
   resizes them. Each has its own **strength** (how much of it), **brightness** (how clearly it
   shows: turn it up if it's hard to see), **size** (how far it reaches off the arcs) and
   **speed**, and changing one doesn't restart it; **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
@@ -221,8 +224,9 @@ One modifier alone (a tap of Right Alt, say) works too, read from the keyboard, 
 game gets it as well: Alt shows its cursor.
 **Close with the game** (settings → general) closes Glass Cannon a few seconds after the game
 closes. **Reset settings & keybinds** (settings → general, click twice) puts every setting,
-keybind and the appearance back to the defaults; the pets you track, starred and alerted
-events, boss skills you marked, the overlay's layout and the history stay.
+keybind and the appearance back to the defaults; the pets you track, starred, alerted and
+pinned events, each class's action bars, boss skills you marked, the overlay's layout and the
+history stay.
 
 **Hide for game menus** (settings, on by default): the overlay steps aside while a
 full-screen game menu is open, the world map among them. Menus send the server nothing, the game keeps its keys from
