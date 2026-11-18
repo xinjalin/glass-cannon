@@ -493,14 +493,14 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .look-gradient .arc-fill.cast { stroke: url(#grad-cast); }
 /* Framed: a light frame like glass, a dark track in it, the fill inset. */
 .arc-frame { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-linecap: round; }
-/* The flames effect: the flames on a canvas under the arcs (vitals.js), each fill glowing
-   in its colour over them. */
-.flames { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* The effects (flames, lightning and the rest): on a canvas under the arcs (vitals.js),
+   each fill glowing in its colour over them; the flames show through the fills. */
+.arc-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .effect-flames .arc-fill { opacity: 0.6; }
-.effect-flames .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
-.effect-flames .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }
-.effect-flames .arc-fill.mp { filter: drop-shadow(0 0 4px var(--arc-mp)); }
-.effect-flames .arc-fill.flight { filter: drop-shadow(0 0 4px var(--arc-flight)); }
+.fx .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
+.fx .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }
+.fx .arc-fill.mp { filter: drop-shadow(0 0 4px var(--arc-mp)); }
+.fx .arc-fill.flight { filter: drop-shadow(0 0 4px var(--arc-flight)); }
 .look-framed .arc-track { stroke: rgba(10, 10, 14, 0.82); }
 /* Ticks: thin, with notches outside the outer arcs, in their colours. */
 .arc-tick { stroke-width: 2px; stroke-linecap: round; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }

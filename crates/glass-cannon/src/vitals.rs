@@ -15,9 +15,12 @@ use crate::{lock, AppState};
 /// dark at the bottom and bright at the fill's end; a light frame with the fill inside it;
 /// thin with notches outside them at a quarter, half and three quarters.
 pub const STYLES: [&str; 6] = ["solid", "thin", "segmented", "gradient", "framed", "ticks"];
-/// An effect over any look: none, or flames along each side arc in its own colour (an
-/// outer arc's outward, an inner arc's inward).
-pub const EFFECTS: [&str; 2] = ["none", "flames"];
+/// An effect over any look: none, or an element along each side arc in its own colour (an
+/// outer arc's outward, an inner arc's inward): flames; lightning bolts; holy light, a halo
+/// with rays; darkness, smoky wisps; blood, drops running down and dripping off; earth,
+/// stone crumbling off; nature, vines and leaves; void, dark motes pulled in; wind, streaks
+/// rushing up.
+pub const EFFECTS: [&str; 10] = ["none", "flames", "lightning", "holy", "darkness", "blood", "earth", "nature", "void", "wind"];
 /// What's behind the numbers: a dark outline, a soft shadow, a dark plate, nothing.
 pub const TEXT_BACKINGS: [&str; 4] = ["outline", "shadow", "plate", "none"];
 /// Which end of the arcs the numbers go by.
@@ -295,7 +298,7 @@ mod tests {
         // Flames, over any look; an unknown effect ignored.
         assert_eq!(v.effect, "none");
         v.update(VitalsChange { effect: Some("flames".into()), ..Default::default() });
-        v.update(VitalsChange { effect: Some("lightning".into()), ..Default::default() });
+        v.update(VitalsChange { effect: Some("plasma".into()), ..Default::default() });
         assert_eq!((v.style.as_str(), v.effect.as_str()), ("framed", "flames"));
         assert!(!v.hp_warn);
         v.update(VitalsChange { hp_warn: Some(true), ..Default::default() });
@@ -317,6 +320,27 @@ mod tests {
         v.update(to("stamina", "up"));
         assert_eq!(spots(&v), ["right-outer", "left-outer", "left-inner", "right-inner"]);
         assert_eq!(v.hidden_arcs.iter().map(String::as_str).collect::<Vec<_>>(), ["flight"]);
+    }
+
+    #[test]
+    fn every_effect_is_kept_and_unknown_ones_fall_back_to_none() {
+        for effect in EFFECTS {
+            let mut v = VitalsSetup::default();
+            v.update(VitalsChange { effect: Some(effect.into()), ..Default::default() });
+            assert_eq!(v.effect, effect);
+            let read: VitalsSetup = serde_json::from_str(&format!(r#"{{ "effect": "{effect}" }}"#)).unwrap();
+            assert_eq!(read.sanitized().effect, effect);
+        }
+        // Unknown ones: ignored as a change, put back to none from a settings file (a name's
+        // case matters too).
+        let mut v = VitalsSetup::default();
+        v.update(VitalsChange { effect: Some("void".into()), ..Default::default() });
+        for junk in ["plasma", "Lightning", "", " wind"] {
+            v.update(VitalsChange { effect: Some(junk.into()), ..Default::default() });
+            assert_eq!(v.effect, "void");
+            let read: VitalsSetup = serde_json::from_str(&format!(r#"{{ "effect": "{junk}" }}"#)).unwrap();
+            assert_eq!(read.sanitized().effect, "none");
+        }
     }
 
     #[test]

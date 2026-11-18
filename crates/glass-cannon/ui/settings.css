@@ -313,6 +313,8 @@ legend {
 .stepper button:hover,
 .choice button:hover { background: var(--line-faint); }
 .choice .sep { color: var(--faint); padding: 0 0.1em; }
+/* Choices too many for one line, wrapping to the right. */
+.choice.wrap { flex-wrap: wrap; justify-content: flex-end; row-gap: 0.15em; }
 .stepper button:disabled { color: var(--faint); cursor: default; background: none; }
 .step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
 
