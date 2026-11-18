@@ -17,14 +17,18 @@ if (FRAME) {
 // told to the overlay as it changes.
 function tellPanelHeight(box) {
   let sent = 0;
+  // The part that scrolls, and what's around it on the page (its padding, the message line
+  // under it): the panel's as tall as both, so nothing's left to scroll.
+  const scroller = box.closest("#scroll") || box;
   const tell = () => {
-    const top = box.getBoundingClientRect().top - box.scrollTop;
-    let bottom = 0;
+    const top = box.getBoundingClientRect().top;
+    let bottom = top;
     for (const k of box.children) {
       if (!k.getClientRects().length) continue;
       bottom = Math.max(bottom, k.getBoundingClientRect().bottom + parseFloat(getComputedStyle(k).marginBottom || 0));
     }
-    const h = Math.ceil(bottom - top + box.getBoundingClientRect().top + 14);
+    const around = innerHeight - scroller.clientHeight;
+    const h = Math.ceil(bottom - top + around) + 2;
     if (Math.abs(h - sent) < 2) return;
     sent = h;
     window.parent.postMessage({ type: "gc-panel-height", height: h }, "*");

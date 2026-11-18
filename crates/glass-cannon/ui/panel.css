@@ -453,7 +453,9 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 /* The vitals arcs widget: no box, just arcs either side of your character, drawn to the
    widget's size by vitals.js in the look chosen in the settings (classes on the svg:
    look-*, backing-*; --vt, the numbers' size). */
-#vitals { position: relative; width: 100%; height: 100%; }
+/* The arcs' box: the widget's own, inside the bleed the overlay gives the page for an
+   effect to reach into (vitals.js). */
+#vitals { position: absolute; inset: var(--bleed, 0px); }
 .arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; --vt: 1; }
 .arcs { --arc-hp: #ef6b4f; --arc-stamina: #6dd37b; --arc-mp: #4ea2e6; --arc-flight: #f2c84b; }
 .arc-track, .arc-fill { fill: none; stroke-linecap: round; }
@@ -495,7 +497,7 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-frame { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-linecap: round; }
 /* The effects (flames, lightning and the rest): on a canvas under the arcs (vitals.js),
    each fill glowing in its colour over them; the flames show through the fills. */
-.arc-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.arc-fx { position: absolute; left: 0; top: 0; pointer-events: none; }
 .effect-flames .arc-fill { opacity: 0.6; }
 .fx .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
 .fx .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }

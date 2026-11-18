@@ -27,7 +27,7 @@ const HUNDREDTHS = 100;
 // ---------------------------------------------------------------- the look
 
 // As the settings have it (vitals.rs); these until they're read.
-let setup = { style: "solid", effect: "none", roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hp_warn: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
+let setup = { style: "solid", effect: "none", effect_strength: 100, effect_brightness: 100, effect_size: 100, effect_speed: 100, roundness: 50, text_size: 100, text_backing: "outline", text_at: "top", numbers: "value", cast: "arc", width: 100, always_show: false, show_cast: true, trail: false, hp_warn: false, hidden_arcs: [], arc_spots: {}, hide_full: false };
 
 // The side arcs hidden for now because they're full (hide when full).
 const fullNow = new Set();
@@ -163,19 +163,24 @@ function geometry() {
   const thin = setup.style === "thin" || setup.style === "ticks";
   // The arcs' thickness, as the look has it times the width chosen.
   const k = (setup.width || 100) / 100;
-  const outer = (thin ? Math.max(2, fs * 0.2) : Math.max(5, fs * 0.6)) * k;
+  const outer1 = thin ? Math.max(2, fs * 0.2) : Math.max(5, fs * 0.6);
+  const outer = outer1 * k;
   const inner = (thin ? Math.max(2, fs * 0.16) : Math.max(3, fs * 0.38)) * k;
   const gap = thin ? Math.max(4, fs * 0.5) : inner * 0.7;
-  // Room past the glow.
-  // And past the ticks look's notches (see drawTicks).
-  // And past the effect along them (see the effects, below).
-  const pad = outer / 2 + (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0) + (FX[setup.effect] ? fs * FX[setup.effect].room * k : 0);
+  // Room past the glow, and past the ticks look's notches (see drawTicks). None for an
+  // effect: that draws past the widget's own box (see the bleed, below), so choosing one
+  // never moves or resizes the arcs.
+  const past = (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0);
+  // The outer arcs' outer edges stay where they are whatever their width (they thicken
+  // inward), and so does their length: `pad0` is the room at the look's own width.
+  const pad = outer / 2 + past;
+  const pad0 = outer1 / 2 + past;
   // Room for the numbers past the arcs' ends (the same at both, so the arcs stay centred),
   // from the overlay's text size alone: the numbers' own settings never move the arcs.
   const room = fs * 1.6;
-  const len = Math.max(20, h - 2 * pad - 2 * room);
+  const len = Math.max(20, h - 2 * pad0 - 2 * room);
   const bend = Math.min(2 * SIDE_BEND, (SIDE_BEND * setup.roundness) / 50);
-  return { w, h, fs, ts, outer, inner, gap, pad, len, bend, cx: w / 2, cy: h / 2 };
+  return { w, h, fs, ts, outer, inner, gap, pad, pad0, len, bend, cx: w / 2, cy: h / 2 };
 }
 
 // A side arc, `d` in from the outer one's line, bottom to top: its path and its two ends.
@@ -202,7 +207,7 @@ function sideArc(g, left, d) {
 
 // The cast: an arc under your feet (as round as the side arcs), or a straight bar there.
 function castShape(g) {
-  const base = Math.min(g.w / 2 - g.pad, g.len / (2 * Math.sin(rad(SIDE_BEND)))) * CAST_R;
+  const base = Math.min(g.w / 2 - g.pad0, g.len / (2 * Math.sin(rad(SIDE_BEND)))) * CAST_R;
   const low = g.cy + base;
   const half = base * Math.sin(rad(CAST_BEND));
   const left = [g.cx - half, low];
@@ -577,6 +582,32 @@ let fxSprites = {};
 let fxFs = 13;
 let fxRaf = 0;
 let fxLast = 0;
+// The effect's own time (ms), running at its speed.
+let fxClock = 0;
+// The effect's settings: how much of it, how clearly it shows, how far it reaches, how
+// fast.
+const fxStrength = () => (setup.effect_strength || 100) / 100;
+const fxBrightness = () => (setup.effect_brightness || 100) / 100;
+const fxSize = () => (setup.effect_size || 100) / 100;
+const fxSpeed = () => (setup.effect_speed || 100) / 100;
+// A piece's opacity at the brightness chosen.
+let fxGain = 1;
+const lit = (v) => Math.min(1, v * fxGain);
+// The effect the live pieces are of: another's start afresh.
+let fxFor = "";
+
+// The bleed: an effect reaches past the arcs, and the arcs go right to the widget's edges,
+// so the overlay makes this page bigger than the widget's box by this much all round, once
+// and for good (the page's address says how much: ?bleed=). The arcs' box is inset by it,
+// so it's the widget's own whatever the effect, and nothing moves or resizes as effects are
+// chosen; the effect's canvas reaches into it as far as the effect does.
+const bleed = Math.max(0, Number(new URLSearchParams(location.search).get("bleed")) || 0);
+document.documentElement.style.setProperty("--bleed", `${bleed}px`);
+function fxReach(fs) {
+  const fx = FX[setup.effect];
+  const k = (setup.width || 100) / 100;
+  return fx ? Math.min(bleed, Math.ceil(fs * fx.room * Math.max(1, k) * fxSize()) + 4) : 0;
+}
 // The pieces: the first `fxLive` are alive, the rest wait to be used again.
 const fxPool = Array.from({ length: FX_MAX }, () => ({ arc: null, kind: 0, x: 0, y: 0, ox: 0, oy: 0, vx: 0, vy: 0, size: 0, age: 0, life: 1, wob: 0, u: 0, s: 0, ph: 0, rot: 0, spin: 0, seed: 0 }));
 let fxLive = 0;
@@ -619,16 +650,40 @@ function fxCanvas() {
   return c;
 }
 
+// The canvas cleared, bleed and all.
+function fxClear(c, x) {
+  x.save();
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.clearRect(0, 0, c.width, c.height);
+  x.restore();
+}
+
 function layoutFx(arcs, layers, g) {
   const c = fxCanvas();
   const dpr = window.devicePixelRatio || 1;
-  c.width = Math.round(g.w * dpr);
-  c.height = Math.round(g.h * dpr);
-  c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Over the arcs' box and as far past it as the effect reaches, drawn in the arcs' own
+  // coordinates. Sized anew only when that changes (sizing a canvas clears it).
+  const reach = fxReach(g.fs);
+  const [w, h] = [Math.round((g.w + 2 * reach) * dpr), Math.round((g.h + 2 * reach) * dpr)];
+  if (c.width !== w || c.height !== h) {
+    c.width = w;
+    c.height = h;
+  }
+  Object.assign(c.style, { left: `${-reach}px`, top: `${-reach}px`, width: `${g.w + 2 * reach}px`, height: `${g.h + 2 * reach}px` });
+  c.getContext("2d").setTransform(dpr, 0, 0, dpr, reach * dpr, reach * dpr);
   fxFs = g.fs;
+  // The pieces carry on through a change of setting (its strength, its colours, the arcs'
+  // look): only another effect's go.
+  if (fxFor !== setup.effect) {
+    fxFor = setup.effect;
+    fxLive = 0;
+  }
+  const before = new Map(fxArcs.map((a) => [a.key, a]));
   fxArcs = [];
-  fxLive = 0;
-  if (!FX[setup.effect]) return;
+  if (!FX[setup.effect]) {
+    fxLive = 0;
+    return;
+  }
   for (const [k, layer] of Object.entries(layers)) {
     const path = parts[k].fill;
     const len = path.getTotalLength();
@@ -647,7 +702,19 @@ function layoutFx(arcs, layers, g) {
       if (away !== out) [nx, ny] = [-nx, -ny];
       pts.push({ x: p.x, y: p.y, nx, ny, tx: dx / n, ty: dy / n });
     }
-    fxArcs.push({ key: k, pts, width: arcs[k][1], out, len });
+    // The same arc as before, laid out again: the pieces on it stay on it.
+    fxArcs.push(Object.assign(before.get(k) || { key: k }, { pts, width: arcs[k][1], out, len }));
+  }
+  // Pieces on an arc that's gone go with it.
+  for (let i = 0; i < fxLive; ) {
+    if (fxArcs.includes(fxPool[i].arc)) {
+      i++;
+      continue;
+    }
+    const f = fxPool[i];
+    fxPool[i] = fxPool[fxLive - 1];
+    fxPool[fxLive - 1] = f;
+    fxLive--;
   }
   if (calm.matches) fxStill();
 }
@@ -707,7 +774,7 @@ function flameEmbers(x, a, s, last, share, now, fs) {
   const r = a.width * 1.1 + fs * 0.25;
   for (let i = 0; i <= last; i++) {
     const p = a.pts[i];
-    x.globalAlpha = (a.out ? 0.24 : 0.17) * (0.6 + 0.4 * Math.sin(now * 0.009 + i * 1.7));
+    x.globalAlpha = lit((a.out ? 0.24 : 0.17) * (0.6 + 0.4 * Math.sin(now * 0.009 + i * 1.7)));
     const ex = p.x + p.nx * a.width * 0.45;
     const ey = p.y + p.ny * a.width * 0.45;
     x.drawImage(s.hot, ex - r, ey - r, 2 * r, 2 * r);
@@ -736,10 +803,10 @@ function stepFlame(x, f, a, s, t, dt, fs) {
   // White-hot at first, its colour after, dark as it dies.
   const hot = Math.max(0, 1 - t / 0.4);
   if (hot > 0) {
-    x.globalAlpha = fade * hot * 0.7;
+    x.globalAlpha = lit(fade * hot * 0.7);
     x.drawImage(s.hot, -w, -len, 2 * w, len + r * 0.4);
   }
-  x.globalAlpha = fade * (1 - hot * 0.5) * 0.85;
+  x.globalAlpha = lit(fade * (1 - hot * 0.5) * 0.85);
   x.drawImage(s.cool, -w * 1.2, -len * 1.1, 2.4 * w, len * 1.1 + r * 0.4);
   x.restore();
 }
@@ -767,7 +834,7 @@ function boltBuzz(x, a, s, last, share, now, fs) {
   const r = a.width * 0.8 + fs * 0.2;
   for (let i = 0; i <= last; i += 2) {
     const p = a.pts[i];
-    x.globalAlpha = (a.out ? 0.14 : 0.1) * (0.5 + Math.random());
+    x.globalAlpha = lit((a.out ? 0.14 : 0.1) * (0.5 + Math.random()));
     const ex = p.x + p.nx * a.width * 0.5;
     const ey = p.y + p.ny * a.width * 0.5;
     x.drawImage(s.glow, ex - r, ey - r, 2 * r, 2 * r);
@@ -823,11 +890,11 @@ function stepBolt(x, f, a, s, t, dt, fs) {
   x.lineCap = "round";
   x.strokeStyle = s.halo;
   x.lineWidth = 3 + a.width * 0.35 + fs * 0.12;
-  x.globalAlpha = 0.45 * fade;
+  x.globalAlpha = lit(0.45 * fade);
   x.stroke();
   x.strokeStyle = s.core;
   x.lineWidth = Math.max(1, 0.8 + a.width * 0.08);
-  x.globalAlpha = 0.95 * fade;
+  x.globalAlpha = lit(0.95 * fade);
   x.stroke();
 }
 
@@ -910,7 +977,7 @@ function holyHalo(x, a, s, last, share, now, fs) {
   const r = a.width * 1.3 + fs * 0.45;
   for (let i = 0; i <= last; i += 2) {
     const p = a.pts[i];
-    x.globalAlpha = (a.out ? 0.18 : 0.12) * (0.7 + 0.3 * Math.sin(now * 0.0025 - i * 0.12));
+    x.globalAlpha = lit((a.out ? 0.18 : 0.12) * (0.7 + 0.3 * Math.sin(now * 0.0025 - i * 0.12)));
     const ex = p.x + p.nx * a.width * 0.5;
     const ey = p.y + p.ny * a.width * 0.5;
     x.drawImage(s.halo, ex - r, ey - r, 2 * r, 2 * r);
@@ -920,7 +987,7 @@ function holyHalo(x, a, s, last, share, now, fs) {
 function stepHoly(x, f, a, s, t, dt) {
   const rise = Math.sin(Math.PI * t);
   if (f.kind === 1) {
-    x.globalAlpha = rise * 0.75;
+    x.globalAlpha = lit(rise * 0.75);
     const len = f.s * (0.75 + 0.25 * rise);
     x.save();
     x.translate(f.x, f.y);
@@ -931,7 +998,7 @@ function stepHoly(x, f, a, s, t, dt) {
   }
   f.x += f.vx * dt;
   f.y += f.vy * dt;
-  x.globalAlpha = rise * (0.55 + 0.45 * Math.sin(f.age * 9 + f.wob));
+  x.globalAlpha = lit(rise * (0.55 + 0.45 * Math.sin(f.age * 9 + f.wob)));
   const r = f.size / 2;
   x.drawImage(s.star, f.x - r, f.y - r, 2 * r, 2 * r);
 }
@@ -963,7 +1030,7 @@ function darkHaze(x, a, s, last, share, now, fs) {
   const r = a.width * 1.1 + fs * 0.35;
   for (let i = 0; i <= last; i += 3) {
     const p = a.pts[i];
-    x.globalAlpha = (a.out ? 0.4 : 0.3) * (0.7 + 0.3 * Math.sin(now * 0.002 + i * 0.5));
+    x.globalAlpha = lit((a.out ? 0.4 : 0.3) * (0.7 + 0.3 * Math.sin(now * 0.002 + i * 0.5)));
     const ex = p.x + p.nx * a.width * 0.6;
     const ey = p.y + p.ny * a.width * 0.6;
     x.drawImage(s.smoke, ex - r, ey - r, 2 * r, 2 * r);
@@ -980,11 +1047,11 @@ function stepDark(x, f, a, s, t, dt, fs) {
   x.save();
   x.translate(f.x, f.y);
   x.rotate(Math.atan2(f.vy, f.vx) + Math.sin(f.age * 2 + f.wob) * 0.6);
-  x.globalAlpha = fade * 0.6;
+  x.globalAlpha = lit(fade * 0.6);
   x.drawImage(s.smoke, -r * 1.2, -r, 2.4 * r, 2 * r);
   // A thread of the arc's colour in it.
   x.globalCompositeOperation = "lighter";
-  x.globalAlpha = fade * 0.3;
+  x.globalAlpha = lit(fade * 0.3);
   x.drawImage(s.wisp, -r * 1.2, -r * 0.45, 2.4 * r, 0.9 * r);
   x.globalCompositeOperation = "source-over";
   x.restore();
@@ -1045,7 +1112,7 @@ function bloodBeat(x, a, s, last, share, now, fs) {
   const r = a.width * 1.0 + fs * 0.3;
   for (let i = 0; i <= last; i += 2) {
     const q = a.pts[i];
-    x.globalAlpha = (a.out ? 0.3 : 0.2) * beat;
+    x.globalAlpha = lit((a.out ? 0.3 : 0.2) * beat);
     x.drawImage(s.pulse, q.x - r, q.y - r, 2 * r, 2 * r);
   }
 }
@@ -1072,7 +1139,7 @@ function stepBlood(x, f, a, s, t, dt, fs) {
       x.strokeStyle = s.trail;
       x.lineCap = "round";
       x.lineWidth = r * 0.55;
-      x.globalAlpha = 0.6;
+      x.globalAlpha = lit(0.6);
       x.stroke();
     }
     at(a, f.u);
@@ -1096,7 +1163,7 @@ function stepBlood(x, f, a, s, t, dt, fs) {
     dy = f.vy;
     stretch = 1 + Math.min(0.8, Math.hypot(f.vx, f.vy) / (fs * 16));
   }
-  x.globalAlpha = f.ph < 2 ? 1 : Math.min(1, (f.life - f.age) / 0.3);
+  x.globalAlpha = lit(f.ph < 2 ? 1 : Math.min(1, (f.life - f.age) / 0.3));
   const h = r * 3 * stretch;
   x.save();
   x.translate(f.x, f.y);
@@ -1170,7 +1237,7 @@ function spawnEarth(f, a, share, fs) {
 }
 
 function earthCrust(x, a, s, last, share, now, fs) {
-  x.globalAlpha = 1;
+  x.globalAlpha = lit(1);
   for (let i = 0; i <= last; i += 2) {
     const p = a.pts[i];
     // A little tremble.
@@ -1186,14 +1253,14 @@ function stepEarth(x, f, a, s, t, dt, fs) {
     f.x += f.vx * dt;
     f.y += f.vy * dt;
     f.rot += f.spin * dt;
-    x.globalAlpha = Math.min(1, (1 - t) * 4);
+    x.globalAlpha = lit(Math.min(1, (1 - t) * 4));
     chip(x, s, CHIPS[f.seed], f.x, f.y, f.size, f.rot);
     return;
   }
   f.x += f.vx * (1 - t * 0.5) * dt;
   f.y += f.vy * dt;
   const r = (f.size * (0.5 + t)) / 2;
-  x.globalAlpha = Math.sin(Math.PI * t) * 0.4;
+  x.globalAlpha = lit(Math.sin(Math.PI * t) * 0.4);
   x.drawImage(s.dust, f.x - r, f.y - r, 2 * r, 2 * r);
 }
 
@@ -1236,7 +1303,7 @@ function vines(x, a, s, last, share, now, fs) {
   const mid = a.width * 0.3;
   const amp = a.width * 0.45 + fs * 0.15 * reach;
   const sway = Math.sin(now * 0.0011 + (a.out ? 0 : 1.3)) * 0.6;
-  x.globalAlpha = 1;
+  x.globalAlpha = lit(1);
   x.lineCap = "round";
   x.lineJoin = "round";
   for (let strand = 0; strand < 2; strand++) {
@@ -1287,7 +1354,7 @@ function stepLeaf(x, f, a, s, t, dt, fs) {
   f.vx *= 1 - dt * 0.8;
   f.x += (f.vx + Math.sin(f.age * 3 + f.wob) * fs * 0.9 * (a.out ? 1 : 0.5)) * dt;
   f.y += f.vy * dt;
-  x.globalAlpha = Math.min(1, (1 - t) * 3, t * 6);
+  x.globalAlpha = lit(Math.min(1, (1 - t) * 3, t * 6));
   x.save();
   x.translate(f.x, f.y);
   x.rotate(f.rot + Math.sin(f.age * 3 + f.wob) * 0.8);
@@ -1336,7 +1403,7 @@ function voidRift(x, a, s, last, share, now, fs) {
   const r = a.width * 0.9 + fs * 0.3;
   for (let i = 0; i <= last; i += 2) {
     const p = a.pts[i];
-    x.globalAlpha = (a.out ? 0.65 : 0.5) * (0.55 + 0.45 * Math.sin(i * 0.4 + now * 0.005));
+    x.globalAlpha = lit((a.out ? 0.65 : 0.5) * (0.55 + 0.45 * Math.sin(i * 0.4 + now * 0.005)));
     const ex = p.x + p.nx * a.width * 0.55;
     const ey = p.y + p.ny * a.width * 0.55;
     x.drawImage(s.rift, ex - r, ey - r, 2 * r, 2 * r);
@@ -1350,7 +1417,7 @@ function stepVoid(x, f, a, s, t) {
   const ty = Q.y;
   voidAt(f, t);
   const r = (f.size * (1 - 0.65 * t * t)) / 2;
-  x.globalAlpha = fade * 0.55;
+  x.globalAlpha = lit(fade * 0.55);
   x.strokeStyle = s.line;
   x.lineCap = "round";
   x.lineWidth = Math.max(0.8, r * 0.5);
@@ -1358,7 +1425,7 @@ function stepVoid(x, f, a, s, t) {
   x.moveTo(tx, ty);
   x.lineTo(Q.x, Q.y);
   x.stroke();
-  x.globalAlpha = fade;
+  x.globalAlpha = lit(fade);
   x.drawImage(s.mote, Q.x - r, Q.y - r, 2 * r, 2 * r);
 }
 
@@ -1388,7 +1455,7 @@ function windAir(x, a, s, last, share, now, fs) {
   const r = a.width * 0.9 + fs * 0.3;
   for (let i = 0; i <= last; i += 3) {
     const p = a.pts[i];
-    x.globalAlpha = (a.out ? 0.08 : 0.06) * (0.7 + 0.3 * Math.sin(now * 0.004 - i * 0.3));
+    x.globalAlpha = lit((a.out ? 0.08 : 0.06) * (0.7 + 0.3 * Math.sin(now * 0.004 - i * 0.3)));
     const ex = p.x + p.nx * a.width * 0.6;
     const ey = p.y + p.ny * a.width * 0.6;
     x.drawImage(s.air, ex - r, ey - r, 2 * r, 2 * r);
@@ -1419,18 +1486,19 @@ function stepWind(x, f, a, s, t, dt, fs) {
   const lw = Math.max(1, fs * 0.13) * (a.out ? 1 : 0.75);
   // Faint and thin all along, brighter and thicker toward its head.
   windPath(x, a, f, fs, 1);
-  x.globalAlpha = fade * 0.3;
+  x.globalAlpha = lit(fade * 0.3);
   x.lineWidth = lw * 0.6;
   x.stroke();
   windPath(x, a, f, fs, 0.45);
-  x.globalAlpha = fade * 0.75;
+  x.globalAlpha = lit(fade * 0.75);
   x.lineWidth = lw;
   x.stroke();
 }
 
 // ---- the effects
 
-// Each: room for it past the outer arcs, in text heights (times the arcs' width); pieces
+// Each: how far it reaches past the outer arcs (the bleed), in text heights (times the
+// arcs' width and the effect's size); pieces
 // born a second along a full outer arc (an inner one's half that), and how many more at low
 // HP; how it's laid over what's under it ("lighter" adds light, glowing); what it draws
 // with; and how it starts a piece, draws along the arc and draws a piece.
@@ -1479,7 +1547,7 @@ function runFx() {
   if (on && calm.matches) fxStill();
   else {
     const c = document.getElementById("fx");
-    if (c) c.getContext("2d").clearRect(0, 0, c.width, c.height);
+    if (c) fxClear(c, c.getContext("2d"));
   }
 }
 
@@ -1489,14 +1557,15 @@ function fxStill() {
   const fx = FX[setup.effect];
   if (!c) return;
   const x = c.getContext("2d");
-  x.clearRect(0, 0, c.width, c.height);
+  fxClear(c, x);
   if (!fx) return;
+  fxGain = fxBrightness();
   for (const a of fxArcs) {
     const share = fxShare[a.key];
     const s = fxSprites[a.key];
     if (!share || !s) continue;
     x.globalCompositeOperation = fx.blend;
-    fx.ambient(x, a, s, Math.round(share * (a.pts.length - 1)), share, 0, fxFs);
+    fx.ambient(x, a, s, Math.round(share * (a.pts.length - 1)), share, 0, fxFs * fxSize());
   }
   x.globalCompositeOperation = "source-over";
   x.globalAlpha = 1;
@@ -1505,12 +1574,16 @@ function fxStill() {
 function fxFrame(now) {
   fxRaf = requestAnimationFrame(fxFrame);
   if (fxLast && now - fxLast < 1000 / FX_FPS - 2) return;
-  const dt = fxLast ? Math.min(0.1, (now - fxLast) / 1000) : 0;
+  // The effect's time runs at its speed; its pieces are as big as its size has them.
+  const dt = (fxLast ? Math.min(0.1, (now - fxLast) / 1000) : 0) * fxSpeed();
   fxLast = now;
+  fxClock += dt * 1000;
   const fx = FX[setup.effect];
   const c = document.getElementById("fx");
   if (!fx || !c) return;
-  const fs = fxFs;
+  const fs = fxFs * fxSize();
+  const strength = fxStrength();
+  fxGain = fxBrightness();
   const k = (setup.width || 100) / 100;
   const low = $("arcs").classList.contains("low");
   // New pieces along each arc's fill: as many to the arc's length whatever its thickness
@@ -1518,7 +1591,7 @@ function fxFrame(now) {
   for (const a of fxArcs) {
     const share = fxShare[a.key];
     if (!share || !fxSprites[a.key]) continue;
-    let n = (fx.rate * share * (a.out ? 1 : 0.5) * (a.key === "hp" && low ? fx.low : 1) * dt) / Math.max(1, k);
+    let n = (fx.rate * strength * share * (a.out ? 1 : 0.5) * (a.key === "hp" && low ? fx.low : 1) * dt) / Math.max(1, k);
     while (n > 0 && fxLive < FX_MAX) {
       if (n < 1 && Math.random() > n) break;
       n -= 1;
@@ -1531,13 +1604,13 @@ function fxFrame(now) {
     }
   }
   const x = c.getContext("2d");
-  x.clearRect(0, 0, c.width, c.height);
+  fxClear(c, x);
   for (const a of fxArcs) {
     const share = fxShare[a.key];
     const s = fxSprites[a.key];
     if (!share || !s) continue;
     x.globalCompositeOperation = fx.blend;
-    fx.ambient(x, a, s, Math.round(share * (a.pts.length - 1)), share, now, fs);
+    fx.ambient(x, a, s, Math.round(share * (a.pts.length - 1)), share, fxClock, fs);
   }
   x.globalCompositeOperation = fx.blend;
   for (let i = 0; i < fxLive; ) {

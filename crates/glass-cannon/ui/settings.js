@@ -911,6 +911,38 @@ let vitals = null;
 const VT_ROUND_STEP = 10;
 const VT_TEXT = { min: 50, max: 200, step: 10 };
 const VT_WIDTH = { min: 50, max: 300, step: 25 };
+// An effect's own settings (vitals.rs: EFFECT_STRENGTHS, EFFECT_BRIGHTNESSES, EFFECT_SIZES,
+// EFFECT_SPEEDS).
+const VT_FX = {
+  strength: { key: "effect_strength", change: "effectStrength", min: 25, max: 300, step: 25 },
+  brightness: { key: "effect_brightness", change: "effectBrightness", min: 25, max: 300, step: 25 },
+  size: { key: "effect_size", change: "effectSize", min: 50, max: 200, step: 25 },
+  speed: { key: "effect_speed", change: "effectSpeed", min: 25, max: 300, step: 25 },
+};
+
+// The vitals arcs' settings, a tab each; the last one chosen remembered.
+const VT_TAB_KEY = "settings-vitals-tab";
+function showVitalsTab(name) {
+  const panels = [...document.querySelectorAll("[data-vt-panel]")];
+  if (!panels.some((p) => p.dataset.vtPanel === name)) name = panels[0].dataset.vtPanel;
+  for (const b of document.querySelectorAll("[data-vt-tab]")) b.setAttribute("aria-selected", String(b.dataset.vtTab === name));
+  for (const p of panels) p.hidden = p.dataset.vtPanel !== name;
+  try {
+    localStorage.setItem(VT_TAB_KEY, name);
+  } catch {
+    // Not remembered, then.
+  }
+}
+for (const b of document.querySelectorAll("[data-vt-tab]")) b.addEventListener("click", () => showVitalsTab(b.dataset.vtTab));
+{
+  let last = "look";
+  try {
+    last = localStorage.getItem(VT_TAB_KEY) || last;
+  } catch {
+    // The first, then.
+  }
+  showVitalsTab(last);
+}
 
 function drawVitals() {
   const v = vitals;
@@ -928,6 +960,18 @@ function drawVitals() {
   $("vt-width-value").textContent = `${v.width}%`;
   $("vt-width-down").disabled = v.width <= VT_WIDTH.min;
   $("vt-width-up").disabled = v.width >= VT_WIDTH.max;
+  // An effect's own settings: nothing to change with none chosen.
+  const noEffect = !v.effect || v.effect === "none";
+  for (const [name, f] of Object.entries(VT_FX)) {
+    const now = v[f.key] || 100;
+    $(`vt-fx-${name}-value`).textContent = `${now}%`;
+    $(`vt-fx-${name}-down`).disabled = noEffect || now <= f.min;
+    $(`vt-fx-${name}-up`).disabled = noEffect || now >= f.max;
+  }
+  for (const line of document.querySelectorAll(".vt-fx")) line.classList.toggle("off", noEffect);
+  $("vt-fx-note").textContent = noEffect
+    ? "Pick an effect to set its strength, brightness, size and speed. The arcs stay where they are: an effect only draws over and around them."
+    : "Each arc keeps its own colour, and the arcs stay where they are: an effect only draws over and around them.";
   drawArcColours(v.colours || {});
   setToggle("vt-always", v.always_show);
   setToggle("vt-hide-full", v.hide_full);
@@ -1024,6 +1068,10 @@ $("vt-text-down").addEventListener("click", () => vitals && setVitals({ textSize
 $("vt-text-up").addEventListener("click", () => vitals && setVitals({ textSize: vitals.text_size + VT_TEXT.step }));
 $("vt-width-down").addEventListener("click", () => vitals && setVitals({ width: vitals.width - VT_WIDTH.step }));
 $("vt-width-up").addEventListener("click", () => vitals && setVitals({ width: vitals.width + VT_WIDTH.step }));
+for (const [name, f] of Object.entries(VT_FX)) {
+  $(`vt-fx-${name}-down`).addEventListener("click", () => vitals && setVitals({ [f.change]: (vitals[f.key] || 100) - f.step }));
+  $(`vt-fx-${name}-up`).addEventListener("click", () => vitals && setVitals({ [f.change]: (vitals[f.key] || 100) + f.step }));
+}
 $("vt-always").addEventListener("click", () => vitals && setVitals({ alwaysShow: !vitals.always_show }));
 $("vt-hide-full").addEventListener("click", () => vitals && setVitals({ hideFull: !vitals.hide_full }));
 $("vt-trail").addEventListener("click", () => vitals && setVitals({ trail: !vitals.trail }));

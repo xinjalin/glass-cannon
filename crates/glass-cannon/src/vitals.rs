@@ -42,6 +42,12 @@ pub const SIDE_ARCS: [&str; 4] = ["hp", "stamina", "mp", "flight"];
 pub const COLOURED: [&str; 6] = ["hp", "stamina", "mp", "flight", "cast", "shield"];
 /// How thick the arcs are, in percent of each look's own.
 pub const WIDTHS: RangeInclusive<u16> = 50..=300;
+/// An effect's strength (how much of it), brightness (how clearly it shows), size (how far
+/// it reaches off the arcs) and speed, each in percent of its own.
+pub const EFFECT_STRENGTHS: RangeInclusive<u16> = 25..=300;
+pub const EFFECT_BRIGHTNESSES: RangeInclusive<u16> = 25..=300;
+pub const EFFECT_SIZES: RangeInclusive<u16> = 50..=200;
+pub const EFFECT_SPEEDS: RangeInclusive<u16> = 25..=300;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -49,6 +55,12 @@ pub struct VitalsSetup {
     pub style: String,
     /// See [`EFFECTS`].
     pub effect: String,
+    /// See [`EFFECT_STRENGTHS`], [`EFFECT_BRIGHTNESSES`], [`EFFECT_SIZES`],
+    /// [`EFFECT_SPEEDS`].
+    pub effect_strength: u16,
+    pub effect_brightness: u16,
+    pub effect_size: u16,
+    pub effect_speed: u16,
     pub roundness: u16,
     pub text_size: u16,
     pub text_backing: String,
@@ -79,6 +91,10 @@ impl Default for VitalsSetup {
         Self {
             style: STYLES[0].into(),
             effect: EFFECTS[0].into(),
+            effect_strength: 100,
+            effect_brightness: 100,
+            effect_size: 100,
+            effect_speed: 100,
             roundness: 50,
             text_size: 100,
             text_backing: TEXT_BACKINGS[0].into(),
@@ -105,6 +121,10 @@ pub struct VitalsChange {
     pub style: Option<String>,
     pub effect: Option<String>,
     /// Any number: clamped.
+    pub effect_strength: Option<i64>,
+    pub effect_brightness: Option<i64>,
+    pub effect_size: Option<i64>,
+    pub effect_speed: Option<i64>,
     pub roundness: Option<i64>,
     pub text_size: Option<i64>,
     pub text_backing: Option<String>,
@@ -175,6 +195,18 @@ impl VitalsSetup {
         if let Some(w) = c.width {
             self.width = clamp(&WIDTHS, w);
         }
+        if let Some(v) = c.effect_strength {
+            self.effect_strength = clamp(&EFFECT_STRENGTHS, v);
+        }
+        if let Some(v) = c.effect_brightness {
+            self.effect_brightness = clamp(&EFFECT_BRIGHTNESSES, v);
+        }
+        if let Some(v) = c.effect_size {
+            self.effect_size = clamp(&EFFECT_SIZES, v);
+        }
+        if let Some(v) = c.effect_speed {
+            self.effect_speed = clamp(&EFFECT_SPEEDS, v);
+        }
         if let Some(a) = c.always_show {
             self.always_show = a;
         }
@@ -227,6 +259,18 @@ impl VitalsSetup {
         }
         if !WIDTHS.contains(&self.width) {
             self.width = fixed.width;
+        }
+        if !EFFECT_STRENGTHS.contains(&self.effect_strength) {
+            self.effect_strength = fixed.effect_strength;
+        }
+        if !EFFECT_BRIGHTNESSES.contains(&self.effect_brightness) {
+            self.effect_brightness = fixed.effect_brightness;
+        }
+        if !EFFECT_SIZES.contains(&self.effect_size) {
+            self.effect_size = fixed.effect_size;
+        }
+        if !EFFECT_SPEEDS.contains(&self.effect_speed) {
+            self.effect_speed = fixed.effect_speed;
         }
         self.colours = valid_colours(self.colours);
         self.hidden_arcs.retain(|a| SIDE_ARCS.contains(&a.as_str()));
@@ -320,6 +364,29 @@ mod tests {
         v.update(to("stamina", "up"));
         assert_eq!(spots(&v), ["right-outer", "left-outer", "left-inner", "right-inner"]);
         assert_eq!(v.hidden_arcs.iter().map(String::as_str).collect::<Vec<_>>(), ["flight"]);
+    }
+
+    #[test]
+    fn an_effects_strength_size_and_speed_stay_in_range() {
+        let mut v = VitalsSetup::default();
+        assert_eq!(v.effect_brightness, 100);
+        v.update(VitalsChange { effect_brightness: Some(175), ..Default::default() });
+        assert_eq!((v.effect_brightness, v.effect_strength), (175, 100));
+        v.update(VitalsChange { effect_brightness: Some(-40), ..Default::default() });
+        assert_eq!(v.effect_brightness, 25);
+        let read: VitalsSetup = serde_json::from_str(r#"{ "effect_brightness": 4000 }"#).unwrap();
+        assert_eq!(read.sanitized().effect_brightness, 100);
+        assert_eq!((v.effect_strength, v.effect_size, v.effect_speed), (100, 100, 100));
+        v.update(VitalsChange { effect_strength: Some(250), effect_size: Some(150), effect_speed: Some(50), ..Default::default() });
+        assert_eq!((v.effect_strength, v.effect_size, v.effect_speed), (250, 150, 50));
+        v.update(VitalsChange { effect_strength: Some(9000), effect_size: Some(-5), effect_speed: Some(0), ..Default::default() });
+        assert_eq!((v.effect_strength, v.effect_size, v.effect_speed), (300, 50, 25));
+        // From a settings file: out of range, as at first; and a file from before them.
+        let read: VitalsSetup = serde_json::from_str(r#"{ "effect_strength": 5, "effect_size": 999, "effect_speed": 1000 }"#).unwrap();
+        let read = read.sanitized();
+        assert_eq!((read.effect_strength, read.effect_size, read.effect_speed), (100, 100, 100));
+        let old: VitalsSetup = serde_json::from_str(r#"{ "effect": "flames" }"#).unwrap();
+        assert_eq!((old.effect_strength, old.effect_size, old.effect_speed), (100, 100, 100));
     }
 
     #[test]
