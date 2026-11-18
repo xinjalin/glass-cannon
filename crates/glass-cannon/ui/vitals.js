@@ -118,7 +118,7 @@ function applySetup() {
   const svg = $("arcs");
   // Ticks are the thin look with marks.
   const look = setup.style === "ticks" ? "look-thin look-ticks" : `look-${setup.style}`;
-  svg.setAttribute("class", `arcs ${look} effect-${setup.effect || "none"} backing-${setup.text_backing}${svg.classList.contains("low") ? " low" : ""}`);
+  svg.setAttribute("class", `arcs ${look} effect-${setup.effect || "none"}${FX[setup.effect] ? " fx" : ""} backing-${setup.text_backing}${svg.classList.contains("low") ? " low" : ""}`);
   svg.style.setProperty("--vt", String(setup.text_size / 100));
   // Colours of your own; the rest as built in (panel.css).
   for (const k of ["hp", "stamina", "mp", "flight", "cast", "shield"]) {
@@ -129,8 +129,8 @@ function applySetup() {
   hpColourNow = undefined;
   layoutArcs();
   draw(lastBars);
-  flameColours();
-  runFlames();
+  fxColours();
+  runFx();
 }
 
 // The HP arc's colour as its HP has it (HP warning colours): null, its own.
@@ -145,8 +145,8 @@ function hpColour(hp) {
   if (colour) svg.style.setProperty("--arc-hp", colour);
   else if (isHexColor(own)) svg.style.setProperty("--arc-hp", own);
   else svg.style.removeProperty("--arc-hp");
-  // The flames in it too.
-  flameColours();
+  // The effect in it too.
+  fxColours();
 }
 
 // ---------------------------------------------------------------- geometry
@@ -168,8 +168,8 @@ function geometry() {
   const gap = thin ? Math.max(4, fs * 0.5) : inner * 0.7;
   // Room past the glow.
   // And past the ticks look's notches (see drawTicks).
-  // And past the flames effect's tongues (see the flames, below).
-  const pad = outer / 2 + (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0) + (setup.effect === "flames" ? fs * FLAME_ROOM * k : 0);
+  // And past the effect along them (see the effects, below).
+  const pad = outer / 2 + (thin ? 4 : 1) + (setup.style === "ticks" ? fs * 0.95 : 0) + (FX[setup.effect] ? fs * FX[setup.effect].room * k : 0);
   // Room for the numbers past the arcs' ends (the same at both, so the arcs stay centred),
   // from the overlay's text size alone: the numbers' own settings never move the arcs.
   const room = fs * 1.6;
@@ -268,7 +268,7 @@ function layoutArcs() {
   parts.shield.setAttribute("d", arcs.hp[0].d);
   parts.shield.style.strokeWidth = `${fillWidth(arcs.hp[1])}px`;
   drawTicks(arcs, g, sides.map(([o]) => o));
-  layoutFlames(arcs, layers, g);
+  layoutFx(arcs, layers, g);
 
   // The numbers, the outer arc's over the inner's, beside the chosen ends and inward of
   // both arcs' ends: the arcs bend outward from their ends, so nothing of them is further
@@ -431,7 +431,7 @@ function arc(k, share, value, percent, shielded = false) {
   if (full) fullNow.add(k);
   else fullNow.delete(k);
   // Turned off, or full: none of it.
-  flameShare[k] = arcOff(k) || full || share == null ? null : Math.max(0, Math.min(1, share));
+  fxShare[k] = arcOff(k) || full || share == null ? null : Math.max(0, Math.min(1, share));
   if (arcOff(k) || full) {
     for (const e of [p.frame, p.track, p.fill, p.value, p.pct]) e.style.display = "none";
     return;
@@ -535,70 +535,108 @@ function drawPlates() {
   plates.replaceChildren(...rects);
 }
 
-// ---------------------------------------------------------------- flames
+// ---------------------------------------------------------------- effects
 
-// The flames effect (settings → vitals arcs → effect): each side arc burns along its fill
-// in its own colour, white-hot where the flames start, its colour, then dark as they die.
-// An outer arc's flames go outward, away from your character, an inner arc's (shorter)
-// inward, toward it: the two never cross, so each arc's colour stays its own. Drawn on a
-// canvas under the arcs, a few hundred small glows at most, and only while it shows.
+// The effects (settings → vitals arcs → effect): flames, lightning, holy light, darkness,
+// blood, earth, nature, void or wind along each side arc's fill, in the arc's own colour:
+// the element only sets how it moves and what shape it takes. An outer arc's go outward,
+// away from your character, an inner arc's (smaller) inward, toward it: the two never
+// cross, so each arc's colour stays its own. Drawn on one canvas under the arcs by one
+// loop, only while it shows, from a fixed pool of pieces (nothing new made each frame).
+// With less motion asked for (the system's reduce motion setting), each holds still: its
+// glow along the arcs, nothing moving.
 
-// Room for the outer arcs' flames past them, in text heights (times the arcs' width).
-const FLAME_ROOM = 2.4;
-const FLAME_FPS = 40;
-// Flames born a second along a full outer arc (an inner one's half that), and how many
-// more at low HP.
-const FLAME_RATE = 450;
-const FLAME_LOW = 1.7;
-// How long a flame lasts, in seconds, and how far it goes in that time, in text heights
-// (outward, and up, as fire goes).
+const FX_FPS = 40;
+// The most pieces at once, all the arcs together.
+const FX_MAX = 1000;
+// Points along each arc that the effects follow.
+const FX_POINTS = 64;
+
+// The flames: how long one lasts, in seconds, and how far it goes in that time, in text
+// heights (outward, and up, as fire goes).
 const FLAME_LIFE = [0.35, 0.8];
 const FLAME_OUT = [0.6, 1.8];
 const FLAME_UP = [0.8, 2.0];
-// Points along each arc that flames start from.
-const FLAME_POINTS = 64;
+// Lightning: steps along a bolt.
+const BOLT_STEPS = 9;
+// Wind: steps along a streak.
+const WIND_STEPS = 10;
+// Earth: the chips' shapes, corners around their middle (x, y, x, y, ...).
+const CHIPS = [
+  [-1, -0.6, 0.3, -1, 1, -0.1, 0.4, 0.9, -0.8, 0.6],
+  [-0.9, -0.9, 0.9, -0.5, 0.6, 0.8, -0.6, 0.5],
+  [0, -1, 1, 0.4, -0.2, 1, -1, 0.1],
+];
 
 // Each side arc's share now (null: not shown), as drawn.
-const flameShare = {};
-// Each side arc's points (its fill, bottom to top) and their way out; the flames; the
-// glows in each arc's colour.
-let flameArcs = {};
-let flameList = [];
-let flameSprites = {};
-let flameFs = 13;
-let flameRaf = 0;
-let flameLast = 0;
+const fxShare = {};
+// Each side arc's points (bottom to top), their way out and up, how thick and long it is;
+// what each effect draws with, in each arc's colour.
+let fxArcs = [];
+let fxSprites = {};
+let fxFs = 13;
+let fxRaf = 0;
+let fxLast = 0;
+// The pieces: the first `fxLive` are alive, the rest wait to be used again.
+const fxPool = Array.from({ length: FX_MAX }, () => ({ arc: null, kind: 0, x: 0, y: 0, ox: 0, oy: 0, vx: 0, vy: 0, size: 0, age: 0, life: 1, wob: 0, u: 0, s: 0, ph: 0, rot: 0, spin: 0, seed: 0 }));
+let fxLive = 0;
+const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 const rand = ([a, b]) => a + Math.random() * (b - a);
+const rnd = (a, b) => a + Math.random() * (b - a);
+// The same number from the same two numbers, 0 to 1: a bolt's zigzag until it changes.
+const hash = (s, j) => {
+  const v = Math.sin(s * 12.9898 + j * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+};
 
-function flameCanvas() {
-  let c = document.getElementById("flames");
+// A point along an arc, `u` of the way up it (0 to 1): where it is, its way out (away from
+// your character for an outer arc, toward it for an inner one) and its way up the arc.
+const P = { x: 0, y: 0, nx: 0, ny: 0, tx: 0, ty: 0 };
+function at(a, u) {
+  const n = a.pts.length - 1;
+  const f = Math.max(0, Math.min(1, u)) * n;
+  const i = Math.min(n - 1, Math.floor(f));
+  const r = f - i;
+  const p = a.pts[i];
+  const q = a.pts[i + 1];
+  P.x = p.x + (q.x - p.x) * r;
+  P.y = p.y + (q.y - p.y) * r;
+  P.nx = p.nx + (q.nx - p.nx) * r;
+  P.ny = p.ny + (q.ny - p.ny) * r;
+  P.tx = p.tx + (q.tx - p.tx) * r;
+  P.ty = p.ty + (q.ty - p.ty) * r;
+}
+
+function fxCanvas() {
+  let c = document.getElementById("fx");
   if (!c) {
     c = document.createElement("canvas");
-    c.id = "flames";
-    c.className = "flames";
+    c.id = "fx";
+    c.className = "arc-fx";
     $("vitals").prepend(c);
   }
   return c;
 }
 
-function layoutFlames(arcs, layers, g) {
-  const c = flameCanvas();
+function layoutFx(arcs, layers, g) {
+  const c = fxCanvas();
   const dpr = window.devicePixelRatio || 1;
   c.width = Math.round(g.w * dpr);
   c.height = Math.round(g.h * dpr);
   c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
-  flameFs = g.fs;
-  flameArcs = {};
-  if (setup.effect !== "flames") return;
+  fxFs = g.fs;
+  fxArcs = [];
+  fxLive = 0;
+  if (!FX[setup.effect]) return;
   for (const [k, layer] of Object.entries(layers)) {
     const path = parts[k].fill;
     const len = path.getTotalLength();
     if (!len) continue;
     const out = layer === "outer";
     const pts = [];
-    for (let i = 0; i < FLAME_POINTS; i++) {
-      const at = (len * i) / (FLAME_POINTS - 1);
+    for (let i = 0; i < FX_POINTS; i++) {
+      const at = (len * i) / (FX_POINTS - 1);
       const [a, b] = [path.getPointAtLength(Math.max(0, at - 0.5)), path.getPointAtLength(Math.min(len, at + 0.5))];
       const [dx, dy] = [b.x - a.x, b.y - a.y];
       const n = Math.hypot(dx, dy) || 1;
@@ -607,39 +645,813 @@ function layoutFlames(arcs, layers, g) {
       // Away from the middle for an outer arc, toward it for an inner one.
       const away = (p.x + nx - g.cx) ** 2 > (p.x - g.cx) ** 2;
       if (away !== out) [nx, ny] = [-nx, -ny];
-      pts.push({ x: p.x, y: p.y, nx, ny });
+      pts.push({ x: p.x, y: p.y, nx, ny, tx: dx / n, ty: dy / n });
     }
-    flameArcs[k] = { pts, width: arcs[k][1], out };
+    fxArcs.push({ key: k, pts, width: arcs[k][1], out, len });
   }
+  if (calm.matches) fxStill();
 }
 
-// A soft round glow in a colour: the hot one white at its middle, the dying one darker.
-function flameSprite(rgb, hot) {
-  const size = 64;
+// ---- what the effects draw with
+
+const WHITE = [255, 255, 255];
+const BLACK = [0, 0, 0];
+// A colour `t` of the way to another.
+const tint = (rgb, to, t) => rgb.map((v, i) => Math.round(v + (to[i] - v) * t));
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+function sprite(w, h, paint) {
   const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const x = c.getContext("2d");
-  const g = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  const [r, gr, b] = rgb;
-  const mix = (t, to) => rgb.map((v, i) => Math.round(v + (to[i] - v) * t)).join(",");
-  if (hot) {
-    g.addColorStop(0, `rgba(${mix(0.5, [255, 255, 255])},1)`);
-    g.addColorStop(0.3, `rgba(${mix(0.15, [255, 255, 255])},0.85)`);
-    g.addColorStop(0.65, `rgba(${r},${gr},${b},0.45)`);
-  } else {
-    g.addColorStop(0, `rgba(${r},${gr},${b},0.7)`);
-    g.addColorStop(0.5, `rgba(${mix(0.45, [0, 0, 0])},0.3)`);
-  }
-  g.addColorStop(1, `rgba(${r},${gr},${b},0)`);
-  x.fillStyle = g;
-  x.fillRect(0, 0, size, size);
+  c.width = w;
+  c.height = h;
+  paint(c.getContext("2d"), w, h);
   return c;
 }
 
-// The arcs' colours as they are now (their own, or as built in).
-function flameColours() {
-  flameSprites = {};
-  if (setup.effect !== "flames") return;
+// A soft round glow, its colours from the middle out.
+function glow(stops) {
+  return sprite(64, 64, (x) => {
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    for (const [at, c] of stops) g.addColorStop(at, c);
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+  });
+}
+
+// ---- flames: each arc burns along its fill, white-hot where the flames start, its colour,
+// then dark as they die.
+
+function paintFlames(rgb) {
+  return {
+    hot: glow([[0, rgba(tint(rgb, WHITE, 0.5), 1)], [0.3, rgba(tint(rgb, WHITE, 0.15), 0.85)], [0.65, rgba(rgb, 0.45)], [1, rgba(rgb, 0)]]),
+    cool: glow([[0, rgba(rgb, 0.7)], [0.5, rgba(tint(rgb, BLACK, 0.45), 0.3)], [1, rgba(rgb, 0)]]),
+  };
+}
+
+function spawnFlame(f, a, share, fs, k) {
+  // From the edge it burns away from (none across into the gap between two arcs).
+  const across = rnd(0.05, 0.5) * a.width;
+  const reach = a.out ? 1 : 0.5;
+  const life = rand(FLAME_LIFE) * (a.out ? 1 : 0.8);
+  f.x = f.ox = P.x + P.nx * across;
+  f.y = f.oy = P.y + P.ny * across;
+  f.vx = (P.nx * rand(FLAME_OUT) * fs * reach * k) / life;
+  f.vy = (P.ny * rand(FLAME_OUT) * fs * reach * k - rand(FLAME_UP) * fs * reach) / life;
+  f.size = (a.width * 1.4 + fs * 0.6 * (a.out ? 1 : 0.7)) * rnd(0.7, 1.3);
+  f.life = life;
+  f.wob = Math.random() * 6.3;
+}
+
+// Embers along each arc's burning edge, flickering, so its fire is one.
+function flameEmbers(x, a, s, last, share, now, fs) {
+  const r = a.width * 1.1 + fs * 0.25;
+  for (let i = 0; i <= last; i++) {
+    const p = a.pts[i];
+    x.globalAlpha = (a.out ? 0.24 : 0.17) * (0.6 + 0.4 * Math.sin(now * 0.009 + i * 1.7));
+    const ex = p.x + p.nx * a.width * 0.45;
+    const ey = p.y + p.ny * a.width * 0.45;
+    x.drawImage(s.hot, ex - r, ey - r, 2 * r, 2 * r);
+  }
+}
+
+function stepFlame(x, f, a, s, t, dt, fs) {
+  // Fast at first, then slowing, with a flicker side to side.
+  const slow = 1 - t * 0.6;
+  f.x += (f.vx * slow + Math.sin(f.age * 14 + f.wob) * fs * 0.35) * dt;
+  f.y += f.vy * slow * dt;
+  const r = (f.size * (1 - t * 0.7)) / 2;
+  const fade = (1 - t) ** 1.3;
+  // A tongue from where it started on the arc out to where it's got to, narrower as it
+  // goes; late on, its base lifts off too, and it dies away from the arc.
+  const lift = Math.max(0, (t - 0.45) / 0.55);
+  const bx = f.ox + (f.x - f.ox) * lift;
+  const by = f.oy + (f.y - f.oy) * lift;
+  const reach = Math.hypot(f.x - bx, f.y - by);
+  const angle = reach > 0.5 ? Math.atan2(f.y - by, f.x - bx) : Math.atan2(f.vy, f.vx);
+  const w = r * (1.1 - t * 0.4);
+  const len = reach + r * 2;
+  x.save();
+  x.translate(bx, by);
+  x.rotate(angle + Math.PI / 2);
+  // White-hot at first, its colour after, dark as it dies.
+  const hot = Math.max(0, 1 - t / 0.4);
+  if (hot > 0) {
+    x.globalAlpha = fade * hot * 0.7;
+    x.drawImage(s.hot, -w, -len, 2 * w, len + r * 0.4);
+  }
+  x.globalAlpha = fade * (1 - hot * 0.5) * 0.85;
+  x.drawImage(s.cool, -w * 1.2, -len * 1.1, 2.4 * w, len * 1.1 + r * 0.4);
+  x.restore();
+}
+
+// ---- lightning: jagged bolts crackling along each arc, flickering, a new zigzag every few
+// hundredths of a second, some forking outward; the arc's edge buzzing under them.
+
+function paintLightning(rgb) {
+  return {
+    glow: glow([[0, rgba(tint(rgb, WHITE, 0.4), 0.9)], [0.4, rgba(rgb, 0.4)], [1, rgba(rgb, 0)]]),
+    halo: rgba(rgb, 1),
+    core: rgba(tint(rgb, WHITE, 0.7), 1),
+  };
+}
+
+function spawnBolt(f, a, share) {
+  f.s = Math.min(share, rnd(0.12, 0.3));
+  f.u = Math.random() * (share - f.s);
+  f.life = rnd(0.16, 0.34);
+  f.seed = Math.random() * 1000;
+  f.ph = 0;
+}
+
+function boltBuzz(x, a, s, last, share, now, fs) {
+  const r = a.width * 0.8 + fs * 0.2;
+  for (let i = 0; i <= last; i += 2) {
+    const p = a.pts[i];
+    x.globalAlpha = (a.out ? 0.14 : 0.1) * (0.5 + Math.random());
+    const ex = p.x + p.nx * a.width * 0.5;
+    const ey = p.y + p.ny * a.width * 0.5;
+    x.drawImage(s.glow, ex - r, ey - r, 2 * r, 2 * r);
+  }
+}
+
+function stepBolt(x, f, a, s, t, dt, fs) {
+  f.ph -= dt;
+  if (f.ph <= 0) {
+    f.seed = Math.random() * 1000;
+    f.ph = rnd(0.03, 0.07);
+  }
+  const reach = a.out ? 1 : 0.5;
+  const amp = a.width * 0.8 + fs * 1.0 * reach;
+  const fork = hash(f.seed, 3) > 0.35 ? 2 + Math.floor(hash(f.seed, 4) * (BOLT_STEPS - 4)) : -1;
+  let bx = 0;
+  let by = 0;
+  let bnx = 0;
+  let bny = 0;
+  let btx = 0;
+  let bty = 0;
+  x.beginPath();
+  for (let j = 0; j <= BOLT_STEPS; j++) {
+    at(a, f.u + (f.s * j) / BOLT_STEPS);
+    // Its ends on the arc's edge, the rest zigzagging out from it.
+    const off = j === 0 || j === BOLT_STEPS ? a.width * 0.5 : a.width * 0.2 + hash(f.seed, j) * amp;
+    const px = P.x + P.nx * off;
+    const py = P.y + P.ny * off;
+    if (j === 0) x.moveTo(px, py);
+    else x.lineTo(px, py);
+    if (j === fork) {
+      bx = px;
+      by = py;
+      bnx = P.nx;
+      bny = P.ny;
+      btx = P.tx;
+      bty = P.ty;
+    }
+  }
+  if (fork >= 0) {
+    // A fork off it, outward.
+    x.moveTo(bx, by);
+    const len = fs * 0.35 * reach;
+    for (let j = 1; j <= 3; j++) {
+      const side = (hash(f.seed, 10 + j) - 0.5) * 2 * len;
+      bx += bnx * len + btx * side;
+      by += bny * len + bty * side;
+      x.lineTo(bx, by);
+    }
+  }
+  const fade = (1 - t * t) * (hash(f.seed, 7) > 0.25 ? 1 : 0.35);
+  x.lineJoin = "round";
+  x.lineCap = "round";
+  x.strokeStyle = s.halo;
+  x.lineWidth = 3 + a.width * 0.35 + fs * 0.12;
+  x.globalAlpha = 0.45 * fade;
+  x.stroke();
+  x.strokeStyle = s.core;
+  x.lineWidth = Math.max(1, 0.8 + a.width * 0.08);
+  x.globalAlpha = 0.95 * fade;
+  x.stroke();
+}
+
+// ---- holy: a soft halo breathing along each arc, shafts of light fading in and out
+// straight from it, and motes of light twinkling up from it.
+
+function paintHoly(rgb) {
+  const bright = tint(rgb, WHITE, 0.55);
+  return {
+    halo: glow([[0, rgba(bright, 0.8)], [0.45, rgba(rgb, 0.35)], [1, rgba(rgb, 0)]]),
+    // A shaft of light from its base (left) narrowing and fading to its tip, soft at its
+    // sides.
+    ray: sprite(128, 32, (x, w, h) => {
+      const g = x.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, rgba(bright, 1));
+      g.addColorStop(0.35, rgba(rgb, 0.7));
+      g.addColorStop(1, rgba(rgb, 0));
+      x.fillStyle = g;
+      x.beginPath();
+      x.moveTo(0, 0);
+      x.lineTo(w, h * 0.4);
+      x.lineTo(w, h * 0.6);
+      x.lineTo(0, h);
+      x.fill();
+      x.globalCompositeOperation = "destination-in";
+      const side = x.createLinearGradient(0, 0, 0, h);
+      side.addColorStop(0, "rgba(0,0,0,0)");
+      side.addColorStop(0.5, "rgba(0,0,0,1)");
+      side.addColorStop(1, "rgba(0,0,0,0)");
+      x.fillStyle = side;
+      x.fillRect(0, 0, w, h);
+    }),
+    // A glint: a small glow with a cross of light through it.
+    star: sprite(64, 64, (x) => {
+      const g = x.createRadialGradient(32, 32, 0, 32, 32, 14);
+      g.addColorStop(0, rgba(WHITE, 1));
+      g.addColorStop(0.4, rgba(bright, 0.8));
+      g.addColorStop(1, rgba(rgb, 0));
+      x.fillStyle = g;
+      x.fillRect(0, 0, 64, 64);
+      for (const across of [false, true]) {
+        const l = across ? x.createLinearGradient(0, 0, 64, 0) : x.createLinearGradient(0, 0, 0, 64);
+        l.addColorStop(0, rgba(rgb, 0));
+        l.addColorStop(0.5, rgba(bright, 1));
+        l.addColorStop(1, rgba(rgb, 0));
+        x.fillStyle = l;
+        if (across) x.fillRect(0, 31, 64, 2);
+        else x.fillRect(31, 0, 2, 64);
+      }
+    }),
+  };
+}
+
+function spawnHoly(f, a, share, fs, k) {
+  const reach = a.out ? 1 : 0.5;
+  const ex = P.x + P.nx * a.width * 0.5;
+  const ey = P.y + P.ny * a.width * 0.5;
+  if (Math.random() < 0.35) {
+    f.kind = 1;
+    f.x = ex;
+    f.y = ey;
+    f.rot = Math.atan2(P.ny, P.nx) + rnd(-0.15, 0.15);
+    f.size = a.width * 0.9 + fs * 0.45;
+    f.s = fs * rnd(1.3, 2.4) * reach * Math.sqrt(k);
+    f.life = rnd(0.9, 1.6);
+  } else {
+    f.kind = 2;
+    const out = rnd(0, fs * 0.6 * reach);
+    f.x = ex + P.nx * out;
+    f.y = ey + P.ny * out;
+    f.vx = P.nx * fs * 0.3 * reach;
+    f.vy = -fs * rnd(0.4, 0.9) * (a.out ? 1 : 0.6);
+    f.size = fs * rnd(0.6, 1.0) * (a.out ? 1 : 0.8);
+    f.life = rnd(1.0, 1.8);
+    f.wob = Math.random() * 6.3;
+  }
+}
+
+function holyHalo(x, a, s, last, share, now, fs) {
+  const r = a.width * 1.3 + fs * 0.45;
+  for (let i = 0; i <= last; i += 2) {
+    const p = a.pts[i];
+    x.globalAlpha = (a.out ? 0.18 : 0.12) * (0.7 + 0.3 * Math.sin(now * 0.0025 - i * 0.12));
+    const ex = p.x + p.nx * a.width * 0.5;
+    const ey = p.y + p.ny * a.width * 0.5;
+    x.drawImage(s.halo, ex - r, ey - r, 2 * r, 2 * r);
+  }
+}
+
+function stepHoly(x, f, a, s, t, dt) {
+  const rise = Math.sin(Math.PI * t);
+  if (f.kind === 1) {
+    x.globalAlpha = rise * 0.75;
+    const len = f.s * (0.75 + 0.25 * rise);
+    x.save();
+    x.translate(f.x, f.y);
+    x.rotate(f.rot);
+    x.drawImage(s.ray, 0, -f.size / 2, len, f.size);
+    x.restore();
+    return;
+  }
+  f.x += f.vx * dt;
+  f.y += f.vy * dt;
+  x.globalAlpha = rise * (0.55 + 0.45 * Math.sin(f.age * 9 + f.wob));
+  const r = f.size / 2;
+  x.drawImage(s.star, f.x - r, f.y - r, 2 * r, 2 * r);
+}
+
+// ---- darkness: smoky wisps, dark and tinted with the arc's colour, curling slowly off it,
+// over a dark haze along it.
+
+function paintDarkness(rgb) {
+  const deep = tint(rgb, BLACK, 0.65);
+  return {
+    smoke: glow([[0, rgba(deep, 0.75)], [0.5, rgba(tint(rgb, BLACK, 0.8), 0.4)], [1, "rgba(0,0,0,0)"]]),
+    wisp: glow([[0, rgba(rgb, 0.6)], [0.6, rgba(rgb, 0.12)], [1, rgba(rgb, 0)]]),
+  };
+}
+
+function spawnDark(f, a, share, fs) {
+  const reach = a.out ? 1 : 0.5;
+  const from = rnd(0.3, 0.6) * a.width;
+  f.x = P.x + P.nx * from;
+  f.y = P.y + P.ny * from;
+  f.vx = P.nx * fs * rnd(0.5, 1.2) * reach;
+  f.vy = P.ny * fs * rnd(0.5, 1.2) * reach - fs * rnd(0.2, 0.6) * reach;
+  f.size = (a.width * 1.3 + fs * 0.9) * rnd(0.8, 1.2) * (a.out ? 1 : 0.7);
+  f.life = rnd(1.1, 2.0);
+  f.wob = Math.random() * 6.3;
+}
+
+function darkHaze(x, a, s, last, share, now, fs) {
+  const r = a.width * 1.1 + fs * 0.35;
+  for (let i = 0; i <= last; i += 3) {
+    const p = a.pts[i];
+    x.globalAlpha = (a.out ? 0.4 : 0.3) * (0.7 + 0.3 * Math.sin(now * 0.002 + i * 0.5));
+    const ex = p.x + p.nx * a.width * 0.6;
+    const ey = p.y + p.ny * a.width * 0.6;
+    x.drawImage(s.smoke, ex - r, ey - r, 2 * r, 2 * r);
+  }
+}
+
+function stepDark(x, f, a, s, t, dt, fs) {
+  // Slowing as it spreads, curling side to side.
+  const slow = 1 - t * 0.5;
+  f.x += (f.vx * slow + Math.sin(f.age * 2.6 + f.wob) * fs * 0.6 * (a.out ? 1 : 0.5)) * dt;
+  f.y += f.vy * slow * dt;
+  const r = (f.size * (0.5 + t * 1.3)) / 2;
+  const fade = Math.sin(Math.PI * t);
+  x.save();
+  x.translate(f.x, f.y);
+  x.rotate(Math.atan2(f.vy, f.vx) + Math.sin(f.age * 2 + f.wob) * 0.6);
+  x.globalAlpha = fade * 0.6;
+  x.drawImage(s.smoke, -r * 1.2, -r, 2.4 * r, 2 * r);
+  // A thread of the arc's colour in it.
+  x.globalCompositeOperation = "lighter";
+  x.globalAlpha = fade * 0.3;
+  x.drawImage(s.wisp, -r * 1.2, -r * 0.45, 2.4 * r, 0.9 * r);
+  x.globalCompositeOperation = "source-over";
+  x.restore();
+}
+
+// ---- blood: drops beading on each arc's edge, running down it and dripping off where it
+// turns under (or at its foot); the arc pulsing as a heartbeat.
+
+function paintBlood(rgb) {
+  const body = tint(rgb, BLACK, 0.3);
+  return {
+    // A drop, round at the bottom and drawn to a point at the top, with a glint; its round
+    // end's middle at (16, 33).
+    drop: sprite(32, 48, (x) => {
+      x.beginPath();
+      x.moveTo(16, 1);
+      x.bezierCurveTo(19, 14, 30, 24, 30, 33);
+      x.arc(16, 33, 14, 0, Math.PI);
+      x.bezierCurveTo(2, 24, 13, 14, 16, 1);
+      x.closePath();
+      const g = x.createRadialGradient(12, 30, 1, 16, 33, 18);
+      g.addColorStop(0, rgba(tint(rgb, WHITE, 0.15), 1));
+      g.addColorStop(0.5, rgba(body, 1));
+      g.addColorStop(1, rgba(tint(rgb, BLACK, 0.6), 1));
+      x.fillStyle = g;
+      x.fill();
+      x.strokeStyle = "rgba(0,0,0,0.4)";
+      x.lineWidth = 1.5;
+      x.stroke();
+      x.fillStyle = "rgba(255,255,255,0.65)";
+      x.beginPath();
+      x.ellipse(11, 29, 2.5, 4, -0.4, 0, Math.PI * 2);
+      x.fill();
+    }),
+    pulse: glow([[0, rgba(rgb, 0.8)], [0.5, rgba(body, 0.3)], [1, rgba(rgb, 0)]]),
+    trail: rgba(body, 1),
+  };
+}
+
+function spawnBlood(f, a, share, fs) {
+  f.u = f.ox = Math.random() * share;
+  f.s = 0;
+  f.ph = 0;
+  f.size = a.width * 0.6 + fs * 0.3 * (a.out ? 1 : 0.75);
+  // How long it takes to bead; it lasts until it's dripped off.
+  f.wob = rnd(0.3, 0.6);
+  f.life = 4;
+  f.x = P.x;
+  f.y = P.y;
+}
+
+// Lub-dub: two quick pulses a little over a second apart.
+function bloodBeat(x, a, s, last, share, now, fs) {
+  const p = ((now / 1000) % 1.1) / 1.1;
+  const beat = Math.max(0, 1 - p * 7) + 0.6 * Math.max(0, 1 - Math.abs(p - 0.22) * 7);
+  if (beat < 0.02) return;
+  x.globalCompositeOperation = "lighter";
+  const r = a.width * 1.0 + fs * 0.3;
+  for (let i = 0; i <= last; i += 2) {
+    const q = a.pts[i];
+    x.globalAlpha = (a.out ? 0.3 : 0.2) * beat;
+    x.drawImage(s.pulse, q.x - r, q.y - r, 2 * r, 2 * r);
+  }
+}
+
+function stepBlood(x, f, a, s, t, dt, fs) {
+  const r = (f.size / 2) * (f.ph === 0 ? 0.35 + 0.65 * Math.min(1, f.age / f.wob) : 1);
+  let dx;
+  let dy;
+  let stretch;
+  if (f.ph < 2) {
+    if (f.ph === 0 && f.age >= f.wob) f.ph = 1;
+    if (f.ph === 1) {
+      // Running down the arc, faster and faster, a thin trail behind it.
+      f.s += fs * 5 * dt;
+      f.u = Math.max(0, f.u - (f.s * dt) / a.len);
+      const from = Math.min(f.ox, f.u + 0.1);
+      x.beginPath();
+      for (let j = 0; j <= 4; j++) {
+        at(a, from + ((f.u - from) * j) / 4);
+        const off = a.width * 0.5 + r * 0.3;
+        if (j === 0) x.moveTo(P.x + P.nx * off, P.y + P.ny * off);
+        else x.lineTo(P.x + P.nx * off, P.y + P.ny * off);
+      }
+      x.strokeStyle = s.trail;
+      x.lineCap = "round";
+      x.lineWidth = r * 0.55;
+      x.globalAlpha = 0.6;
+      x.stroke();
+    }
+    at(a, f.u);
+    f.x = P.x + P.nx * (a.width * 0.5 + r * 0.55);
+    f.y = P.y + P.ny * (a.width * 0.5 + r * 0.55);
+    dx = -P.tx;
+    dy = -P.ty;
+    stretch = 1 + Math.min(0.5, f.s / (fs * 8));
+    // Off the arc where it turns under, or at its foot.
+    if (f.ph === 1 && (P.ny > 0.3 || f.u <= 0)) {
+      f.ph = 2;
+      f.vx = P.nx * fs * 0.6 - P.tx * f.s * 0.3;
+      f.vy = Math.max(fs * 0.5, -P.ty * f.s * 0.5);
+      f.life = f.age + rnd(0.55, 0.85);
+    }
+  } else {
+    f.vy += fs * 18 * dt;
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    dx = f.vx;
+    dy = f.vy;
+    stretch = 1 + Math.min(0.8, Math.hypot(f.vx, f.vy) / (fs * 16));
+  }
+  x.globalAlpha = f.ph < 2 ? 1 : Math.min(1, (f.life - f.age) / 0.3);
+  const h = r * 3 * stretch;
+  x.save();
+  x.translate(f.x, f.y);
+  // The drop's point back the way it came.
+  x.rotate(Math.atan2(dy, dx) - Math.PI / 2);
+  x.drawImage(s.drop, -r, (-h * 33) / 48, 2 * r, h);
+  x.restore();
+}
+
+// ---- earth: each arc crusted with stone along its fill, trembling, that crumbles off in
+// chips tumbling away and puffs of dust.
+
+function paintEarth(rgb) {
+  return {
+    face: rgba(tint(rgb, BLACK, 0.3), 1),
+    edge: rgba(tint(rgb, BLACK, 0.7), 1),
+    lit: rgba(tint(rgb, WHITE, 0.35), 1),
+    dust: glow([[0, rgba(tint(rgb, [128, 118, 104], 0.45), 0.6)], [1, "rgba(0,0,0,0)"]]),
+  };
+}
+
+// A chip of stone, `r` across its middle, turned `rot`, its top edge lit.
+function chip(x, s, shape, cx, cy, r, rot) {
+  const c = Math.cos(rot) * r;
+  const n = Math.sin(rot) * r;
+  x.beginPath();
+  for (let j = 0; j < shape.length; j += 2) {
+    const px = cx + shape[j] * c - shape[j + 1] * n;
+    const py = cy + shape[j] * n + shape[j + 1] * c;
+    if (j === 0) x.moveTo(px, py);
+    else x.lineTo(px, py);
+  }
+  x.closePath();
+  x.fillStyle = s.face;
+  x.fill();
+  x.lineWidth = 1;
+  x.strokeStyle = s.edge;
+  x.stroke();
+  x.beginPath();
+  x.moveTo(cx + shape[0] * c - shape[1] * n, cy + shape[0] * n + shape[1] * c);
+  x.lineTo(cx + shape[2] * c - shape[3] * n, cy + shape[2] * n + shape[3] * c);
+  x.strokeStyle = s.lit;
+  x.stroke();
+}
+
+function spawnEarth(f, a, share, fs) {
+  const reach = a.out ? 1 : 0.5;
+  const ex = P.x + P.nx * a.width * 0.5;
+  const ey = P.y + P.ny * a.width * 0.5;
+  if (Math.random() < 0.4) {
+    f.kind = 1;
+    f.x = ex;
+    f.y = ey;
+    f.vx = P.nx * fs * rnd(0.8, 2.0) * reach;
+    f.vy = P.ny * fs * rnd(0.8, 2.0) * reach - fs * rnd(0.4, 1.4) * reach;
+    f.rot = Math.random() * 6.3;
+    f.spin = rnd(-9, 9);
+    f.size = (a.width * 0.3 + fs * 0.17) * rnd(0.7, 1.4) * (a.out ? 1 : 0.8);
+    f.seed = Math.floor(Math.random() * CHIPS.length);
+    f.life = rnd(0.6, 1.0);
+  } else {
+    f.kind = 2;
+    const out = rnd(0, 0.5) * a.width;
+    f.x = ex + P.nx * out;
+    f.y = ey + P.ny * out;
+    f.vx = P.nx * fs * rnd(0.2, 0.7) * reach;
+    f.vy = fs * rnd(-0.3, 0.3);
+    f.size = (a.width * 0.9 + fs * 0.5) * rnd(0.7, 1.3) * (a.out ? 1 : 0.7);
+    f.life = rnd(0.8, 1.5);
+  }
+}
+
+function earthCrust(x, a, s, last, share, now, fs) {
+  x.globalAlpha = 1;
+  for (let i = 0; i <= last; i += 2) {
+    const p = a.pts[i];
+    // A little tremble.
+    const off = a.width * 0.4 + Math.sin(now * 0.03 + i * 2.1) * 0.5;
+    const r = (a.width * 0.22 + fs * 0.1) * (0.6 + hash(i, 2) * 0.7) * (a.out ? 1 : 0.8);
+    chip(x, s, CHIPS[i % CHIPS.length], p.x + p.nx * off, p.y + p.ny * off, r, hash(i, 1) * 6.3);
+  }
+}
+
+function stepEarth(x, f, a, s, t, dt, fs) {
+  if (f.kind === 1) {
+    f.vy += fs * 14 * dt;
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    f.rot += f.spin * dt;
+    x.globalAlpha = Math.min(1, (1 - t) * 4);
+    chip(x, s, CHIPS[f.seed], f.x, f.y, f.size, f.rot);
+    return;
+  }
+  f.x += f.vx * (1 - t * 0.5) * dt;
+  f.y += f.vy * dt;
+  const r = (f.size * (0.5 + t)) / 2;
+  x.globalAlpha = Math.sin(Math.PI * t) * 0.4;
+  x.drawImage(s.dust, f.x - r, f.y - r, 2 * r, 2 * r);
+}
+
+// ---- nature: two vines winding along each arc's fill, swaying, with leaves on them
+// (budding at the fill's end), now and then one coming loose and fluttering away.
+
+function paintNature(rgb) {
+  return {
+    vine: rgba(tint(rgb, BLACK, 0.35), 0.95),
+    tendril: rgba(tint(rgb, WHITE, 0.25), 0.85),
+    // A leaf from its stalk (left) to its tip, a vein down its middle.
+    leaf: sprite(48, 24, (x) => {
+      x.beginPath();
+      x.moveTo(2, 12);
+      x.quadraticCurveTo(20, -2, 46, 12);
+      x.quadraticCurveTo(20, 26, 2, 12);
+      const g = x.createLinearGradient(0, 0, 0, 24);
+      g.addColorStop(0, rgba(tint(rgb, WHITE, 0.3), 1));
+      g.addColorStop(0.5, rgba(rgb, 1));
+      g.addColorStop(1, rgba(tint(rgb, BLACK, 0.4), 1));
+      x.fillStyle = g;
+      x.fill();
+      x.strokeStyle = "rgba(0,0,0,0.35)";
+      x.lineWidth = 1;
+      x.stroke();
+      x.beginPath();
+      x.moveTo(3, 12);
+      x.lineTo(42, 12);
+      x.strokeStyle = rgba(tint(rgb, BLACK, 0.5), 0.9);
+      x.lineWidth = 1.2;
+      x.stroke();
+    }),
+  };
+}
+
+function vines(x, a, s, last, share, now, fs) {
+  const reach = a.out ? 1 : 0.6;
+  // Mostly on the arc's outer side (an inner arc's inner side), never across into the gap
+  // beside it.
+  const mid = a.width * 0.3;
+  const amp = a.width * 0.45 + fs * 0.15 * reach;
+  const sway = Math.sin(now * 0.0011 + (a.out ? 0 : 1.3)) * 0.6;
+  x.globalAlpha = 1;
+  x.lineCap = "round";
+  x.lineJoin = "round";
+  for (let strand = 0; strand < 2; strand++) {
+    x.beginPath();
+    for (let i = 0; i <= last; i++) {
+      const p = a.pts[i];
+      const off = mid + Math.sin(i * 0.55 + sway + strand * Math.PI) * amp;
+      if (i === 0) x.moveTo(p.x + p.nx * off, p.y + p.ny * off);
+      else x.lineTo(p.x + p.nx * off, p.y + p.ny * off);
+    }
+    x.strokeStyle = strand ? s.tendril : s.vine;
+    x.lineWidth = strand ? Math.max(1, a.width * 0.1 + 0.5) : Math.max(1.4, a.width * 0.18 + 0.8);
+    x.stroke();
+  }
+  const big = (fs * 0.75 + a.width * 0.45) * (a.out ? 1 : 0.75);
+  for (let i = 3; i <= last; i += 6) {
+    const p = a.pts[i];
+    const grow = Math.min(1, (last - i + 1) / 5);
+    const len = big * grow;
+    if (len < 2) continue;
+    // Out from the arc, leaning up or down the arc by turns.
+    const lean = (i / 6) % 2 < 1 ? 0.8 : -0.8;
+    const ex = p.x + p.nx * a.width * 0.5;
+    const ey = p.y + p.ny * a.width * 0.5;
+    x.save();
+    x.translate(ex, ey);
+    x.rotate(Math.atan2(p.ny + p.ty * lean, p.nx + p.tx * lean) + Math.sin(now * 0.002 + i) * 0.15);
+    x.drawImage(s.leaf, 0, -len / 4, len, len / 2);
+    x.restore();
+  }
+}
+
+function spawnLeaf(f, a, share, fs) {
+  const reach = a.out ? 1 : 0.5;
+  f.x = P.x + P.nx * a.width * 0.5;
+  f.y = P.y + P.ny * a.width * 0.5;
+  f.vx = P.nx * fs * rnd(0.5, 1.1) * reach;
+  f.vy = -fs * rnd(0, 0.4);
+  f.rot = Math.atan2(P.ny, P.nx);
+  f.size = (fs * rnd(0.6, 0.8) + a.width * 0.35) * (a.out ? 1 : 0.75);
+  f.life = rnd(1.8, 2.8);
+  f.wob = Math.random() * 6.3;
+}
+
+function stepLeaf(x, f, a, s, t, dt, fs) {
+  // Drifting down slowly, rocking side to side.
+  f.vy = Math.min(fs * 1.1, f.vy + fs * 1.2 * dt);
+  f.vx *= 1 - dt * 0.8;
+  f.x += (f.vx + Math.sin(f.age * 3 + f.wob) * fs * 0.9 * (a.out ? 1 : 0.5)) * dt;
+  f.y += f.vy * dt;
+  x.globalAlpha = Math.min(1, (1 - t) * 3, t * 6);
+  x.save();
+  x.translate(f.x, f.y);
+  x.rotate(f.rot + Math.sin(f.age * 3 + f.wob) * 0.8);
+  x.drawImage(s.leaf, -f.size / 2, -f.size / 4, f.size, f.size / 2);
+  x.restore();
+}
+
+// ---- void: dark motes, ringed in the arc's colour, pulled into it from around it, faster
+// and faster and swirling, over a dark rift along it.
+
+function paintVoid(rgb) {
+  return {
+    mote: glow([[0, "rgba(0,0,0,0.95)"], [0.4, rgba(tint(rgb, BLACK, 0.85), 0.9)], [0.58, rgba(tint(rgb, WHITE, 0.3), 0.95)], [0.75, rgba(rgb, 0.35)], [1, rgba(rgb, 0)]]),
+    rift: glow([[0, rgba(tint(rgb, BLACK, 0.85), 0.7)], [0.6, rgba(tint(rgb, BLACK, 0.6), 0.25)], [1, "rgba(0,0,0,0)"]]),
+    line: rgba(rgb, 1),
+  };
+}
+
+function spawnVoid(f, a, share, fs, k) {
+  const reach = a.out ? 1 : 0.5;
+  // Where it ends, on the arc's edge, and (in vx, vy) where it starts, out from it.
+  f.ox = P.x + P.nx * a.width * 0.5;
+  f.oy = P.y + P.ny * a.width * 0.5;
+  const d = fs * rnd(0.9, 2.0) * reach * Math.sqrt(k);
+  const side = rnd(-0.9, 0.9) * fs * reach;
+  f.vx = f.ox + P.nx * d + P.tx * side;
+  f.vy = f.oy + P.ny * d + P.ty * side;
+  f.spin = rnd(-1, 1) * fs * 0.7 * reach;
+  f.size = fs * rnd(0.4, 0.65) * (a.out ? 1 : 0.8) + a.width * 0.15;
+  f.life = rnd(0.8, 1.4);
+}
+
+// Where a mote is `t` of its way in: pulled in faster and faster, swirling.
+const Q = { x: 0, y: 0 };
+function voidAt(f, t) {
+  const e = t ** 2.2;
+  const dx = f.ox - f.vx;
+  const dy = f.oy - f.vy;
+  const len = Math.hypot(dx, dy) || 1;
+  const swirl = f.spin * Math.sin(Math.PI * e);
+  Q.x = f.vx + dx * e - (dy / len) * swirl;
+  Q.y = f.vy + dy * e + (dx / len) * swirl;
+}
+
+function voidRift(x, a, s, last, share, now, fs) {
+  const r = a.width * 0.9 + fs * 0.3;
+  for (let i = 0; i <= last; i += 2) {
+    const p = a.pts[i];
+    x.globalAlpha = (a.out ? 0.65 : 0.5) * (0.55 + 0.45 * Math.sin(i * 0.4 + now * 0.005));
+    const ex = p.x + p.nx * a.width * 0.55;
+    const ey = p.y + p.ny * a.width * 0.55;
+    x.drawImage(s.rift, ex - r, ey - r, 2 * r, 2 * r);
+  }
+}
+
+function stepVoid(x, f, a, s, t) {
+  const fade = Math.min(1, t * 4);
+  voidAt(f, Math.max(0, t - 0.25));
+  const tx = Q.x;
+  const ty = Q.y;
+  voidAt(f, t);
+  const r = (f.size * (1 - 0.65 * t * t)) / 2;
+  x.globalAlpha = fade * 0.55;
+  x.strokeStyle = s.line;
+  x.lineCap = "round";
+  x.lineWidth = Math.max(0.8, r * 0.5);
+  x.beginPath();
+  x.moveTo(tx, ty);
+  x.lineTo(Q.x, Q.y);
+  x.stroke();
+  x.globalAlpha = fade;
+  x.drawImage(s.mote, Q.x - r, Q.y - r, 2 * r, 2 * r);
+}
+
+// ---- wind: streaks rushing up along each arc, just out from it, wavering, bright at their
+// heads and fading behind.
+
+function paintWind(rgb) {
+  return {
+    line: rgba(tint(rgb, WHITE, 0.25), 1),
+    air: glow([[0, rgba(tint(rgb, WHITE, 0.3), 0.6)], [1, rgba(rgb, 0)]]),
+  };
+}
+
+function spawnWind(f, a, share, fs) {
+  const reach = a.out ? 1 : 0.5;
+  // Where its head is, how fast it goes and how long it is (in shares of the arc), how
+  // far out from the arc.
+  f.u = Math.random() * share * 0.9;
+  f.s = rnd(0.45, 0.85);
+  f.size = rnd(0.12, 0.24);
+  f.ox = a.width * 0.5 + rnd(0.1, 1) * fs * 0.9 * reach;
+  f.wob = Math.random() * 6.3;
+  f.life = rnd(0.45, 0.85);
+}
+
+function windAir(x, a, s, last, share, now, fs) {
+  const r = a.width * 0.9 + fs * 0.3;
+  for (let i = 0; i <= last; i += 3) {
+    const p = a.pts[i];
+    x.globalAlpha = (a.out ? 0.08 : 0.06) * (0.7 + 0.3 * Math.sin(now * 0.004 - i * 0.3));
+    const ex = p.x + p.nx * a.width * 0.6;
+    const ey = p.y + p.ny * a.width * 0.6;
+    x.drawImage(s.air, ex - r, ey - r, 2 * r, 2 * r);
+  }
+}
+
+// A streak along the arc from `from` of its length back from its head to the head.
+function windPath(x, a, f, fs, from) {
+  x.beginPath();
+  for (let j = 0; j <= WIND_STEPS; j++) {
+    const u = f.u - f.size * from * (1 - j / WIND_STEPS);
+    at(a, u);
+    const off = f.ox + Math.sin(u * 18 + f.wob) * fs * 0.08;
+    if (j === 0) x.moveTo(P.x + P.nx * off, P.y + P.ny * off);
+    else x.lineTo(P.x + P.nx * off, P.y + P.ny * off);
+  }
+}
+
+function stepWind(x, f, a, s, t, dt, fs) {
+  f.u += f.s * dt;
+  // Gone past the fill's end.
+  const share = fxShare[a.key] || 0;
+  const fade = Math.sin(Math.PI * t) * Math.max(0, Math.min(1, 1 - (f.u - share) / 0.04));
+  if (fade < 0.01) return;
+  x.strokeStyle = s.line;
+  x.lineCap = "round";
+  x.lineJoin = "round";
+  const lw = Math.max(1, fs * 0.13) * (a.out ? 1 : 0.75);
+  // Faint and thin all along, brighter and thicker toward its head.
+  windPath(x, a, f, fs, 1);
+  x.globalAlpha = fade * 0.3;
+  x.lineWidth = lw * 0.6;
+  x.stroke();
+  windPath(x, a, f, fs, 0.45);
+  x.globalAlpha = fade * 0.75;
+  x.lineWidth = lw;
+  x.stroke();
+}
+
+// ---- the effects
+
+// Each: room for it past the outer arcs, in text heights (times the arcs' width); pieces
+// born a second along a full outer arc (an inner one's half that), and how many more at low
+// HP; how it's laid over what's under it ("lighter" adds light, glowing); what it draws
+// with; and how it starts a piece, draws along the arc and draws a piece.
+const FX = {
+  flames: { room: 2.4, rate: 450, low: 1.7, blend: "lighter", paint: paintFlames, spawn: spawnFlame, ambient: flameEmbers, step: stepFlame },
+  lightning: { room: 1.6, rate: 12, low: 1.8, blend: "lighter", paint: paintLightning, spawn: spawnBolt, ambient: boltBuzz, step: stepBolt },
+  holy: { room: 2.4, rate: 14, low: 1, blend: "lighter", paint: paintHoly, spawn: spawnHoly, ambient: holyHalo, step: stepHoly },
+  darkness: { room: 2.2, rate: 40, low: 1.5, blend: "source-over", paint: paintDarkness, spawn: spawnDark, ambient: darkHaze, step: stepDark },
+  blood: { room: 1.2, rate: 6, low: 2.2, blend: "source-over", paint: paintBlood, spawn: spawnBlood, ambient: bloodBeat, step: stepBlood },
+  earth: { room: 1.4, rate: 30, low: 1.5, blend: "source-over", paint: paintEarth, spawn: spawnEarth, ambient: earthCrust, step: stepEarth },
+  nature: { room: 1.4, rate: 3, low: 1, blend: "source-over", paint: paintNature, spawn: spawnLeaf, ambient: vines, step: stepLeaf },
+  void: { room: 2.0, rate: 45, low: 1.5, blend: "source-over", paint: paintVoid, spawn: spawnVoid, ambient: voidRift, step: stepVoid },
+  wind: { room: 1.2, rate: 26, low: 1.5, blend: "lighter", paint: paintWind, spawn: spawnWind, ambient: windAir, step: stepWind },
+};
+
+// The arcs' colours as they are now (their own, or as built in), and what the effect draws
+// with in each.
+function fxColours() {
+  fxSprites = {};
+  const fx = FX[setup.effect];
+  if (!fx) return;
   const css = getComputedStyle($("arcs"));
   const probe = document.createElement("canvas").getContext("2d");
   for (const k of ["hp", "stamina", "mp", "flight"]) {
@@ -647,120 +1459,107 @@ function flameColours() {
     probe.fillStyle = css.getPropertyValue(`--arc-${k}`).trim() || "#ffffff";
     const hex = probe.fillStyle;
     const rgb = hex.startsWith("#") ? [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) : (hex.match(/\d+/g) || [255, 255, 255]).slice(0, 3).map(Number);
-    flameSprites[k] = { hot: flameSprite(rgb, true), cool: flameSprite(rgb, false) };
+    fxSprites[k] = fx.paint(rgb);
   }
+  if (calm.matches) fxStill();
 }
 
-function runFlames() {
-  if (setup.effect === "flames" && !document.hidden) {
-    if (!flameRaf) {
-      flameLast = 0;
-      flameRaf = requestAnimationFrame(flameFrame);
+function runFx() {
+  const on = !!FX[setup.effect];
+  if (on && !document.hidden && !calm.matches) {
+    if (!fxRaf) {
+      fxLast = 0;
+      fxRaf = requestAnimationFrame(fxFrame);
     }
     return;
   }
-  if (flameRaf) cancelAnimationFrame(flameRaf);
-  flameRaf = 0;
-  flameList = [];
-  const c = document.getElementById("flames");
-  if (c) c.getContext("2d").clearRect(0, 0, c.width, c.height);
+  if (fxRaf) cancelAnimationFrame(fxRaf);
+  fxRaf = 0;
+  fxLive = 0;
+  if (on && calm.matches) fxStill();
+  else {
+    const c = document.getElementById("fx");
+    if (c) c.getContext("2d").clearRect(0, 0, c.width, c.height);
+  }
 }
 
-function flameFrame(now) {
-  flameRaf = requestAnimationFrame(flameFrame);
-  if (flameLast && now - flameLast < 1000 / FLAME_FPS - 2) return;
-  const dt = flameLast ? Math.min(0.1, (now - flameLast) / 1000) : 0;
-  flameLast = now;
-  const fs = flameFs;
-  const k = (setup.width || 100) / 100;
-  const low = $("arcs").classList.contains("low");
-  // New flames along each arc's fill.
-  for (const [key, a] of Object.entries(flameArcs)) {
-    const share = flameShare[key];
-    if (!share || !flameSprites[key]) continue;
-    // As many to the arc's length whatever its thickness: thicker flames, fewer of them
-    // (more would only add up to white, losing the arc's colour).
-    const rate = (FLAME_RATE * share * (a.out ? 1 : 0.5) * (key === "hp" && low ? FLAME_LOW : 1)) / Math.max(1, k);
-    let n = rate * dt;
-    while (n > 0) {
-      if (n < 1 && Math.random() > n) break;
-      n -= 1;
-      const p = a.pts[Math.round(Math.random() * share * (a.pts.length - 1))];
-      // From the edge it burns away from (none across into the gap between two arcs).
-      const across = rand([0.05, 0.5]) * a.width;
-      const reach = a.out ? 1 : 0.5;
-      const life = rand(FLAME_LIFE) * (a.out ? 1 : 0.8);
-      flameList.push({
-        key,
-        x: p.x + p.nx * across,
-        y: p.y + p.ny * across,
-        ox: p.x + p.nx * across,
-        oy: p.y + p.ny * across,
-        vx: (p.nx * rand(FLAME_OUT) * fs * reach * k) / life,
-        vy: (p.ny * rand(FLAME_OUT) * fs * reach * k - rand(FLAME_UP) * fs * reach) / life,
-        size: (a.width * 1.4 + fs * 0.6 * (a.out ? 1 : 0.7)) * rand([0.7, 1.3]),
-        age: 0,
-        life,
-        wob: Math.random() * 6.3,
-      });
-    }
-  }
-  const c = document.getElementById("flames");
+// Each arc's glow along it, still (reduce motion).
+function fxStill() {
+  const c = document.getElementById("fx");
+  const fx = FX[setup.effect];
+  if (!c) return;
   const x = c.getContext("2d");
   x.clearRect(0, 0, c.width, c.height);
-  x.globalCompositeOperation = "lighter";
-  // Embers along each arc's burning edge, flickering, so its fire is one.
-  for (const [key, a] of Object.entries(flameArcs)) {
-    const share = flameShare[key];
-    const s = flameSprites[key];
+  if (!fx) return;
+  for (const a of fxArcs) {
+    const share = fxShare[a.key];
+    const s = fxSprites[a.key];
     if (!share || !s) continue;
-    const last = Math.round(share * (a.pts.length - 1));
-    const r = a.width * 1.1 + fs * 0.25;
-    for (let i = 0; i <= last; i++) {
-      const p = a.pts[i];
-      x.globalAlpha = (a.out ? 0.24 : 0.17) * (0.6 + 0.4 * Math.sin(now * 0.009 + i * 1.7));
-      const [ex, ey] = [p.x + p.nx * a.width * 0.45, p.y + p.ny * a.width * 0.45];
-      x.drawImage(s.hot, ex - r, ey - r, 2 * r, 2 * r);
-    }
+    x.globalCompositeOperation = fx.blend;
+    fx.ambient(x, a, s, Math.round(share * (a.pts.length - 1)), share, 0, fxFs);
   }
-  const kept = [];
-  for (const f of flameList) {
-    f.age += dt;
-    if (f.age >= f.life || !flameSprites[f.key]) continue;
-    kept.push(f);
-    const t = f.age / f.life;
-    // Fast at first, then slowing, with a flicker side to side.
-    const slow = 1 - t * 0.6;
-    f.x += (f.vx * slow + Math.sin(f.age * 14 + f.wob) * fs * 0.35) * dt;
-    f.y += f.vy * slow * dt;
-    const r = (f.size * (1 - t * 0.7)) / 2;
-    const fade = (1 - t) ** 1.3;
-    const s = flameSprites[f.key];
-    // A tongue from where it started on the arc out to where it's got to, narrower as it
-    // goes; late on, its base lifts off too, and it dies away from the arc.
-    const lift = Math.max(0, (t - 0.45) / 0.55);
-    const [bx, by] = [f.ox + (f.x - f.ox) * lift, f.oy + (f.y - f.oy) * lift];
-    const reach = Math.hypot(f.x - bx, f.y - by);
-    const angle = reach > 0.5 ? Math.atan2(f.y - by, f.x - bx) : Math.atan2(f.vy, f.vx);
-    const [w, len] = [r * (1.1 - t * 0.4), reach + r * 2];
-    x.save();
-    x.translate(bx, by);
-    x.rotate(angle + Math.PI / 2);
-    // White-hot at first, its colour after, dark as it dies.
-    const hot = Math.max(0, 1 - t / 0.4);
-    if (hot > 0) {
-      x.globalAlpha = fade * hot * 0.7;
-      x.drawImage(s.hot, -w, -len, 2 * w, len + r * 0.4);
-    }
-    x.globalAlpha = fade * (1 - hot * 0.5) * 0.85;
-    x.drawImage(s.cool, -w * 1.2, -len * 1.1, 2.4 * w, len * 1.1 + r * 0.4);
-    x.restore();
-  }
+  x.globalCompositeOperation = "source-over";
   x.globalAlpha = 1;
-  flameList = kept;
 }
 
-document.addEventListener("visibilitychange", runFlames);
+function fxFrame(now) {
+  fxRaf = requestAnimationFrame(fxFrame);
+  if (fxLast && now - fxLast < 1000 / FX_FPS - 2) return;
+  const dt = fxLast ? Math.min(0.1, (now - fxLast) / 1000) : 0;
+  fxLast = now;
+  const fx = FX[setup.effect];
+  const c = document.getElementById("fx");
+  if (!fx || !c) return;
+  const fs = fxFs;
+  const k = (setup.width || 100) / 100;
+  const low = $("arcs").classList.contains("low");
+  // New pieces along each arc's fill: as many to the arc's length whatever its thickness
+  // (thicker pieces, fewer of them; more would only add up to white, losing its colour).
+  for (const a of fxArcs) {
+    const share = fxShare[a.key];
+    if (!share || !fxSprites[a.key]) continue;
+    let n = (fx.rate * share * (a.out ? 1 : 0.5) * (a.key === "hp" && low ? fx.low : 1) * dt) / Math.max(1, k);
+    while (n > 0 && fxLive < FX_MAX) {
+      if (n < 1 && Math.random() > n) break;
+      n -= 1;
+      const f = fxPool[fxLive++];
+      f.arc = a;
+      f.kind = 0;
+      f.age = 0;
+      at(a, Math.random() * share);
+      fx.spawn(f, a, share, fs, k);
+    }
+  }
+  const x = c.getContext("2d");
+  x.clearRect(0, 0, c.width, c.height);
+  for (const a of fxArcs) {
+    const share = fxShare[a.key];
+    const s = fxSprites[a.key];
+    if (!share || !s) continue;
+    x.globalCompositeOperation = fx.blend;
+    fx.ambient(x, a, s, Math.round(share * (a.pts.length - 1)), share, now, fs);
+  }
+  x.globalCompositeOperation = fx.blend;
+  for (let i = 0; i < fxLive; ) {
+    const f = fxPool[i];
+    f.age += dt;
+    const s = fxSprites[f.arc.key];
+    if (f.age >= f.life || !s) {
+      // Done: swapped with the last one alive, to be used again.
+      fxPool[i] = fxPool[fxLive - 1];
+      fxPool[fxLive - 1] = f;
+      fxLive--;
+      continue;
+    }
+    fx.step(x, f, f.arc, s, f.age / f.life, dt, fs);
+    i++;
+  }
+  x.globalCompositeOperation = "source-over";
+  x.globalAlpha = 1;
+}
+
+document.addEventListener("visibilitychange", runFx);
+calm.addEventListener("change", runFx);
 
 // ---------------------------------------------------------------- refresh
 
@@ -770,6 +1569,8 @@ function draw(b) {
   $("empty").hidden = !!(b && (b.hp != null || b.mp != null));
   drawArcs(b);
   drawPlates();
+  // Still effects follow the fills here (moving ones each frame).
+  if (calm.matches && FX[setup.effect]) fxStill();
 }
 
 async function refresh() {
@@ -787,7 +1588,7 @@ new ResizeObserver(layoutArcs).observe(document.documentElement);
 tauri.event.listen("appearance", () =>
   requestAnimationFrame(() => {
     layoutArcs();
-    flameColours();
+    fxColours();
   }),
 );
 tauri.event.listen("vitals-setup", (e) => {
