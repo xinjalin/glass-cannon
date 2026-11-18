@@ -19,8 +19,9 @@ pub const STYLES: [&str; 6] = ["solid", "thin", "segmented", "gradient", "framed
 /// outer arc's outward, an inner arc's inward): flames; lightning bolts; holy light, a halo
 /// with rays; darkness, smoky wisps; blood, drops running down and dripping off; earth,
 /// stone crumbling off; nature, vines and leaves; void, dark motes pulled in; wind, streaks
-/// rushing up.
-pub const EFFECTS: [&str; 10] = ["none", "flames", "lightning", "holy", "darkness", "blood", "earth", "nature", "void", "wind"];
+/// rushing up; frost, shards of ice and snowflakes; feathers, a wing's plumes and loose ones
+/// floating down; pulse, the arc's glow breathing with a wave of light running up it.
+pub const EFFECTS: [&str; 13] = ["none", "flames", "lightning", "holy", "darkness", "blood", "earth", "nature", "void", "wind", "frost", "feathers", "pulse"];
 /// What's behind the numbers: a dark outline, a soft shadow, a dark plate, nothing.
 pub const TEXT_BACKINGS: [&str; 4] = ["outline", "shadow", "plate", "none"];
 /// Which end of the arcs the numbers go by.

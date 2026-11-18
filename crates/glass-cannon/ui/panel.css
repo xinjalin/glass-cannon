@@ -498,7 +498,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 /* The effects (flames, lightning and the rest): on a canvas under the arcs (vitals.js),
    each fill glowing in its colour over them; the flames show through the fills. */
 .arc-fx { position: absolute; left: 0; top: 0; pointer-events: none; }
-.effect-flames .arc-fill { opacity: 0.6; }
+/* (Not the cast's: no flames on it.) */
+.effect-flames .arc-fill:not(.cast) { opacity: 0.6; }
 .fx .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
 .fx .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }
 .fx .arc-fill.mp { filter: drop-shadow(0 0 4px var(--arc-mp)); }

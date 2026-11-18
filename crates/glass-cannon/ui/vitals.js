@@ -590,6 +590,8 @@ const fxStrength = () => (setup.effect_strength || 100) / 100;
 const fxBrightness = () => (setup.effect_brightness || 100) / 100;
 const fxSize = () => (setup.effect_size || 100) / 100;
 const fxSpeed = () => (setup.effect_speed || 100) / 100;
+// Whether your HP is low now (the HP arc's pulse quickens).
+let fxLow = false;
 // A piece's opacity at the brightness chosen.
 let fxGain = 1;
 const lit = (v) => Math.min(1, v * fxGain);
@@ -1495,6 +1497,307 @@ function stepWind(x, f, a, s, t, dt, fs) {
   x.stroke();
 }
 
+// How many of an arc's points apart things `px` apart along it are (at least one): so
+// what's set along an arc is as close together whatever the arc's length.
+const every = (a, px) => Math.max(1, Math.round((px / a.len) * (a.pts.length - 1)));
+
+// ---- frost: each arc rimed with shards of ice along its fill, glinting, in a cold mist,
+// with snowflakes drifting down from it and glints of light on it.
+
+// A snowflake's arms, drawn `w` wide in `colour`.
+function flakeArms(x, colour, w) {
+  x.strokeStyle = colour;
+  x.lineWidth = w;
+  x.lineCap = "round";
+  for (let arm = 0; arm < 6; arm++) {
+    const t = (arm * Math.PI) / 3;
+    const [c, n] = [Math.cos(t), Math.sin(t)];
+    x.beginPath();
+    x.moveTo(24, 24);
+    x.lineTo(24 + c * 20, 24 + n * 20);
+    // Two barbs on each arm.
+    for (const side of [1, -1]) {
+      const [bc, bn] = [Math.cos(t + side * 0.9), Math.sin(t + side * 0.9)];
+      x.moveTo(24 + c * 11, 24 + n * 11);
+      x.lineTo(24 + c * 11 + bc * 7, 24 + n * 11 + bn * 7);
+    }
+    x.stroke();
+  }
+}
+
+function paintFrost(rgb) {
+  const ice = tint(rgb, WHITE, 0.55);
+  const pale = tint(rgb, WHITE, 0.85);
+  const deep = tint(rgb, BLACK, 0.35);
+  return {
+    mist: glow([[0, rgba(pale, 0.5)], [0.5, rgba(ice, 0.22)], [1, rgba(ice, 0)]]),
+    // A shard of ice from its base (left) to its point: pale, its lower face in the arc's
+    // colour.
+    shard: sprite(64, 20, (x) => {
+      const whole = () => {
+        x.beginPath();
+        x.moveTo(0, 10);
+        x.lineTo(14, 2);
+        x.lineTo(63, 10);
+        x.lineTo(14, 18);
+        x.closePath();
+      };
+      whole();
+      const g = x.createLinearGradient(0, 0, 64, 0);
+      g.addColorStop(0, rgba(ice, 0.95));
+      g.addColorStop(0.6, rgba(pale, 0.95));
+      g.addColorStop(1, rgba(WHITE, 1));
+      x.fillStyle = g;
+      x.fill();
+      x.beginPath();
+      x.moveTo(0, 10);
+      x.lineTo(63, 10);
+      x.lineTo(14, 18);
+      x.closePath();
+      x.fillStyle = rgba(rgb, 0.45);
+      x.fill();
+      whole();
+      x.strokeStyle = rgba(deep, 0.6);
+      x.lineWidth = 1;
+      x.stroke();
+    }),
+    // A snowflake: pale, with a darker edge so it shows over anything.
+    flake: sprite(48, 48, (x) => {
+      flakeArms(x, rgba(deep, 0.45), 4.5);
+      flakeArms(x, rgba(pale, 1), 2.2);
+    }),
+    // A glint: a cross of light.
+    glint: sprite(32, 32, (x) => {
+      const g = x.createRadialGradient(16, 16, 0, 16, 16, 7);
+      g.addColorStop(0, rgba(WHITE, 1));
+      g.addColorStop(1, rgba(pale, 0));
+      x.fillStyle = g;
+      x.fillRect(0, 0, 32, 32);
+      for (const across of [false, true]) {
+        const l = across ? x.createLinearGradient(0, 0, 32, 0) : x.createLinearGradient(0, 0, 0, 32);
+        l.addColorStop(0, rgba(pale, 0));
+        l.addColorStop(0.5, rgba(WHITE, 1));
+        l.addColorStop(1, rgba(pale, 0));
+        x.fillStyle = l;
+        if (across) x.fillRect(0, 15, 32, 2);
+        else x.fillRect(15, 0, 2, 32);
+      }
+    }),
+  };
+}
+
+function spawnFrost(f, a, share, fs) {
+  const reach = a.out ? 1 : 0.5;
+  const out = a.width * 0.5 + rnd(0, fs * 1.2 * reach);
+  f.x = P.x + P.nx * out;
+  f.y = P.y + P.ny * out;
+  f.rot = Math.random() * 6.3;
+  if (Math.random() < 0.3) {
+    f.kind = 2;
+    f.x = P.x + P.nx * a.width * rnd(-0.3, 0.6);
+    f.y = P.y + P.ny * a.width * rnd(-0.3, 0.6);
+    f.size = fs * rnd(0.6, 1.1);
+    f.life = rnd(0.4, 0.9);
+    return;
+  }
+  f.kind = 1;
+  f.vx = P.nx * fs * rnd(0.1, 0.5) * reach;
+  f.vy = fs * rnd(0.5, 1.1);
+  f.size = fs * rnd(0.7, 1.2) * (a.out ? 1 : 0.8);
+  f.spin = rnd(-1.5, 1.5);
+  f.life = rnd(1.6, 2.8);
+  f.wob = Math.random() * 6.3;
+}
+
+function frostRime(x, a, s, last, share, now, fs) {
+  const reach = a.out ? 1 : 0.6;
+  const r = a.width * 1.0 + fs * 0.4;
+  x.globalAlpha = lit(a.out ? 0.2 : 0.12);
+  for (let i = 0; i <= last; i += 3) {
+    const p = a.pts[i];
+    x.drawImage(s.mist, p.x + p.nx * a.width * 0.5 - r, p.y + p.ny * a.width * 0.5 - r, 2 * r, 2 * r);
+  }
+  // Shards out from the arc, each its own length and lean (the same every time), growing
+  // in at the fill's end and glinting by turns.
+  const long = (fs * 0.85 + a.width * 0.6) * reach;
+  const step = every(a, fs * 0.5);
+  for (let i = 1; i <= last; i += step) {
+    const p = a.pts[i];
+    const len = long * (0.35 + hash(i, 3) * 0.65) * Math.min(1, (last - i + 1) / (2 * step));
+    if (len < 2) continue;
+    const lean = (hash(i, 5) - 0.5) * 1.4;
+    x.globalAlpha = lit(0.7 + 0.3 * Math.sin(now * 0.004 + i * 1.7));
+    x.save();
+    x.translate(p.x + p.nx * a.width * 0.4, p.y + p.ny * a.width * 0.4);
+    x.rotate(Math.atan2(p.ny + p.ty * lean, p.nx + p.tx * lean));
+    x.drawImage(s.shard, 0, -len * 0.16, len, len * 0.32);
+    x.restore();
+  }
+}
+
+function stepFrost(x, f, a, s, t, dt, fs) {
+  if (f.kind === 2) {
+    x.globalAlpha = lit(Math.sin(Math.PI * t));
+    const r = (f.size * (0.6 + 0.4 * Math.sin(Math.PI * t))) / 2;
+    x.drawImage(s.glint, f.x - r, f.y - r, 2 * r, 2 * r);
+    return;
+  }
+  // Drifting down, swaying, turning slowly.
+  f.x += (f.vx + Math.sin(f.age * 2 + f.wob) * fs * 0.5 * (a.out ? 1 : 0.5)) * dt;
+  f.y += f.vy * dt;
+  f.rot += f.spin * dt;
+  x.globalAlpha = lit(Math.min(1, (1 - t) * 3, t * 5) * 0.95);
+  x.save();
+  x.translate(f.x, f.y);
+  x.rotate(f.rot);
+  x.drawImage(s.flake, -f.size / 2, -f.size / 2, f.size, f.size);
+  x.restore();
+}
+
+// ---- feathers: each arc plumed like a wing along its fill, its feathers swept back and
+// stirring, with one coming loose now and then and floating down, swinging side to side
+// (more of them at low HP).
+
+function paintFeathers(rgb) {
+  const pale = tint(rgb, WHITE, 0.8);
+  return {
+    // A feather from its quill (left) to its tip: white at the quill, the arc's colour at
+    // its tip, its shaft down the middle, barbs slanting off it, a split or two in its vane.
+    feather: sprite(96, 32, (x) => {
+      const vane = () => {
+        x.beginPath();
+        x.moveTo(10, 16);
+        x.bezierCurveTo(28, -2, 70, 0, 94, 14);
+        x.bezierCurveTo(72, 30, 30, 34, 10, 16);
+        x.closePath();
+      };
+      vane();
+      const g = x.createLinearGradient(0, 0, 96, 0);
+      g.addColorStop(0, rgba(WHITE, 1));
+      g.addColorStop(0.5, rgba(pale, 1));
+      g.addColorStop(1, rgba(rgb, 1));
+      x.fillStyle = g;
+      x.fill();
+      x.save();
+      vane();
+      x.clip();
+      x.strokeStyle = rgba(tint(rgb, BLACK, 0.25), 0.3);
+      x.lineWidth = 0.8;
+      for (let i = 14; i < 92; i += 5) {
+        x.beginPath();
+        x.moveTo(i, 15.5);
+        x.lineTo(i + 9, 0);
+        x.moveTo(i, 15.5);
+        x.lineTo(i + 9, 32);
+        x.stroke();
+      }
+      x.restore();
+      // Splits in the vane.
+      x.globalCompositeOperation = "destination-out";
+      for (const [at, up] of [[58, true], [40, false], [74, false]]) {
+        x.beginPath();
+        x.moveTo(at, 15.5);
+        x.lineTo(at + 9, up ? -1 : 33);
+        x.lineTo(at + 12, up ? -1 : 33);
+        x.closePath();
+        x.fill();
+      }
+      x.globalCompositeOperation = "source-over";
+      vane();
+      x.strokeStyle = rgba(tint(rgb, BLACK, 0.45), 0.45);
+      x.lineWidth = 1;
+      x.stroke();
+      x.beginPath();
+      x.moveTo(0, 17);
+      x.quadraticCurveTo(50, 14, 92, 14);
+      x.strokeStyle = rgba(tint(rgb, BLACK, 0.3), 0.85);
+      x.lineWidth = 1.4;
+      x.stroke();
+    }),
+  };
+}
+
+function spawnFeather(f, a, share, fs) {
+  const reach = a.out ? 1 : 0.5;
+  f.x = P.x + P.nx * a.width * 0.5;
+  f.y = P.y + P.ny * a.width * 0.5;
+  f.vx = P.nx * fs * rnd(0.6, 1.4) * reach;
+  f.vy = -fs * rnd(0.1, 0.6);
+  f.rot = Math.atan2(P.ny - P.ty * 0.9, P.nx - P.tx * 0.9);
+  f.spin = rnd(-0.5, 0.5);
+  f.size = (fs * rnd(1.3, 1.7) + a.width * 0.5) * (a.out ? 1 : 0.75);
+  f.life = rnd(2.6, 4.0);
+  f.wob = Math.random() * 6.3;
+}
+
+function plumage(x, a, s, last, share, now, fs) {
+  const reach = a.out ? 1 : 0.6;
+  const long = (fs * 1.6 + a.width * 0.8) * reach;
+  if (last < 2) return;
+  x.globalAlpha = lit(0.95);
+  // Close enough to overlap; from the top down, so each feather lies over the one above
+  // it, as a wing's do.
+  const step = every(a, long * 0.4);
+  for (let i = last - ((last - 2) % step); i >= 2; i -= step) {
+    const p = a.pts[i];
+    const len = long * (0.75 + hash(i, 7) * 0.4) * Math.min(1, (last - i + 1) / step);
+    if (len < 3) continue;
+    x.save();
+    x.translate(p.x + p.nx * a.width * 0.35, p.y + p.ny * a.width * 0.35);
+    // Out from the arc and swept back down it, stirring a little.
+    x.rotate(Math.atan2(p.ny - p.ty * 0.9, p.nx - p.tx * 0.9) + Math.sin(now * 0.0017 + i * 0.9) * 0.08);
+    x.drawImage(s.feather, 0, -len * 0.17, len, len * 0.34);
+    x.restore();
+  }
+}
+
+function stepFeather(x, f, a, s, t, dt, fs) {
+  // Floating down slowly, swinging wide from side to side and tilting as it swings.
+  const swing = Math.sin(f.age * 2.1 + f.wob);
+  f.vy = Math.min(fs * 0.8, f.vy + fs * 0.7 * dt);
+  f.vx *= 1 - dt * 0.9;
+  f.x += (f.vx + swing * fs * 1.1 * (a.out ? 1 : 0.5)) * dt;
+  f.y += f.vy * (0.6 + 0.4 * Math.abs(Math.cos(f.age * 2.1 + f.wob))) * dt;
+  f.rot += f.spin * dt;
+  x.globalAlpha = lit(Math.min(1, (1 - t) * 2.5, t * 6));
+  x.save();
+  x.translate(f.x, f.y);
+  x.rotate(f.rot + swing * 0.6);
+  x.drawImage(s.feather, -f.size / 2, -f.size * 0.17, f.size, f.size * 0.34);
+  x.restore();
+}
+
+// ---- pulse: no pieces, only light: each arc's glow breathing along its fill, and a wave of
+// light running up it (as many waves as the strength has: one at 100%). The HP arc's
+// quickens at low HP.
+
+function paintPulse(rgb) {
+  return { glow: glow([[0, rgba(tint(rgb, WHITE, 0.6), 0.9)], [0.4, rgba(rgb, 0.45)], [1, rgba(rgb, 0)]]) };
+}
+
+function pulseGlow(x, a, s, last, share, now, fs) {
+  const quick = a.key === "hp" && fxLow ? 2.2 : 1;
+  const breath = 0.5 + 0.5 * Math.sin(now * 0.0028 * quick + (a.out ? 0 : 0.9));
+  const r = a.width * 1.2 + fs * 0.55;
+  const waves = Math.round(fxStrength());
+  const n = a.pts.length - 1;
+  for (let i = 0; i <= last; i += 2) {
+    const p = a.pts[i];
+    // How much of a wave is here: each runs up the whole arc, off its top, and comes round.
+    let wave = 0;
+    for (let w = 0; w < waves; w++) {
+      const d = (i / n - (((now * 0.00035 * quick + w / waves) % 1.25) - 0.125)) / 0.07;
+      wave = Math.max(wave, Math.exp(-d * d));
+    }
+    x.globalAlpha = lit((a.out ? 0.16 : 0.1) * (0.35 + 0.65 * breath) + wave * (a.out ? 0.5 : 0.35));
+    const k = r * (1 + wave * 0.5);
+    x.drawImage(s.glow, p.x - k, p.y - k, 2 * k, 2 * k);
+  }
+}
+
+// Pulse has no pieces to start or draw.
+function noPiece() {}
+
 // ---- the effects
 
 // Each: how far it reaches past the outer arcs (the bleed), in text heights (times the
@@ -1512,6 +1815,9 @@ const FX = {
   nature: { room: 1.4, rate: 3, low: 1, blend: "source-over", paint: paintNature, spawn: spawnLeaf, ambient: vines, step: stepLeaf },
   void: { room: 2.0, rate: 45, low: 1.5, blend: "source-over", paint: paintVoid, spawn: spawnVoid, ambient: voidRift, step: stepVoid },
   wind: { room: 1.2, rate: 26, low: 1.5, blend: "lighter", paint: paintWind, spawn: spawnWind, ambient: windAir, step: stepWind },
+  frost: { room: 1.8, rate: 18, low: 1, blend: "source-over", paint: paintFrost, spawn: spawnFrost, ambient: frostRime, step: stepFrost },
+  feathers: { room: 2.4, rate: 2.2, low: 2, blend: "source-over", paint: paintFeathers, spawn: spawnFeather, ambient: plumage, step: stepFeather },
+  pulse: { room: 1.6, rate: 0, low: 1, blend: "lighter", paint: paintPulse, spawn: noPiece, ambient: pulseGlow, step: noPiece },
 };
 
 // The arcs' colours as they are now (their own, or as built in), and what the effect draws
@@ -1586,6 +1892,7 @@ function fxFrame(now) {
   fxGain = fxBrightness();
   const k = (setup.width || 100) / 100;
   const low = $("arcs").classList.contains("low");
+  fxLow = low;
   // New pieces along each arc's fill: as many to the arc's length whatever its thickness
   // (thicker pieces, fewer of them; more would only add up to white, losing its colour).
   for (const a of fxArcs) {
