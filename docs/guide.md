@@ -173,19 +173,22 @@ finishes. The widgets:
 - **world timers**: rifts, invasions, sieges, Arena of Tactics (NA, EU and LA), resets and
   field bosses (open the world map in game to read them) in your time; hover an event for
   its next three starts. Star (☆) the ones you want and **[★ only]** shows just those, and
-  ring the 🔔 for an alert on the meter before one starts. The region whose schedule it
-  follows and how long before the alert shows (1 to 15 minutes) are in the settings'
-  alerts tab (world timers); the widget's top line says which. Also who holds the
+  ring the 🔔 for an alert on the meter before one starts and as it starts, with a chime
+  (alert sound). The region whose schedule it follows and how long before the alert shows
+  (1 to 15 minutes) are in the settings' alerts tab (world timers); the widget's top line
+  says which. Also who holds the
   Abyss artifacts (when you open the Abyss map or enter it; not tested in game yet), your
   Odyle energy, and your content tickets: the game doesn't name them, so double-click one
   to give it a name.
 - **timer pins**: the events and field bosses you pin (📌 in the world timers, or in the
   pins' settings) as icons counting down, with no box: green while on or up, the accent
   when soon, pulsing when its 🔔 alert is due; the time under each, and its name. Or a slim
-  row each, with where a field boss is. The **world boss train** adds every field boss up
-  or spawning within a time you pick (in italics). Set up beside it on the overlay
-  (arrange, then ⚙): what's pinned, the train, icons or rows, their size, how many to a
-  row, names, and by time or as pinned. Field bosses come from the world map, so open it
+  row each, with where a field boss is. **Pins show within** keeps a pin hidden until it's
+  on, up, or starting within the time you pick (while arranging, dimmed). The **world boss
+  train** adds every field boss up or spawning within a time you pick (in italics). Set up
+  beside it on the overlay (arrange, then ⚙): what's pinned and each one's 🔔 alert, how
+  far ahead they show, the train, icons or rows, their size, how many to a row, names,
+  and by time or as pinned. Field bosses come from the world map, so open it
   in game now and then; nothing is read from the internet.
 
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
@@ -319,7 +322,10 @@ background, Windows lightly blurs the game behind each widget.
 - **Share your setup** (settings → general, or the arrange menu): **[export]** saves your
   **layout** (where each widget is, which show, which fade), **theme** and **settings**
   (each widget's and the app's), as you pick, to a file in the `exports` folder beside the
-  app; **[import]** takes one in, the parts picked that it has over yours. What's yours
+  app; **[import]** takes one in, the parts picked that it has over yours. Action bars are
+  each class's own: the file's classes replace yours (your others stay), and on another
+  class than the one it was exported on, your bars take its bars' look (size, spacing,
+  countdown, hiding out of combat, what each tracks) with your own skills. What's yours
   alone never goes in a file: the pets you track, hotkeys, recording, the dummy's label.
   The search over the tabs (**Ctrl+F** or **/**) is forgiving: letters in order find a
   setting ("alrt snd": alert sound), a slip is fine ("soudn"), and common words find

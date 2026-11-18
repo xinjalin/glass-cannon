@@ -760,6 +760,8 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .pin.up .pin-time, .pin.on .pin-time { color: var(--pin-on); }
 .pin-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(var(--pin) * 0.26); color: var(--muted); text-shadow: 0 0 3px #000, 0 0 3px #000; }
 .pin.train .pin-name { font-style: italic; }
+/* Further off than "pins show within": only while arranging, dimmed. */
+.pin.waiting { opacity: 0.4; }
 /* A slim row each. */
 .pin.pin-row { flex-direction: row; width: max-content; min-width: 16em; gap: 0.5em; padding: 0.2em 0.5em 0.2em 0.25em; border-radius: calc(var(--pin) * 0.3); background: rgba(10, 10, 14, 0.62); border-left: 3px solid rgba(255, 255, 255, 0.2); text-align: left; }
 .pin-row.up, .pin-row.on { border-left-color: var(--pin-on); }

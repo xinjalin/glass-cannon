@@ -3,12 +3,14 @@
 // world boss train, every field boss up or spawning within its time is added. Their
 // rings: green while on or up, the accent when soon, pulsing when its alert is due (the
 // bell in the world timers). As a grid of icons or a slim row each, sorted by time or as
-// pinned. Field bosses come from the world map (open it in game to read them).
+// pinned. Field bosses come from the world map (open it in game to read them). With
+// "pins show within", a pin shows only while on or up, or starting within that long (while
+// arranging, dimmed until then).
 
 // A field boss "up" as of a world map read longer ago than this may have been killed.
 const STALE_MS = 3 * 3_600_000;
 
-let view = { pins: [], look: { layout: "icons", icon_size: 40, columns: 6, names: true, sort: "time", train: false, train_min: 30 } };
+let view = { pins: [], look: { layout: "icons", icon_size: 40, columns: 6, names: true, sort: "time", train: false, train_min: 30, within_min: 0 } };
 let settings = { region: "as", alerts: [], alert_lead_min: 5 };
 let bosses = [];
 let editing = false;
@@ -30,7 +32,14 @@ function pinTime(ms) {
 function items(now) {
   const { r, events } = regionEvents(settings.region);
   const lead = settings.alert_lead_min * 60_000;
+  const within = (view.look.within_min || 0) * 60_000;
   const out = [];
+  // A pin further off than "pins show within": left off, or dimmed while arranging.
+  const push = (it, left) => {
+    const waiting = !it.train && within > 0 && left > within;
+    if (waiting && !editing) return;
+    out.push(waiting ? { ...it, state: `${it.state} waiting` } : it);
+  };
   const add = (id, train) => {
     if (id.startsWith("boss:")) {
       const b = bosses.find((x) => `boss:${x.id}` === id);
@@ -38,7 +47,7 @@ function items(now) {
       const up = b.time_ms <= now;
       const stale = up && now - (b.seen_ms || b.time_ms) > STALE_MS;
       const left = b.time_ms - now;
-      out.push({
+      push({
         id,
         name: b.name || `Field boss ${b.id}`,
         short: b.name || `Boss ${b.id}`,
@@ -48,7 +57,7 @@ function items(now) {
         time: up ? (stale ? "up?" : "Up") : pinTime(left),
         alert: !up && settings.alerts.includes(id) && left <= lead,
         train,
-      });
+      }, up ? 0 : left);
       return;
     }
     const e = events[id];
@@ -57,7 +66,7 @@ function items(now) {
     if (!n) return;
     const on = n.start <= now;
     const left = on ? n.start + n.minutes * 60_000 - now : n.start - now;
-    out.push({
+    push({
       id,
       name: EVENTS[id] || id,
       short: TIMER_SHORT[id] || EVENTS[id] || id,
@@ -67,7 +76,7 @@ function items(now) {
       time: pinTime(left),
       alert: !on && settings.alerts.includes(id) && left <= lead,
       train: false,
-    });
+    }, on ? 0 : left);
   };
   for (const id of view.pins) add(id, false);
   // The world boss train: every field boss up (and not stale), or spawning soon.
@@ -105,7 +114,7 @@ function draw() {
     ...list.map((it) => {
       const cls = `pin ${it.state}${it.alert ? " alert" : ""}${it.train ? " train" : ""}`;
       const box = el("div", look.layout === "list" ? `${cls} pin-row` : cls);
-      box.title = `${it.name}${it.meta ? ` · ${it.meta}` : ""}${it.train ? " · world boss train" : ""}`;
+      box.title = `${it.name}${it.meta ? ` · ${it.meta}` : ""}${it.train ? " · world boss train" : ""}${it.state.includes("waiting") ? ` · shows within ${withinText(look.within_min)} of starting` : ""}`;
       if (look.layout === "list") {
         const text = el("div", "pin-text");
         text.append(el("span", "pin-name", it.name), el("span", "pin-meta", it.meta));

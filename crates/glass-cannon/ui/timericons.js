@@ -67,6 +67,14 @@ function timerIcon(id) {
   return svg;
 }
 
+// A span of minutes: "45 min", "2h", "1h 30".
+function withinText(min) {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h}h ${String(m).padStart(2, "0")}` : `${h}h`;
+}
+
 // Short names for the icons' labels.
 const TIMER_SHORT = {
   "spacetime-rift": "Rift",

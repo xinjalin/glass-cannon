@@ -293,13 +293,16 @@ pub fn rename_field_boss(app: State<'_, Arc<AppState>>, id: u32, name: String) {
 
 /// Be told (or not) before an event or field boss starts.
 #[tauri::command]
-pub fn set_alert(app: State<'_, Arc<AppState>>, id: String, on: bool) {
+pub fn set_alert(handle: AppHandle, app: State<'_, Arc<AppState>>, id: String, on: bool) {
     let mut s = lock(&app.settings);
     s.alerts.retain(|a| a != &id);
     if on {
         s.alerts.push(id);
     }
     s.save(&app.config_dir);
+    drop(s);
+    // The world timers and the timer pins show the bell (set in either).
+    let _ = handle.emit("timer-settings", ());
 }
 
 /// How long before an event its alert shows; chosen in the settings, and the world timers
@@ -383,10 +386,12 @@ pub fn set_boss_on_you(app: State<'_, Arc<AppState>>, on: bool) {
 }
 
 #[tauri::command]
-pub fn set_alert_sound(app: State<'_, Arc<AppState>>, on: bool) {
+pub fn set_alert_sound(handle: AppHandle, app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);
     s.alert_sound = on;
     s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("timer-settings", ());
 }
 
 /// Whether the overlay steps aside for game menus (from the cursor).
@@ -435,6 +440,8 @@ pub struct TimerSettings {
     pub alert_lead_min: u32,
     pub favourites: Vec<String>,
     pub favourites_only: bool,
+    /// Alerts chime (settings → alert sound).
+    pub alert_sound: bool,
 }
 
 #[tauri::command]
@@ -447,6 +454,7 @@ pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
         alert_lead_min: s.alert_lead_min,
         favourites: s.timer_favourites.clone(),
         favourites_only: s.timer_favourites_only,
+        alert_sound: s.alert_sound,
     }
 }
 
@@ -460,6 +468,8 @@ pub const PIN_ICON_SIZES: std::ops::RangeInclusive<u16> = 24..=72;
 pub const PIN_COLUMNS: std::ops::RangeInclusive<u16> = 1..=12;
 /// How far ahead the world boss train looks, in minutes.
 pub const TRAIN_MINUTES: std::ops::RangeInclusive<u16> = 5..=180;
+/// How far ahead a pin shows, in minutes (0: always).
+pub const PIN_WITHIN_MINUTES: std::ops::RangeInclusive<u16> = 0..=360;
 const MAX_PINS: usize = 40;
 
 /// How the timer pins widget looks, and whether the world boss train adds every field
@@ -479,11 +489,13 @@ pub struct PinsLook {
     /// The world boss train: every field boss up, or spawning within `train_min`.
     pub train: bool,
     pub train_min: u16,
+    /// A pin shows only while on (or up), or starting within this many minutes; 0, always.
+    pub within_min: u16,
 }
 
 impl Default for PinsLook {
     fn default() -> Self {
-        Self { layout: PIN_LAYOUTS[0].into(), icon_size: 40, columns: 6, names: true, sort: PIN_SORTS[0].into(), train: false, train_min: 30 }
+        Self { layout: PIN_LAYOUTS[0].into(), icon_size: 40, columns: 6, names: true, sort: PIN_SORTS[0].into(), train: false, train_min: 30, within_min: 0 }
     }
 }
 
@@ -499,6 +511,7 @@ impl PinsLook {
         self.icon_size = self.icon_size.clamp(*PIN_ICON_SIZES.start(), *PIN_ICON_SIZES.end());
         self.columns = self.columns.clamp(*PIN_COLUMNS.start(), *PIN_COLUMNS.end());
         self.train_min = self.train_min.clamp(*TRAIN_MINUTES.start(), *TRAIN_MINUTES.end());
+        self.within_min = self.within_min.clamp(*PIN_WITHIN_MINUTES.start(), *PIN_WITHIN_MINUTES.end());
         self
     }
 }
