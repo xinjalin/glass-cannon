@@ -1223,6 +1223,11 @@ impl Meter {
         self.cubes.view(now_us)
     }
 
+    /// How many hidden cube keys you have, when known (see [`crate::cubes::Cubes::keys`]).
+    pub fn cube_keys(&self) -> Option<u64> {
+        self.cubes.keys()
+    }
+
     /// A player's gear, as last seen (they've been in view).
     pub fn gear_of(&self, name: &str) -> Option<&[crate::gear::GearPiece]> {
         self.gear.of(name)

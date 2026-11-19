@@ -63,6 +63,9 @@ pub struct SettingsStatus {
     boss_casts: bool,
     boss_mechanics: bool,
     boss_on_you: bool,
+    /// Hidden cubes only with a key, and how many keys you have (when known).
+    cubes_need_key: bool,
+    cube_keys: Option<u64>,
     /// The world timers' region and how long before an event its alert shows.
     timer_region: String,
     alert_lead_min: u32,
@@ -150,7 +153,10 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
     };
     let s = lock(&app.settings).clone();
     // Once: a second lock of the meter in the same expression would wait on the first.
-    let party_size = app.engine.meter().registry().party().len();
+    let (party_size, cube_keys) = {
+        let m = app.engine.meter();
+        (m.registry().party().len(), m.cube_keys())
+    };
     SettingsStatus {
         version: env!("CARGO_PKG_VERSION"),
         npcap,
@@ -167,6 +173,8 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         boss_casts: s.boss_casts,
         boss_mechanics: s.boss_mechanics,
         boss_on_you: s.boss_on_you,
+        cubes_need_key: s.cubes_need_key,
+        cube_keys,
         timer_region: if crate::store::TIMER_REGIONS.contains(&s.timer_region.as_str()) {
             s.timer_region.clone()
         } else {

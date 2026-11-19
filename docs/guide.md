@@ -88,7 +88,10 @@ finishes. The widgets:
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
   sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
   way the cube is: the game never sends your own position as you move (and what your game
-  sends is encrypted).
+  sends is encrypted). **Only with a key** (its settings: arrange, then ⚙) keeps it quiet
+  while you have no Key: Hidden Cube: nothing shows or chimes until you have one again. Your
+  keys are counted from your bag as you log in and as you use or gain one, so log in with
+  Glass Cannon running; until your bag's been seen, cubes are announced as usual.
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   target and cast lines, so nothing is shown twice; while it's off, the meter has them. A player you target shows

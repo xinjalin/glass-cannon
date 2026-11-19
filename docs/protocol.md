@@ -487,6 +487,21 @@ fight for the boss casts window.
 | `0x3634` | varint entity, u8 flags, u8 desc flags, [desc 1: varint length, string], u32 object type, [2: u8], [4: u8], [8: u8, u32], [16: u8], f32 × 3 position, … | a world object came into view (Questlog's EnvObjSpawn) |
 | `0x3635` | varint entity, u8 state, u8 reason, varint | it left view; reason 3 (the game's "Dead") when it was used up |
 
+**Your keys** (confirmed 2026-11-19, a capture of logging in with 10 and opening a cube):
+
+| opcode   | layout | what |
+| -------- | ------ | ---- |
+| `0x5611` | `10 02`, varint count, then an entry an item (of lengths that vary by kind); a stack's: u32 handle (new each login), `00`, 3 bytes, u32 item, u64 count, … | your bag, once as you log in |
+| `0x561b` | u8 count, then per item: u8 (0 new, 1 its count changed, 2 gone), `00`, its entry as in the bag (the count the new one), 15 bytes, 2 more; a last byte | items in your bag changing |
+| `0x3638`, `0x363a` | varint object, varint who, u8 / the same, 3 zero bytes, u32 the item it took | a world object being used, and used |
+
+A hidden cube takes item 630900003 ("Key: Hidden Cube"): the item `0x363a` names in all 3
+openings in our captures (two by other players), and the only one of its family in any
+bag. Opening one sends the key's stack one fewer (`0x561b`, 10 to 9) 50 ms before the
+cube's `0x363a`. The keys are found in both by the item's ID (with a stack's bytes around
+it) and the count after it: 7 of our 17 logins have keys in the bag (10 to 15), the others
+none.
+
 Hidden cubes are objects of 19 types (Questlog's list, gold and red); a red one (1301199)
 is in the Force session, 28 m from you and 66 m up. Coordinates are centimetres.
 

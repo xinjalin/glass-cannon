@@ -68,6 +68,7 @@ const SETTINGS_KEYS: &[&str] = &[
     "target",
     "alert_sound",
     "boss_on_you",
+    "cubes_need_key",
     "hide_for_menus",
     "click_through",
     "dummy_mode",

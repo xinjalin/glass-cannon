@@ -183,6 +183,15 @@ async function refresh() {
     setToggle("boss-casts", state.boss_casts);
     setToggle("boss-mechanics", state.boss_mechanics);
     setToggle("boss-on-you", state.boss_on_you);
+    setToggle("cubes-need-key", state.cubes_need_key);
+    // How many keys the game has said you have; not known when you logged in before
+    // Glass Cannon started.
+    $("cube-keys-note").textContent =
+        state.cube_keys == null
+          ? "Your keys aren't known yet: the game lists your bag as you log in, so log in with Glass Cannon running. Until then cubes are announced as usual."
+          : state.cube_keys === 0
+            ? `You have no keys.${state.cubes_need_key ? " Cubes aren't announced until you have one." : ""}`
+            : `You have ${state.cube_keys} ${state.cube_keys === 1 ? "key" : "keys"}.`;
     setToggle("pet-souls", state.pet_souls);
     setToggle("alert-sound", state.alert_sound);
     setToggle("close-with-game", state.close_with_game);
@@ -773,6 +782,11 @@ for (const b of document.querySelectorAll("[data-lead-choice]")) {
     refresh();
   });
 }
+
+$("cubes-need-key").addEventListener("click", async () => {
+  await invoke("set_cubes_need_key", { on: !(state && state.cubes_need_key) });
+  refresh();
+});
 
 $("boss-on-you").addEventListener("click", async () => {
   await invoke("set_boss_on_you", { on: !(state && state.boss_on_you) });
