@@ -54,6 +54,7 @@ mod setup;
 mod store;
 mod style;
 mod targetframe;
+mod castbar;
 mod vitals;
 mod widgets;
 
@@ -1219,6 +1220,10 @@ fn main() {
             vitals::vitals_setup,
             vitals::set_vitals,
             vitals::reset_vitals,
+            castbar::cast_bar_setup,
+            castbar::set_cast_bar,
+            castbar::reset_cast_bar,
+            castbar::set_player_cast,
             targetframe::target_setup,
             targetframe::set_target_setup,
             targetframe::reset_target_setup,

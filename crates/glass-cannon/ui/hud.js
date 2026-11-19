@@ -18,6 +18,8 @@ const DEFAULTS = {
   player: { x: 0.37, y: 0.8, w: 300, h: 70 },
   // Around your character, in the middle of the screen.
   vitals: { x: 0.33, y: 0.36, w: 0.34, h: 300 },
+  // Under your character (and the vitals arcs), over the action bar.
+  "cast-bar": { x: 0.4, y: 0.64, w: 0.2, h: 48 },
   party: { x: 0.015, y: 0.3, w: 260, h: 150 },
   cooldowns: { x: 0.6, y: 0.66, w: 300, h: 230 },
   // Under your character, above the game's own skill bar.
@@ -43,6 +45,8 @@ const SIDE_WIDGETS = {
   player: { page: "player.html", label: "player bars", passive: true },
   // No panel: no frosted plate behind it either.
   vitals: { page: "vitals.html", label: "vitals arcs", passive: true, bare: true, bleed: 240 },
+  // The same: a bar and no panel, its effect reaching past its box.
+  "cast-bar": { page: "castbar.html", label: "cast bar", passive: true, bare: true, bleed: 160 },
   party: { page: "party.html", label: "party frames", passive: true },
   // Always as tall as it shows: its list grows with the skills, its timeline is a bar.
   cooldowns: { page: "cooldowns.html", label: "cooldowns", passive: true, grows: true },
@@ -67,6 +71,7 @@ const WIDGET_SETTINGS = {
   cooldowns: "settings.html?frame=cooldowns",
   "party-cooldowns": "settings.html?frame=party-cooldowns",
   vitals: "settings.html?frame=vitals",
+  "cast-bar": "settings.html?frame=cast-bar",
   target: "settings.html?frame=target",
   timers: "settings.html?frame=timers",
   party: "partysettings.html",
@@ -81,6 +86,7 @@ const LABELS = [
   ["target", "target frame"],
   ["player", "player bars"],
   ["vitals", "vitals arcs"],
+  ["cast-bar", "cast bar"],
   ["party", "party frames"],
   ["cooldowns", "cooldowns"],
   ["action-bar", "action bar 1"],

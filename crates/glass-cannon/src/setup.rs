@@ -63,6 +63,8 @@ const SETTINGS_KEYS: &[&str] = &[
     "pins_look",
     "bars",
     "vitals",
+    "cast_bar",
+    "player_cast",
     "target",
     "alert_sound",
     "boss_on_you",

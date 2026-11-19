@@ -31,6 +31,10 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 const SKILLS_FILE: &str = "skills.json";
 const NPCS_FILE: &str = "npcs.json";
 const DETAILS_FILE: &str = "skill-details.json";
+/// Skills the game starts as a charge (`0x381c`) that are a cast of one length: Summon
+/// Resurrection went off 2.05 s after in all 11 without its specialty in our captures,
+/// whatever the charge speed (1.09 to 1.40), and 1.0 s after with "-1s casting time".
+const HELD_CASTS: [(u32, u32); 1] = [(17_390_000, 2000)];
 const THEOSTONES_FILE: &str = "theostones.json";
 const DUNGEONS_FILE: &str = "dungeons.json";
 /// The places the scraped dungeon list doesn't have (Sealed Dungeons, Dimensional
@@ -762,6 +766,35 @@ impl GameData {
     /// Whether a skill (any variant) is a stigma.
     pub fn is_stigma(&self, skill: u32) -> bool {
         self.details.skills.get(&(skill - skill % 10_000)).and_then(|v| v.get("type")).and_then(|t| t.as_str()) == Some("Stigma")
+    }
+
+    /// How much of a charged skill's time to its top level is left by the specialties this
+    /// ID shows were chosen: 0.7 with a "+30% Skill Speed" one (as the charges in our
+    /// captures took; the game's charge speed doesn't count it), else 1.
+    pub fn charge_time_factor(&self, skill: u32) -> f32 {
+        let faster: f32 = self.chosen_specs(skill).filter_map(|d| d.strip_prefix('+')?.strip_suffix("% Skill Speed")?.parse::<f32>().ok()).sum();
+        (1.0 - faster / 100.0).clamp(0.3, 1.0)
+    }
+
+    /// A skill the game starts as a charge that is a plain cast: no levels, and as long at
+    /// any speed (see [`HELD_CASTS`]). Its length in ms, less a "-1s casting time"
+    /// specialty this ID shows was chosen.
+    pub fn held_cast_ms(&self, skill: u32) -> Option<u32> {
+        let (_, ms) = HELD_CASTS.iter().find(|(base, _)| *base == skill - skill % 10_000)?;
+        let less: f32 = self.chosen_specs(skill).filter_map(|d| d.strip_prefix('-')?.strip_suffix("s casting time")?.parse::<f32>().ok()).sum();
+        Some((*ms as f32 - less * 1000.0).max(200.0) as u32)
+    }
+
+    /// What the specialties this ID shows were chosen say (see [`GameData::skill_details`]).
+    fn chosen_specs(&self, skill: u32) -> impl Iterator<Item = &str> {
+        let base = skill - skill % 10_000;
+        let tail = skill % 10_000;
+        let specs = self.details.skills.get(&base).and_then(|v| v.get("specs")).and_then(|s| s.as_array());
+        [tail / 1000, tail / 100 % 10, tail / 10 % 10]
+            .into_iter()
+            .filter(|d| *d > 0)
+            .filter_map(move |d| specs?.iter().find(|s| s.get("id").and_then(|i| i.as_u64()) == Some(u64::from(base + d * 10))))
+            .filter_map(|s| s.get("desc")?.as_str())
     }
 
     pub fn skill_details(&self, skill: u32) -> Option<serde_json::Value> {
@@ -1590,6 +1623,31 @@ mod tests {
         assert!(d.skill_details(3_000_016).is_none());
         // Two IDs, one Theostone.
         assert_eq!(d.theostone_count(), 1);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_skill_speed_specialty_shortens_a_charge() {
+        let dir = temp_dir("charge");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "15060000": { "name": "Hellfire" } } }"#).unwrap();
+        fs::write(
+            dir.join(DETAILS_FILE),
+            r#"{ "skills": { "15060000": { "name": "Hellfire", "specs": [
+                { "id": 15060010, "desc": "+30% Skill Speed" }, { "id": 15060020, "desc": "Fire Damage over Time for 10s on hit" },
+                { "id": 15060050, "desc": "-15s cooldown" } ] },
+                "17390000": { "name": "Summon Resurrection", "specs": [ { "id": 17390010, "desc": "-1s casting time" } ] } } }"#,
+        )
+        .unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        // Specialties 1 and 4, as captured; at any level of the charge.
+        assert_eq!(d.charge_time_factor(15_060_140), 0.7);
+        assert_eq!(d.charge_time_factor(15_060_143), 0.7);
+        // Without it; with none; a skill the data doesn't have.
+        assert_eq!(d.charge_time_factor(15_060_250), 1.0);
+        assert_eq!(d.charge_time_factor(15_060_000), 1.0);
+        assert_eq!(d.charge_time_factor(14_010_230), 1.0);
+        // A cast the game starts as a charge: one length, a second less with its specialty.
+        assert_eq!((d.held_cast_ms(17_390_000), d.held_cast_ms(17_390_010), d.held_cast_ms(15_060_140)), (Some(2000), Some(1000), None));
         fs::remove_dir_all(dir).ok();
     }
 

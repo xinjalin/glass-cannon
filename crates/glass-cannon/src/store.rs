@@ -235,6 +235,12 @@ pub struct Settings {
     /// How the vitals arcs widget looks.
     #[serde(default)]
     pub vitals: crate::vitals::VitalsSetup,
+    /// How the cast bar widget looks.
+    #[serde(default)]
+    pub cast_bar: crate::castbar::CastBarSetup,
+    /// The player bars widget shows your cast under your HP and MP.
+    #[serde(default = "default_true")]
+    pub player_cast: bool,
     /// How the target frame looks.
     #[serde(default)]
     pub target: crate::targetframe::TargetSetup,
@@ -712,6 +718,7 @@ impl Settings {
         let mut s: Settings = load(&dir.join("settings.json"));
         s.appearance = s.appearance.sanitized();
         s.vitals = std::mem::take(&mut s.vitals).sanitized();
+        s.cast_bar = std::mem::take(&mut s.cast_bar).sanitized();
         s.target = std::mem::take(&mut s.target).sanitized();
         s.action_bar_look = std::mem::take(&mut s.action_bar_look).sanitized();
         s.pins_look = std::mem::take(&mut s.pins_look).sanitized();

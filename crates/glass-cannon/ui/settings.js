@@ -978,6 +978,7 @@ function drawVitals() {
   setToggle("vt-trail", v.trail);
   setToggle("vt-hp-warn", v.hp_warn);
   setToggle("vt-cast", v.show_cast);
+  setToggle("cb-vitals-cast", v.show_cast);
   const hiddenArcs = new Set(v.hidden_arcs || []);
   for (const b of document.querySelectorAll("[data-vt-arc]")) {
     const on = !hiddenArcs.has(b.dataset.vtArc);
@@ -1100,6 +1101,158 @@ invoke("vitals_setup")
   .then((v) => {
     vitals = v;
     drawVitals();
+  })
+  .catch(() => {});
+
+// ---------------------------------------------------------------- cast bar
+
+// How the cast bar widget looks (castbar.rs), and where else your cast shows; the widget
+// follows each change at once.
+let castBar = null;
+const CB_STEPS = {
+  thick: { key: "thickness", change: "thickness", min: 25, max: 400, step: 25 },
+  text: { key: "text_size", change: "textSize", min: 50, max: 300, step: 10 },
+  "fx-strength": { key: "effect_strength", change: "effectStrength", min: 25, max: 300, step: 25, fx: true },
+  "fx-brightness": { key: "effect_brightness", change: "effectBrightness", min: 25, max: 300, step: 25, fx: true },
+  "fx-size": { key: "effect_size", change: "effectSize", min: 50, max: 200, step: 25, fx: true },
+  "fx-speed": { key: "effect_speed", change: "effectSpeed", min: 25, max: 300, step: 25, fx: true },
+};
+const CB_TOGGLES = { "cb-icon": ["icon", "icon"], "cb-name": ["name", "name"], "cb-marks": ["marks", "marks"], "cb-always": ["always_show", "alwaysShow"], "cb-fx-always": ["effect_always", "effectAlways"] };
+
+// Its settings, a tab each; the last one chosen remembered.
+const CB_TAB_KEY = "settings-cast-bar-tab";
+function showCastBarTab(name) {
+  const panels = [...document.querySelectorAll("[data-cb-panel]")];
+  if (!panels.some((p) => p.dataset.cbPanel === name)) name = panels[0].dataset.cbPanel;
+  for (const b of document.querySelectorAll("[data-cb-tab]")) b.setAttribute("aria-selected", String(b.dataset.cbTab === name));
+  for (const p of panels) p.hidden = p.dataset.cbPanel !== name;
+  try {
+    localStorage.setItem(CB_TAB_KEY, name);
+  } catch {
+    // Not remembered, then.
+  }
+}
+for (const b of document.querySelectorAll("[data-cb-tab]")) b.addEventListener("click", () => showCastBarTab(b.dataset.cbTab));
+{
+  let last = "look";
+  try {
+    last = localStorage.getItem(CB_TAB_KEY) || last;
+  } catch {
+    // The first, then.
+  }
+  showCastBarTab(last);
+}
+
+// Its colour: one swatch (made once, see the class colours), and [theme's] to drop yours.
+let castSwatch = null;
+function drawCastColour(own) {
+  if (!castSwatch) {
+    const item = el("span", "class-swatch");
+    const b = el("button", "swatch");
+    b.type = "button";
+    const input = el("input");
+    input.type = "color";
+    input.tabIndex = -1;
+    input.setAttribute("aria-label", "The cast bar's colour");
+    savePicks(input, (colour) => setCastBar({ colour }));
+    b.append(input);
+    b.addEventListener("click", () => {
+      try {
+        input.showPicker();
+      } catch {
+        input.click();
+      }
+    });
+    item.append(b);
+    const reset = el("button", "chip", "[theme's]");
+    reset.type = "button";
+    reset.title = "The theme's colour again";
+    reset.addEventListener("click", () => setCastBar({ colour: "" }));
+    $("cb-colour").replaceChildren(item, reset);
+    castSwatch = { b, input, reset };
+  }
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  const mine = isHexColor(own);
+  const colour = mine ? own : isHexColor(accent) ? accent : "#f2a8a4";
+  castSwatch.b.style.setProperty("--swatch", colour);
+  castSwatch.b.classList.toggle("own", mine);
+  castSwatch.b.title = `${colour}${mine ? " (yours)" : " (the theme's)"} · click to pick another colour`;
+  showPicked(castSwatch.input, colour);
+  castSwatch.reset.hidden = !mine;
+}
+
+function drawCastBar() {
+  const c = castBar;
+  if (!c) return;
+  for (const b of document.querySelectorAll("[data-cb]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(c[b.dataset.cb] === b.dataset.cbValue));
+  }
+  // The effect's own settings: the vitals arcs' with "as the vitals arcs", none with none.
+  const own = c.effect !== "match" && c.effect !== "none";
+  for (const [name, f] of Object.entries(CB_STEPS)) {
+    const now = c[f.key] || 100;
+    const off = f.fx && !own;
+    $(`cb-${name}-value`).textContent = `${now}%`;
+    $(`cb-${name}-down`).disabled = off || now <= f.min;
+    $(`cb-${name}-up`).disabled = off || now >= f.max;
+  }
+  for (const line of document.querySelectorAll(".cb-fx")) line.classList.toggle("off", !own);
+  $("cb-fx-note").textContent =
+    c.effect === "match"
+      ? "The bar has the vitals arcs' effect, as strong, bright, big and fast as theirs (set there), in its own colour. Pick one here for the bar to have its own."
+      : c.effect === "none"
+        ? "No effect on the bar. An effect only draws around the bar: it never moves or resizes it."
+        : "The bar's own effect, in its colour. It only draws around the bar: it never moves or resizes it.";
+  for (const [id, [key]] of Object.entries(CB_TOGGLES)) setToggle(id, !!c[key]);
+  // The effect between casts: only with the bar showing then.
+  $("cb-fx-always").disabled = !c.always_show;
+  $("cb-fx-always").classList.toggle("off", !c.always_show);
+  setToggle("cb-player-cast", c.player_cast !== false);
+  drawCastColour(c.colour);
+}
+
+async function setCastBar(change) {
+  try {
+    castBar = await invoke("set_cast_bar", { change });
+  } catch {
+    // Unchanged, then.
+  }
+  drawCastBar();
+}
+
+for (const b of document.querySelectorAll("[data-cb]")) {
+  const key = { style: "style", effect: "effect", ends: "ends", time: "time", text_at: "textAt" }[b.dataset.cb];
+  b.addEventListener("click", () => setCastBar({ [key]: b.dataset.cbValue }));
+}
+for (const [name, f] of Object.entries(CB_STEPS)) {
+  $(`cb-${name}-down`).addEventListener("click", () => castBar && setCastBar({ [f.change]: (castBar[f.key] || 100) - f.step }));
+  $(`cb-${name}-up`).addEventListener("click", () => castBar && setCastBar({ [f.change]: (castBar[f.key] || 100) + f.step }));
+}
+for (const [id, [key, change]] of Object.entries(CB_TOGGLES)) $(id).addEventListener("click", () => castBar && setCastBar({ [change]: !castBar[key] }));
+$("cb-player-cast").addEventListener("click", async () => {
+  if (!castBar) return;
+  try {
+    castBar = await invoke("set_player_cast", { on: castBar.player_cast === false });
+  } catch {
+    // Unchanged, then.
+  }
+  drawCastBar();
+});
+// The vitals arcs' own cast: their setting, from here too.
+$("cb-vitals-cast").addEventListener("click", () => vitals && setVitals({ showCast: !vitals.show_cast }));
+$("cb-reset").addEventListener("click", async () => {
+  try {
+    castBar = await invoke("reset_cast_bar");
+  } catch {
+    // Unchanged, then.
+  }
+  drawCastBar();
+});
+invoke("cast_bar_setup")
+  .then((c) => {
+    castBar = c;
+    drawCastBar();
   })
   .catch(() => {});
 

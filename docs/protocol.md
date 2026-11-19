@@ -388,7 +388,9 @@ Named in Questlog's message list, checked on our captures:
 | -------- | ------ | ---- |
 | `0x3809` | varint caster, u8 flags, u32 skill, u8 level, target block (as `0x3802`), varint cast time (ms), u8, [flags 1: varint], [flags 2: varint attack speed], … | a cast with a cast time starting, by players and mobs (bosses too) |
 | `0x380c` | varint caster, u16 result, u32 skill, varint cooldown (ms) | that cast stopped before it went off (its cooldown starts) |
-| `0x381c`, `0x3821` | as `0x3809` (no cast time) / as `0x380c` | a charged skill started / let go (its cooldown starts) |
+| `0x381c` | varint caster, u8 flags, u32 skill, u8 level, target block (as `0x3802`), f32 charge speed, u8 | a charged skill starting to charge, yours too (`0x3809` never carries your own casts). It goes off (`0x3802`) as the skill's ID plus the level reached in its last digit. To the top of its 3 levels takes 1.5 s over the speed, and 0.7 of that with the skill's "+30% Skill Speed" specialty (1,220 charges checked, 2026-11-19). Summon Resurrection starts this way too, as a 2 s cast at any speed |
+| `0x3821` | as `0x380c` | another player's charge let go (its cooldown starts) |
+| `0x381b`, `0x381e` | u16, u32 skill / u8, u16, u32 skill, u32 level reached, u32 the skill cast | your own charge starting (with its `0x381c`) / let go (with its `0x3802`) |
 | `0x3848` | varint caster, u32 skill, u8 cast ID, u32, u16, f32 × 3 position, f32 facing, u16 time until it lands (ms) | where a cast will land, one per area, with the cast's `0x3802` |
 | `0x8d52` | varint entity | a mob took aggro for the first time (a boss's pull) |
 | `0x8d26` | varint entity | a player came back to life |

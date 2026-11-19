@@ -320,7 +320,9 @@ legend {
 .fx-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.25em 0.3em; margin: 0.1em 0 0.4em; white-space: normal; }
 .fx-grid button { padding: 0.15em 0; text-align: center; background: var(--line-faint); }
 /* An effect's own settings, with no effect chosen. */
-.vt-fx.off { opacity: 0.45; }
+.vt-fx.off, .cb-fx.off, #cb-fx-always.off { opacity: 0.45; }
+/* "As the vitals arcs" across the grid's first row. */
+.fx-grid .fx-wide { grid-column: 1 / -1; }
 .stepper button:disabled { color: var(--faint); cursor: default; background: none; }
 .step-value { min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
 

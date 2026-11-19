@@ -84,6 +84,54 @@ pub const OPCODE_CAST_STOP: u16 = 0x380c;
 /// A charged skill let go (Questlog's SkillChargingStop): laid out as [`OPCODE_CAST_STOP`].
 pub const OPCODE_CHARGE_STOP: u16 = 0x3821;
 
+/// A charged skill starting to charge (held down until it's let go; Questlog's
+/// SkillChargingStart): as 0x3809 up to the target, then how fast it charges.
+///
+/// ```text
+/// varint caster, u8 flags, u32 skill, u8 level, target block (as 0x3802), f32 charge speed, u8
+/// ```
+///
+/// Yours come this way too (0x3809 never carries a player's own cast in our captures). The
+/// skill goes off (0x3802) as the charged skill's ID plus the level reached in its last
+/// digit: Hellfire 15060140 let go at its third level casts 15060143.
+///
+/// The speed fits the time to the top level: over 1,220 charges in our captures, those let
+/// go at level 3 soonest came [`CHARGE_FULL_MS`] / speed after the start, and 0.7 of that
+/// with the skill's "+30% Skill Speed" specialty chosen (which the speed doesn't count);
+/// each level came about [`CHARGE_LEAD_MS`] later than that says.
+pub const OPCODE_CHARGE_START: u16 = 0x381c;
+/// Your own charge let go (others' is [`OPCODE_CHARGE_STOP`]): u8, u16, u32 skill, u32 the
+/// level reached, u32 the skill it casts. With the cast itself (0x3802).
+pub const OPCODE_OWN_CHARGE_END: u16 = 0x381e;
+/// A charged skill's levels, and how long to the top one at speed 1 with no specialty.
+pub const CHARGE_LEVELS: u8 = 3;
+pub const CHARGE_FULL_MS: u32 = 1500;
+/// A charge counts from this long after its start is sent.
+pub const CHARGE_LEAD_MS: u32 = 80;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChargeStart {
+    pub caster: u64,
+    pub skill: u32,
+    pub target: u64,
+    /// 1.0 with no speed at all (an odd value reads as 1.0).
+    pub speed: f32,
+}
+
+pub fn parse_charge_start(p: &[u8]) -> Option<ChargeStart> {
+    let mut i = 0;
+    let caster = read_varint(p, &mut i)?;
+    i += 1;
+    let skill = u32::from_le_bytes(p.get(i..i + 4)?.try_into().ok()?);
+    i += 5;
+    let target_flags = *p.get(i)?;
+    i += 1;
+    let target = read_varint(p, &mut i)?;
+    i += if target_flags & 1 != 0 { 4 } else { 0 } + 4 + if target_flags & 2 != 0 { 12 } else { 0 };
+    let speed = p.get(i..i + 4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).filter(|s| (0.2..=5.0).contains(s)).unwrap_or(1.0);
+    Some(ChargeStart { caster, skill, target, speed })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CastStart {
     pub caster: u64,
