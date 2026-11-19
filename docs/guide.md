@@ -221,8 +221,12 @@ finishes. The widgets:
   train** adds every field boss up or spawning within a time you pick (in italics). Set up
   beside it on the overlay (arrange, then ⚙): what's pinned and each one's 🔔 alert, how
   far ahead they show, the train, icons or rows, their size, how many to a row, names,
-  and by time or as pinned. Field bosses come from the world map, so open it
-  in game now and then; nothing is read from the internet.
+  and by time or as pinned. Field bosses come from the world map, a zone at a time, so open
+  it in game now and then; nothing is read from the internet. A boss whose spawn time
+  passed more than three hours before its map was last opened (after logging in, say)
+  isn't known to be up, since it may have been killed since: its pin reads **?**, greyed,
+  after the others, and with **pins show within** set it's left off until you open its
+  map again.
 
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every
