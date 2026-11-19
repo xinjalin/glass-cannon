@@ -1223,6 +1223,11 @@ impl Meter {
         self.cubes.view(now_us)
     }
 
+    /// How many hidden cube keys you have, when known (see [`crate::cubes::Cubes::keys`]).
+    pub fn cube_keys(&self) -> Option<u64> {
+        self.cubes.keys()
+    }
+
     /// A player's gear, as last seen (they've been in view).
     pub fn gear_of(&self, name: &str) -> Option<&[crate::gear::GearPiece]> {
         self.gear.of(name)
@@ -1410,6 +1415,10 @@ impl Meter {
             }
         }
         self.shields.feed(opcode, payload);
+        // You appear with the buffs already on you (a mantra turned on before you logged in).
+        if opcode == crate::entities::OPCODE_SELF_SPAWN {
+            self.effects.self_spawn(ts_us, payload);
+        }
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }

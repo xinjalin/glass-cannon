@@ -34,9 +34,10 @@ function items(now) {
   const lead = settings.alert_lead_min * 60_000;
   const within = (view.look.within_min || 0) * 60_000;
   const out = [];
-  // A pin further off than "pins show within": left off, or dimmed while arranging.
+  // A pin further off than "pins show within": left off, or dimmed while arranging. So is a
+  // field boss not seen lately (`left` none): nobody knows whether it's up.
   const push = (it, left) => {
-    const waiting = !it.train && within > 0 && left > within;
+    const waiting = !it.train && within > 0 && (left == null || left > within);
     if (waiting && !editing) return;
     out.push(waiting ? { ...it, state: `${it.state} waiting` } : it);
   };
@@ -45,19 +46,22 @@ function items(now) {
       const b = bosses.find((x) => `boss:${x.id}` === id);
       if (!b) return;
       const up = b.time_ms <= now;
+      // Its time has passed, as of a world map opened hours ago (before you logged in,
+      // say): it spawned then, but it may well have been killed since. Not known, so not
+      // shown as up: a "?" after the pins that are known, until its map is opened again.
       const stale = up && now - (b.seen_ms || b.time_ms) > STALE_MS;
       const left = b.time_ms - now;
       push({
         id,
         name: b.name || `Field boss ${b.id}`,
         short: b.name || `Boss ${b.id}`,
-        meta: b.place || b.map_name || "",
-        at: up ? now - 1 : b.time_ms,
+        meta: stale ? "open its map to update" : b.place || b.map_name || "",
+        at: stale ? Number.MAX_SAFE_INTEGER : up ? now - 1 : b.time_ms,
         state: up ? (stale ? "stale" : "up") : left <= SOON_MS ? "soon" : "later",
-        time: up ? (stale ? "up?" : "Up") : pinTime(left),
+        time: up ? (stale ? "?" : "Up") : pinTime(left),
         alert: !up && settings.alerts.includes(id) && left <= lead,
         train,
-      }, up ? 0 : left);
+      }, stale ? null : up ? 0 : left);
       return;
     }
     const e = events[id];
@@ -114,7 +118,7 @@ function draw() {
     ...list.map((it) => {
       const cls = `pin ${it.state}${it.alert ? " alert" : ""}${it.train ? " train" : ""}`;
       const box = el("div", look.layout === "list" ? `${cls} pin-row` : cls);
-      box.title = `${it.name}${it.meta ? ` · ${it.meta}` : ""}${it.train ? " · world boss train" : ""}${it.state.includes("waiting") ? ` · shows within ${withinText(look.within_min)} of starting` : ""}`;
+      box.title = `${it.name}${it.meta ? ` · ${it.meta}` : ""}${it.train ? " · world boss train" : ""}${it.state.includes("stale") ? " · not seen since a world map opened hours ago: open its map in game to update" : it.state.includes("waiting") ? ` · shows within ${withinText(look.within_min)} of starting` : ""}`;
       if (look.layout === "list") {
         const text = el("div", "pin-text");
         text.append(el("span", "pin-name", it.name), el("span", "pin-meta", it.meta));

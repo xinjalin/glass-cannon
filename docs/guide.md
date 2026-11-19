@@ -30,7 +30,7 @@ from the game, and lets the mouse through except over the meter and the world ti
 moves widgets and resizes them by their
 corner, and each widget with settings has a **⚙** over it: its settings in a panel beside
 it, each change showing on it at once (the panel moves by its title, and goes when you
-close it or finish arranging; the settings window has them all too). Widgets snap to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
+close it, click the widget's **⚙** again or finish arranging; the settings window has them all too). Widgets snap to a grid (8, 16, 32 or 64 px, or none) shown while arranging. Faint
 dashed lines mark the screen's centre: a widget dragged near it snaps to it, and the line
 lights up; its edges and centre also snap to another widget's edges or centre, with a
 line showing the line-up. Widgets
@@ -88,7 +88,10 @@ finishes. The widgets:
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
   sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
   way the cube is: the game never sends your own position as you move (and what your game
-  sends is encrypted).
+  sends is encrypted). **Only with a key** (its settings: arrange, then ⚙) keeps it quiet
+  while you have no Key: Hidden Cube: nothing shows or chimes until you have one again. Your
+  keys are counted from your bag as you log in and as you use or gain one, so log in with
+  Glass Cannon running; until your bag's been seen, cubes are announced as usual.
 - **target frame**: your target's HP, time to kill, what it's casting, enrage, who it's
   attacking, your best against it, stagger. While it shows, the meter leaves out its own
   target and cast lines, so nothing is shown twice; while it's off, the meter has them. A player you target shows
@@ -187,7 +190,9 @@ finishes. The widgets:
   it shows. Each is set up beside it on the overlay: arrange the overlay, then **⚙** on a bar
   (the settings' action bars section starts arranging for you). A bar tracks your skills'
   **cooldowns**, the **buffs** on you, **both** (a skill shows the buff it gave you while that
-  runs, else its cooldown), or the **debuffs** on you (what mobs put on you). Skills come
+  runs, else its cooldown), or the **debuffs** on you (what mobs put on you). A buff already
+  on you as you log in or enter a zone (a mantra left on, a scroll still running) counts
+  from then. Skills come
   from your class's own, under **active** and **stigma** (a stigma you haven't equipped can
   be left off); click one to add it, and on the bar as laid out, drag one to move it or
   click it to take it off; **[+ gap]** puts a gap in (as between your hotbar's groups) and
@@ -221,8 +226,12 @@ finishes. The widgets:
   train** adds every field boss up or spawning within a time you pick (in italics). Set up
   beside it on the overlay (arrange, then ⚙): what's pinned and each one's 🔔 alert, how
   far ahead they show, the train, icons or rows, their size, how many to a row, names,
-  and by time or as pinned. Field bosses come from the world map, so open it
-  in game now and then; nothing is read from the internet.
+  and by time or as pinned. Field bosses come from the world map, a zone at a time, so open
+  it in game now and then; nothing is read from the internet. A boss whose spawn time
+  passed more than three hours before its map was last opened (after logging in, say)
+  isn't known to be up, since it may have been killed since: its pin reads **?**, greyed,
+  after the others, and with **pins show within** set it's left off until you open its
+  map again.
 
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every

@@ -102,7 +102,7 @@ Checked on our captures with our own code (2026-10-25 unless the row says otherw
 | `0x3725` | 3,786 | a player moving: dx dy dz, heading, velocity |  | Aion DPS Meter: position change (delta) |
 | `0x3656` | 1,770 | your combat power (u32) | CharCombatPowerUpdate_NT |  |
 | `0x3638` | 1,684 | a world object used: object (from `0x3634`), who (a player or you), u8 |  | Aion DPS Meter: world object in use |
-| `0x363a` | 1,630 | a world object used: object, who, 8 zero bytes |  | Aion DPS Meter: world object in use |
+| `0x363a` | 1,630 | a world object used: object, who, u8, 3 zero bytes, u32 the item it took (a hidden cube's key, 630900003; 0 for most) |  | Aion DPS Meter: world object in use |
 | `0x8d6d` | 1,203 | a world object's ID, after `0x363a` |  | Aion DPS Meter: world object (companion frame) |
 | `0x561e` | 1,200 | loot on the ground: 01, the mob's entity (u32), two positions, loot ID, item, count |  | Aion DPS Meter: a drop appears |
 | `0x561f` | 1,199 | loot gone: 20-byte records with the loot ID (1,189 of 1,199 from a `0x561e`); last byte 1 = its owner picked it up |  | Aion DPS Meter: a drop leaves the ground |
@@ -140,7 +140,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x383d` | 31,383 | 16 | 2.0 |  |  | a2_protocol-research: combat batch; Aion DPS Meter: comes with your skill acknowledgement `0x3801` (ours: 73 % within 0.3 s) |
 | `0x3848` | 22,893 | 4 | 32.0 | yes | SkillRangeNoticeFilterLocation_NT | decoded 2026-10-24: where a boss's cast lands and when (the meter's boss cast line) |
 | `0x8a33` | 17,660 | 19 | 37.1 | yes | GuildDescUpdate_NT | Aion DPS Meter: a visible player's legion |
-| `0x561b` | 12,497 | 8 | 49.7 |  | ItemModificationList_NT |  |
+| `0x561b` | 12,497 | 8 | 49.7 |  | ItemModificationList_NT | decoded 2026-11-19: items in your bag changing (a stack's new count); your hidden cube keys |
 | `0x3647` | 7,890 | 24 | 4.0 | yes | CharDisappear_NT | Aion DPS Meter: a player leaves view, with a reason |
 | `0x373c` | 6,606 | 22 | 31.9 | yes | CharWarpLeave_NT |  |
 | `0x380e` | 5,626 | 5 | 45.2 | yes |  | a2_protocol-research: target selected |
@@ -188,7 +188,7 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x3900` | 39 | 6 | 361.0 |  | SpecializedSkillLoad_NT |  |
 | `0x400a` | 39 | 6 | 9.0 |  | ArenaMatchingInfo_NT |  |
 | `0x5600` | 39 | 6 | 506.6 |  |  | Aion DPS Meter: hotbar contents |
-| `0x5611` | 39 | 6 | 13307.4 |  | ItemDepotList_RS | Aion DPS Meter: inventory and storage at login |
+| `0x5611` | 39 | 6 | 13307.4 |  | ItemDepotList_RS | Aion DPS Meter: inventory and storage at login; ours (2026-11-19): your bag, once a login, a stack's count after its item ID (your hidden cube keys) |
 | `0x5633` | 39 | 6 | 1.0 |  |  | Aion DPS Meter: godstone combinations |
 | `0x5672` | 39 | 6 | 30.7 |  | WingList_NT | decoded 2026-11-15: your wings (wing, enchant level); see protocol.md |
 | `0x5679` | 39 | 6 | 766.9 |  | TitleList_NT |  |

@@ -7,6 +7,9 @@
 //! does: distance and direction are only known for a while after you arrive somewhere.
 //!
 //! Coordinates are centimetres. Questlog takes y as growing southwards, so north is -y.
+//!
+//! And how many keys you have to open one with ([`CUBE_KEY`]): your bag as sent at login
+//! ([`OPCODE_BAG`]) and each change to an item in it after ([`OPCODE_ITEM_CHANGE`]).
 
 use std::collections::HashMap;
 
@@ -49,6 +52,38 @@ pub const CUBES: [(u32, Look); 19] = [
     (1_301_244, Look::Red),
     (1_301_245, Look::Red),
 ];
+
+/// The key that opens a hidden cube ("Key: Hidden Cube"), by item ID: the item named when
+/// a cube is opened (`0x363a`'s last u32: all 3 openings in our captures, yours and other
+/// players'), and the only one of its family in any bag we've seen.
+pub const CUBE_KEY: u32 = 630_900_003;
+/// Your bag, at login: `10 02`, a varint count, then an entry an item, of lengths that
+/// vary by kind. A stack's entry has a u32 handle (the stack's, new each login), `00`,
+/// 3 bytes, the u32 item and a u64 count: the keys are found by their item ID, the count
+/// after it. One message a login in our captures (17), never sent again in a session.
+pub const OPCODE_BAG: u16 = 0x5611;
+/// Items in your bag changing: a u8 count, then per item a u8 of what happened (0 new, 1
+/// its count changed, 2 gone), `00`, and its entry as in the bag (its count the new one).
+/// Opening a cube sends the key's stack one fewer (10 to 9 in a capture of 2026-11-19),
+/// 50 ms before the cube says it's opened.
+pub const OPCODE_ITEM_CHANGE: u16 = 0x561b;
+const ITEM_GONE: u8 = 2;
+/// More than this isn't a count of keys (something else's bytes).
+const MOST_KEYS: u64 = 100_000;
+
+/// The stacks of `item` in a bag list or an item change: (what happened, handle, count),
+/// found by the item's ID with a stack's bytes around it.
+fn stacks_of(p: &[u8], item: u32) -> Vec<(u8, u32, u64)> {
+    let id = item.to_le_bytes();
+    (10..p.len().saturating_sub(11))
+        .filter(|&i| p[i..i + 4] == id && p[i - 4] == 0)
+        .filter_map(|i| {
+            let count = u64::from_le_bytes(p[i + 4..i + 12].try_into().ok()?);
+            let handle = u32::from_le_bytes(p[i - 8..i - 4].try_into().ok()?);
+            (count <= MOST_KEYS).then_some((p[i - 10], handle, count))
+        })
+        .collect()
+}
 
 /// Your position from `0x3633` counts this long (as in Questlog).
 pub const POSITION_FRESH_US: u64 = 60_000_000;
@@ -95,6 +130,10 @@ pub struct Cubes {
     /// Where you last appeared, and when.
     me: Option<([f32; 3], u64)>,
     map: Option<u32>,
+    /// Your stacks of cube keys (by handle), and whether your bag has been sent (at login:
+    /// not when the meter started later), so that none here means you have none.
+    keys: HashMap<u32, u64>,
+    bag_seen: bool,
 }
 
 impl Cubes {
@@ -132,8 +171,30 @@ impl Cubes {
                     self.map = map;
                 }
             }
+            // Your bag (this character's: another's keys aren't yours).
+            OPCODE_BAG if p.starts_with(&[0x10, 0x02]) => {
+                self.keys = stacks_of(p, CUBE_KEY).into_iter().filter(|(_, _, n)| *n > 0).map(|(_, handle, n)| (handle, n)).collect();
+                self.bag_seen = true;
+            }
+            OPCODE_ITEM_CHANGE => {
+                for (what, handle, count) in stacks_of(p, CUBE_KEY) {
+                    if what == ITEM_GONE || count == 0 {
+                        self.keys.remove(&handle);
+                    } else {
+                        self.keys.insert(handle, count);
+                    }
+                }
+            }
             _ => {}
         }
+    }
+
+    /// How many cube keys you have, when that's known: your bag was sent since the meter
+    /// started (you logged in with it running), or a stack of keys changed since (those at
+    /// least).
+    pub fn keys(&self) -> Option<u64> {
+        let have: u64 = self.keys.values().sum();
+        (self.bag_seen || have > 0).then_some(have)
     }
 
     /// The cubes in view (opened ones for a few seconds), the first seen first.
@@ -168,8 +229,9 @@ impl Cubes {
         out
     }
 
+    /// The cubes forgotten; your keys are still yours.
     pub fn clear(&mut self) {
-        *self = Self::default();
+        *self = Self { keys: std::mem::take(&mut self.keys), bag_seen: self.bag_seen, ..Self::default() };
     }
 }
 
@@ -240,6 +302,56 @@ mod tests {
         }
         p.extend([0; 40]);
         p
+    }
+
+    #[test]
+    fn your_cube_keys_are_counted() {
+        // A stack in the bag, as captured (2026-11-19): its handle, the key, 10 of them.
+        let stack = |what: u8, count: u64| {
+            let mut p = vec![what, 0x00, 0x42, 0xbe, 0x0f, 0x00, 0x00, 0x62, 0x00, 0x00];
+            p.extend(CUBE_KEY.to_le_bytes());
+            p.extend(count.to_le_bytes());
+            p.extend(hex("01 2b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 36"));
+            p
+        };
+        // Another item's stack, 250 of it.
+        let other = hex("01 00 8d 57 08 00 00 51 00 00 c2 da 99 25 fa 00 00 00 00 00 00 00 01 26 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00");
+        let bag = |stacks: &[Vec<u8>]| [hex("10 02 aa 01 00 80 91 0a 00 00"), stacks.concat()].concat();
+        let change = |stacks: &[Vec<u8>]| [vec![stacks.len() as u8], stacks.concat(), vec![0]].concat();
+
+        let mut c = Cubes::default();
+        assert_eq!(c.keys(), None, "not known until the bag's been sent");
+        c.feed(S, OPCODE_BAG, &bag(&[other.clone(), stack(1, 10), other.clone()]));
+        assert_eq!(c.keys(), Some(10));
+        // The item change as captured when a cube was opened: one fewer.
+        let opened = hex("01 01 00 42 be 0f 00 00 62 00 00 23 c5 9a 25 09 00 00 00 00 00 00 00 01 2b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 36 00");
+        assert_eq!(opened, change(&[stack(1, 9)]));
+        c.feed(2 * S, OPCODE_ITEM_CHANGE, &opened);
+        assert_eq!(c.keys(), Some(9));
+        // Other items changing say nothing of keys; the last key used, its stack goes.
+        c.feed(3 * S, OPCODE_ITEM_CHANGE, &change(&[other.clone(), other.clone()]));
+        assert_eq!(c.keys(), Some(9));
+        c.feed(4 * S, OPCODE_ITEM_CHANGE, &change(&[other.clone(), stack(2, 0)]));
+        assert_eq!(c.keys(), Some(0), "none, and known to be none");
+        // A key gained: a new stack. The meter cleared: still yours.
+        c.feed(5 * S, OPCODE_ITEM_CHANGE, &change(&[stack(0, 3)]));
+        c.clear();
+        assert_eq!(c.keys(), Some(3));
+        // Another character's bag, with none.
+        c.feed(6 * S, OPCODE_BAG, &bag(std::slice::from_ref(&other)));
+        assert_eq!(c.keys(), Some(0));
+
+        // The meter started after you logged in: unknown, until a stack of keys changes.
+        let mut late = Cubes::default();
+        late.feed(S, OPCODE_ITEM_CHANGE, &change(std::slice::from_ref(&other)));
+        assert_eq!(late.keys(), None);
+        late.feed(2 * S, OPCODE_ITEM_CHANGE, &change(&[stack(1, 4)]));
+        assert_eq!(late.keys(), Some(4));
+        late.feed(3 * S, OPCODE_ITEM_CHANGE, &change(&[stack(2, 0)]));
+        assert_eq!(late.keys(), None, "that stack's gone; another may be there");
+        // Something that isn't your bag (not its header) changes nothing.
+        late.feed(4 * S, OPCODE_BAG, &[vec![0x11, 0x02], stack(1, 7)].concat());
+        assert_eq!(late.keys(), None);
     }
 
     #[test]

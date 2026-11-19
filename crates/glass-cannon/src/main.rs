@@ -537,10 +537,13 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         let s = lock(&app.settings);
         s.boss_hp && !s.widgets.iter().any(|w| w == "target")
     };
+    let cubes_need_key = lock(&app.settings).cubes_need_key;
     let (mut snap, ping_ms, cubes, mut souls, pvp_now, boss_mechanics, mut target) = {
         let mut meter = app.engine.meter();
         let ping = if app.args.replay.is_none() { ping::game_ping_ms(&meter) } else { None };
-        let cubes = meter.cubes(now);
+        // With "only with a key": none announced while you're known to have no key (not
+        // while that isn't known: the meter started after you logged in).
+        let cubes = if cubes_need_key && meter.cube_keys() == Some(0) { Vec::new() } else { meter.cubes(now) };
         let souls = meter.take_soul_gains();
         let pvp_now = meter.pvp();
         let mechanics = if mechanics_on { meter.mechanics(now) } else { Vec::new() };
@@ -1172,6 +1175,7 @@ fn main() {
             widgets::set_boss_casts,
             widgets::set_boss_mechanics,
             widgets::set_boss_on_you,
+            widgets::set_cubes_need_key,
             widgets::set_party_cooldowns_by_class,
             widgets::set_pet_souls,
             widgets::dummy_runs,

@@ -379,6 +379,14 @@ pub fn boss_skill_alerts(app: State<'_, Arc<AppState>>) -> std::collections::BTr
     lock(&app.settings).boss_skill_alerts.clone()
 }
 
+/// Hidden cubes announced only while you have a key (settings → hidden cubes).
+#[tauri::command]
+pub fn set_cubes_need_key(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.cubes_need_key = on;
+    s.save(&app.config_dir);
+}
+
 #[tauri::command]
 pub fn set_boss_on_you(app: State<'_, Arc<AppState>>, on: bool) {
     let mut s = lock(&app.settings);

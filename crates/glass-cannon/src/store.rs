@@ -250,6 +250,10 @@ pub struct Settings {
     /// The boss warnings say when the boss turns to attack you.
     #[serde(default = "default_true")]
     pub boss_on_you: bool,
+    /// Hidden cubes are announced (and chime) only while you have a key to open one with:
+    /// not while you're known to have none.
+    #[serde(default)]
+    pub cubes_need_key: bool,
     /// The launcher kept on top of other windows (its green light).
     #[serde(default)]
     pub launcher_on_top: bool,
