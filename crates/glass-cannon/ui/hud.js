@@ -269,8 +269,23 @@ function drawGrid() {
 // A widget's settings beside it (⚙ while arranging): its own page in a panel, next to it
 // on whichever side has room when opened, and there until moved by its title, closed, or
 // arranging's done (it doesn't follow the widget as it grows or shrinks, which would move
-// a slider out from under the mouse). Every change shows on the widget at once.
+// a slider out from under the mouse). Every change shows on the widget at once. A widget's
+// ⚙ closes its panel again.
 let panelFor = null;
+// The panel waits, unseen, for its page to say how tall it is (it would show at its most
+// and then jump to that: a flicker, the worst for a short page like the hidden cubes'); not
+// for long, should a page never say.
+let panelWait = 0;
+const PANEL_WAIT_MS = 500;
+function showWidgetPanel() {
+  clearTimeout(panelWait);
+  panelWait = 0;
+  $("widget-panel").classList.remove("sizing");
+}
+function toggleWidgetPanel(id) {
+  if (panelFor === id && !$("widget-panel").hidden) closeWidgetPanel();
+  else openWidgetPanel(id);
+}
 function openWidgetPanel(id) {
   const page = settingsOf(id);
   if (!page) return;
@@ -281,8 +296,11 @@ function openWidgetPanel(id) {
   // character, a setup taken in), and a change made in it saves all it shows.
   if (box.hidden || !frame.src.endsWith(page)) {
     frame.src = page;
-    // At its most until the page says how tall it is.
+    // At its most until the page says how tall it is, and not seen until then.
     box.style.height = "";
+    box.classList.add("sizing");
+    clearTimeout(panelWait);
+    panelWait = setTimeout(showWidgetPanel, PANEL_WAIT_MS);
   }
   const named = LABELS.find(([k]) => k === id);
   $("widget-panel-title").textContent = named ? named[1] : id;
@@ -295,6 +313,7 @@ function openWidgetPanel(id) {
 }
 function closeWidgetPanel() {
   panelFor = null;
+  showWidgetPanel();
   $("widget-panel").hidden = true;
 }
 function placeWidgetPanel() {
@@ -426,7 +445,7 @@ function setUp(el) {
     gear.addEventListener("pointerdown", (e) => e.stopPropagation());
     gear.addEventListener("click", (e) => {
       e.stopPropagation();
-      openWidgetPanel(el.dataset.widget);
+      toggleWidgetPanel(el.dataset.widget);
     });
     el.append(gear);
   }
@@ -565,6 +584,7 @@ window.addEventListener("message", (e) => {
     const most = Math.min(640, innerHeight * 0.9);
     box.style.height = `${Math.min(most, Math.ceil(m.height) + $("widget-panel-head").offsetHeight + 2)}px`;
     placeWidgetPanel();
+    showWidgetPanel();
   } else if (m.type === "gc-open-settings" && m.widget) {
     // The panel's [+ add a bar]: the new bar's panel, beside it once it's there.
     setTimeout(() => openWidgetPanel(m.widget), 150);
