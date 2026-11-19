@@ -37,8 +37,12 @@ async function save(setup, soon = false) {
   draw();
   clearTimeout(saveTimer);
   const go = async () => {
+    // What comes back is taken only if nothing's changed here since it was sent: a later
+    // change is newer than an earlier save's reply.
+    const sent = view.setup;
     try {
-      view.setup = await invoke("set_action_bar_setup", { bar: BAR, setup: view.setup });
+      const saved = await invoke("set_action_bar_setup", { bar: BAR, setup: sent });
+      if (view.setup === sent) view.setup = saved;
       view.exists = true;
     } catch (e) {
       note(String(e));

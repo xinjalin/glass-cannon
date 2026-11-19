@@ -388,7 +388,9 @@ Named in Questlog's message list, checked on our captures:
 | -------- | ------ | ---- |
 | `0x3809` | varint caster, u8 flags, u32 skill, u8 level, target block (as `0x3802`), varint cast time (ms), u8, [flags 1: varint], [flags 2: varint attack speed], … | a cast with a cast time starting, by players and mobs (bosses too) |
 | `0x380c` | varint caster, u16 result, u32 skill, varint cooldown (ms) | that cast stopped before it went off (its cooldown starts) |
-| `0x381c`, `0x3821` | as `0x3809` (no cast time) / as `0x380c` | a charged skill started / let go (its cooldown starts) |
+| `0x381c` | varint caster, u8 flags, u32 skill, u8 level, target block (as `0x3802`), f32 charge speed, u8 | a charged skill starting to charge, yours too (`0x3809` never carries your own casts). It goes off (`0x3802`) as the skill's ID plus the level reached in its last digit. To the top of its 3 levels takes 1.5 s over the speed, and 0.7 of that with the skill's "+30% Skill Speed" specialty (1,220 charges checked, 2026-11-19). Summon Resurrection starts this way too, as a 2 s cast at any speed |
+| `0x3821` | as `0x380c` | another player's charge let go (its cooldown starts) |
+| `0x381b`, `0x381e` | u16, u32 skill / u8, u16, u32 skill, u32 level reached, u32 the skill cast | your own charge starting (with its `0x381c`) / let go (with its `0x3802`) |
 | `0x3848` | varint caster, u32 skill, u8 cast ID, u32, u16, f32 × 3 position, f32 facing, u16 time until it lands (ms) | where a cast will land, one per area, with the cast's `0x3802` |
 | `0x8d52` | varint entity | a mob took aggro for the first time (a boss's pull) |
 | `0x8d26` | varint entity | a player came back to life |
@@ -585,8 +587,8 @@ Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen
 length`, UTF-8 name, then level, class, legion name and other fields. In group rosters
 (`0x9702`, `0x970b`) two bytes come first: flags (`0x0c` always, `0x02` ready, `0x10`
 inside the dungeon) and the slot (1 = the leader, who starts rather than readies).
-Seen in the Vakron capture's party finder: robi03, TAQE and Chandra readied (TAQE
-unreadied and readied again) by `0x9716`, ours by `0x9715`, and robi03 leaving at the end
+Seen in the Vakron capture's party finder: vexo07, MIRO and Sandrel readied (MIRO
+unreadied and readied again) by `0x9716`, ours by `0x9715`, and vexo07 leaving at the end
 by `0x971e` and `0x9221` together. A kick hasn't been captured; the meter takes
 `0x9219` and `0x972a`, and `0x9221`/`0x971e` with your own character ID, as you being removed. Entries aren't at
 fixed offsets, so the meter scans for that shape (`entities::parse_roster`).

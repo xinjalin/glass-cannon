@@ -3,6 +3,8 @@
 
 let look = null;
 let timer = null;
+// Saves on their way: what the app says meanwhile may be from before them.
+let saving = 0;
 
 function press(b, on) {
   b.setAttribute("aria-pressed", String(!!on));
@@ -14,7 +16,12 @@ async function set(patch, soon) {
   clearTimeout(timer);
   const go = async () => {
     timer = null;
-    look = await invoke("set_party_look", { look }).catch(() => look);
+    // What comes back is taken only if nothing's changed here since it was sent.
+    const sent = look;
+    saving++;
+    const saved = await invoke("set_party_look", { look: sent }).catch(() => sent);
+    saving--;
+    if (look === sent) look = saved;
   };
   if (soon) timer = setTimeout(go, 150);
   else await go();
@@ -59,7 +66,7 @@ invoke("party_look")
   })
   .catch(() => {});
 tauri.event.listen("party-look", (e) => {
-  if (e.payload && !timer) {
+  if (e.payload && !timer && !saving) {
     look = e.payload;
     draw();
   }

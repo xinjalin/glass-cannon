@@ -54,6 +54,7 @@ mod setup;
 mod store;
 mod style;
 mod targetframe;
+mod castbar;
 mod vitals;
 mod widgets;
 
@@ -554,6 +555,15 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     }
     let mut data = lock(&app.data);
     data.reload_if_empty();
+    // Game data that came late (the folder put in place after the start) or changed (a
+    // skill renamed): the meter's boss types, mechanics and skill groups from it again,
+    // or no mob would be a boss until the next start.
+    if data.take_meter_stale() {
+        let mut meter = app.engine.meter();
+        meter.set_boss_types(data.boss_types());
+        meter.set_mechanics(data.mechanics());
+        meter.set_skill_groups(data.skill_groups().clone());
+    }
     let mut profile = lock(&app.profile);
     let history = lock(&app.history);
     data.annotate(&mut snap);
@@ -1210,6 +1220,10 @@ fn main() {
             vitals::vitals_setup,
             vitals::set_vitals,
             vitals::reset_vitals,
+            castbar::cast_bar_setup,
+            castbar::set_cast_bar,
+            castbar::reset_cast_bar,
+            castbar::set_player_cast,
             targetframe::target_setup,
             targetframe::set_target_setup,
             targetframe::reset_target_setup,

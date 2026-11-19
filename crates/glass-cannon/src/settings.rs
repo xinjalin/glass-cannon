@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use meter_core::meter::Scope;
 use serde::Serialize;
-use tauri::{AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, PhysicalSize, Runtime, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, Monitor, PhysicalPosition, PhysicalSize, Runtime, State, WebviewWindow};
 
 use crate::layout::{self, Rect, Side};
 
@@ -250,9 +250,10 @@ pub fn reset_appearance(handle: AppHandle, app: State<'_, Arc<AppState>>) -> App
 }
 
 /// Every setting and keybind back to its default, the appearance too. Kept: what you've
-/// picked rather than set (the pets each character tracks, starred and alerted events,
-/// boss skills you marked, the dummy label), and whether the overlay and the launcher's
-/// keep-on-top are on. The overlay's layout and the history aren't settings.
+/// picked rather than set (the pets each character tracks, starred, alerted and pinned
+/// events, each class's action bars, boss skills you marked, the dummy label), and whether
+/// the overlay and the launcher's keep-on-top are on. The overlay's layout and the history
+/// aren't settings. The overlay and the settings start again with what's left.
 #[tauri::command]
 pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
     let mut s = lock(&app.settings);
@@ -260,6 +261,8 @@ pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
     s.tracked_pets = old.tracked_pets;
     s.timer_favourites = old.timer_favourites;
     s.alerts = old.alerts;
+    s.timer_pins = old.timer_pins;
+    s.bars = old.bars;
     s.boss_skill_alerts = old.boss_skill_alerts;
     s.boss_skill_timers = old.boss_skill_timers;
     s.dummy_label = old.dummy_label;
@@ -269,6 +272,9 @@ pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
     restyle_windows(&handle, &s.appearance);
     drop(s);
     app.hud_hidden.store(false, Ordering::SeqCst);
+    // The overlay's widgets and their looks, and the settings pages, read again (as after
+    // a setup's taken in): they'd show what was until the next start otherwise.
+    let _ = handle.emit("setup-imported", ["theme", "settings"]);
 }
 
 /// Installed font families for the font picker.

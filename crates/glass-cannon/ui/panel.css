@@ -396,16 +396,30 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .widget.fit #panel { height: auto; max-height: 100vh; }
 
 /* The player bars: your HP and MP, and your cast, as thin labelled bars. */
-.player-bars { display: grid; gap: 0.25em; padding: 0.3em 0.4em; }
-.pb { position: relative; height: 1.15em; border-radius: 0.25em; overflow: hidden; background: var(--line-faint); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+/* The bars share the widget's height between them (taller as it's made taller, never a
+   gap under them); the cast's keeps its place between casts, so the others don't jump. */
+.widget #panel.player-bars { gap: 0.25em; padding: 0.3em 0.4em; }
+.pb { position: relative; flex: 1 1 0; min-height: 0.9em; display: flex; align-items: center; border-radius: 0.25em; overflow: hidden; background: var(--line-faint); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.pb[hidden] { display: none; }
+.pb.cast.idle { visibility: hidden; }
 .pb-fill { position: absolute; inset: 0 auto 0 0; transition: width 0.15s linear; }
 .pb.hp .pb-fill { background: color-mix(in srgb, var(--bad) 75%, transparent); }
 .pb.mp .pb-fill { background: color-mix(in srgb, #5b8def 75%, transparent); }
 .pb-shield { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0 0.3em, rgba(255, 255, 255, 0.5) 0.3em 0.6em); transition: left 0.15s linear, width 0.15s linear; }
 .pb-shield-text { color: #ffffff; font-weight: 700; }
 .pb.cast .pb-fill { background: var(--accent-fill, var(--accent)); transition: none; }
+.pb.cast.charging .pb-fill { transition: width 0.1s linear; }
+/* A charged skill's levels: a notch at each third, light on the empty bar (under the fill)
+   and dark on the fill (drawn in it, to the bar's width). */
+.pb.cast.levels { container-type: inline-size; --notch: rgba(255, 255, 255, 0.6); }
+.pb.cast.levels::before, .pb.cast.levels .pb-fill {
+  background-image: linear-gradient(90deg, transparent calc(33.33% - 1px), var(--notch) calc(33.33% - 1px), var(--notch) calc(33.33% + 1px), transparent calc(33.33% + 1px), transparent calc(66.67% - 1px), var(--notch) calc(66.67% - 1px), var(--notch) calc(66.67% + 1px), transparent calc(66.67% + 1px));
+}
+.pb.cast.levels::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.pb.cast.levels .pb-fill { --notch: rgba(10, 10, 14, 0.85); background-size: 100cqw 100%; background-repeat: no-repeat; }
 .pb-text { position: relative; padding: 0 0.5em; line-height: 1.15em; white-space: nowrap; color: var(--text); }
-.pb-time { position: absolute; right: 0.5em; top: 0; line-height: 1.15em; color: var(--text); }
+.pb.cast .pb-text { font-weight: 600; text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 1px 1px rgba(0, 0, 0, 0.8); }
+.pb-time { position: absolute; right: 0.5em; top: 50%; transform: translateY(-50%); line-height: 1.15em; color: var(--text); text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 1px 1px rgba(0, 0, 0, 0.8); }
 
 /* Party frames: a grid of tiles, each filled by the member's HP in their class's colour. */
 .frames { list-style: none; margin: 0; padding: 0.25em; display: grid; grid-template-columns: var(--cols, repeat(auto-fill, minmax(7.5em, 1fr))); gap: 0.25em; }
@@ -466,6 +480,9 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-fill.mp { stroke: var(--arc-mp); }
 .arc-fill.flight { stroke: var(--arc-flight); }
 .arc-fill.cast { stroke: var(--arc-cast, var(--accent-fill, var(--accent))); transition: none; }
+.arc-fill.cast.charging { transition: stroke-dasharray 0.1s linear; }
+.arc-cast-marks { fill: none; stroke: rgba(255, 255, 255, 0.6); stroke-linecap: butt; }
+.arc-cast-marks.on { stroke: rgba(10, 10, 14, 0.85); }
 .arcs { --arc-shield: #ffffff; }
 .arc-shield { fill: none; stroke: var(--arc-shield); stroke-linecap: round; transition: stroke-dasharray 0.15s linear, stroke-dashoffset 0.15s linear; }
 .look-thin .arc-shield { filter: drop-shadow(0 0 3px var(--arc-shield)); }
@@ -498,7 +515,8 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 /* The effects (flames, lightning and the rest): on a canvas under the arcs (vitals.js),
    each fill glowing in its colour over them; the flames show through the fills. */
 .arc-fx { position: absolute; left: 0; top: 0; pointer-events: none; }
-.effect-flames .arc-fill { opacity: 0.6; }
+/* (Not the cast's: no flames on it.) */
+.effect-flames .arc-fill:not(.cast) { opacity: 0.6; }
 .fx .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
 .fx .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }
 .fx .arc-fill.mp { filter: drop-shadow(0 0 4px var(--arc-mp)); }
@@ -530,6 +548,25 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .backing-shadow .arc-text { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 3px rgba(0, 0, 0, 0.6)); }
 .arc-plate { fill: rgba(8, 8, 12, 0.72); }
 #vitals #empty { position: absolute; inset: auto 0 0; margin: 0; text-align: center; }
+
+/* The cast bar widget: no box, a bar across the widget with the skill's icon, name and
+   time, drawn by castbar.js in the look chosen in its settings (classes on the svg: look-*,
+   ends-*; --vt, the text's size), the arcs' effects around it. */
+#castbar { position: absolute; inset: var(--bleed, 0px); --vt: 1; }
+/* The bar, the effect over it, the texts and the icon over that. */
+#castbar .arc-fx { z-index: 1; }
+.cb-texts { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; z-index: 2; }
+.cb-fx-line { fill: none; stroke: none; }
+.castbar.ends-square .arc-track, .castbar.ends-square .arc-fill, .castbar.ends-square .arc-frame { stroke-linecap: butt; }
+.castbar .arc-track { stroke: rgba(10, 10, 14, 0.72); }
+.castbar.look-thin .arc-track { stroke: rgba(255, 255, 255, 0.18); }
+.castbar.fx .arc-fill.cast { filter: drop-shadow(0 0 4px var(--arc-cast)); }
+.cb-text { fill: var(--text); font-size: calc(0.95em * var(--vt)); font-weight: 600; dominant-baseline: central; paint-order: stroke; stroke: rgba(0, 0, 0, 0.85); stroke-width: 3px; stroke-linejoin: round; }
+.cb-time { font-variant-numeric: tabular-nums; }
+.cb-icon { position: absolute; z-index: 2; border-radius: 0.3em; overflow: hidden; background: rgba(10, 10, 14, 0.7); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), 0 0 0 2px rgba(255, 255, 255, 0.16); }
+.cb-icon[hidden] { display: none; }
+.cb-icon .icon { display: block; width: 100%; height: 100%; border-radius: 0; object-fit: cover; }
+.cb-icon .icon.blank { display: grid; place-items: center; font-size: 1em; text-transform: uppercase; }
 
 /* ---------------------------------------------------------------- action bar */
 

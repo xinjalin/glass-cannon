@@ -14,7 +14,7 @@ use crate::store::TIMER_REGIONS;
 use crate::{hud, lock, AppState};
 
 /// Every widget the overlay has, in the settings' order.
-pub const WIDGETS: [&str; 19] = [
+pub const WIDGETS: [&str; 20] = [
     "meter",
     "boss-warnings",
     "boss-timers",
@@ -22,6 +22,7 @@ pub const WIDGETS: [&str; 19] = [
     "target",
     "player",
     "vitals",
+    "cast-bar",
     "party",
     "cooldowns",
     "action-bar",
@@ -518,10 +519,20 @@ impl PinsLook {
 
 /// Pins as kept: an event's ID or `boss:<id>`, each once, at most [`MAX_PINS`].
 pub fn clean_pins(pins: Vec<String>) -> Vec<String> {
+    clean_timer_ids(pins, MAX_PINS)
+}
+
+/// The most events and field bosses starred, or with an alert.
+pub const MAX_TIMER_PICKS: usize = 400;
+
+/// Events and field bosses picked (pinned, starred, alerted) as kept: an event's ID or
+/// `boss:<id>`, each once, at most `most`. What a hand-edited file or someone's setup
+/// has that isn't one is dropped.
+pub fn clean_timer_ids(ids: Vec<String>, most: usize) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for p in pins {
+    for p in ids {
         let ok = !p.is_empty() && p.len() <= 64 && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ':' || c == '_');
-        if ok && !out.contains(&p) && out.len() < MAX_PINS {
+        if ok && !out.contains(&p) && out.len() < most {
             out.push(p);
         }
     }
@@ -1046,7 +1057,16 @@ pub fn self_bars(app: State<'_, Arc<AppState>>) -> Option<meter_core::meter::Sel
     let mut bars = meter.self_bars()?;
     let data = lock(&app.data);
     if let Some(c) = bars.cast.as_mut() {
-        c.skill_name = data.skill_meta(c.skill).0;
+        (c.skill_name, c.icon_key) = data.skill_meta(c.skill);
+        // A charge: sooner at its top level with the skill's speed specialty.
+        // (A cast the game starts as one has its own length and no levels.)
+        if let Some(charge) = c.charge.as_mut() {
+            match data.held_cast_ms(c.skill) {
+                Some(ms) => (c.cast_ms, charge.levels) = (ms, 1),
+                None => c.cast_ms = (c.cast_ms as f32 * data.charge_time_factor(c.skill)).round() as u32,
+            }
+            c.remaining_ms = c.cast_ms.saturating_sub(charge.elapsed_ms);
+        }
     }
     // Your shields: the skills the game data says give one.
     let me = meter.registry().self_id();

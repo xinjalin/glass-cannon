@@ -20,7 +20,8 @@ use crate::damage::{self, DamageEvent, Position};
 use crate::dungeon::{Instance, Maps, OPCODE_MAP_ENTERED};
 use crate::entities::{parse_death, Change, Death, PartyMember, Registry, OPCODE_DEATH};
 use crate::cast::{
-    parse_cast, parse_cast_start, parse_cast_stop, parse_telegraph, OPCODE_CAST, OPCODE_CAST_START, OPCODE_CAST_STOP, OPCODE_TELEGRAPH,
+    parse_cast, parse_cast_start, parse_cast_stop, parse_charge_start, parse_telegraph, CHARGE_FULL_MS, CHARGE_LEAD_MS, CHARGE_LEVELS, OPCODE_CAST, OPCODE_CAST_START,
+    OPCODE_CAST_STOP, OPCODE_CHARGE_START, OPCODE_CHARGE_STOP, OPCODE_OWN_CHARGE_END, OPCODE_TELEGRAPH,
 };
 use crate::cooldowns::{CastCooldowns, CasterCooldown, CooldownView, Cooldowns};
 use crate::pvp::{PvpSession, PvpTracker};
@@ -560,9 +561,30 @@ pub struct CastBar {
     pub skill: u32,
     /// Filled in by the app from its skill table.
     pub skill_name: Option<String>,
+    /// The skill's icon (the app's, as for a cooldown's).
+    #[serde(default)]
+    pub icon_key: Option<u32>,
     pub cast_ms: u32,
     pub remaining_ms: u32,
+    /// A charged skill being held, not a cast with a cast time: `cast_ms` is then how long
+    /// to its top level, `remaining_ms` what's left of that (0 at the top, while it's held).
+    #[serde(default)]
+    pub charge: Option<Charge>,
 }
+
+/// A charged skill being held.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+pub struct Charge {
+    /// How many levels it has (marks along the bar).
+    pub levels: u8,
+    /// Since it began. The app shortens `cast_ms` for the skill's speed specialty (which
+    /// the game's charge speed leaves out) and works what's left out again from this.
+    pub elapsed_ms: u32,
+}
+
+/// A charge with no end seen (the skill going off, or it let go) is dropped this long after
+/// its top level: held longer than that, or its end missed.
+const CHARGE_HELD_US: u64 = 5_000_000;
 
 /// Your HP, MP and the cast you're making, for the player bars. Max HP isn't sent: the
 /// highest seen stands in (your max whenever you've been at full HP).
@@ -946,6 +968,8 @@ pub struct Meter {
     contents: Contents,
     /// Casts under way: caster -> (skill, when it started, cast time in ms).
     casting: HashMap<u64, (u32, u64, u32)>,
+    /// Charged skills being held: caster -> (skill, when it started, charge speed).
+    charging: HashMap<u64, (u32, u64, f32)>,
     /// Your MP: now, max (when sent), and the highest seen.
     self_mp: (Option<u32>, Option<u32>, u32),
     /// Your other stats from `0x8d00`: stamina, flight power (each with its max), max HP.
@@ -1017,6 +1041,7 @@ impl Meter {
             world_map_us: None,
             contents: Contents::default(),
             casting: HashMap::new(),
+            charging: HashMap::new(),
             self_mp: (None, None, 0),
             self_stats: SelfStats::default(),
             party_vitals: HashMap::new(),
@@ -1145,6 +1170,25 @@ impl Meter {
         self.shields.on(entity, is_shield)
     }
 
+    /// The charged skill `entity` is holding, as a cast bar: filling to its top level, then
+    /// full for as long as it's held.
+    fn charge_bar(&self, entity: u64) -> Option<CastBar> {
+        let &(skill, start, speed) = self.charging.get(&entity)?;
+        let full_ms = (CHARGE_FULL_MS as f32 / speed).round() as u32;
+        let elapsed_us = self.latest_us.saturating_sub(start);
+        (elapsed_us < u64::from(full_ms) * 1000 + CHARGE_HELD_US).then(|| {
+            let elapsed_ms = ((elapsed_us / 1000) as u32).saturating_sub(CHARGE_LEAD_MS);
+            CastBar {
+                skill,
+                skill_name: None,
+                icon_key: None,
+                cast_ms: full_ms,
+                remaining_ms: full_ms.saturating_sub(elapsed_ms),
+                charge: Some(Charge { levels: CHARGE_LEVELS, elapsed_ms }),
+            }
+        })
+    }
+
     /// Your HP, MP and cast now (the player bars widget).
     pub fn self_bars(&self) -> Option<SelfBars> {
         let me = self.registry.self_id()?;
@@ -1162,10 +1206,14 @@ impl Meter {
             stamina_max,
             flight,
             flight_max,
-            cast: self.casting.get(&me).and_then(|&(skill, start, cast_ms)| {
-                let end = start + u64::from(cast_ms) * 1000;
-                (end > self.latest_us).then(|| CastBar { skill, skill_name: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32 })
-            }),
+            cast: self
+                .casting
+                .get(&me)
+                .and_then(|&(skill, start, cast_ms)| {
+                    let end = start + u64::from(cast_ms) * 1000;
+                    (end > self.latest_us).then(|| CastBar { skill, skill_name: None, icon_key: None, cast_ms, remaining_ms: ((end - self.latest_us) / 1000) as u32, charge: None })
+                })
+                .or_else(|| self.charge_bar(me)),
             shield: None,
         })
     }
@@ -1327,6 +1375,10 @@ impl Meter {
                 // The cast went off, so its cast time is over.
                 if self.casting.get(&c.caster).is_some_and(|(skill, _, _)| *skill == c.skill) {
                     self.casting.remove(&c.caster);
+                }
+                // A charged skill goes off as its ID plus the level reached (its last digit).
+                if self.charging.get(&c.caster).is_some_and(|(skill, _, _)| skill / 10 == c.skill / 10) {
+                    self.charging.remove(&c.caster);
                 }
                 if c.skill < PLAYER_SKILL_MIN && self.is_boss(c.caster) {
                     let started = self
@@ -1552,6 +1604,23 @@ impl Meter {
                         }
                     }
                 }
+                OPCODE_CHARGE_START => {
+                    if let Some(c) = parse_charge_start(payload) {
+                        // Those whose end never came (out of sight, say) go as others start.
+                        self.charging.retain(|_, (_, at, _)| ts_us.saturating_sub(*at) < 30_000_000);
+                        self.charging.insert(c.caster, (c.skill, ts_us, c.speed));
+                    }
+                }
+                OPCODE_CHARGE_STOP => {
+                    if let Some((caster, _)) = parse_cast_stop(payload) {
+                        self.charging.remove(&caster);
+                    }
+                }
+                OPCODE_OWN_CHARGE_END => {
+                    if let Some(me) = self.registry.self_id() {
+                        self.charging.remove(&me);
+                    }
+                }
                 OPCODE_CAST_STOP => {
                     if let Some((caster, skill)) = parse_cast_stop(payload) {
                         if self.casting.get(&caster).is_some_and(|(s, _, _)| *s == skill) {
@@ -1629,6 +1698,7 @@ impl Meter {
                 self.cooldowns.clear();
                 self.cast_cooldowns.clear();
                 self.casting.clear();
+                self.charging.clear();
                 self.self_mp = (None, None, 0);
                 self.self_stats = self.self_stats.carried_over();
                 self.party_vitals.clear();
@@ -1969,7 +2039,10 @@ impl Meter {
         let killer = d.killer_name.clone().or_else(|| d.killer.map(|k| self.registry.label(k)));
         self.pvp.death(ts_us, d.entity, me == Some(d.entity), by_you, killer);
         self.died.insert(d.entity, ts_us);
-        self.died.retain(|_, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US);
+        // Old deaths go, but not those of the fight's own targets: its bosses can die minutes
+        // apart, and it's a kill once all of them are dead.
+        let current = &self.current;
+        self.died.retain(|id, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US || current.as_ref().is_some_and(|e| e.targets.contains_key(id)));
         // Players the game has named (an unnamed "player" may be a mob we missed the spawn of).
         if self.registry.is_self(d.entity) || self.registry.player_name(d.entity).is_some() {
             if let Some(enc) = self.current.as_mut() {
@@ -2516,8 +2589,10 @@ impl Meter {
                 (end > self.latest_us).then(|| CastBar {
                     skill,
                     skill_name: None,
+                    icon_key: None,
                     cast_ms,
                     remaining_ms: ((end - self.latest_us) / 1000) as u32,
+                    charge: None,
                 })
             }),
             player: self.registry.player_name(entity).map(|_| {
@@ -2853,6 +2928,67 @@ mod tests {
         assert_eq!(done[0].analysis.as_ref().unwrap().target_hp, a.target_hp);
         // How low it got: the HP just after the last hit counts, the reset after doesn't.
         assert_eq!(done[0].view.target_low_hp, Some(101_000.0 / 119_700.0));
+    }
+
+    #[test]
+    fn a_charged_skill_held_is_your_cast_bar() {
+        // As captured (2026-11-19): Hellfire, charge speed 1.09, at a mob; then let go at its
+        // third level, which casts the skill's ID plus 3.
+        let mine = |rest: &[u8]| [encode_varint(ME), rest.to_vec()].concat();
+        let start = mine(&[
+            0x01, 0xac, 0xcc, 0xe5, 0x00, 0x0e, 0x02, 0xe6, 0xa7, 0x01, 0xc5, 0x6c, 0x78, 0x42, 0x9e, 0x14, 0x58, 0x47, 0xbd, 0xc1, 0x25, 0x47,
+            0x00, 0x12, 0xb3, 0x47, 0xe3, 0xa5, 0x8b, 0x3f, 0x01,
+        ]);
+        let let_go = [0x01, 0x00, 0x00, 0xac, 0xcc, 0xe5, 0x00, 0x03, 0x00, 0x00, 0x00, 0xaf, 0xcc, 0xe5, 0x00];
+        let cast = mine(&[
+            0x00, 0xaf, 0xcc, 0xe5, 0x00, 0x1d, 0x02, 0xe6, 0xa7, 0x01, 0xc5, 0x6c, 0x78, 0x42, 0x9e, 0x14, 0x58, 0x47, 0xbd, 0xc1, 0x25, 0x47,
+            0x00, 0x12, 0xb3, 0x47, 0x9e, 0x55, 0x01, 0xa4, 0xd2, 0x02,
+        ]);
+        let c = crate::cast::parse_charge_start(&start).unwrap();
+        assert_eq!((c.caster, c.skill, c.target), (ME, 15_060_140, 21_478));
+        assert!((c.speed - 1.0909).abs() < 0.001, "{}", c.speed);
+        assert_eq!(parse_cast(&cast).map(|c| (c.caster, c.skill)), Some((ME, 15_060_143)));
+
+        const TICK: u16 = 0x3600;
+        let mut m = meter_as_me();
+        assert_eq!(m.self_bars().unwrap().cast, None);
+        m.feed(10 * S, OPCODE_CHARGE_START, &start);
+        // Filling: 1.5 s over the speed to the top level, from a moment after the start.
+        m.feed(10 * S + 500_000, TICK, &[]);
+        let bar = m.self_bars().unwrap().cast.unwrap();
+        assert_eq!((bar.skill, bar.cast_ms, bar.remaining_ms), (15_060_140, 1375, 955));
+        assert_eq!(bar.charge, Some(Charge { levels: 3, elapsed_ms: 420 }));
+        // At the top and still held: full.
+        m.feed(12 * S, TICK, &[]);
+        let bar = m.self_bars().unwrap().cast.unwrap();
+        assert_eq!((bar.cast_ms, bar.remaining_ms, bar.charge.unwrap().elapsed_ms), (1375, 0, 1920));
+        // Let go.
+        m.feed(12 * S + 100_000, OPCODE_OWN_CHARGE_END, &let_go);
+        assert_eq!(m.self_bars().unwrap().cast, None);
+
+        // The cast alone ends it too (the skill's ID plus the level).
+        m.feed(20 * S, OPCODE_CHARGE_START, &start);
+        assert!(m.self_bars().unwrap().cast.is_some());
+        m.feed(21 * S, OPCODE_CAST, &cast);
+        assert_eq!(m.self_bars().unwrap().cast, None);
+
+        // Its end never seen: gone a while after its top level.
+        m.feed(30 * S, OPCODE_CHARGE_START, &start);
+        m.feed(36 * S, TICK, &[]);
+        assert!(m.self_bars().unwrap().cast.is_some());
+        m.feed(37 * S, TICK, &[]);
+        assert_eq!(m.self_bars().unwrap().cast, None);
+
+        // Someone else's charge isn't yours, and theirs let go (0x3821) doesn't end yours.
+        let mut theirs = encode_varint(15_772);
+        theirs.extend(&start[2..]);
+        m.feed(40 * S, OPCODE_CHARGE_START, &theirs);
+        assert_eq!(m.self_bars().unwrap().cast, None);
+        m.feed(41 * S, OPCODE_CHARGE_START, &start);
+        let mut stop = encode_varint(15_772);
+        stop.extend([0, 0, 0xac, 0xcc, 0xe5, 0x00, 0x00]);
+        m.feed(41 * S + 100_000, OPCODE_CHARGE_STOP, &stop);
+        assert!(m.self_bars().unwrap().cast.is_some());
     }
 
     #[test]
@@ -3405,6 +3541,31 @@ mod tests {
         // Damage still ticking on the corpse doesn't start another fight.
         m.feed(4 * S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 300));
         assert!(m.snapshot().encounter.is_some_and(|e| !e.active));
+    }
+
+    #[test]
+    fn two_bosses_dying_minutes_apart_is_still_a_kill() {
+        // A fight with two bosses: the first dies, the second well over two minutes later
+        // (deaths were forgotten after two, so the first was "alive" again and the fight
+        // never ended as a kill).
+        const SECOND: u64 = 17150;
+        let mut m = meter_with_boss();
+        let spawn = [
+            0xfe, 0x85, 0x01, 0x05, 0x20, 0x00, 0x02, 0x9f, 0x24, 0x00, 0x40, 0x02, 0xcc, 0x98, 0xa6, 0xc7, 0xd3, 0xef,
+            0xaa, 0xc7, 0x00, 0xd4, 0xe1, 0x46, 0x15, 0xdd, 0x3f, 0x43, 0x70, 0x88, 0x01, 0xe3, 0xd6, 0x04, 0x94, 0xa7,
+            0x07, 0x64, 0x00, 0x00, 0x00,
+        ];
+        m.feed(0, crate::entities::OPCODE_MOB_SPAWN, &spawn);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(SECOND, ME, 18_010_340, 5000));
+        m.feed(3 * S, OPCODE_DEATH, &death(BOSS, 18_010_340, ME));
+        assert!(ends(&mut m).is_empty(), "one boss is still up");
+        // Hits on the second all the while, then it dies 137 s after the first.
+        for t in (5..140).step_by(5) {
+            m.feed(t * S, OPCODE_DAMAGE, &hit(SECOND, ME, 18_010_340, 1000));
+        }
+        m.feed(140 * S, OPCODE_DEATH, &death(SECOND, 18_010_340, ME));
+        assert_eq!(ends(&mut m), [FightEnd::Kill]);
     }
 
     #[test]

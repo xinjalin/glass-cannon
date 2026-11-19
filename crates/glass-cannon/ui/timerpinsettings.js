@@ -24,7 +24,12 @@ async function setLook(patch, soon) {
   clearTimeout(setLook.timer);
   const go = async () => {
     setLook.timer = null;
-    view.look = await invoke("set_pins_look", { look: view.look }).catch(() => view.look);
+    // What comes back is taken only if nothing's changed here since it was sent.
+    const sent = view.look;
+    setLook.saving = (setLook.saving || 0) + 1;
+    const saved = await invoke("set_pins_look", { look: sent }).catch(() => sent);
+    setLook.saving--;
+    if (view.look === sent) view.look = saved;
   };
   if (soon) setLook.timer = setTimeout(go, 150);
   else await go();
@@ -142,7 +147,7 @@ for (const r of document.querySelectorAll("input[type='range'][data-key]")) {
 }
 tauri.event.listen("timer-settings", () => load());
 tauri.event.listen("timer-pins", (e) => {
-  if (e.payload && view && !setLook.timer) {
+  if (e.payload && view && !setLook.timer && !setLook.saving) {
     view = e.payload;
     draw();
   }

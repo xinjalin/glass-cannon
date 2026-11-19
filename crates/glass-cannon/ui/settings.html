@@ -181,11 +181,14 @@
               <button type="button" class="opt" data-widget="target" data-keywords="enemy hp health" aria-pressed="false" title="Your target: HP, time to kill, enrage, who it attacks, stagger">
                 <span class="key">target frame</span><span class="state">[off]</span>
               </button>
-              <button type="button" class="opt" data-widget="player" data-keywords="hp mp mana cast bar" aria-pressed="false" title="Your HP and MP as two thin bars, and a cast bar while you cast">
+              <button type="button" class="opt" data-widget="player" data-keywords="hp mp mana cast bar" aria-pressed="false" title="Your HP and MP as two thin bars, and a cast bar while you hold a charged skill">
                 <span class="key">player bars</span><span class="state">[off]</span>
               </button>
               <button type="button" class="opt" data-widget="vitals" data-keywords="arcs round center hud hp mp stamina flight power health mana gt companion" aria-pressed="false" title="Round arcs either side of your character, with no box: HP and stamina left, MP and flight power right, your cast under your feet (arrange it around your character)">
                 <span class="key">vitals arcs</span><span class="state">[off]</span>
+              </button>
+              <button type="button" class="opt" data-widget="cast-bar" data-keywords="cast bar casting charge charged skill hellfire deadshot" aria-pressed="false" title="Your cast on a bar of its own: the skill's icon, name and time, the bar filling as a charged skill charges, in a look of its own with the vitals arcs' effects">
+                <span class="key">cast bar</span><span class="state">[off]</span>
               </button>
               <button type="button" class="opt" data-widget="party" aria-pressed="false" title="Your party as a grid of tiles: each member's HP in their class's colour, and their MP">
                 <span class="key">party frames</span><span class="state">[off]</span>
@@ -254,6 +257,7 @@
             <button type="button" role="tab" data-subtab="party-cooldowns" aria-selected="false" tabindex="-1">[party cooldowns]</button>
             <button type="button" role="tab" data-subtab="action-bar" aria-selected="false" tabindex="-1">[action bar]</button>
             <button type="button" role="tab" data-subtab="vitals" aria-selected="false" tabindex="-1">[vitals arcs]</button>
+            <button type="button" role="tab" data-subtab="cast-bar" aria-selected="false" tabindex="-1">[cast bar]</button>
             <button type="button" role="tab" data-subtab="target" aria-selected="false" tabindex="-1">[target frame]</button>
           </div>
           <div id="subpanels" class="subpanels">
@@ -364,7 +368,7 @@
               </button>
             </div>
             <div class="vt-tab" role="tabpanel" data-vt-panel="effect">
-              <div class="choice fx-grid" role="radiogroup" aria-label="An effect over the arcs" data-keywords="effect flames fire burning lightning holy light darkness smoke blood earth stone nature vines leaves void wind element aura animated animation">
+              <div class="choice fx-grid" role="radiogroup" aria-label="An effect over the arcs" data-keywords="effect flames fire burning lightning holy light darkness smoke blood earth stone nature vines leaves void wind frost ice snow cold feathers wings plumes pulse glow breathing wave element aura animated animation">
                 <button type="button" data-vt="effect" data-vt-value="none" title="No effect">none</button>
                 <button type="button" data-vt="effect" data-vt-value="flames" title="Each arc burns in its own colour along its fill: the outer arcs' flames outward, the inner arcs' inward, toward your character">flames</button>
                 <button type="button" data-vt="effect" data-vt-value="lightning" title="Jagged bolts crackle and flicker along each arc's fill, some forking off it, in its own colour">lightning</button>
@@ -375,8 +379,11 @@
                 <button type="button" data-vt="effect" data-vt-value="nature" title="Vines wind along each arc in its colour, leaves budding on them and fluttering off">nature</button>
                 <button type="button" data-vt="effect" data-vt-value="void" title="Dark motes ringed in each arc's colour are pulled into it, swirling, over a dark rift along it">void</button>
                 <button type="button" data-vt="effect" data-vt-value="wind" title="Streaks of wind in each arc's colour rush up along it">wind</button>
+                <button type="button" data-vt="effect" data-vt-value="frost" title="Shards of ice rime each arc, glinting, tinted its colour, with snowflakes drifting down from it">frost</button>
+                <button type="button" data-vt="effect" data-vt-value="feathers" title="Each arc plumed like a wing in its colour, its feathers stirring, one coming loose now and then and floating down (more at low HP)">feathers</button>
+                <button type="button" data-vt="effect" data-vt-value="pulse" title="Nothing but light: each arc's glow breathes, and a wave of light runs up it (more waves with more strength); your HP's quickens at low HP">pulse</button>
               </div>
-              <div class="line vt-fx" data-keywords="effect strength intensity amount density more less" title="How much of the effect there is: more or fewer flames, bolts, drops, leaves">
+              <div class="line vt-fx" data-keywords="effect strength intensity amount density more less" title="How much of the effect there is: more or fewer flames, bolts, drops, leaves (pulse: more waves)">
                 <span class="key">strength</span>
                 <span class="stepper">
                   <button id="vt-fx-strength-down" type="button" title="Less of it">[−]</button>
@@ -508,6 +515,150 @@
               </div>
             </div>
             <button id="vt-reset" type="button" class="opt" data-keywords="reset default" title="The vitals arcs as they were at first">
+              <span class="key">reset</span><span class="state">[ reset ]</span>
+            </button>
+          </fieldset>
+          <fieldset class="box subpanel" data-for="cast-bar" data-subtab="cast-bar" id="cb-box" data-keywords="cast bar casting charge charged skill look style effect icon name time thickness colour">
+            <legend>cast bar</legend>
+            <div id="cb-tabs" class="subtabs vt-tabs" role="tablist" aria-label="The cast bar's settings">
+              <button type="button" role="tab" data-cb-tab="look" title="The bar's look, colour, ends and thickness">[look]</button>
+              <button type="button" role="tab" data-cb-tab="text" title="The skill's icon and name, the time, and where and how big they are">[text]</button>
+              <button type="button" role="tab" data-cb-tab="effect" title="An animated effect around the bar: the vitals arcs' own, or one picked here">[effect]</button>
+              <button type="button" role="tab" data-cb-tab="where" title="Where else your cast shows: the player bars, the vitals arcs">[where]</button>
+            </div>
+            <div class="vt-tab" role="tabpanel" data-cb-panel="look">
+              <div class="line" data-keywords="cast bar look style thin segmented solid gradient framed glass">
+                <span class="key">look</span>
+                <span class="choice" role="radiogroup" aria-label="How the cast bar looks">
+                  <button type="button" data-cb="style" data-cb-value="solid" title="A thick bar on a dark track">[solid]</button>
+                  <button type="button" data-cb="style" data-cb-value="thin" title="A thin glowing line on a faint track, the name and time over or under it">[thin]</button>
+                  <button type="button" data-cb="style" data-cb-value="segmented" title="A bar cut into cells">[segmented]</button>
+                  <button type="button" data-cb="style" data-cb-value="gradient" title="Dark at its start and bright where the fill ends">[gradient]</button>
+                  <button type="button" data-cb="style" data-cb-value="framed" title="A light frame, like glass, with the fill inside it">[framed]</button>
+                </span>
+              </div>
+              <div class="line" data-keywords="cast bar colour color custom theme accent">
+                <span class="key">colour</span>
+                <span id="cb-colour" class="swatches class-swatches" role="group" aria-label="The cast bar's colour"></span>
+              </div>
+              <div class="line" data-keywords="cast bar ends round square corners">
+                <span class="key">ends</span>
+                <span class="choice" role="radiogroup" aria-label="The bar's ends">
+                  <button type="button" data-cb="ends" data-cb-value="round" title="Round ends">[round]</button>
+                  <button type="button" data-cb="ends" data-cb-value="square" title="Square ends">[square]</button>
+                </span>
+              </div>
+              <div class="line" data-keywords="cast bar thickness thick thin height size" title="How thick the bar is (never more than the widget is tall: make that taller for a thicker bar)">
+                <span class="key">thickness</span>
+                <span class="stepper">
+                  <button id="cb-thick-down" type="button" title="Thinner">[−]</button>
+                  <span id="cb-thick-value" class="step-value"></span>
+                  <button id="cb-thick-up" type="button" title="Thicker">[+]</button>
+                </span>
+              </div>
+              <button id="cb-marks" type="button" class="opt" data-keywords="cast bar charge levels marks notches stages" aria-pressed="true" title="A notch across the bar at each of a charged skill's levels">
+                <span class="key">charge level marks</span><span class="state">[on]</span>
+              </button>
+              <button id="cb-always" type="button" class="opt" data-keywords="cast bar always show empty track between casts" aria-pressed="false" title="The empty bar shows between casts, so you see where it is">
+                <span class="key">show between casts</span><span class="state">[off]</span>
+              </button>
+              <button id="cb-fx-always" type="button" class="opt" data-keywords="cast bar effect always between casts idle empty" aria-pressed="false" title="With the bar showing between casts, its effect runs along the whole empty bar then too (during a cast it follows the fill)">
+                <span class="key">effect between casts</span><span class="state">[off]</span>
+              </button>
+            </div>
+            <div class="vt-tab" role="tabpanel" data-cb-panel="text">
+              <button id="cb-icon" type="button" class="opt" data-keywords="cast bar skill icon picture" aria-pressed="true" title="The skill's icon beside the bar">
+                <span class="key">skill icon</span><span class="state">[on]</span>
+              </button>
+              <button id="cb-name" type="button" class="opt" data-keywords="cast bar skill name text" aria-pressed="true" title="The skill's name">
+                <span class="key">skill name</span><span class="state">[on]</span>
+              </button>
+              <div class="line" data-keywords="cast bar time left whole total seconds countdown">
+                <span class="key">time</span>
+                <span class="choice" role="radiogroup" aria-label="The time on the cast bar">
+                  <button type="button" data-cb="time" data-cb-value="left" title="The time left to the top charge level (max once it's there)">[left]</button>
+                  <button type="button" data-cb="time" data-cb-value="both" title="The time left and the whole time (0.4 / 1.0)">[left / whole]</button>
+                  <button type="button" data-cb="time" data-cb-value="none" title="No time">[none]</button>
+                </span>
+              </div>
+              <div class="line" data-keywords="cast bar text place above over inside on below under">
+                <span class="key">name and time</span>
+                <span class="choice" role="radiogroup" aria-label="Where the name and time go">
+                  <button type="button" data-cb="text_at" data-cb-value="above" title="Over the bar">[over]</button>
+                  <button type="button" data-cb="text_at" data-cb-value="inside" title="On the bar (over it where the bar is too thin for them, and with the thin look)">[on the bar]</button>
+                  <button type="button" data-cb="text_at" data-cb-value="below" title="Under the bar">[under]</button>
+                </span>
+              </div>
+              <div class="line" data-keywords="cast bar text size font bigger smaller" title="How big the name and time are">
+                <span class="key">text size</span>
+                <span class="stepper">
+                  <button id="cb-text-down" type="button" title="Smaller text">[−]</button>
+                  <span id="cb-text-value" class="step-value"></span>
+                  <button id="cb-text-up" type="button" title="Bigger text">[+]</button>
+                </span>
+              </div>
+            </div>
+            <div class="vt-tab" role="tabpanel" data-cb-panel="effect">
+              <div class="choice fx-grid" role="radiogroup" aria-label="An effect around the cast bar" data-keywords="cast bar effect match vitals arcs flames fire lightning holy darkness blood earth nature void wind frost feathers pulse element aura animated">
+                <button type="button" data-cb="effect" data-cb-value="match" class="fx-wide" title="The vitals arcs' effect, with its strength, brightness, size and speed, whatever they're changed to">as the vitals arcs</button>
+                <button type="button" data-cb="effect" data-cb-value="none" title="No effect">none</button>
+                <button type="button" data-cb="effect" data-cb-value="flames" title="The bar burns in its colour along its fill">flames</button>
+                <button type="button" data-cb="effect" data-cb-value="lightning" title="Jagged bolts crackle along the fill, some forking off it">lightning</button>
+                <button type="button" data-cb="effect" data-cb-value="holy" title="A soft halo along the fill, with rays of light and twinkling motes rising from it">holy</button>
+                <button type="button" data-cb="effect" data-cb-value="darkness" title="Dark smoky wisps, tinted the bar's colour, curl slowly off it">darkness</button>
+                <button type="button" data-cb="effect" data-cb-value="blood" title="Drops bead on the bar, run and drip off it, and it pulses like a heartbeat">blood</button>
+                <button type="button" data-cb="effect" data-cb-value="earth" title="The fill crusted with stone, trembling, crumbling off in chips and dust">earth</button>
+                <button type="button" data-cb="effect" data-cb-value="nature" title="Vines wind along the fill, leaves budding on them and fluttering off">nature</button>
+                <button type="button" data-cb="effect" data-cb-value="void" title="Dark motes ringed in the bar's colour are pulled into it, over a dark rift along it">void</button>
+                <button type="button" data-cb="effect" data-cb-value="wind" title="Streaks of wind rush along the fill">wind</button>
+                <button type="button" data-cb="effect" data-cb-value="frost" title="Shards of ice rime the fill, glinting, with snowflakes drifting down from it">frost</button>
+                <button type="button" data-cb="effect" data-cb-value="feathers" title="The fill plumed like a wing, a feather coming loose now and then and floating down">feathers</button>
+                <button type="button" data-cb="effect" data-cb-value="pulse" title="Nothing but light: the fill's glow breathes, and a wave of light runs along it">pulse</button>
+              </div>
+              <div class="line cb-fx" data-keywords="cast bar effect strength amount" title="How much of the effect there is">
+                <span class="key">strength</span>
+                <span class="stepper">
+                  <button id="cb-fx-strength-down" type="button" title="Less of it">[−]</button>
+                  <span id="cb-fx-strength-value" class="step-value"></span>
+                  <button id="cb-fx-strength-up" type="button" title="More of it">[+]</button>
+                </span>
+              </div>
+              <div class="line cb-fx" data-keywords="cast bar effect brightness faint subtle" title="How clearly the effect shows">
+                <span class="key">brightness</span>
+                <span class="stepper">
+                  <button id="cb-fx-brightness-down" type="button" title="Fainter">[−]</button>
+                  <span id="cb-fx-brightness-value" class="step-value"></span>
+                  <button id="cb-fx-brightness-up" type="button" title="Brighter">[+]</button>
+                </span>
+              </div>
+              <div class="line cb-fx" data-keywords="cast bar effect size reach" title="How far the effect reaches off the bar">
+                <span class="key">size</span>
+                <span class="stepper">
+                  <button id="cb-fx-size-down" type="button" title="Smaller">[−]</button>
+                  <span id="cb-fx-size-value" class="step-value"></span>
+                  <button id="cb-fx-size-up" type="button" title="Bigger">[+]</button>
+                </span>
+              </div>
+              <div class="line cb-fx" data-keywords="cast bar effect speed animation" title="How fast the effect moves">
+                <span class="key">speed</span>
+                <span class="stepper">
+                  <button id="cb-fx-speed-down" type="button" title="Slower">[−]</button>
+                  <span id="cb-fx-speed-value" class="step-value"></span>
+                  <button id="cb-fx-speed-up" type="button" title="Faster">[+]</button>
+                </span>
+              </div>
+              <p class="hint" id="cb-fx-note"></p>
+            </div>
+            <div class="vt-tab" role="tabpanel" data-cb-panel="where">
+              <button id="cb-player-cast" type="button" class="opt" data-keywords="cast bar player bars also too" aria-pressed="true" title="The player bars widget shows your cast under your HP and MP too (off: its two bars take the room)">
+                <span class="key">on the player bars too</span><span class="state">[on]</span>
+              </button>
+              <button id="cb-vitals-cast" type="button" class="opt" data-keywords="cast bar vitals arcs also too" aria-pressed="true" title="The vitals arcs widget shows your cast under your feet too">
+                <span class="key">on the vitals arcs too</span><span class="state">[on]</span>
+              </button>
+              <p class="hint">The cast bar is a widget of its own: turn it on with the others, and arrange it where you like. While you arrange the overlay a sample cast runs on it, so you see its look as you change it. It shows charged skills as you hold them (the game sends no other cast of yours).</p>
+            </div>
+            <button id="cb-reset" type="button" class="opt" data-keywords="reset default cast bar" title="The cast bar as it was at first">
               <span class="key">reset</span><span class="state">[ reset ]</span>
             </button>
           </fieldset>

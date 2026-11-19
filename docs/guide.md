@@ -99,7 +99,11 @@ finishes. The widgets:
   1-Star Officer, First- to Ninth-Class Soldier; unranked off their class's board) or its
   number (1 to 18); and which of its parts **show** (HP %, class, rank, CP, HP bar, HP,
   time to kill, cast, attacking, enrage, your best, stagger).
-- **player bars**: your HP and MP as two thin bars, and a cast bar while you cast. Your
+- **player bars**: your HP and MP as two thin bars, and a cast bar while you hold a
+  charged skill (Hellfire, Deadshot, Punishment, Bolt and the like): it fills to the top
+  charge level, with a notch at each level, and reads **max** there until you let go. The
+  bars share the widget's height (make it taller for taller bars); the cast's can be
+  turned off (the cast bar's settings → where), and the two others then take its room. Your
   max HP is the game's (it moves with buffs); until it sends it, the highest HP seen
   stands in. A shield on you (a barrier, such as a Cleric's) shows striped white on from
   your HP's end, with its amount after your HP (+1,215); when HP and shield together are
@@ -108,7 +112,7 @@ finishes. The widgets:
 - **vitals arcs**: the same, round, like GT Companion's center HUD: arcs either side of
   your character with no box, on the left HP with your stamina inside it, on the right
   MP with your flight power inside it, each filling from the bottom with its value by its
-  top end, and your cast on a small arc under your feet. It starts in the middle of the
+  top end, and your cast (a charged skill, as on the player bars) on a small arc under your feet. It starts in the middle of the
   screen; arrange it around your character (wider than tall), and the arcs take its box.
   HP glows below 30%. Stamina and flight power show full until they change (the game
   sends them only then). Its settings are beside it on the overlay (arrange, then ⚙), a tab
@@ -123,8 +127,11 @@ finishes. The widgets:
   wisps curling off it; **blood**, drops beading, running down it and dripping off, with a
   heartbeat pulse; **earth**, a crust of stone crumbling off in chips and dust; **nature**,
   vines winding along it, leaves budding and fluttering off; **void**, dark motes pulled into
-  it, swirling; **wind**, streaks rushing up along it (with Windows' animation effects off, each
-  holds still). An effect only draws over and around the arcs: choosing one never moves or
+  it, swirling; **wind**, streaks rushing up along it; **frost**, shards of ice riming it, with
+  snowflakes drifting down; **feathers**, the arc plumed like a wing, a feather coming loose now
+  and then and floating down (more at low HP); **pulse**, nothing but light, its glow breathing
+  with a wave of light running up it, quicker on your HP when it's low (with Windows' animation
+  effects off, each holds still). An effect only draws over and around the arcs: choosing one never moves or
   resizes them. Each has its own **strength** (how much of it), **brightness** (how clearly it
   shows: turn it up if it's hard to see), **size** (how far it reaches off the arcs) and
   **speed**, and changing one doesn't restart it; **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
@@ -141,6 +148,22 @@ finishes. The widgets:
   them (an outline, a shadow, a dark plate or nothing); whether they go by the arcs' top
   or bottom ends; and the cast (on or off) as an arc or a thin straight bar with its time
   left and whole time at its ends.
+- **cast bar**: your cast on a bar of its own, with no box: the skill's icon beside it,
+  its name and the time on it, the bar filling as a charged skill charges, a notch at each
+  charge level, **max** at the top until you let go. It shows charged skills as you hold
+  them (the game sends no other cast of yours). Arrange it where you like, as wide as you
+  like; the bar sits in the middle of its box's height. Its settings are beside it on the
+  overlay (arrange, then ⚙), a tab each, and a sample cast runs on it while you arrange,
+  so you see each change: the **look** (solid, thin, segmented, gradient or framed, a
+  colour of your own or the theme's, round or square ends, how thick, the level marks,
+  whether the empty bar shows between casts, and whether its effect runs along it then
+  too); the **text** (the icon and the name on
+  or off, the time left, left and whole, or none, the name and time over, on or under
+  the bar, and their size); the **effect** on it (the vitals arcs' own, as strong,
+  bright, big and fast as theirs, or one picked here with its own strength, brightness,
+  size and speed; it runs along the bar's top rim, as big as on a vitals arc however
+  thick the bar, and blood along its bottom rim, dripping off); and **where** else your cast shows (the player bars, the vitals arcs:
+  turn those off to have it on the cast bar alone).
 - **party frames**: your party as a grid of tiles, each filled by the member's HP in their
   class's colour (known once they've fought), with a thin MP strip, ★ for the leader, and
   greyed with ☠ while dead. Shields show striped white past their HP, with the amount in
@@ -221,8 +244,9 @@ One modifier alone (a tap of Right Alt, say) works too, read from the keyboard, 
 game gets it as well: Alt shows its cursor.
 **Close with the game** (settings → general) closes Glass Cannon a few seconds after the game
 closes. **Reset settings & keybinds** (settings → general, click twice) puts every setting,
-keybind and the appearance back to the defaults; the pets you track, starred and alerted
-events, boss skills you marked, the overlay's layout and the history stay.
+keybind and the appearance back to the defaults; the pets you track, starred, alerted and
+pinned events, each class's action bars, boss skills you marked, the overlay's layout and the
+history stay.
 
 **Hide for game menus** (settings, on by default): the overlay steps aside while a
 full-screen game menu is open, the world map among them. Menus send the server nothing, the game keeps its keys from
