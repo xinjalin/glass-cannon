@@ -5,19 +5,22 @@ A DPS meter and overlay for **Aion 2** on Windows.
 Glass Cannon reads the game's network traffic passively through [Npcap](https://npcap.com).
 It never reads or writes the game's memory, needs no admin rights, and never goes online.
 
-![The overlay in a boss fight: world timers, the target frame, two action bars (buffs, and cooldowns with a gap), party cooldowns, the meter and party frames](docs/screenshots/overlay.png)
+![The overlay in a boss fight: world timers, the target frame, the cast bar charging Hellfire in thin holy light, two action bars (buffs, and cooldowns with a gap), party cooldowns, the meter, party frames with their buffs and debuffs, and timer pins](docs/screenshots/overlay.png)
 
 ## Features
 
 - **Meter**: damage, healing and damage taken for you, your party or everyone nearby, with
   each player's skills and combat power.
 - **Overlay**: the meter, target frame, boss warnings and timers, player bars, party
-  frames, action bars of your cooldowns, buffs and debuffs (each set up beside it), and
-  world timers as widgets over the
-  game. Arrange them freely; they
-  step aside for the world map and full-screen menus.
+  frames, action bars of your cooldowns, buffs and debuffs, world timers and timer pins as
+  widgets over the game, each set up beside it. Arrange them freely; they step aside for
+  the world map and full-screen menus.
+- **Vitals arcs and cast bar**: your HP, MP, stamina and flight power as arcs around your
+  character, and a cast bar for the charged skills you hold, with animated effects
+  (flames, frost, lightning, holy light and more) that you can tune.
 - **Boss warnings**: dangerous casts, dungeon and raid mechanics with what to do, and when
-  the boss turns to you.
+  the boss turns to you; hidden cubes as they come into view (only while you have a key,
+  if you like).
 - **Analysis**: every fight in detail: skills, rotation, buffs, healing, deaths and the
   boss's casts.
 - **History**: fights grouped into dungeon and raid runs, with stage times, personal
@@ -54,8 +57,10 @@ It never reads or writes the game's memory, needs no admin rights, and never goe
 
 ![Action bars: a buffs bar and a cooldowns bar, and bar 1's settings beside it on the overlay (what it tracks, its skills laid out with a gap, your class's active and stigma skills)](docs/screenshots/actionbars.png)
 
-<sub>Fights from a real raid night over a painted backdrop. Other players' names are made
-up.</sub>
+![Vitals arcs in the thin look, one with vines and leaves (nature) and one with motes pulled into it (void), HP and stamina on the left, MP and flight power on the right, each with the cast bar under it charging Hellfire in holy light, and the vitals arcs' effect settings beside them on the overlay](docs/screenshots/vitals.png)
+
+<sub>Fights from a real raid night over a painted backdrop, the widgets on frosted glass.
+Other players' names are made up.</sub>
 
 ## Install
 
