@@ -17,7 +17,7 @@ use image::imageops::FilterType;
 use serde_json::{json, Map, Value};
 
 /// NCSOFT's game asset server: `<icon name>.png`.
-const ASSETS: &str = "https://assets.playnccdn.com/static-aion2-gamedata/resources";
+pub(crate) const ASSETS: &str = "https://assets.playnccdn.com/static-aion2-gamedata/resources";
 /// Icons are shown at about 2em; this keeps them sharp on a 2× screen and small on disk.
 const SIZE: u32 = 64;
 const MAX_ICON_BYTES: u64 = 512 * 1024;

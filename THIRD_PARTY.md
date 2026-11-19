@@ -9,7 +9,8 @@ None of the `gamedata` folder is covered by Glass Cannon's MIT licence. The name
 numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 
 - [NOIA2](https://github.com/ZDYoung0519/NOIA2) by ZDYoung0519, GPL-3.0: skill names,
-  skill and class icons, boss lists, and which field boss each world-map ID is.
+  class icons, mob skills' icons (and the few class skills' with no official one), boss
+  lists, and which field boss each world-map ID is.
 - [RATmeter (AIon2-Dps-Meter)](https://github.com/Kuroukihime/AIon2-Dps-Meter) by
   Kuroukihime, GPL-3.0: English mob names and extra skill names.
 - [aion2.app](https://aion2.app/db/skills), **no licence**: `skill-details.json`
@@ -59,10 +60,13 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
   guide (updated 2026-10-30) and [dbaion2.ru](https://dbaion2.ru/en/guides/mekhaniki-rudra/)'s,
   **no licence**: what to do in Eternal Ludra's grid (Ludra's Trial) and when Rahu splits
   the arena, for their warnings in `boss-mechanics.json`. Nothing of their text is used.
-- NCSOFT's game asset server, **no licence**: 56 consumable icons (`Icon_Item_Usable_*.png`,
-  scrolls, potions and food, shrunk to 64 px) for their buffs, and 208 pet portraits
-  (`pet_<id>.png`, 64 px) for the pet tracker. NCSOFT's artwork, like the
-  rest of the game data; removed on request.
+- NCSOFT's game asset server, **no licence**: 363 official skill icons (`ICON_*_SKILL_*.png`,
+  96 px) for 405 class skills, by the icon names in a scrape of aion2.app's skill database;
+  56 consumable icons (`Icon_Item_Usable_*.png`, scrolls, potions and food, 64 px) for
+  their buffs; 208 pet portraits (`pet_<id>.png`, 64 px) for the pet tracker; and the icons
+  of the gear, skins, wings, Theostones and Pantheon decorations (`Icon_*.png`,
+  `icon_AD_*.png`, 48 px) for the black market, your collection and the gear players wear.
+  NCSOFT's artwork, like the rest of the game data; removed on request.
 
 The NOIA2 and RATmeter files are a separate work alongside the meter (aggregation) and
 stay under their projects' GPL-3.0 licence; the release adds the licence text

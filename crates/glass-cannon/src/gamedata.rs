@@ -52,6 +52,8 @@ const WINGS_FILE: &str = "wings.json";
 const PANTHEON_FILE: &str = "pantheon.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
+/// The official skill icons, by base skill (`packet-lab skill-icons`).
+const SKILL_ICONS_FILE: &str = "skill-icons.json";
 /// What a mob or NPC the data has no name for is called on screen. The meter's core labels
 /// it "Mob <type>" (or "#<entity>" when it came into view before the meter started); the
 /// number means nothing there, so it's only in the tooltips (to name it by).
@@ -141,7 +143,8 @@ struct TheostoneFile {
     theostones: BTreeMap<u32, Theostone>,
 }
 
-/// Icons for consumables' buffs (scrolls, potions, food), by skill ID.
+/// Icons for consumables' buffs (scrolls, potions, food), by skill ID; and the official
+/// skill icons, by base skill ID (`ccxx0000`), the same shape.
 #[derive(Debug, Default, Deserialize)]
 struct ItemIconFile {
     #[serde(default)]
@@ -450,6 +453,8 @@ pub struct GameData {
     npcs: NpcFile,
     /// Cooldowns, costs, descriptions and specialties by base skill ID (optional).
     details: DetailsFile,
+    /// The official skill icons there are, by base skill ID (`skill-icons.json`).
+    official_icons: BTreeMap<u32, String>,
     /// The skills (bases) that give a shield: their description grants a Protective
     /// Shield (and doesn't only break one).
     shield_bases: std::collections::HashSet<u32>,
@@ -491,6 +496,7 @@ impl GameData {
             skills: SkillFile::default(),
             npcs: NpcFile::default(),
             details: DetailsFile::default(),
+            official_icons: BTreeMap::new(),
             shield_bases: std::collections::HashSet::new(),
             groups: meter_core::skillgroups::SkillGroups::default(),
             theostones: TheostoneFile::default(),
@@ -568,6 +574,20 @@ impl GameData {
                     for (id, file) in items.icons {
                         if let Some(e) = self.skills.skills.get_mut(&id) {
                             e.icon.get_or_insert(file);
+                        }
+                    }
+                    // The official skill icons, over the ones that came with the names: every
+                    // variant of a class skill (its specialties, its parts) takes its base's.
+                    // Only files that are there, so a missing one leaves the old icon.
+                    self.official_icons = read_json::<ItemIconFile>(&dir.join(SKILL_ICONS_FILE))
+                        .unwrap_or_default()
+                        .icons
+                        .into_iter()
+                        .filter(|(id, file)| *id >= PLAYER_SKILL_MIN && !file.contains(['/', '\\', ':']) && dir.join(file).is_file())
+                        .collect();
+                    for (id, e) in self.skills.skills.iter_mut() {
+                        if let Some(file) = (*id >= PLAYER_SKILL_MIN).then(|| self.official_icons.get(&(id - id % 10_000))).flatten() {
+                            e.icon = Some(file.clone());
                         }
                     }
                     self.problem = None;
@@ -1146,6 +1166,10 @@ impl GameData {
     /// has no icon for (each class's Dodge, a Spiritmaster's spirits' attacks, basic
     /// attacks: 14 of the 771 player skills in our captures) gets its class's icon.
     fn family_icon(&self, skill: u32) -> Option<String> {
+        // A class skill the names don't have, with an official icon: its base's.
+        if let Some(file) = (skill >= PLAYER_SKILL_MIN).then(|| self.official_icons.get(&(skill - skill % 10_000))).flatten() {
+            return Some(file.clone());
+        }
         if (1000..PLAYER_SKILL_MIN).contains(&skill) {
             let file = format!("{}.png", skill / 1000);
             return self.dir.join(&file).is_file().then_some(file);
@@ -1511,6 +1535,41 @@ mod tests {
         assert_eq!(d.effect_meta(231), (None, None));
         // Only Theostone-range skills get the extra digit.
         assert_eq!(d.skill_meta(1_833_000), (None, None));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn official_skill_icons_come_first() {
+        let dir = temp_dir("official-icons");
+        fs::write(
+            dir.join(SKILLS_FILE),
+            r#"{ "skills": {
+                "18010000": { "name": "Onslaught", "icon": "1801.png" },
+                "18010340": { "name": "Onslaught", "icon": "1801.png" },
+                "1801900": { "name": "Attack", "icon": "1801.png" },
+                "18020000": { "name": "Wind Spear", "icon": "1802.png" } } }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join(SKILL_ICONS_FILE),
+            r#"{ "icons": { "18010000": "ICON_CH_SKILL_001.png", "18020000": "ICON_CH_SKILL_002.png", "18030000": "ICON_CH_SKILL_003.png", "1801900": "Mob.png" } }"#,
+        )
+        .unwrap();
+        for f in ["1801.png", "1802.png", "ICON_CH_SKILL_001.png", "ICON_CH_SKILL_003.png", "Mob.png"] {
+            fs::write(dir.join(f), b"png").unwrap();
+        }
+        let d = GameData::load_first(vec![dir.clone()]);
+        let icon = |id: u32| d.skills.skills.get(&id).and_then(|e| e.icon.clone());
+        // A class skill and its variants: the official icon.
+        assert_eq!((icon(18_010_000), icon(18_010_340)), (Some("ICON_CH_SKILL_001.png".into()), Some("ICON_CH_SKILL_001.png".into())));
+        // A mob's skill sharing the old file keeps it (official icons are class skills').
+        assert_eq!(icon(1_801_900).as_deref(), Some("1801.png"));
+        // An official icon that isn't there: the old one stays.
+        assert_eq!(icon(18_020_000).as_deref(), Some("1802.png"));
+        // A class skill the names don't have: its official icon all the same.
+        assert_eq!(d.skill_meta(18_030_120).1, Some(18_030_120));
+        assert!(d.skill_icon(18_030_120).is_some());
+        assert_eq!(d.family_icon(18_030_120).as_deref(), Some("ICON_CH_SKILL_003.png"));
         fs::remove_dir_all(dir).ok();
     }
 

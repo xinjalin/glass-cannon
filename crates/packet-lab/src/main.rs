@@ -40,6 +40,7 @@ mod gather_map;
 mod pet_spawns;
 mod boss_skills;
 mod item_icons;
+mod skill_icons;
 mod theostones;
 mod shop_items;
 mod shop_icons;
@@ -412,6 +413,19 @@ enum Cmd {
         #[arg(long, default_value = "gamedata")]
         dir: PathBuf,
     },
+    /// Download the official skill icons from NCSOFT's asset server into gamedata at 96 px,
+    /// by the icon names in a scrape of aion2.app's skill database, and write
+    /// gamedata/skill-icons.json (which skill uses which; the app prefers them to the icons
+    /// that came with the skill names)
+    SkillIcons {
+        /// The scrape: a JSON object of skills by ID, each with its icon file name
+        scrape: PathBuf,
+        #[arg(long, default_value = "gamedata")]
+        dir: PathBuf,
+        /// When the scrape was made (recorded in skill-icons.json)
+        #[arg(long)]
+        scraped: String,
+    },
     /// Download icons for consumables' buffs (scrolls, potions, food) from NCSOFT's asset
     /// server into gamedata, matched to skills by name through a scraped item database
     ItemIcons {
@@ -572,6 +586,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::SkillDetails { input, out, scraped } => skill_details::run(&input, &out, &scraped),
         Cmd::ItemIcons { items, dir, fetched } => item_icons::run(&items, &dir, &fetched),
+        Cmd::SkillIcons { scrape, dir, scraped } => skill_icons::run(&scrape, &dir, &scraped),
         Cmd::Dungeons { monsters, dungeons, out, scraped } => dungeons::run(&monsters, &dungeons, &out, &scraped),
         Cmd::Pets { pets, out, scraped } => pets::run(&pets, &out, &scraped),
         Cmd::PetSpawns { pets, regions, out, commit } => pet_spawns::run(&pets, &regions, &out, &commit),
