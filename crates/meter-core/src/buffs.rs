@@ -1,5 +1,6 @@
 //! Buffs and debuffs ("effects"): opcodes 0x382a (applied), 0x382b (still active) and
-//! 0x382c (removed), and the spans they make.
+//! 0x382c (removed), and the spans they make; and the effects already on you as you appear
+//! (in `0x3633`: see [`parse_spawn_effects`]).
 //!
 //! One effect entry:
 //!
@@ -134,6 +135,64 @@ pub fn parse_remove(p: &[u8]) -> Option<(u64, Vec<u64>)> {
     Some((target, instances))
 }
 
+/// An effect with no end: its time left reads as all ones (in an apply as in a spawn's list).
+pub const NO_END_MS: u32 = u32::MAX;
+
+/// The effects already on you as you appear (`0x3633`: at login, and on entering a zone or
+/// a dungeon), which no apply message is sent for: a stance turned on before (a Chanter's
+/// mantras), a scroll or food still running, and what your passive skills, gear and
+/// Theostones give you. A list inside the message:
+///
+/// ```text
+/// varint count, then per effect:
+///   u8 kind (0x10, +1 with a source, +2 with a skill), varint instance, u32 effect,
+///   u64 time left (ms; all ones: no end), u64 when it ends (ms since 1970; 2099-12-31: never),
+///   [kind & 1: varint source], u8 level, [kind & 2: u32 skill],
+///   [the 1st, 9th, 17th... effect: u8, a flag bit for it and the seven after],
+///   3 × f32 where it was applied
+/// ```
+///
+/// Each with whether it names a source. Where the list starts isn't fixed (your name,
+/// stats and more come first), so it's found by its shape: the place from which a count
+/// and that many effects read through, each with a kind and an end time that can be one
+/// (the longest such list, should two places do). Checked on a login of 2026-11-19: 35
+/// effects, read to the byte where the next list starts; the two with no source were the
+/// character's two mantras, turned on before, and the one with an end a 30-day effect with
+/// 26.9 days left, ending on the hour. All 34 such messages in our captures have a list
+/// that reads through.
+pub fn parse_spawn_effects(p: &[u8]) -> Vec<(Effect, bool)> {
+    const KINDS: std::ops::RangeInclusive<u8> = 0x10..=0x13;
+    const ENDS: std::ops::RangeInclusive<u64> = 1_600_000_000_000..=4_200_000_000_000;
+    let read = |from: usize| -> Option<Vec<(Effect, bool)>> {
+        let mut i = from;
+        let count = read_varint(p, &mut i).filter(|n| (1..=250).contains(n))?;
+        let mut out = Vec::with_capacity(count as usize);
+        for n in 0..count {
+            let kind = *p.get(i).filter(|k| KINDS.contains(k))?;
+            i += 1;
+            let instance = read_varint(p, &mut i)?;
+            let effect = u32_at(p, &mut i).filter(|e| *e > 0)?;
+            let left = u64::from_le_bytes(p.get(i..i + 8)?.try_into().ok()?);
+            let time_ms = u64::from_le_bytes(p.get(i + 8..i + 16)?.try_into().ok()?);
+            i += 16;
+            if !ENDS.contains(&time_ms) {
+                return None;
+            }
+            let source = if kind & 1 != 0 { Some(read_varint(p, &mut i)?) } else { None };
+            i += 1;
+            let skill = if kind & 2 != 0 { Some(u32_at(p, &mut i)?) } else { None };
+            i += usize::from(n % 8 == 0) + 12;
+            if i > p.len() {
+                return None;
+            }
+            let duration_ms = u32::try_from(left).unwrap_or(NO_END_MS);
+            out.push((Effect { instance, effect, skill, source: source.unwrap_or(0), duration_ms, time_ms }, source.is_some()));
+        }
+        Some(out)
+    };
+    (0..p.len()).filter_map(read).max_by_key(Vec::len).unwrap_or_default()
+}
+
 /// One effect's time on one target. `end_us` is `None` while it's still active.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct EffectSpan {
@@ -185,6 +244,35 @@ impl EffectTracker {
             _ => return false,
         }
         true
+    }
+
+    /// You appear (`0x3633`), with the effects already on you (see
+    /// [`parse_spawn_effects`]). Those with an end are taken, with the time they have left
+    /// (scrolls, food, a skill's buff still running); of those with none, all but the ones
+    /// with a source and no skill: those are what your passive skills, gear and Theostones
+    /// give you (950 of the 1,014 endless ones in our captures' 34 lists, yours all but 2),
+    /// which aren't buffs to anyone. What's left with no end are the stances you've turned
+    /// on: a mantra on since before you logged in has no source, one turned on while
+    /// playing keeps its skill.
+    pub fn self_spawn(&mut self, ts_us: u64, payload: &[u8]) {
+        let mut i = 0;
+        let Some(me) = read_varint(payload, &mut i) else { return };
+        for (mut e, sourced) in parse_spawn_effects(payload) {
+            if e.duration_ms == NO_END_MS && sourced && e.skill.is_none() {
+                continue;
+            }
+            if !sourced {
+                e.source = me;
+            }
+            match self.open.get_mut(&(me, e.instance)) {
+                // On you since before (a zone entered with it on): it ends when this says.
+                Some(open) if open.effect == e.effect => {
+                    let run_ms = u32::try_from(ts_us.saturating_sub(open.start_us) / 1000).unwrap_or(NO_END_MS);
+                    open.duration_ms = e.duration_ms.saturating_add(run_ms);
+                }
+                _ => self.open(ts_us, me, e, true),
+            }
+        }
     }
 
     fn open(&mut self, ts_us: u64, target: u64, e: Effect, restart: bool) {
@@ -260,6 +348,66 @@ mod tests {
     const RECUPERATION_APPLY: &str = "90 5c 01 13 ad 10 e5 e4 cc 0a 40 1f 00 00 00 00 00 00 3d 3b 6a 58 a1 01 00 00 \
                                       90 5c 0d b8 7d 14 01 00 21 23 96 c7 39 12 01 c8 00 ed 0d 47";
     const RECUPERATION_REMOVE: &str = "90 5c 01 00 ad 10 01";
+
+    #[test]
+    fn the_effects_on_you_as_you_log_in() {
+        // The list from a login (2026-11-19), with what comes before and after it in the
+        // message; the character (11555) had turned two mantras on before.
+        let list = hex(include_str!("../testdata/self-spawn-effects.hex"));
+        let all = parse_spawn_effects(&list);
+        assert_eq!(all.len(), 35);
+        assert_eq!(all.iter().filter(|(_, sourced)| !sourced).map(|(e, _)| (e.effect, e.instance, e.duration_ms)).collect::<Vec<_>>(), [
+            (181_600_201, 20, NO_END_MS),
+            (181_900_401, 21, NO_END_MS),
+        ]);
+        // One with an end: 26.9 days left, ending on the hour.
+        let timed: Vec<&Effect> = all.iter().map(|(e, _)| e).filter(|e| e.duration_ms != NO_END_MS).collect();
+        assert_eq!(timed.iter().map(|e| (e.effect, e.duration_ms, e.time_ms, e.source)).collect::<Vec<_>>(), [(20_100, 2_320_783_884, 1_797_404_400_049, 11_555)]);
+        // The rest: passive skills, gear and Theostones, yours, with no end.
+        assert!(all.iter().filter(|(_, sourced)| *sourced).all(|(e, _)| e.source == 11_555));
+        assert_eq!(all.last().unwrap().0.effect, 188_000_001);
+        // No list: nothing (a short message, one of other things).
+        assert!(parse_spawn_effects(&list[..20]).is_empty());
+        assert!(parse_spawn_effects(&[0x13; 64]).is_empty());
+        // (An apply's count and effect are laid out the same: a list of one.)
+        assert_eq!(parse_spawn_effects(&hex(RECUPERATION_APPLY)).iter().map(|(e, _)| e.effect).collect::<Vec<_>>(), [181_200_101]);
+
+        // As you appear: your entity, the rest of the message, the list somewhere in it.
+        let mut spawn = vec![0xa3, 0x5a, 0, 0, 0, 0, 0, 2, b'M', b'e'];
+        spawn.extend(&list);
+        let mut t = EffectTracker::default();
+        t.self_spawn(5_000_000, &spawn);
+        let mut on: Vec<(u32, u64, u32, u64)> = t.active_on(11_555).map(|s| (s.effect, s.source, s.duration_ms, s.start_us)).collect();
+        on.sort_unstable();
+        // The mantras (yours, though the list names no source) and the one with an end; not
+        // the 32 from passives and gear.
+        assert_eq!(on, [(20_100, 11_555, 2_320_783_884, 5_000_000), (181_600_201, 11_555, NO_END_MS, 5_000_000), (181_900_401, 11_555, NO_END_MS, 5_000_000)]);
+        // A mantra turned off is removed as any effect is.
+        t.feed(6_000_000, OPCODE_BUFF_REMOVE, &[0xa3, 0x5a, 1, 0, 20, 1]);
+        assert_eq!(t.active_on(11_555).count(), 2);
+        // A zone entered with them still on: the same spans, the timed one ending when the
+        // new list says (a second less left, a second on).
+        let mut later = spawn.clone();
+        let at = later.windows(4).position(|w| w == 20_100u32.to_le_bytes()).unwrap() + 4;
+        later[at..at + 8].copy_from_slice(&2_320_782_884u64.to_le_bytes());
+        t.self_spawn(6_000_000, &later);
+        let mut on: Vec<(u32, u32, u64)> = t.active_on(11_555).map(|s| (s.effect, s.duration_ms, s.start_us)).collect();
+        on.sort_unstable();
+        assert_eq!(on, [(20_100, 2_320_783_884, 5_000_000), (181_600_201, NO_END_MS, 6_000_000), (181_900_401, NO_END_MS, 5_000_000)]);
+
+        // A mantra turned on while playing is listed with its source and skill at the next
+        // zone: taken too (a list of one, as the game lays it out).
+        let mut zone = vec![0xa3, 0x5a, 0, 0, 0, 0, 0, 2, b'M', b'e', 0xee, 0xee, 1, 0x13, 7];
+        zone.extend(181_900_301u32.to_le_bytes());
+        zone.extend([0xff; 8]);
+        zone.extend(4_102_412_400_000u64.to_le_bytes());
+        zone.extend([0xa3, 0x5a, 20]);
+        zone.extend(18_190_030u32.to_le_bytes());
+        zone.extend([0; 13]);
+        let mut t = EffectTracker::default();
+        t.self_spawn(1_000_000, &zone);
+        assert_eq!(t.active_on(11_555).map(|s| (s.effect, s.skill, s.source)).collect::<Vec<_>>(), [(181_900_301, Some(18_190_030), 11_555)]);
+    }
 
     #[test]
     fn a_buff_topped_up_while_on_lasts_longer() {

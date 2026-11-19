@@ -1410,6 +1410,10 @@ impl Meter {
             }
         }
         self.shields.feed(opcode, payload);
+        // You appear with the buffs already on you (a mantra turned on before you logged in).
+        if opcode == crate::entities::OPCODE_SELF_SPAWN {
+            self.effects.self_spawn(ts_us, payload);
+        }
         if self.effects.feed(ts_us, opcode, payload) {
             return;
         }

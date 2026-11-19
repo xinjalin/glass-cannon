@@ -232,6 +232,31 @@ u8      name length, then your character name (UTF-8)
 Sent **at login and after every zone change**, always with the current entity ID. A
 zone change keeps the same entity ID; a re-login gets a new one.
 
+Inside it, the **effects already on you** (confirmed 2026-11-19: all 34 of these messages
+in our captures have the list, read through to its last byte). No apply (`0x382a`) is sent
+for a stance turned on before you logged in (a Chanter's mantras), so this is the only
+place it shows:
+
+```text
+varint  count, then per effect:
+u8      kind: 0x10, +1 with a source, +2 with a skill
+varint  instance         (as in 0x382a/0x382c)
+u32     effect
+u64     time left, ms    (all ones: no end)
+u64     when it ends     (ms since 1970; 2099-12-31 for no end)
+[kind & 1] varint source
+u8      level
+[kind & 2] u32 skill
+[the 1st, 9th, 17th... effect] u8: a flag bit for it and the seven after
+3 × f32 where it was applied
+```
+
+Where the list starts isn't fixed; it's found by its shape (a count and that many effects
+reading through). An apply's `count, entry` is the same layout with one effect. In a
+login's list of 35: 32 with a source and no skill and no end (passive skills, gear,
+Theostones), the two mantras with no source, and a 30-day effect with 26.9 days left.
+A mantra turned on while playing is listed with its source and skill at the next zone.
+
 ### Another player appears: opcode `0x3645` (confirmed)
 
 Same layout as `0x3633`: entity ID, 5 bytes, length-prefixed UTF-8 name, then 1–2 KB
