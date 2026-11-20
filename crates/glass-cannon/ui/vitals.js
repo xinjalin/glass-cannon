@@ -13,6 +13,9 @@
 // them only as they change).
 
 // (The effects, and the notches at a charge's levels, are in arcfx.js, loaded first.)
+// The shield has the effect too, in its own colour, along its stretch of the HP arc.
+fxKeys = [...fxKeys, "shield"];
+fxOn = { shield: "hp" };
 
 // Smooth enough for a cast.
 const POLL_MS = 100;
@@ -487,6 +490,10 @@ function drawArcs(b) {
   side("hp", b && b.hp, b && b.hp_max, 1, !!span);
   drawTrail(hp != null && !arcOff("hp") && !fullNow.has("hp") ? Math.max(0, Math.min(1, hp)) * 100 : null);
   parts.shield.style.display = span ? "" : "none";
+  // The effect along it in the shield's colour: the HP's own stops where the shield starts
+  // (at full HP the shield is over the HP's end).
+  fxSpan.shield = span;
+  if (span && fxShare.hp != null) fxShare.hp = Math.min(fxShare.hp, span[0]);
   // The ticks look's HP notches beside the shield, in its colour.
   for (const l of ticks.querySelectorAll(".arc-tick.hp")) {
     const at = Number(l.dataset.at);

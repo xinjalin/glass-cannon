@@ -278,6 +278,10 @@ pub struct Settings {
     /// corner while the cursor shows).
     #[serde(default = "default_true")]
     pub hide_for_menus: bool,
+    /// The overlay steps aside for an arena match's line-up and result screens (from the
+    /// match's own messages).
+    #[serde(default = "default_true")]
+    pub hide_for_arena: bool,
     /// No widget takes the mouse while you play, not even the meter, the world timers and
     /// the pet tracker (the others never do); arranging them still does.
     #[serde(default)]

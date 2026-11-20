@@ -134,7 +134,8 @@ finishes. The widgets:
   snowflakes drifting down; **feathers**, the arc plumed like a wing, a feather coming loose now
   and then and floating down (more at low HP); **pulse**, nothing but light, its glow breathing
   with a wave of light running up it, quicker on your HP when it's low (with Windows' animation
-  effects off, each holds still). An effect only draws over and around the arcs: choosing one never moves or
+  effects off, each holds still). A shield on you has the effect too, in the shield's
+  colour, along its stretch of the HP arc (the HP's own stops where it starts). An effect only draws over and around the arcs: choosing one never moves or
   resizes them. Each has its own **strength** (how much of it), **brightness** (how clearly it
   shows: turn it up if it's hard to see), **size** (how far it reaches off the arcs) and
   **speed**, and changing one doesn't restart it; **HP warning colours**, the HP arc yellow from half HP and red from a fifth, whatever
@@ -279,6 +280,13 @@ or the game isn't in front. Keep widgets off the corner and the button (one ther
 them; the meter leaves its own widgets out of what it looks at, so one there is never
 taken for a menu). The setting's tooltip shows the last checks. With the classic controls,
 where the cursor always shows, they're simply looked at every half second.
+
+**Hide for arena screens** (settings, on by default): the overlay also steps aside for an
+arena match's two full-screen screens, the line-up (BLUE VS RED) as it begins and the
+result (Victory or Defeat, with the score table) as it ends. These come from the match's
+own messages, so nothing on screen is looked at: the widgets go as you arrive, come back
+ten seconds after everyone has loaded (while you wait for the gates), go again as the
+match ends and come back once you've left the arena.
 
 **Click-through** (settings → overlay, off by default): every click goes through the
 widgets to the game, the meter's, the world timers' and the pet tracker's too. The other

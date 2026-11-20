@@ -3,6 +3,7 @@
 //!
 //! Everything here runs as a normal user. Nothing is sent anywhere.
 
+pub mod arena;
 pub mod buffs;
 pub mod cast;
 pub mod classes;

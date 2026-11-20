@@ -516,11 +516,12 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
    each fill glowing in its colour over them; the flames show through the fills. */
 .arc-fx { position: absolute; left: 0; top: 0; pointer-events: none; }
 /* (Not the cast's: no flames on it.) */
-.effect-flames .arc-fill:not(.cast) { opacity: 0.6; }
+.effect-flames .arc-fill:not(.cast), .effect-flames .arc-shield { opacity: 0.6; }
 .fx .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
 .fx .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }
 .fx .arc-fill.mp { filter: drop-shadow(0 0 4px var(--arc-mp)); }
 .fx .arc-fill.flight { filter: drop-shadow(0 0 4px var(--arc-flight)); }
+.fx .arc-shield { filter: drop-shadow(0 0 4px var(--arc-shield)); }
 .look-framed .arc-track { stroke: rgba(10, 10, 14, 0.82); }
 /* Ticks: thin, with notches outside the outer arcs, in their colours. */
 .arc-tick { stroke-width: 2px; stroke-linecap: round; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }

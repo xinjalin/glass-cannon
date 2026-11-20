@@ -395,11 +395,17 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // as it was told by before, also comes now and then mid-fight, and the
                 // widgets flickered with it.)
                 let hidden = app.hud_hidden.load(Ordering::SeqCst);
-                let map = shown && !editing && (menu || hidden);
+                // An arena match's line-up and result screens (settings → hide for arena
+                // screens): they cover everything, and the match's own messages say when
+                // they're up (see `meter_core::arena`).
+                let arena_check = shown && !editing && lock(&app.settings).hide_for_arena;
+                let arena = arena_check && app.engine.meter().arena_screen(app.engine.now()).is_some();
+                let map = shown && !editing && (menu || hidden || arena);
                 *lock(&app.step_aside) = match () {
                     _ if !map => "",
                     _ if hidden => "hotkey",
-                    _ => "menu",
+                    _ if menu => "menu",
+                    _ => "arena",
                 };
                 if map_sent != Some(map) && handle.emit_to(HUD, "hud-map", map).is_ok() {
                     map_sent = Some(map);

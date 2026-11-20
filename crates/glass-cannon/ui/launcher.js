@@ -83,6 +83,7 @@ function overlayText(s) {
   // Hidden by the hotkey: say which keys bring it back.
   if (s.hidden) return [`hidden · ${s.hide_keys.replace(/Key(.)/, "$1").replace(/Digit(.)/, "$1")} shows it`, "accent"];
   if (s.step_aside === "menu") return ["hidden for a game menu (the cursor)", ""];
+  if (s.step_aside === "arena") return ["hidden for an arena screen", ""];
   return s.overlay_showing ? ["over the game", "accent"] : ["on", ""];
 }
 

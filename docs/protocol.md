@@ -611,6 +611,7 @@ character ID (u32), not by entity ID, so the meter matches them to rows by name.
 | `0x9213` | you left the party: u16 result (only 0 means you left; Questlog's PartyLeave) |
 | `0x9702` | a cross-server group's full roster (expeditions)      |
 | `0x970b` | one member joining that group                         |
+| `0x972d` | the group's leader moved a member to another slot: u8 2, then the two slots that changed (2026-11-20, below) |
 | `0x971d` | you left the group: u16 result (the same)             |
 | `0x971e` | a member left the group: u32 character ID, `00 00`, u16 server |
 | `0x9221` | a member left the party (same layout)                 |
@@ -627,6 +628,24 @@ Each member entry: `u32 character ID`, `00 00`, `u16 server ID` (1501..2507 seen
 length`, UTF-8 name, then level, class, legion name and other fields. In group rosters
 (`0x9702`, `0x970b`) two bytes come first: flags (`0x0c` always, `0x02` ready, `0x10`
 inside the dungeon) and the slot (1 = the leader, who starts rather than readies).
+A group roster's header (2026-11-20): u32 group ID, u8 length and the room's title, **u8
+slots** (5 for an expedition's group, 10 for a Sanctuary's room: two parties, slots 1 to 5
+and 6 to 10), u32 map, 2 bytes, the leader's ID and server, 3 bytes, u8 entries. Every
+slot has an entry: an empty one is 36 bytes with `00` for its flags. So a room is known
+from its first roster, with only its first party's slots taken too.
+
+The leader moving a member (`0x972d`, a Ludra room, 2026-11-20: eight moves) sends the
+two slots that changed, as roster entries: the member with their new slot and the empty
+slot they left, or both members of a swap. **No roster follows** (the next came 62 s
+later, and agreed): without it the meter kept everyone in their old slot, six in a party
+of five. In the same capture `0x9719` (character ID, server, u8 1) came just before a
+roster with a new leader in slot 1, twice: the group's leader changing (not used: the
+roster says it).
+
+Your own party's messages keep coming while you're in a party-finder group (`0x9200`, and
+`0x9222` as a party member changes maps): a member of your party isn't in the group for
+that, so `0x920d` and `0x9222` are left out while the list is a group's.
+
 Seen in the Vakron capture's party finder: vexo07, MIRO and Sandrel readied (MIRO
 unreadied and readied again) by `0x9716`, ours by `0x9715`, and vexo07 leaving at the end
 by `0x971e` and `0x9221` together. A kick hasn't been captured; the meter takes
@@ -856,6 +875,35 @@ The map ID is also in `0x3633` (your character), `0x9702` (the group roster's he
 and `0x921c`. The meter keeps each stay on a map, and a dungeon's start and completion
 (`instances.jsonl`): a history run is the fights of one stay, and its clear time runs
 from step 2 to step 3.
+
+### Arena matches (2026-11-20)
+
+Worked out from a 5v5 Arena of Cooperation and a 1v1 in one capture (both in the Fire
+Temple Arena, map 60). A match is its own server connection, like a dungeon, and uses the
+dungeon's state with **7** where the map ID goes: step 1 as you arrive (a 110 s limit),
+step 2 as the fight starts (10 min), step 3 with `0x6101` as it ends (30 s, then you're
+sent out). A 1v1 is rounds: after each kill you're put back with `0x4002` (the same map),
+your `0x3633` and step 2 again.
+
+| opcode   | layout                                              | what                                     |
+| -------- | --------------------------------------------------- | ---------------------------------------- |
+| `0xe319` | header, then each player: 8-byte character ID, name, class, rating… (not worked out) | the match's line-up, as you arrive (before `0x4002`) |
+| `0xe31c` | u8 n, n × 8-byte character ID                       | players who've finished loading: those before you as you arrive, then each as they do |
+| `0xe31b` | `00 00`                                             | everyone has loaded |
+| `0xe31d` | u64 ms                                              | with it: when the fight starts (server time), **20 s on** in both; step 2 came 50 ms after that time |
+| `0xe325` | 8-byte character ID × 2                             | a kill: the killer, the killed |
+| `0xe326` | u8 n, then n score lines                            | the score table's lines that changed (Questlog's BattleScoreUpdate; layout not worked out) |
+| `0xe328` | u8, u32 rating, u8, u8, 8-byte character ID, u8 kills, u8 deaths, u16 | the result, for you: your rating after the match |
+
+An 8-byte character ID is the u32 character ID, u16 0, u16 server (as `0x8a05`'s).
+
+The overlay steps aside for the two screens that cover everything (settings → hide for
+arena screens; `meter_core::arena`): the **line-up** ("BLUE VS RED") from `0xe319` until
+10 s after `0xe31d`, and the **result** from `0xe328` until the next `0x4002` for another
+map. Nothing says when the line-up screen goes: in both matches nobody (ten players in
+one) moved in the first 10 s after everyone had loaded, the first doing so at 10.55 s
+(only mantras' ticks came before), so that's taken as its time. Should a message be
+missed, the fight's start (step 2) or a time limit brings the overlay back.
 
 ## Capturing (how packet-lab and the meter get the traffic)
 
