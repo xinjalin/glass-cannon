@@ -73,6 +73,8 @@ let fxArcs = [];
 let fxSprites = {};
 let fxFs = 13;
 let fxRaf = 0;
+// The wait for the next frame's turn.
+let fxWait = 0;
 let fxLast = 0;
 // The effect's own time (ms), running at its speed.
 let fxClock = 0;
@@ -1376,14 +1378,16 @@ function fxColours() {
 function runFx() {
   const on = !!FX[setup.effect];
   if (on && !document.hidden && !calm.matches) {
-    if (!fxRaf) {
+    if (!fxRaf && !fxWait) {
       fxLast = 0;
       fxRaf = requestAnimationFrame(fxFrame);
     }
     return;
   }
   if (fxRaf) cancelAnimationFrame(fxRaf);
+  clearTimeout(fxWait);
   fxRaf = 0;
+  fxWait = 0;
   fxLive = 0;
   if (on && calm.matches) fxStill();
   else {
@@ -1414,8 +1418,14 @@ function fxStill() {
 }
 
 function fxFrame(now) {
-  fxRaf = requestAnimationFrame(fxFrame);
-  if (fxLast && now - fxLast < 1000 / FX_FPS - 2) return;
+  // The next one when it's due (the frame of the screen after a wait), not by asking for
+  // every frame and leaving two of three alone: the page a widget is in, the overlay's
+  // too, goes through each frame asked for.
+  fxRaf = 0;
+  fxWait = setTimeout(() => {
+    fxWait = 0;
+    fxRaf = requestAnimationFrame(fxFrame);
+  }, 1000 / FX_FPS - 5);
   // The effect's time runs at its speed; its pieces are as big as its size has them.
   const dt = (fxLast ? Math.min(0.1, (now - fxLast) / 1000) : 0) * fxSpeed();
   fxLast = now;

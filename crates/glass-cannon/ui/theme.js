@@ -3,6 +3,40 @@
 
 let appliedAppearance = "";
 
+// Runs `fn` every `ms`, at the clock's own multiples of it rather than from whenever the
+// page loaded. The overlay's widgets are pages in one page: with a timer each, they asked
+// for their data and redrew at moments of their own, and the whole overlay was drawn again
+// for each of them (some eighty times a second with a dozen widgets, standing still). On
+// the same ticks, what they change lands in the same frame.
+function onTick(ms, fn) {
+  const next = () => {
+    let wait = ms - (Date.now() % ms);
+    // (A timer a moment early: the tick after, not this one again.)
+    if (wait < ms / 4) wait += ms;
+    setTimeout(() => {
+      next();
+      fn();
+    }, wait);
+  };
+  next();
+}
+
+// Whether `value` is what `what` was the last time: a widget then leaves its page alone
+// (the same text written again still has the page laid out and drawn again). Forgotten
+// when an icon arrives, so what waited for it is drawn with it.
+const lastSeen = new Map();
+function unchanged(what, value) {
+  const key = JSON.stringify(value);
+  if (lastSeen.get(what) === key) return true;
+  lastSeen.set(what, key);
+  return false;
+}
+
+// A text set only when it changes.
+function setText(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
 const isHexColor = (c) => /^#[0-9a-f]{6}$/i.test(c || "");
 
 // Text in a picked colour on the dark glass is lightened (same hue) to at least this

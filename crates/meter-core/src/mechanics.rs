@@ -178,6 +178,15 @@ impl Mechanics {
         self.hits.clear();
     }
 
+    /// The boss fight ended (a kill or a wipe): a check going on, and the ground under you,
+    /// went with it.
+    pub fn fight_over(&mut self) {
+        for g in self.gauges.values_mut() {
+            g.open = None;
+        }
+        self.hits.clear();
+    }
+
     fn checks_stagger(&self, mob_type: Option<u32>) -> bool {
         self.book.mechanics.iter().any(|m| matches!(m.when, When::Stagger) && mob_type.is_some_and(|t| m.bosses.contains(&t)))
     }

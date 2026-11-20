@@ -36,6 +36,7 @@ async function refresh() {
   } catch {
     return;
   }
+  if (unchanged("bars", [b, showCast])) return;
   $("empty").hidden = !!(b && (b.hp != null || b.mp != null));
   if (!b) {
     for (const c of ["hp", "mp", "cast"]) document.querySelector(`.pb.${c}`).hidden = true;
@@ -74,7 +75,7 @@ invoke("cast_bar_setup")
     refresh();
   })
   .catch(() => {});
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();

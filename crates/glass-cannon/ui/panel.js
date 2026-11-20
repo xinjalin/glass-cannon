@@ -39,6 +39,28 @@ function el(tag, className, text) {
   return e;
 }
 
+// Makes `parent`'s children what `kids` are, changing only what differs (an attribute, a
+// text, a node of another kind) rather than putting the new ones in the old ones' place.
+// A list built again for every reading (an action bar, ten times a second) then costs the
+// page only what moved: its icons stay as they are, and what's animating goes on. For
+// what's built of elements, attributes and text alone (a listener on a new node is lost).
+function morph(parent, kids) {
+  const old = [...parent.childNodes];
+  kids.forEach((kid, i) => {
+    const was = old[i];
+    if (!was) parent.append(kid);
+    else if (was.nodeType !== kid.nodeType || was.nodeName !== kid.nodeName) was.replaceWith(kid);
+    else if (was.nodeType !== 1) {
+      if (was.data !== kid.data) was.data = kid.data;
+    } else {
+      for (const a of [...was.attributes]) if (!kid.hasAttribute(a.name)) was.removeAttribute(a.name);
+      for (const a of kid.attributes) if (was.getAttribute(a.name) !== a.value) was.setAttribute(a.name, a.value);
+      morph(was, [...kid.childNodes]);
+    }
+  });
+  for (const gone of old.slice(kids.length)) gone.remove();
+}
+
 function fmt(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
   if (n >= 1e4) return (n / 1e3).toFixed(1) + "K";
@@ -82,7 +104,10 @@ function iconFor(key, label, onLoad) {
     invoke("skill_icon", { skill: key })
       .then((url) => {
         icons.set(key, url);
-        if (url && onLoad) onLoad();
+        if (url && onLoad) {
+          lastSeen.clear();
+          onLoad();
+        }
       })
       .catch(() => {});
   }

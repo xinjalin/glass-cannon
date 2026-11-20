@@ -267,10 +267,16 @@ function cells(pct, cell) {
 }
 
 // Redrawn each frame while there's a cast (or its sample) to move.
+// (At most sixty times a second: on a faster screen every other frame, which the overlay,
+// one page with all the widgets in it, then needn't be drawn again for.)
 let frame = 0;
-function tick() {
+let drawnAt = 0;
+function tick(now) {
   frame = 0;
-  draw();
+  if (now - drawnAt >= 15) {
+    drawnAt = now;
+    draw();
+  }
   if ((cast || editing) && !document.hidden) frame = requestAnimationFrame(tick);
 }
 function run() {
@@ -326,7 +332,7 @@ Promise.all([invoke("cast_bar_setup").catch(() => null), invoke("vitals_setup").
   applySetup();
 });
 applySetup();
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();

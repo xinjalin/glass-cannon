@@ -9,7 +9,10 @@ function classIcon(code) {
   if (code != null && !classIcons.has(code)) {
     classIcons.set(code, null);
     invoke("class_icon", { code })
-      .then((url) => classIcons.set(code, url))
+      .then((url) => {
+        classIcons.set(code, url);
+        lastSeen.clear();
+      })
       .catch(() => {});
   }
   const url = code != null ? classIcons.get(code) : null;
@@ -125,14 +128,15 @@ async function refresh() {
   } catch {
     return;
   }
+  if (unchanged("party", party)) return;
   const { members } = party;
-  $("members").replaceChildren(...(party.by_class ? byClass(members) : byPlayer(members)));
+  morph($("members"), party.by_class ? byClass(members) : byPlayer(members));
   $("empty").hidden = members.length > 0;
 }
 
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();
 
 // The bars in the action bar's colours, when the settings say so (cooldowns → action bar's

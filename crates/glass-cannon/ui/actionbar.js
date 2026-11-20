@@ -62,7 +62,7 @@ function iconSlot(s, st, glow) {
     // A cooldown: dark over what's left; an effect: over what's gone.
     const left = Math.min(1, s.remaining_ms / s.duration_ms);
     const sweep = el("span", "bar-sweep");
-    sweep.style.setProperty("--done", `${(effect ? left : 1 - left) * 360}deg`);
+    sweep.style.setProperty("--done", `${Math.round((effect ? left : 1 - left) * 360)}deg`);
     slot.append(sweep);
   }
   if (timed && st.countdown) slot.append(el("span", "bar-time" + (st.colours ? urgency(s.remaining_ms) : ""), timeText(s.remaining_ms, st.tenths)));
@@ -86,7 +86,7 @@ function barSlot(s, st, glow) {
   const fill = el("span", "bar-fill");
   const timed = s.running && !s.endless && s.remaining_ms > 0 && s.duration_ms > 0;
   const share = timed ? s.remaining_ms / s.duration_ms : s.missing ? 0 : 1;
-  fill.style.width = `${Math.min(1, share) * 100}%`;
+  fill.style.width = `${Math.round(Math.min(1, share) * 200) / 2}%`;
   slot.classList.add(effect ? (s.kind === "debuff" ? "debuffed" : "on") : s.running ? "cooling" : "ready");
   const time = s.missing ? "" : timed || (!effect && s.remaining_ms > 0) ? (st.countdown ? timeText(s.remaining_ms, st.tenths) : "") : effect ? "" : "ready";
   const count = effect ? (s.stacks > 1 ? ` ×${s.stacks}` : "") : s.charges != null ? ` ×${s.charges}` : "";
@@ -151,8 +151,9 @@ async function refresh() {
     else rows[rows.length - 1].push(s);
   }
   const bars = view.style.look === "bars";
-  p.replaceChildren(
-    ...rows
+  morph(
+    p,
+    rows
       .filter((r) => r.length)
       .map((r) => {
         const row = el("div", "bar-row");
@@ -169,7 +170,7 @@ async function refresh() {
   if (editing && hidden) p.append(el("div", "bar-hint", view.exists ? "hidden out of combat" : "not set up for this class"));
 }
 
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();

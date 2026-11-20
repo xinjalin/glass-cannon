@@ -594,6 +594,8 @@ async function refresh() {
   } catch {
     return;
   }
+  // Nothing new: the arcs stay as they are.
+  if (unchanged("bars", b)) return;
   draw(b);
 }
 
@@ -616,7 +618,7 @@ invoke("vitals_setup")
   })
   .catch(() => applySetup());
 applySetup();
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();
