@@ -58,9 +58,11 @@ finishes. The widgets:
   **What a move is called**: the game's own name for it when it has one (Ludra's Trial,
   Abyssal Gaze, Wheel of Torment). The game calls most boss moves only "Attack"; for the
   deadliest of those in the Ludra raid the card shows our own short label for what the
-  move does, from our runs: *raid-wide blast* (it hits most of the raid), *area blast*,
+  move does, from our runs: *raid-wide* (it hits most of the raid), *area blast*,
   *strike* (one player), *heavy* (half a health bar or more), *pulses* (again and again),
-  *marked ground* (the game marks where it lands). Any other unnamed move shows the boss's
+  *marked ground* (the game marks where it lands), *frontal*, *side* or *around her* (where
+  it lands from the boss), *orbs* (falling orbs to catch), *sweeping blasts* (bands crossing
+  the arena). Any other unnamed move shows the boss's
   name. Name one yourself in the analysis window's [boss] tab and yours is used instead.
   When the boss you're fighting turns to attack you, the card says so for 3 s (its name
   over "on you", in amber; its mechanics and casts go first), with a lower chime (settings → boss

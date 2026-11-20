@@ -1,29 +1,32 @@
 {
   "source": {
-    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the Ludra raid's from our own runs (2026-11-06, 2026-11-07, 2026-11-13) and guides to it (aion2tierlist.com's and dbaion2.ru's: what to do in the grid, Ludra's Trial, and when Rahu splits the arena; Mobalytics' Rahu, Ketu and Ludra guides of 2026-11-09 and MMOPIXEL's Ludra guide, after the 4 November rework: Wheel of Torment's regroup, Ketu's Abyssal Gaze and Eruption of Power, Rahu's Feeding Time, Ludra's opening tail swipe). The dungeon bosses' cast cards marked `source` (Mobalytics' dungeon guides) name moves by the game's own skill names; what to do is from those guides, unconfirmed in our captures. The wording is ours.",
+    "from": "Written by hand for Glass Cannon. Which effect and skill IDs go with which mechanic came from GT Companion's dungeon warnings (gaming.tools, 0.5.110) as leads; the Ludra raid's from our own runs (2026-11-06, 2026-11-07, 2026-11-13, 2026-11-20) and guides to it (aion2tierlist.com's and dbaion2.ru's: what to do in the grid, Ludra's Trial, and when Rahu splits the arena; Mobalytics' Rahu, Ketu and Ludra guides of 2026-11-09 and MMOPIXEL's Ludra guide, after the 4 November rework: Wheel of Torment's regroup, Ketu's Abyssal Gaze and Eruption of Power, Rahu's Feeding Time, Ludra's opening tail swipe). The dungeon bosses' cast cards marked `source` (Mobalytics' dungeon guides) name moves by the game's own skill names; what to do is from those guides, unconfirmed in our captures. The wording is ours.",
     "note": "`seen`: the date we confirmed it in our own captures. The rest are unconfirmed leads until a run shows them. `bosses` empty: any boss, for one whose type we may not know (a raid boss up before the meter started).",
     "when": "effect: a buff or debuff on the boss (on: boss), on you (you), on another player (ally) or on any player (player). cast: the boss casts one of skills; over when it casts one of until (its own skill: when it goes off). stagger: the boss's stagger check (its gauge turns breakable; over once broken or idle). hit: something on the ground hits you.",
     "times": "max_s: the longest it shows. due_s: when it lands, from its start (a countdown). then: what to do once it's over, for then.s seconds.",
     "warn_casts": "boss skills always warned about (the cast and its time left), though their cast is short and marks no ground: the ones that killed the most in our runs. 1802730: Isolation Specialist Rahu (his skills are 18026xx to 18029xx; the raid's map is 600082), 17 of 76 deaths in 11 attempts (2026-11-06), a 1.5 s cast. 1801820 (2 s cast) and 1801870 (1.5 s): Abyssal Wings Ketu, 25 and 20 of 197 deaths in 21 attempts (2026-11-07). 1802530 (1.5 s), 1802555 and 1802570 (3 s): the Central Abyss Fusion Reactor, 14 of 20 deaths in our kill (2026-11-07). Eternal Ludra (2026-11-13, 22 attempts, 407 deaths; her casts are 1.5 to 2.3 s, and the damage comes under the cast's ID plus a few, from helper mobs also named Eternal Ludra): 1803200 (2.3 s, 40 deaths in 42 casts), 1803210 (2 s, 40 in 69), 1803160 (1.7 s, 38 in 33), 1803230 (1.5 s, 34 in 25) and 1803250 (1.5 s, 33 in 30).",
-    "labels": "our own short names for boss skills the game's text only calls \"Attack\": what the move does, as our runs show it, shown where the boss's cast is named (warnings, timers, the target's cast). Never a name from the game: the game's, or one you give the skill, comes first. Raid-wide: it hit 5 or more of the 10 players on average; area: 2 to 5; else a strike on one. Heavy: half its hits were 30,000 or more (players had about 30,000 HP). Pulses: it hits again and again. Marked ground: the game marks where it lands, seconds ahead. From 22 attempts at Eternal Ludra (2026-11-13) and 23 at Ketu; only moves with 20 or more hits to go by (marked ground goes by the game's marks alone). 1801840 and 1801843 are Ketu's weapon smash (the mechanic below)."
+    "labels": "our own short names for boss skills the game's text only calls \"Attack\": what the move does, as our runs show it, shown where the boss's cast is named (warnings, timers, the target's cast). Never a name from the game: the game's, or one you give the skill, comes first. Raid-wide: it hit 5 or more of the 10 players on average; area: 2 to 5; else a strike on one. Heavy: half its hits were 30,000 or more (players had about 30,000 HP). Pulses: it hits again and again. Marked ground: the game marks where it lands, seconds ahead. From 22 attempts at Eternal Ludra (2026-11-13) and 23 at Ketu; only moves with 20 or more hits to go by (marked ground goes by the game's marks alone). Sharpened on 2026-11-20 (13 more attempts at Ludra, 12 at Ketu; docs/research/boss-casts.md) by where the players a move hit stood from the boss and by the mobs a cast brings: frontal, side, around her (all round the boss, about 18 m), sweeping (bands of blasts crossing the arena), orbs (falling orbs to catch: blue anyone, red the tank, blocking), line of beams (a row of 14 beams across the arena), two rings (two waves on every side: a guide's reading of them as rings to jump), lightning on every player (a strike on each player, three hits, shared by those within about 4 m: seen on screen, and in the capture a player took 3, 6 or 9 hits by how many stood together). 1801840 and 1801843 are the strikes that open Ketu's weapon smash (the mechanic below), 1801841 and 1801842 its hits on one side of him and then the other; 1801952 is the strike that follows the beams of 1801950."
   },
   "warn_casts": [1802730, 1801820, 1801870, 1802530, 1802555, 1802570, 1803200, 1803210, 1803160, 1803230, 1803250],
   "labels": {
     "1801820": "area blast",
-    "1801840": "weapon smash",
-    "1801843": "weapon smash",
-    "1801950": "strike",
+    "1801840": "strike, side hit next",
+    "1801841": "side hit",
+    "1801842": "side hit",
+    "1801843": "strike, side hit next",
+    "1801950": "line of beams",
+    "1801952": "strike",
     "1803080": "tail swipe",
     "1803110": "heavy strike",
-    "1803120": "strike",
-    "1803130": "area blast",
-    "1803160": "heavy area blast",
-    "1803200": "raid-wide blast",
-    "1803210": "area blast",
+    "1803120": "frontal double hit",
+    "1803130": "two rings",
+    "1803160": "sweeping blasts",
+    "1803200": "orbs: 4 blue + red",
+    "1803210": "orbs + blast around her",
     "1803220": "marked ground",
     "1803225": "marked ground",
     "1803230": "raid-wide pulses",
-    "1803250": "area pulses",
+    "1803250": "lightning on every player",
     "1803260": "marked ground"
   },
   "mechanics": [
