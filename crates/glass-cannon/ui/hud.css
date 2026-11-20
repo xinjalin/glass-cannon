@@ -73,7 +73,20 @@ body {
 #warning-name { font-size: 2.3em; font-weight: 700; line-height: 1.2; color: var(--text); white-space: nowrap; }
 #warning-time { font-size: 1.6em; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--warn-c); white-space: nowrap; }
 /* The cast is on: the card glows until it lands. */
-#warning.now { animation: pulse 0.6s ease-in-out infinite alternate; }
+/* (Its wider glow is a layer of its own that fades in and out: that's animated without the
+   page being drawn again, as a shadow growing and shrinking isn't.) */
+#warning.now { position: relative; box-shadow: 0 0 0.3em 0 color-mix(in srgb, var(--warn-c) 25%, transparent); }
+#warning.now::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 -4px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 1.2em 0.25em color-mix(in srgb, var(--warn-c) 50%, transparent);
+  opacity: 0;
+  will-change: opacity;
+  animation: pulse 0.6s ease-in-out infinite alternate;
+}
 #warning.soon { --warn-c: var(--warn); }
 #warning.soon #warning-name { font-size: 1.7em; }
 #warning.soon #warning-time { font-size: 1.25em; }
@@ -83,12 +96,13 @@ body {
 #warning.you #warning-name { font-size: 1.9em; color: var(--warn-c); }
 #warning.you #warning-time:empty { display: none; }
 /* Over: it stays a moment, dimmed, so it can be read. */
-#warning.over { opacity: 0.55; animation: none; }
+#warning.over { opacity: 0.55; }
+#warning.over::after { content: none; }
 @keyframes pulse {
-  from { box-shadow: 0 0 0.3em 0 color-mix(in srgb, var(--warn-c) 25%, transparent); }
-  to { box-shadow: 0 0 1.2em 0.25em color-mix(in srgb, var(--warn-c) 50%, transparent); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-@media (prefers-reduced-motion: reduce) { #warning.now { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #warning.now::after { animation: none; } }
 
 /* ---------------------------------------------------------------- boss timers */
 

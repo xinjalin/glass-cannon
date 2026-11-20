@@ -71,6 +71,10 @@ Every message type (opcode) in our captures: 428 opcodes, 5,337,612 messages, fr
 | `0x9213` | 3 | you left the party | PartyLeave_RS |  |
 | `0x9602` | 1 | the Force's roster: its members count as your party (confirmed: 20 members) | ForceInfo_NT | Aion2Flow: Force roster snapshot |
 | `0x972a` | 1 | the finder group removed you | PartyFinderKicked_NT |  |
+| `0x972d` | 8 | the finder group's leader moved a member: the two slots that changed, as roster entries (2026-11-20's capture, not in the counts above) |  |  |
+| `0xe319` | 2 | an arena match's line-up, as you arrive (2026-11-20's capture, not in the counts above): the overlay steps aside for the line-up screen |  |  |
+| `0xe31d` | 2 | everyone in the arena match has loaded: u64, when the fight starts (20 s on; 2026-11-20) |  |  |
+| `0xe328` | 2 | an arena match's result, for you: your rating after it, kills and deaths (2026-11-20): the overlay steps aside for the result screen |  |  |
 
 ## Understood, not used yet
 
@@ -127,6 +131,10 @@ Checked on our captures with our own code (2026-10-25 unless the row says otherw
 | `0x9501` | 39 | the server's unlocked contents: u8 36, 36 × u32 (the same everywhere) |  | Aion DPS Meter: unlocked game contents |
 | `0xe32a` | 39 | your arena ratings: u8 n, n × 14 bytes (modes 1, 2, 3) |  | Aion DPS Meter: arena rating and record per mode |
 | `0xe343` | 39 | your character at login: 3 identical 21-byte entries, character ID (as `0x8a05`'s, 39 of 39), server, index, time |  | Aion DPS Meter: login record, own ID |
+| `0xe31c` | 10 | arena players who've finished loading: u8 n, n × 8-byte character ID (2026-11-20's capture, as the next three) |  |  |
+| `0xe31b` | 2 | `00 00`, with `0xe31d` (everyone has loaded) |  |  |
+| `0xe325` | 9 | an arena kill: the killer's 8-byte character ID, the killed player's (9 of 9 match the score) |  |  |
+| `0xe326` | 17 | the arena's score lines changing (per player: character ID, kills, deaths…; layout not worked out) | BattleScoreUpdate_NT |  |
 
 ## Named elsewhere only (not checked)
 
@@ -496,7 +504,6 @@ Some may be older opcodes: A2Tools notes the game shifted opcodes in 2026-06.
 | `0xe303` | AbyssArtifactUpdate_NT |  |  |
 | `0xe305` | AbyssArtifactEventInfo_NT | A2Tools: abyss artifact entry | entering the Abyss: who holds its artifacts (untested) |
 | `0xe308` | AbyssArtifactEventUpdate_NT |  |  |
-| `0xe326` | BattleScoreUpdate_NT |  |  |
 
 ## Sources
 

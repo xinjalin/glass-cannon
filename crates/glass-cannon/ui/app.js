@@ -887,23 +887,28 @@ function drawBossCast(enc, t) {
 }
 
 // One loop, however often the line's redrawn: each redraw starts it again, so the one
-// running is stopped first (they used to pile up, hundreds to a boss fight).
-let castLineFrame = 0;
+// running is stopped first (they used to pile up, hundreds to a boss fight). Twenty times
+// a second (four for what's only coming, shown to the second), not with every frame of the
+// screen: the overlay's page goes through each frame asked for.
+let castLineTimer = 0;
 function tickCastLine() {
-  cancelAnimationFrame(castLineFrame);
-  castLineFrame = 0;
+  clearTimeout(castLineTimer);
+  castLineTimer = 0;
   const c = castLine;
   if (!c || $("boss-cast").hidden) return;
   const left = Math.max(0, c.left - (performance.now() - lastViewAt));
+  // Written only as it changes (the bar by half a percent): this runs every frame, and a
+  // text set to what it was still has the page drawn again.
   if (c.kind === "next") {
-    $("bc-time").textContent = `in ${clock(left / 1000)}`;
+    setText($("bc-time"), `in ${clock(left / 1000)}`);
   } else {
     const done = c.total > 0 ? 1 - left / c.total : 1;
-    $("bc-fill").style.width = `${Math.max(0, Math.min(1, c.kind === "landing" ? 1 - done : done)) * 100}%`;
-    $("bc-time").textContent = c.kind === "landing" ? `lands ${(left / 1000).toFixed(1)}s` : `${(left / 1000).toFixed(1)}s`;
+    const width = `${Math.round(Math.max(0, Math.min(1, c.kind === "landing" ? 1 - done : done)) * 200) / 2}%`;
+    if ($("bc-fill").style.width !== width) $("bc-fill").style.width = width;
+    setText($("bc-time"), c.kind === "landing" ? `lands ${(left / 1000).toFixed(1)}s` : `${(left / 1000).toFixed(1)}s`);
   }
   $("boss-cast").classList.toggle("soon", c.kind !== "casting" && left <= (c.kind === "next" ? 5000 : 1000));
-  if (left > 0) castLineFrame = requestAnimationFrame(tickCastLine);
+  if (left > 0) castLineTimer = setTimeout(tickCastLine, c.kind === "next" ? 250 : 50);
 }
 
 const meterView = () => (lastView && lastView.meter_view) || "damage";

@@ -140,7 +140,7 @@ button {
   width: var(--icon);
   height: var(--icon);
   transform: translateY(-50%);
-  transition: left 0.2s linear, right 0.2s linear;
+  transition: left 0.2s steps(4), right 0.2s steps(4);
 }
 .ready-right .tl-mark { left: auto; right: calc(var(--pad) + var(--at, 0) * (100% - var(--icon) - 2 * var(--pad))); }
 .tl-mark .icon { display: block; width: 100%; height: 100%; border-radius: 0.25em; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
@@ -402,13 +402,16 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .pb { position: relative; flex: 1 1 0; min-height: 0.9em; display: flex; align-items: center; border-radius: 0.25em; overflow: hidden; background: var(--line-faint); font-size: 0.85em; font-variant-numeric: tabular-nums; }
 .pb[hidden] { display: none; }
 .pb.cast.idle { visibility: hidden; }
-.pb-fill { position: absolute; inset: 0 auto 0 0; transition: width 0.15s linear; }
+/* A bar or an arc moves to a new reading in a few steps, twenty a second, not as a slide
+   drawn with every frame of the screen: the overlay is one page, drawn again whole for each
+   of those frames (at 120 Hz, in a fight where HP and MP never rest, without end). */
+.pb-fill { position: absolute; inset: 0 auto 0 0; transition: width 0.15s steps(3); }
 .pb.hp .pb-fill { background: color-mix(in srgb, var(--bad) 75%, transparent); }
 .pb.mp .pb-fill { background: color-mix(in srgb, #5b8def 75%, transparent); }
-.pb-shield { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0 0.3em, rgba(255, 255, 255, 0.5) 0.3em 0.6em); transition: left 0.15s linear, width 0.15s linear; }
+.pb-shield { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0 0.3em, rgba(255, 255, 255, 0.5) 0.3em 0.6em); transition: left 0.15s steps(3), width 0.15s steps(3); }
 .pb-shield-text { color: #ffffff; font-weight: 700; }
 .pb.cast .pb-fill { background: var(--accent-fill, var(--accent)); transition: none; }
-.pb.cast.charging .pb-fill { transition: width 0.1s linear; }
+.pb.cast.charging .pb-fill { transition: width 0.1s steps(2); }
 /* A charged skill's levels: a notch at each third, light on the empty bar (under the fill)
    and dark on the fill (drawn in it, to the bar's width). */
 .pb.cast.levels { container-type: inline-size; --notch: rgba(255, 255, 255, 0.6); }
@@ -425,10 +428,10 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .frames { list-style: none; margin: 0; padding: 0.25em; display: grid; grid-template-columns: var(--cols, repeat(auto-fill, minmax(7.5em, 1fr))); gap: 0.25em; }
 .frames[data-layout="list"] { grid-template-columns: 1fr !important; }
 .frame { --class: var(--accent); position: relative; height: 2.4em; border-radius: 0.25em; overflow: hidden; background: var(--line-faint); font-size: 0.85em; }
-.fr-hp { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--class) 55%, transparent); transition: width 0.2s linear; }
+.fr-hp { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--class) 55%, transparent); transition: width 0.2s steps(4); }
 .fr-name { position: absolute; left: 0.45em; right: 2.8em; top: 0.25em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 700; }
 .fr-value { position: absolute; right: 0.4em; top: 0.25em; color: var(--text); font-variant-numeric: tabular-nums; }
-.fr-mp { position: absolute; left: 0; bottom: 0; height: 0.22em; background: #5b8def; transition: width 0.2s linear; }
+.fr-mp { position: absolute; left: 0; bottom: 0; height: 0.22em; background: #5b8def; transition: width 0.2s steps(4); }
 .fr-shield { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0 0.3em, rgba(255, 255, 255, 0.38) 0.3em 0.6em); }
 .frame.self { box-shadow: inset 0 0 0 1px var(--accent); }
 .frame.dead .fr-hp { width: 0 !important; }
@@ -474,17 +477,17 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arcs { --arc-hp: #ef6b4f; --arc-stamina: #6dd37b; --arc-mp: #4ea2e6; --arc-flight: #f2c84b; }
 .arc-track, .arc-fill { fill: none; stroke-linecap: round; }
 .arc-track { stroke: rgba(10, 10, 14, 0.6); }
-.arc-fill { transition: stroke-dasharray 0.15s linear; }
+.arc-fill { transition: stroke-dasharray 0.15s steps(3); }
 .arc-fill.hp { stroke: var(--arc-hp); }
 .arc-fill.stamina { stroke: var(--arc-stamina); }
 .arc-fill.mp { stroke: var(--arc-mp); }
 .arc-fill.flight { stroke: var(--arc-flight); }
 .arc-fill.cast { stroke: var(--arc-cast, var(--accent-fill, var(--accent))); transition: none; }
-.arc-fill.cast.charging { transition: stroke-dasharray 0.1s linear; }
+.arc-fill.cast.charging { transition: stroke-dasharray 0.1s steps(2); }
 .arc-cast-marks { fill: none; stroke: rgba(255, 255, 255, 0.6); stroke-linecap: butt; }
 .arc-cast-marks.on { stroke: rgba(10, 10, 14, 0.85); }
 .arcs { --arc-shield: #ffffff; }
-.arc-shield { fill: none; stroke: var(--arc-shield); stroke-linecap: round; transition: stroke-dasharray 0.15s linear, stroke-dashoffset 0.15s linear; }
+.arc-shield { fill: none; stroke: var(--arc-shield); stroke-linecap: round; transition: stroke-dasharray 0.15s steps(3), stroke-dashoffset 0.15s steps(3); }
 .look-thin .arc-shield { filter: drop-shadow(0 0 3px var(--arc-shield)); }
 .arc-text .arc-shield-text { fill: var(--arc-shield); }
 .arcs.low .arc-fill.hp { filter: drop-shadow(0 0 0.35em var(--arc-hp)); }
@@ -516,11 +519,12 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
    each fill glowing in its colour over them; the flames show through the fills. */
 .arc-fx { position: absolute; left: 0; top: 0; pointer-events: none; }
 /* (Not the cast's: no flames on it.) */
-.effect-flames .arc-fill:not(.cast) { opacity: 0.6; }
+.effect-flames .arc-fill:not(.cast), .effect-flames .arc-shield { opacity: 0.6; }
 .fx .arc-fill.hp { filter: drop-shadow(0 0 4px var(--arc-hp)); }
 .fx .arc-fill.stamina { filter: drop-shadow(0 0 4px var(--arc-stamina)); }
 .fx .arc-fill.mp { filter: drop-shadow(0 0 4px var(--arc-mp)); }
 .fx .arc-fill.flight { filter: drop-shadow(0 0 4px var(--arc-flight)); }
+.fx .arc-shield { filter: drop-shadow(0 0 4px var(--arc-shield)); }
 .look-framed .arc-track { stroke: rgba(10, 10, 14, 0.82); }
 /* Ticks: thin, with notches outside the outer arcs, in their colours. */
 .arc-tick { stroke-width: 2px; stroke-linecap: round; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
@@ -530,7 +534,7 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .arc-tick.flight { stroke: var(--arc-flight); }
 .arc-tick.shielded { stroke: var(--arc-shield); }
 /* The damage trail: HP just lost, pale, shrinking away after a moment. */
-.arc-trail { fill: none; stroke: color-mix(in srgb, var(--arc-hp) 45%, #fff); opacity: 0.8; stroke-linecap: round; transition: stroke-dasharray 0.45s ease-in; }
+.arc-trail { fill: none; stroke: color-mix(in srgb, var(--arc-hp) 45%, #fff); opacity: 0.8; stroke-linecap: round; transition: stroke-dasharray 0.45s steps(9); }
 .look-segmented .arc-trail { stroke-linecap: butt; }
 /* Segmented: cut into cells, square ended. */
 .look-segmented .arc-track, .look-segmented .arc-fill, .look-segmented .arc-shield { stroke-linecap: butt; }
@@ -585,9 +589,7 @@ body[data-look="round"] .ab-slot { border-radius: 50%; }
 .ab-slot.buff .ab-time { font-size: 0.8em; }
 .ab-charges { position: absolute; right: 0.15em; bottom: 0; color: #fff; font-size: 0.75em; font-weight: 700; text-shadow: 0 0 3px #000, 0 0 3px #000; }
 /* Ready again: a glow for a moment. */
-.ab-slot.glow, .ab-bar-slot.glow { box-shadow: 0 0 0 2px var(--accent), 0 0 0.8em 0.1em var(--accent); animation: ab-glow 0.6s ease-in-out 2 alternate; }
-@keyframes ab-glow { to { box-shadow: 0 0 0 2px var(--accent-2), 0 0 1.2em 0.3em var(--accent-2); } }
-@media (prefers-reduced-motion: reduce) { .ab-slot.glow, .ab-bar-slot.glow { animation: none; } }
+.ab-slot.glow, .ab-bar-slot.glow { box-shadow: 0 0 0 2px var(--accent), 0 0 1em 0.2em var(--accent); }
 /* Bars look: one row each. */
 body[data-look="bars"] .ab-row { flex-direction: column; flex-wrap: nowrap; }
 .ab-bar-slot { position: relative; display: flex; align-items: center; gap: 0.35em; border-radius: 0.25em; }
@@ -753,9 +755,9 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bar-slot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
 .bar-slot.on::after { box-shadow: inset 0 0 0 2px var(--ab-running); }
 .bar-slot.debuff.on::after { box-shadow: inset 0 0 0 2px var(--ab-cooling); }
-.bar-slot.glow, .bar-line.glow { box-shadow: 0 0 0 2px var(--ab-ready), 0 0 0.8em 0.1em var(--ab-ready); animation: bar-glow 0.6s ease-in-out 2 alternate; }
-@keyframes bar-glow { to { box-shadow: 0 0 0 2px var(--ab-ready), 0 0 1.2em 0.3em var(--ab-ready); } }
-@media (prefers-reduced-motion: reduce) { .bar-slot.glow, .bar-line.glow { animation: none; } }
+/* Ready again: a glow for a moment, still (a shadow that grows and shrinks has the page,
+   and the whole overlay with it, drawn again for every frame of the screen it lasts). */
+.bar-slot.glow, .bar-line.glow { box-shadow: 0 0 0 2px var(--ab-ready), 0 0 1em 0.2em var(--ab-ready); }
 /* Timer bars. */
 .bar[data-look="bars"] .bar-row { flex-direction: column; }
 .bar[data-look="bars"].vertical { flex-direction: column; }
@@ -792,9 +794,12 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .pin.up .pin-ring, .pin.on .pin-ring { box-shadow: 0 0 0 2.5px var(--pin-on); color: var(--pin-on); }
 .pin.soon .pin-ring { box-shadow: 0 0 0 2.5px var(--pin-soon); color: var(--pin-soon); }
 .pin.stale .pin-ring { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18); opacity: 0.6; }
-.pin.alert .pin-ring { animation: pin-alert 1s ease-in-out infinite alternate; }
-@keyframes pin-alert { to { box-shadow: 0 0 0 3px var(--pin-soon), 0 0 0.9em 0.2em var(--pin-soon); } }
-@media (prefers-reduced-motion: reduce) { .pin.alert .pin-ring { animation: none; box-shadow: 0 0 0 3px var(--pin-soon); } }
+/* (The pulse is a layer of its own fading in and out, which is animated without the page
+   being drawn again; a shadow growing isn't.) */
+.pin.alert .pin-ring { position: relative; }
+.pin.alert .pin-ring::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 3px var(--pin-soon), 0 0 0.9em 0.2em var(--pin-soon); opacity: 0; will-change: opacity; animation: pin-alert 1s ease-in-out infinite alternate; }
+@keyframes pin-alert { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pin.alert .pin-ring { box-shadow: 0 0 0 3px var(--pin-soon); } .pin.alert .pin-ring::after { content: none; } }
 .pin-time { font-weight: 700; font-size: calc(var(--pin) * 0.32); font-variant-numeric: tabular-nums; text-shadow: 0 0 3px #000, 0 0 3px #000; line-height: 1.1; }
 .pin.up .pin-time, .pin.on .pin-time { color: var(--pin-on); }
 .pin-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(var(--pin) * 0.26); color: var(--muted); text-shadow: 0 0 3px #000, 0 0 3px #000; }
@@ -813,7 +818,7 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 
 /* Party frames' extras (party.js): the damage trail under the fill, the buffs you put on a
    member and their debuffs (rimmed red), the one your target's attacking, a dead member. */
-.fr-trail { position: absolute; inset: 0 auto 0 0; background: rgba(255, 255, 255, 0.28); transition: width 0.5s ease-out; }
+.fr-trail { position: absolute; inset: 0 auto 0 0; background: rgba(255, 255, 255, 0.28); transition: width 0.5s steps(10); }
 .fr-effects { position: absolute; left: 0.4em; bottom: 0.35em; display: flex; gap: 2px; }
 .frame.has-effects { height: 3.1em; }
 .fr-effect { position: relative; width: 1.15em; height: 1.15em; border-radius: 0.2em; overflow: hidden; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
@@ -822,8 +827,11 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .fr-effect.debuff { box-shadow: 0 0 0 1.5px var(--bad, #f87070); }
 .fr-effect-time, .fr-effect-stacks { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 0.62em; font-weight: 700; text-shadow: 0 0 2px #000, 0 0 2px #000; }
 .fr-effect-stacks { inset: auto 0 0 auto; place-items: end; font-size: 0.55em; }
-.frame.targeted { box-shadow: inset 0 0 0 2px var(--bad, #f87070); animation: fr-targeted 0.9s ease-in-out infinite alternate; }
-@keyframes fr-targeted { to { box-shadow: inset 0 0 0 2px var(--bad, #f87070), 0 0 0.6em 0.05em var(--bad, #f87070); } }
-@media (prefers-reduced-motion: reduce) { .frame.targeted { animation: none; } }
+/* (Its pulse is a glow inside the rim, a layer of its own fading in and out: animated
+   without the page being drawn again.) */
+.frame.targeted { box-shadow: inset 0 0 0 2px var(--bad, #f87070); }
+.frame.targeted::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0.7em 0.15em var(--bad, #f87070); opacity: 0; will-change: opacity; animation: fr-targeted 0.9s ease-in-out infinite alternate; }
+@keyframes fr-targeted { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .frame.targeted::after { content: none; } }
 .fr-target { position: absolute; right: 0.4em; bottom: 0.3em; font-size: 0.85em; color: var(--bad, #f87070); text-shadow: 0 0 2px #000; }
 .frame.dead { filter: grayscale(1); opacity: 0.65; }

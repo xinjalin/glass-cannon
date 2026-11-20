@@ -27,6 +27,11 @@ pub const OPCODE_PARTY_LEFT: u16 = 0x9213;
 pub const OPCODE_GROUP_ROSTER: u16 = 0x9702;
 /// One member joining that group.
 pub const OPCODE_GROUP_JOIN: u16 = 0x970b;
+/// The group's leader moved a member to another slot: u8 2, then the two slots that
+/// changed, each a group roster entry with its new slot, or 36 bytes with `00` for its
+/// flags when it's now empty (a move to a free slot; a swap is two entries). No roster
+/// follows: in the capture of 2026-11-20 the next came 62 s after eight moves.
+pub const OPCODE_GROUP_MOVED: u16 = 0x972d;
 /// Someone joined your party, or a member came back online: one party roster entry
 /// (Questlog's PartyAddMember and PartyReconnectMember). In the capture of 2026-10-24 two
 /// joined a party this way before a dungeon, after its roster.
@@ -152,6 +157,8 @@ pub struct Registry {
     /// In a dungeon (its state sent since the map last changed): a party-finder group's
     /// ready marks are over then.
     in_dungeon: bool,
+    /// Your group is a Sanctuary's room (more than one party), as its last roster said.
+    room: bool,
 }
 
 /// What a player's spawn says of them, besides their name and combat power.
@@ -374,6 +381,13 @@ impl Registry {
         change
     }
 
+    /// A group in its slots' order, as its roster lists it (when every member has one).
+    fn sort_by_slot(&mut self) {
+        if self.party.iter().all(|m| m.slot.is_some()) {
+            self.party.sort_by_key(|m| m.slot);
+        }
+    }
+
     fn observe_message(&mut self, opcode: u16, payload: &[u8]) -> Option<Change> {
         match opcode {
             crate::state::OPCODE_STAGGER => {
@@ -442,7 +456,9 @@ impl Registry {
                 Some(Change::PlayerNamed { id, name })
             }
             OPCODE_PARTY_ROSTER | OPCODE_GROUP_ROSTER => {
-                let mut members = parse_roster(payload, opcode == OPCODE_GROUP_ROSTER);
+                let group = opcode == OPCODE_GROUP_ROSTER;
+                let room = group && group_capacity(payload).is_some_and(|c| c > PARTY_SLOTS);
+                let mut members = parse_roster_in(payload, group, room);
                 if self.in_dungeon {
                     for m in &mut members {
                         m.ready = None;
@@ -456,6 +472,7 @@ impl Registry {
                 if !ours {
                     return None;
                 }
+                self.room = room || members.iter().any(|m| m.slot.is_some_and(|s| s > PARTY_SLOTS));
                 // Keep what member updates told us that this roster doesn't say.
                 for m in &mut members {
                     if let Some(old) = self.party.iter().find(|o| o.character == m.character) {
@@ -480,7 +497,15 @@ impl Registry {
             }
             OPCODE_GROUP_JOIN | OPCODE_PARTY_ADD_MEMBER | OPCODE_PARTY_RECONNECT => {
                 let before = self.party.len();
-                for mut m in parse_roster(payload, opcode == OPCODE_GROUP_JOIN) {
+                let group = opcode == OPCODE_GROUP_JOIN;
+                // Your own party's news while the list is a party-finder group's (its
+                // members have slots): someone in your party, back from another map, isn't
+                // in the group for that (the capture of 2026-11-20: two who'd left the room
+                // came back into its list this way, until its next roster).
+                if !group && self.party.iter().any(|m| m.slot.is_some()) {
+                    return None;
+                }
+                for mut m in parse_roster_in(payload, group, group && self.room) {
                     if self.in_dungeon {
                         m.ready = None;
                     }
@@ -488,7 +513,23 @@ impl Registry {
                         self.party.push(m);
                     }
                 }
+                if group {
+                    self.sort_by_slot();
+                }
                 (self.party.len() != before).then_some(Change::PartyChanged { members: self.party.len() })
+            }
+            OPCODE_GROUP_MOVED => {
+                // Who's where now; the same members, so nothing else changes.
+                for m in parse_roster_in(payload, true, self.room) {
+                    let Some(old) = self.party.iter_mut().find(|o| o.character == m.character) else { continue };
+                    old.slot = m.slot.or(old.slot);
+                    old.leader = m.leader;
+                    if !self.in_dungeon {
+                        old.ready = m.ready;
+                    }
+                }
+                self.sort_by_slot();
+                None
             }
             OPCODE_PARTY_MEMBER => {
                 let u = parse_member_update(payload)?;
@@ -772,6 +813,25 @@ pub fn parse_death(p: &[u8]) -> Option<Death> {
 /// to 10) has `0x10` set all along, readying up included (the captures of 2026-11-07 and
 /// 11-13): its start is the dungeon's (see `Registry::observe`).
 pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
+    parse_roster_in(p, group, false)
+}
+
+/// A party's slots in a group: a room's second party is slots 6 to 10.
+pub const PARTY_SLOTS: u8 = 5;
+
+/// How many slots a group roster (`0x9702`) says the group has: after its u32 ID and its
+/// title (u8 length, text), a u8: 5 for an expedition's group, 10 for a Sanctuary's room
+/// (then the u32 map, 2 bytes, the leader's ID and server, 3 bytes, and the number of
+/// entries, empty slots among them).
+pub fn group_capacity(p: &[u8]) -> Option<u8> {
+    let title = usize::from(*p.get(4)?);
+    p.get(5 + title).copied().filter(|c| (1..=20).contains(c))
+}
+
+/// [`parse_roster`], for entries known to be a room's (`room`): a room with only its first
+/// party's slots taken looks like an expedition's group otherwise, and so does the one
+/// entry of a member joining or moved.
+pub fn parse_roster_in(p: &[u8], group: bool, room: bool) -> Vec<PartyMember> {
     // Where each entry starts and its name ends; an entry's other fields run to the next.
     let mut found: Vec<(usize, String, usize)> = Vec::new();
     let mut i = 0;
@@ -786,7 +846,7 @@ pub fn parse_roster(p: &[u8], group: bool) -> Vec<PartyMember> {
     }
     let head_at = |start: usize| start.checked_sub(2).map(|f| (p[f], p[f + 1])).filter(|(flags, _)| group && flags & 0x0c == 0x0c);
     // A Sanctuary's room: more than one party's slots.
-    let room = found.iter().any(|(start, _, _)| head_at(*start).is_some_and(|(_, slot)| slot > 5));
+    let room = room || found.iter().any(|(start, _, _)| head_at(*start).is_some_and(|(_, slot)| slot > PARTY_SLOTS));
     let mut members: Vec<PartyMember> = Vec::new();
     for (k, (start, name, end)) in found.iter().enumerate() {
         if members.iter().any(|m| &m.name == name) {
@@ -1106,6 +1166,92 @@ pub(crate) mod tests {
         r.observe(OPCODE_GROUP_ROSTER, &room(3));
         assert_eq!(r.party()[1].ready, Some(false));
         assert_eq!(r.party()[2].ready, Some(true));
+    }
+
+    /// A group roster's entry as the capture of 2026-11-20 has it (the names are made up).
+    fn room_entry(flags: u8, slot: u8, id: u32, name: &str) -> Vec<u8> {
+        let mut p = vec![flags, slot];
+        p.extend(id.to_le_bytes());
+        p.extend(hex("00 00 c7 09"));
+        p.push(name.len() as u8);
+        p.extend(name.as_bytes());
+        p.extend(hex("1c 00 00 00 2d 00 00 00 09 0c 00 00 c7 09 c7 09 04 21 42 03 00 00 00 00 00 01 02 01 00 00 00 4f 01 00 00 00 00 00 00 01 02"));
+        p
+    }
+
+    /// An empty slot there: 36 bytes.
+    fn empty_slot(slot: u8) -> Vec<u8> {
+        let mut p = vec![0, slot];
+        p.extend([0; 21]);
+        p.extend([2, 4]);
+        p.extend([0; 11]);
+        p
+    }
+
+    /// A room's roster (ten slots) with these members, the rest empty.
+    fn room_roster(members: &[(u8, u8, u32, &str)]) -> Vec<u8> {
+        let mut p = hex("41 71 07 00 06 54 49 45 52 31 2e 0a 12 28 09 00 00 03 e9 03 00 00 00 00 c7 09 3f 02 00 0a");
+        for slot in 1..=10u8 {
+            match members.iter().find(|m| m.1 == slot) {
+                Some((flags, slot, id, name)) => p.extend(room_entry(*flags, *slot, *id, name)),
+                None => p.extend(empty_slot(slot)),
+            }
+        }
+        p
+    }
+
+    fn slots(r: &Registry) -> Vec<(u8, &str, Option<bool>)> {
+        r.party().iter().map(|m| (m.slot.unwrap(), m.name.as_str(), m.ready)).collect()
+    }
+
+    #[test]
+    fn a_rooms_leader_moving_members_between_its_parties() {
+        // The room as we joined it in the capture: five in the first party's slots. Its
+        // header says ten slots, so it's a room (ready marks, two parties) from the start.
+        let mut r = Registry::default();
+        r.observe(OPCODE_SELF_SPAWN, &with_name("cb 1c 5f 81 c1 28 37", "Mine", ""));
+        let first = [(0x1c, 1, 1001, "Lead"), (0x1c, 2, 1002, "Bravo"), (0x1e, 3, 1003, "Carol"), (0x1c, 4, 1004, "Delta"), (0x1c, 5, 1005, "Mine")];
+        assert_eq!(group_capacity(&room_roster(&first)), Some(10));
+        r.observe(OPCODE_GROUP_ROSTER, &room_roster(&first));
+        assert_eq!(slots(&r), [(1, "Lead", None), (2, "Bravo", Some(false)), (3, "Carol", Some(true)), (4, "Delta", Some(false)), (5, "Mine", Some(false))]);
+        // One joins the second party; another, then, the first's free slot.
+        r.observe(OPCODE_GROUP_JOIN, &room_entry(0x1c, 6, 1006, "Echo"));
+        // Bravo to slot 10 (slot 2 is empty now), then us to slot 8: no roster follows.
+        let mut moved = vec![2];
+        moved.extend(empty_slot(2));
+        moved.extend(room_entry(0x1c, 10, 1002, "Bravo"));
+        assert_eq!(r.observe(OPCODE_GROUP_MOVED, &moved), None);
+        let mut moved = vec![2];
+        moved.extend(empty_slot(5));
+        moved.extend(room_entry(0x1e, 8, 1005, "Mine"));
+        r.observe(OPCODE_GROUP_MOVED, &moved);
+        assert_eq!(
+            slots(&r),
+            [(1, "Lead", None), (3, "Carol", Some(true)), (4, "Delta", Some(false)), (6, "Echo", Some(false)), (8, "Mine", Some(true)), (10, "Bravo", Some(false))]
+        );
+        // A swap: both slots' new members.
+        let mut swap = vec![2];
+        swap.extend(room_entry(0x1c, 3, 1004, "Delta"));
+        swap.extend(room_entry(0x1e, 4, 1003, "Carol"));
+        r.observe(OPCODE_GROUP_MOVED, &swap);
+        r.observe(OPCODE_GROUP_JOIN, &room_entry(0x1c, 2, 1007, "Fox"));
+        assert_eq!(slots(&r).iter().map(|s| (s.0, s.1)).collect::<Vec<_>>(), [(1, "Lead"), (2, "Fox"), (3, "Delta"), (4, "Carol"), (6, "Echo"), (8, "Mine"), (10, "Bravo")]);
+        // The first party has four, the second three: as the roster says when it comes.
+        let later = [(0x1c, 1, 1001, "Lead"), (0x1c, 2, 1007, "Fox"), (0x1c, 3, 1004, "Delta"), (0x1e, 4, 1003, "Carol"), (0x1c, 6, 1006, "Echo"), (0x1e, 8, 1005, "Mine"), (0x1c, 10, 1002, "Bravo")];
+        let before: Vec<_> = r.party().to_vec();
+        r.observe(OPCODE_GROUP_ROSTER, &room_roster(&later));
+        assert_eq!(r.party(), before);
+        // Someone in your own party (not in the room) back from another map isn't the room's.
+        let mut back = hex("03 04 ff 13 00 00 c7 09 c7 09 24 41 31 43 00");
+        back.extend(&room_entry(0, 0, 1099, "Golf")[2..]);
+        assert_eq!(r.observe(OPCODE_PARTY_RECONNECT, &back), None);
+        assert_eq!(r.party().len(), 7);
+        // Once out of the group, your party's members come as before.
+        r.observe(OPCODE_GROUP_LEFT, &hex("00 00"));
+        assert!(r.observe(OPCODE_PARTY_RECONNECT, &back).is_some());
+        // A room's entry on its own reads as a room's only while the group is one.
+        assert_eq!(parse_roster(&room_entry(0x1c, 4, 1004, "Delta"), true)[0].ready, None);
+        assert_eq!(parse_roster_in(&room_entry(0x1c, 4, 1004, "Delta"), true, true)[0].ready, Some(false));
     }
 
     #[test]

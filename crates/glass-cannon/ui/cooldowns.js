@@ -25,8 +25,7 @@ function short(ms) {
 }
 
 function drawList(rows) {
-  const list = $("list");
-  list.replaceChildren();
+  const items = [];
   for (const c of rows) {
     const label = c.name || `#${c.skill}`;
     const li = el("li", "cd" + (c.remaining_ms < 3000 ? " soon" : ""));
@@ -35,13 +34,14 @@ function drawList(rows) {
     if (c.charges != null) name.append(el("span", "cd-charges", ` ×${c.charges}`));
     const bar = el("div", "cd-bar");
     const fill = el("div", "cd-fill");
-    fill.style.width = `${Math.min(100, (c.remaining_ms / Math.max(1, c.duration_ms)) * 100)}%`;
+    fill.style.width = `${Math.round(Math.min(100, (c.remaining_ms / Math.max(1, c.duration_ms)) * 100) * 2) / 2}%`;
     bar.append(fill);
     main.append(name, bar);
     li.append(iconFor(c.icon_key, label, refresh), main, el("span", "cd-time", seconds(c.remaining_ms)));
     li.title = `${label}: ${(c.duration_ms / 1000).toFixed(1)} s cooldown` + (c.charges != null ? ` · ${c.charges} charge${c.charges === 1 ? "" : "s"} left` : "");
-    list.append(li);
+    items.push(li);
   }
+  morph($("list"), items);
 }
 
 // ---------------------------------------------------------------- timeline
@@ -215,7 +215,7 @@ async function refresh() {
   $("list-view").hidden = timeline;
   if (timeline) {
     drawTimeline(rows);
-  } else {
+  } else if (!unchanged("list", rows)) {
     drawList(rows);
     $("empty").hidden = rows.length > 0;
   }
@@ -239,7 +239,7 @@ function setLook(l) {
 
 invoke("cooldowns_look").then(setLook).catch(() => {});
 tauri.event.listen("cooldowns-look", (e) => setLook(e.payload));
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();

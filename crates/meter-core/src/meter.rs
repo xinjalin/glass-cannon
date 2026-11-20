@@ -944,6 +944,9 @@ pub struct Meter {
     died: HashMap<u64, u64>,
     /// Bosses that just wiped you, and when (kept [`AFTER_WIPE_TICK_US`]).
     wiped: HashMap<u64, u64>,
+    /// When the last boss fight ended in a kill or a wipe: what began before it (a cast, an
+    /// effect) is no mechanic to warn of any more.
+    mechanics_from_us: u64,
     /// When bosses go berserk (ms since 1970).
     berserk: HashMap<u64, u64>,
     /// The game's pings coming back: (arrival, when the client sent it on its clock).
@@ -982,6 +985,8 @@ pub struct Meter {
     shields: crate::shields::Shields,
     /// Hidden cubes in view.
     cubes: crate::cubes::Cubes,
+    /// The arena match you're in.
+    arena: crate::arena::Arena,
     /// Your pets' souls.
     pets: crate::pets::Pets,
     /// Your skins and wings.
@@ -1029,6 +1034,7 @@ impl Meter {
             combat: HashMap::new(),
             died: HashMap::new(),
             wiped: HashMap::new(),
+            mechanics_from_us: 0,
             berserk: HashMap::new(),
             pings: VecDeque::new(),
             cooldowns: Cooldowns::default(),
@@ -1048,6 +1054,7 @@ impl Meter {
             shields: crate::shields::Shields::default(),
             gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
+            arena: crate::arena::Arena::default(),
             pets: crate::pets::Pets::default(),
             collection: crate::collection::Collection::default(),
             positions: crate::positions::Positions::default(),
@@ -1097,8 +1104,11 @@ impl Meter {
         if self.mechanics.is_empty() {
             return Vec::new();
         }
-        let from = now_us.saturating_sub(crate::mechanics::LOOK_BACK_US);
-        let effects = self.effects.spans(from, now_us);
+        // Nothing from before the last kill or wipe: the fight it was part of is over (Ludra's
+        // Trial stayed up after a wipe on 2026-11-20, the cast that ends it never coming).
+        let from = now_us.saturating_sub(crate::mechanics::LOOK_BACK_US).max(self.mechanics_from_us);
+        let mut effects = self.effects.spans(from, now_us);
+        effects.retain(|s| s.start_us >= self.mechanics_from_us);
         let casts: Vec<crate::mechanics::CastSeen> = self
             .boss_log
             .iter()
@@ -1221,6 +1231,12 @@ impl Meter {
     /// Hidden cubes in view, and how far and which way while your position is known.
     pub fn cubes(&self, now_us: u64) -> Vec<crate::cubes::CubeView> {
         self.cubes.view(now_us)
+    }
+
+    /// The full-screen screen of an arena match the game is showing (its line-up, its
+    /// result), if it is.
+    pub fn arena_screen(&self, now_us: u64) -> Option<crate::arena::ArenaScreen> {
+        self.arena.screen(now_us)
     }
 
     /// How many hidden cube keys you have, when known (see [`crate::cubes::Cubes::keys`]).
@@ -1371,6 +1387,7 @@ impl Meter {
         self.latest_us = self.latest_us.max(ts_us);
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         self.cubes.feed(ts_us, opcode, payload);
+        self.arena.feed(ts_us, opcode, payload);
         self.pets.feed(opcode, payload);
         self.collection.feed(opcode, payload);
         self.positions.feed(ts_us, opcode, payload, self.registry.self_id());
@@ -2155,6 +2172,10 @@ impl Meter {
                 self_name: self.registry.self_name().map(str::to_string),
                 analysis: self.analyse(enc, false, now_us),
             });
+        }
+        if matches!(end, FightEnd::Kill | FightEnd::Wipe) && self.counted_targets(enc).into_iter().any(|t| self.is_boss(t)) {
+            self.mechanics_from_us = now_us;
+            self.mechanics.fight_over();
         }
         if end == FightEnd::Wipe {
             let bosses: Vec<u64> = self.counted_targets(enc).into_iter().filter(|t| self.is_boss(*t)).collect();
@@ -3599,6 +3620,24 @@ mod tests {
         assert!(ends(&mut m).is_empty());
         m.feed(5 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
         assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+    }
+
+    #[test]
+    fn a_wipe_ends_the_mechanics_going_on() {
+        let mut m = meter_with_boss();
+        // Ludra's Trial: on until a cast that never comes once everyone's dead.
+        let book = r#"{ "mechanics": [{ "id": "trial", "when": { "kind": "cast", "skills": [1803010], "until": [1803000] }, "what": "Trial", "say": "find the safe tile", "max_s": 45 }] }"#;
+        m.set_mechanics(serde_json::from_str(book).unwrap());
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(BOSS, 71_643));
+        m.feed(3 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_803_010, ME, 3000));
+        assert_eq!(m.mechanics(4 * S).len(), 1);
+        m.feed(5 * S, hp::OPCODE_HP, &hp_update(BOSS, 119_700));
+        assert_eq!(ends(&mut m), [FightEnd::Wipe]);
+        assert!(m.mechanics(6 * S).is_empty(), "the warning went with the fight");
+        // The next try's own trial warns again.
+        m.feed(40 * S, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 1_803_010, ME, 3000));
+        assert_eq!(m.mechanics(41 * S).len(), 1);
     }
 
     #[test]

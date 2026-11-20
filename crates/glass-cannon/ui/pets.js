@@ -119,7 +119,7 @@ $("nearest").addEventListener("click", async () => {
   refresh();
 });
 
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();

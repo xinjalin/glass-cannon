@@ -52,7 +52,10 @@ function classIconUrl(code) {
   if (!classIcons.has(code)) {
     classIcons.set(code, null);
     invoke("class_icon", { code })
-      .then((url) => classIcons.set(code, url))
+      .then((url) => {
+        classIcons.set(code, url);
+        lastSeen.clear();
+      })
       .catch(() => {});
   }
   return classIcons.get(code);
@@ -82,6 +85,9 @@ async function refresh() {
   } catch {
     return;
   }
+  // Nothing new (the time to its enrage counts down by itself): the frame stays as it is.
+  const enrageIn = t && t.berserk_us ? Math.round((t.berserk_us / 1000 - Date.now()) / 500) : null;
+  if (unchanged("target", [t, enrageIn, setup])) return;
   $("frame").hidden = !t;
   $("empty").hidden = !!t;
   if (!t) return;
@@ -130,9 +136,9 @@ async function refresh() {
   }
 }
 
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 tauri.event.listen("target-setup", (e) => {
   if (e.payload) setup = e.payload;
   applySetup();

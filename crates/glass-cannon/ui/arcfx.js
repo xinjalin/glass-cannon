@@ -5,7 +5,9 @@
 // "fx-host" for the canvas; it calls layoutFx as it lays its arcs out, sets fxShare as it
 // draws them, and fxColours and runFx as its look changes. An arc's effect follows its fill
 // unless its part has an `fxPath` (another path to follow: the cast bar's rim) and an
-// `fxSide` ("up" or "down": which way is out from a level line).
+// `fxSide` ("up" or "down": which way is out from a level line). A stretch of an arc that
+// isn't its fill (the shield over the HP arc) has the effect in its own colour: the page
+// names it in `fxOn` and sets where it is in `fxSpan` as it draws.
 
 // Notches across the cast at each of a charge's levels but the last (the bar's end), those
 // up to `filled` (0-100) only when given; each `wide` hundredths of the cast wide.
@@ -60,12 +62,19 @@ const fxShare = {};
 // The arcs that can have an effect, by key (their colours are --arc-<key> on #arcs): the
 // vitals arcs' four; the cast bar widget's is its bar.
 let fxKeys = ["hp", "stamina", "mp", "flight"];
+// Stretches of an arc with the effect in a colour of their own (--arc-<key>, one of
+// `fxKeys`): each one's key and the arc it's on; and where each is now, as drawn: [where it
+// starts, how long it is], in shares of its arc (null: none).
+let fxOn = {};
+const fxSpan = {};
 // Each side arc's points (bottom to top), their way out and up, how thick and long it is;
 // what each effect draws with, in each arc's colour.
 let fxArcs = [];
 let fxSprites = {};
 let fxFs = 13;
 let fxRaf = 0;
+// The wait for the next frame's turn.
+let fxWait = 0;
 let fxLast = 0;
 // The effect's own time (ms), running at its speed.
 let fxClock = 0;
@@ -191,7 +200,16 @@ function layoutFx(arcs, layers, g) {
       pts.push({ x: p.x, y: p.y, nx, ny, tx: dx / n, ty: dy / n });
     }
     // The same arc as before, laid out again: the pieces on it stay on it.
-    fxArcs.push(Object.assign(before.get(k) || { key: k }, { pts, width: arcs[k][1], out, len }));
+    fxArcs.push(Object.assign(before.get(k) || { key: k }, { pts, width: arcs[k][1], out, len, from: 0, part: 1 }));
+  }
+  // The stretches on those arcs: their points are set as they're drawn (fxStretches), anew
+  // after this (nowhere is a place no stretch starts). Until then one keeps those it had,
+  // for the pieces still on it.
+  for (const [k, on] of Object.entries(fxOn)) {
+    const host = fxArcs.find((a) => a.key === on);
+    if (!host) continue;
+    const a = before.get(k) || { key: k, pts: [], store: Array.from({ length: FX_POINTS }, () => ({ x: 0, y: 0, nx: 0, ny: 0, tx: 0, ty: 0 })), len: 0, part: 1 };
+    fxArcs.push(Object.assign(a, { host, width: host.width, out: host.out, from: -1 }));
   }
   // Pieces on an arc that's gone go with it.
   for (let i = 0; i < fxLive; ) {
@@ -205,6 +223,35 @@ function layoutFx(arcs, layers, g) {
     fxLive--;
   }
   if (calm.matches) fxStill();
+}
+
+// Each stretch as it is now: an arc of its own for the effect, its points its arc's from
+// where it starts, as far apart as its arc's (so what's set along it is as close together,
+// and slides along with it), filled as far as it goes. `part` is how much of its arc those
+// points cover, `from` where they start: what an effect has in shares of an arc is of the
+// whole arc's, whichever it's on.
+function fxStretches() {
+  const step = 1 / (FX_POINTS - 1);
+  for (const a of fxArcs) {
+    if (!a.host) continue;
+    const span = fxSpan[a.key];
+    if (!span || !(span[1] > 0.002)) {
+      fxShare[a.key] = null;
+      continue;
+    }
+    const [from, long] = span;
+    const n = Math.min(FX_POINTS - 1, Math.max(1, Math.ceil(long / step - 1e-6)));
+    fxShare[a.key] = Math.min(1, long / (n * step));
+    if (a.pts.length === n + 1 && a.from === from) continue;
+    a.from = from;
+    a.part = n * step;
+    a.len = a.host.len * a.part;
+    a.pts.length = 0;
+    for (let i = 0; i <= n; i++) {
+      at(a.host, from + i * step);
+      a.pts.push(Object.assign(a.store[i], P));
+    }
+  }
 }
 
 // ---- what the effects draw with
@@ -311,7 +358,7 @@ function paintLightning(rgb) {
 }
 
 function spawnBolt(f, a, share) {
-  f.s = Math.min(share, rnd(0.12, 0.3));
+  f.s = Math.min(share, rnd(0.12, 0.3) / a.part);
   f.u = Math.random() * (share - f.s);
   f.life = rnd(0.16, 0.34);
   f.seed = Math.random() * 1000;
@@ -616,7 +663,7 @@ function stepBlood(x, f, a, s, t, dt, fs) {
       // Running down the arc, faster and faster, a thin trail behind it.
       f.s += fs * 5 * dt;
       f.u = Math.max(0, f.u - (f.s * dt) / a.len);
-      const from = Math.min(f.ox, f.u + 0.1);
+      const from = Math.min(f.ox, f.u + 0.1 / a.part);
       x.beginPath();
       for (let j = 0; j <= 4; j++) {
         at(a, from + ((f.u - from) * j) / 4);
@@ -935,8 +982,8 @@ function spawnWind(f, a, share, fs) {
   // Where its head is, how fast it goes and how long it is (in shares of the arc), how
   // far out from the arc.
   f.u = Math.random() * share * 0.9;
-  f.s = rnd(0.45, 0.85);
-  f.size = rnd(0.12, 0.24);
+  f.s = rnd(0.45, 0.85) / a.part;
+  f.size = rnd(0.12, 0.24) / a.part;
   f.ox = a.width * 0.5 + rnd(0.1, 1) * fs * 0.9 * reach;
   f.wob = Math.random() * 6.3;
   f.life = rnd(0.45, 0.85);
@@ -959,7 +1006,7 @@ function windPath(x, a, f, fs, from) {
   for (let j = 0; j <= WIND_STEPS; j++) {
     const u = f.u - f.size * from * (1 - j / WIND_STEPS);
     at(a, u);
-    const off = f.ox + Math.sin(u * 18 + f.wob) * fs * 0.08;
+    const off = f.ox + Math.sin(u * a.part * 18 + f.wob) * fs * 0.08;
     if (j === 0) x.moveTo(P.x + P.nx * off, P.y + P.ny * off);
     else x.lineTo(P.x + P.nx * off, P.y + P.ny * off);
   }
@@ -969,7 +1016,7 @@ function stepWind(x, f, a, s, t, dt, fs) {
   f.u += f.s * dt;
   // Gone past the fill's end.
   const share = fxShare[a.key] || 0;
-  const fade = Math.sin(Math.PI * t) * Math.max(0, Math.min(1, 1 - (f.u - share) / 0.04));
+  const fade = Math.sin(Math.PI * t) * Math.max(0, Math.min(1, 1 - ((f.u - share) * a.part) / 0.04));
   if (fade < 0.01) return;
   x.strokeStyle = s.line;
   x.lineCap = "round";
@@ -1265,17 +1312,18 @@ function paintPulse(rgb) {
 }
 
 function pulseGlow(x, a, s, last, share, now, fs) {
-  const quick = a.key === "hp" && fxLow ? 2.2 : 1;
+  const quick = (a.host || a).key === "hp" && fxLow ? 2.2 : 1;
   const breath = 0.5 + 0.5 * Math.sin(now * 0.0028 * quick + (a.out ? 0 : 0.9));
   const r = a.width * 1.2 + fs * 0.55;
   const waves = Math.round(fxStrength());
   const n = a.pts.length - 1;
   for (let i = 0; i <= last; i += 2) {
     const p = a.pts[i];
-    // How much of a wave is here: each runs up the whole arc, off its top, and comes round.
+    // How much of a wave is here: each runs up the whole arc (through a stretch on it, as
+    // it passes), off its top, and comes round.
     let wave = 0;
     for (let w = 0; w < waves; w++) {
-      const d = (i / n - (((now * 0.00035 * quick + w / waves) % 1.25) - 0.125)) / 0.07;
+      const d = (a.from + (i / n) * a.part - (((now * 0.00035 * quick + w / waves) % 1.25) - 0.125)) / 0.07;
       wave = Math.max(wave, Math.exp(-d * d));
     }
     x.globalAlpha = lit((a.out ? 0.16 : 0.1) * (0.35 + 0.65 * breath) + wave * (a.out ? 0.5 : 0.35));
@@ -1330,14 +1378,16 @@ function fxColours() {
 function runFx() {
   const on = !!FX[setup.effect];
   if (on && !document.hidden && !calm.matches) {
-    if (!fxRaf) {
+    if (!fxRaf && !fxWait) {
       fxLast = 0;
       fxRaf = requestAnimationFrame(fxFrame);
     }
     return;
   }
   if (fxRaf) cancelAnimationFrame(fxRaf);
+  clearTimeout(fxWait);
   fxRaf = 0;
+  fxWait = 0;
   fxLive = 0;
   if (on && calm.matches) fxStill();
   else {
@@ -1355,6 +1405,7 @@ function fxStill() {
   fxClear(c, x);
   if (!fx) return;
   fxGain = fxBrightness();
+  fxStretches();
   for (const a of fxArcs) {
     const share = fxShare[a.key];
     const s = fxSprites[a.key];
@@ -1367,8 +1418,14 @@ function fxStill() {
 }
 
 function fxFrame(now) {
-  fxRaf = requestAnimationFrame(fxFrame);
-  if (fxLast && now - fxLast < 1000 / FX_FPS - 2) return;
+  // The next one when it's due (the frame of the screen after a wait), not by asking for
+  // every frame and leaving two of three alone: the page a widget is in, the overlay's
+  // too, goes through each frame asked for.
+  fxRaf = 0;
+  fxWait = setTimeout(() => {
+    fxWait = 0;
+    fxRaf = requestAnimationFrame(fxFrame);
+  }, 1000 / FX_FPS - 5);
   // The effect's time runs at its speed; its pieces are as big as its size has them.
   const dt = (fxLast ? Math.min(0.1, (now - fxLast) / 1000) : 0) * fxSpeed();
   fxLast = now;
@@ -1382,12 +1439,13 @@ function fxFrame(now) {
   const k = (setup.width || 100) / 100;
   const low = $("arcs").classList.contains("low");
   fxLow = low;
+  fxStretches();
   // New pieces along each arc's fill: as many to the arc's length whatever its thickness
   // (thicker pieces, fewer of them; more would only add up to white, losing its colour).
   for (const a of fxArcs) {
     const share = fxShare[a.key];
     if (!share || !fxSprites[a.key]) continue;
-    let n = (fx.rate * strength * share * (a.out ? 1 : 0.5) * (a.key === "hp" && low ? fx.low : 1) * dt) / Math.max(1, k);
+    let n = (fx.rate * strength * share * a.part * (a.out ? 1 : 0.5) * (a.key === "hp" && low ? fx.low : 1) * dt) / Math.max(1, k);
     while (n > 0 && fxLive < FX_MAX) {
       if (n < 1 && Math.random() > n) break;
       n -= 1;

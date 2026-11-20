@@ -122,6 +122,9 @@ async function refresh() {
   } catch {
     return;
   }
+  // Nothing new, and no trail waiting to come down: the frames stay as they are.
+  const trailing = [...trails.values()].some((t) => t.hold);
+  if (unchanged("frames", [frames, look]) && !trailing) return;
   applyLook();
   $("frames").replaceChildren(...sorted(frames).map(tile));
   $("empty").hidden = frames.length > 0;
@@ -137,7 +140,7 @@ tauri.event.listen("party-look", (e) => {
   if (e.payload) look = e.payload;
   refresh();
 });
-setInterval(() => {
+onTick(POLL_MS, () => {
   if (!document.hidden) refresh();
-}, POLL_MS);
+});
 refresh();

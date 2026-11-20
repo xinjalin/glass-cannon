@@ -70,6 +70,7 @@ const SETTINGS_KEYS: &[&str] = &[
     "boss_on_you",
     "cubes_need_key",
     "hide_for_menus",
+    "hide_for_arena",
     "click_through",
     "dummy_mode",
     "dummy_run_s",

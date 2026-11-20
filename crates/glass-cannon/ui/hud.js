@@ -730,17 +730,19 @@ function drawWarnings(elapsed) {
     // Just over: the same card, dimmed, a moment longer.
     show = { ...lastShown, cls: `${lastShown.cls} over`, time: lastShown.done || (lastShown.cls.includes("lands") ? "landed" : "now"), key: "" };
   }
-  box.hidden = !show;
+  // (Each written only as it changes: a text set to what it was still has the whole
+  // overlay drawn again.)
+  if (box.hidden !== !show) box.hidden = !show;
   if (!show) return;
-  box.className = show.cls;
-  $("warning-what").textContent = show.what;
+  if (box.className !== show.cls) box.className = show.cls;
+  setText($("warning-what"), show.what);
   const nameEl = $("warning-name");
   if (nameEl.textContent !== show.title || nameEl.dataset.cls !== show.cls) {
     nameEl.textContent = show.title;
     nameEl.dataset.cls = show.cls;
     fitLine(nameEl, box.parentElement.clientWidth);
   }
-  $("warning-time").textContent = show.time;
+  setText($("warning-time"), show.time);
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
@@ -763,10 +765,13 @@ function drawTimers(elapsed) {
       li.append(Object.assign(document.createElement("span"), { className: "left" }));
       list.append(li);
     }
-    li.className = `${c.danger ? "danger" : ""} ${left <= PRE_WARN_S ? "soon" : ""}`;
-    li.children[0].style.width = `${Math.max(0, Math.min(1, left / TIMER_SPAN_S)) * 100}%`;
-    li.children[1].textContent = castName(c);
-    li.children[2].textContent = left >= 60 ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}` : left.toFixed(left < 10 ? 1 : 0);
+    const cls = `${c.danger ? "danger" : ""} ${left <= PRE_WARN_S ? "soon" : ""}`;
+    if (li.className !== cls) li.className = cls;
+    // The bar by half a percent.
+    const width = `${Math.round(Math.max(0, Math.min(1, left / TIMER_SPAN_S)) * 200) / 2}%`;
+    if (li.children[0].style.width !== width) li.children[0].style.width = width;
+    setText(li.children[1], castName(c));
+    setText(li.children[2], left >= 60 ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}` : left.toFixed(left < 10 ? 1 : 0));
   });
 }
 
@@ -802,12 +807,15 @@ function drawCubes(cubes, sound) {
   );
 }
 
+// Twenty times a second (their times are in tenths), not with every frame of the screen:
+// each change here has the whole overlay drawn again.
+const FRAME_MS = 50;
 function frame() {
+  if (document.hidden) return;
   // Since the meter last sent the boss and its mechanics.
   const elapsed = performance.now() - bossAt;
   drawWarnings(elapsed);
   drawTimers(elapsed);
-  requestAnimationFrame(frame);
 }
 
 (async () => {
@@ -821,7 +829,7 @@ function frame() {
   await loadLayout();
   fading = new Set(await invoke("widgets_fading").catch(() => []));
   showWidgets(await invoke("widgets_shown").catch(() => []));
-  requestAnimationFrame(frame);
+  onTick(FRAME_MS, frame);
 })();
 
 // Sharing a setup from the arrange menu: all of it out, and in, what a file has (setup.rs).
