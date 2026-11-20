@@ -237,6 +237,9 @@ fn update_skills(src: &Source, dir: &Path, lang: &str, files: &HashSet<String>) 
         }
     }
     let kept = keep_custom(&dir.join("skills.json"), "skills", &mut skills);
+    // Icons the official ones stand in for aren't needed (see `replaced_icons`).
+    let replaced = replaced_icons(&skills, &official_bases(dir));
+    wanted.retain(|f| !replaced.contains(f));
 
     // Icons already in the folder are kept; the rest download a few at a time.
     let mut todo: Vec<String> = wanted.into_iter().filter(|f| !dir.join(f).is_file()).collect();
@@ -421,6 +424,37 @@ fn write_json(path: &Path, v: &Value) -> Result<()> {
     Ok(())
 }
 
+/// The class skills with an official icon (`skill-icons.json`, from `packet-lab
+/// skill-icons`), by base ID; none without the file.
+fn official_bases(dir: &Path) -> HashSet<u32> {
+    let Ok(text) = std::fs::read_to_string(dir.join("skill-icons.json")) else { return HashSet::new() };
+    let doc: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+    doc["icons"].as_object().into_iter().flatten().filter_map(|(id, _)| id.parse().ok()).collect()
+}
+
+/// NOIA2's icons the official ones stand in for: every skill that points at the file is a
+/// class skill whose base has an official icon (the app shows that one), and no mob's
+/// skill could fall back to it (mob skills without an icon take the one named after their
+/// ID's first four digits, which can be a class skill's: Ludra's 1801xxx and Onslaught's
+/// 1801.png).
+fn replaced_icons(skills: &BTreeMap<u32, Value>, official: &HashSet<u32>) -> HashSet<String> {
+    let mut covered: HashSet<String> = HashSet::new();
+    let mut needed: HashSet<String> = HashSet::new();
+    for (id, entry) in skills {
+        if (1000..10_000_000).contains(id) {
+            needed.insert(format!("{}.png", id / 1000));
+        }
+        let Some(file) = entry["icon"].as_str() else { continue };
+        if *id >= 10_000_000 && official.contains(&(id - id % 10_000)) {
+            covered.insert(file.to_string());
+        } else {
+            needed.insert(file.to_string());
+        }
+    }
+    covered.retain(|f| !needed.contains(f));
+    covered
+}
+
 /// The icon files NOIA2 may have for a skill, best first: one for the exact ID; for a
 /// Theostone (listed by its 8-digit effect ID, 30010151), the 7-digit skill ID the game
 /// sends (3001015); then its usual naming: 6-digit IDs as they are, otherwise the first
@@ -482,6 +516,28 @@ mod tests {
         fs::write(&file, r#"{ "noia2": "main", "ratmeter": "57974f81fd64dfca7e0f9d664765607ca20749c9" }"#).unwrap();
         assert!(Pins::read(&file).is_err());
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn official_icons_stand_in_for_noia2s() {
+        let skills: BTreeMap<u32, Value> = [
+            (18_010_000, json!({ "icon": "1801.png" })),
+            (18_010_340, json!({ "icon": "1801.png" })),
+            (18_020_000, json!({ "icon": "1802.png" })),
+            (18_030_000, json!({ "icon": "1803.png" })),
+            // A mob's skill with the class skill's file, and one whose fallback it would be.
+            (1_802_500, json!({ "icon": "1802.png" })),
+            (1_803_990, json!({ "name": "Attack" })),
+            // A class skill without an official icon keeps its file.
+            (18_040_000, json!({ "icon": "1804.png" })),
+        ]
+        .into_iter()
+        .collect();
+        let official: HashSet<u32> = [18_010_000, 18_020_000, 18_030_000].into_iter().collect();
+        let mut got: Vec<String> = replaced_icons(&skills, &official).into_iter().collect();
+        got.sort();
+        assert_eq!(got, ["1801.png"]);
+        assert!(replaced_icons(&skills, &HashSet::new()).is_empty());
     }
 
     #[test]
