@@ -51,6 +51,11 @@ pub fn run(shop_items: &Path, dir: &Path) -> Result<()> {
 
 /// Fetches the icons not in `dir` yet, a few at a time.
 pub fn fetch_all(icons: &BTreeSet<String>, dir: &Path) -> Result<()> {
+    fetch_all_sized(icons, dir, SIZE)
+}
+
+/// The same, shrunk to `size` pixels.
+pub fn fetch_all_sized(icons: &BTreeSet<String>, dir: &Path, size: u32) -> Result<()> {
     let wanted = icons.len();
     let had = icons.iter().filter(|icon| dir.join(file_for(icon)).exists()).count();
     let queue: Mutex<Vec<&str>> = Mutex::new(icons.iter().map(String::as_str).filter(|icon| !dir.join(file_for(icon)).exists()).collect());
@@ -65,7 +70,7 @@ pub fn fetch_all(icons: &BTreeSet<String>, dir: &Path) -> Result<()> {
                 let Some(icon) = queue.lock().expect("the queue").pop() else { return };
                 let out = dir.join(file_for(icon));
                 let part = dir.join(format!("{}.part", file_for(icon)));
-                let got = crate::item_icons::fetch_sized(&agent, icon, &part, SIZE)
+                let got = crate::item_icons::fetch_sized(&agent, icon, &part, size)
                     .and_then(|()| fs::rename(&part, &out).with_context(|| format!("naming {}", out.display())));
                 match got {
                     Ok(()) => {

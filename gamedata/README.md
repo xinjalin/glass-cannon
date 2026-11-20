@@ -8,7 +8,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 
 | file | from | licence |
 | --- | --- | --- |
-| `skills.json` (names), skill and class icons, `npcs.json` (bosses) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) | GPL-3.0 |
+| `skills.json` (names), class icons, mob skills' icons (`1604.png`, …, and the few class skills' with no official one), `npcs.json` (bosses) | [NOIA2](https://github.com/ZDYoung0519/NOIA2) | GPL-3.0 |
 | `npcs.json` (English mob names), extra names in `skills.json` | [RATmeter](https://github.com/Kuroukihime/AIon2-Dps-Meter) | GPL-3.0 |
 | `skill-details.json` (cooldowns, costs, descriptions, specialties) | [aion2.app](https://aion2.app/db/skills), compiled from NCSOFT's data | none: used without a licence |
 | `theostones.json` (Theostone grades, effects, cooldowns) | a scraped item database collected from public fan databases (the bundle names no sites) | none: used without a licence |
@@ -31,6 +31,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `boss-cast-defaults.json` (optional: the app's default boss cast names, and which warn and have a timer; an export from the boss casts window, `{ "casts": { "1803080": { "name": "tail swipe", "warn": true, "timer": false } } }`, put here to become everyone's start; each player's own choices still win) | a player's export, checked before it goes in | none (the IDs are NCSOFT's) |
 | `pet_<id>.png` (pet portraits, for the pet tracker) | NCSOFT's game asset server, by the bundle's pets' icon names | NCSOFT's artwork, used without a licence |
 | `Icon_*.png` (icons for what the Black Cloud Merchant sells and for gear, under each icon's own name: a skin and the gear it looks like share one) | NCSOFT's game asset server, by the icon names `shop-items.json` and `gear.json` keep from the bundle's items | NCSOFT's artwork, used without a licence |
+| `ICON_*_SKILL_*.png` and `skill-icons.json` (the official class skill icons, 96 px, by base skill ID: the app shows them over NOIA2's, for every variant of a skill) | NCSOFT's game asset server (`assets.playnccdn.com`), by the icon names in a scrape of [aion2.app](https://aion2.app/db/skills)'s skill database | NCSOFT's artwork, used without a licence |
 | `Icon_Item_Usable_*.png` and `item-icons.json` (icons for scroll, potion and food buffs) | NCSOFT's game asset server (`assets.playnccdn.com`), matched to skills by the bundle's item names | NCSOFT's artwork, used without a licence |
 
 The NOIA2 and RATmeter data stays under their GPL-3.0 licence (the release includes
@@ -50,6 +51,10 @@ sources aren't named; they're here on the same terms and will be removed on requ
   scrape of aion2.app's skill database.
 - Theostones: `packet-lab theostones <items.json> --scraped <date>` from a scraped item
   database with in-game descriptions. Theostones missing from `skills.json` are skipped.
+- Skill icons: `packet-lab skill-icons <skills scrape.json> --scraped <date>` downloads
+  each class skill's official icon at 96 px and writes `skill-icons.json`. Run it before
+  `update-data`, which then leaves out NOIA2's icons the official ones stand in for (those
+  only class skills with an official icon point at, and no mob skill falls back to).
 - Consumable icons: `packet-lab item-icons <items.json> --fetched <date>` downloads the
   icons of consumables whose buffs are named in `skills.json` but have no icon (64 px).
 - Dungeons: `packet-lab dungeons <monsters.json> <dungeons.json> --scraped <date>` from the
