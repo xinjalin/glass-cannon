@@ -751,10 +751,43 @@
             </button>
             <p class="hint" id="cube-keys-note"></p>
           </fieldset>
-          <!-- Sound: here in the window, and in the panels of the widgets that sound. -->
-          <fieldset class="box in-window" data-for="boss-warnings boss-timers cubes timers">
+          <!-- The boss warnings' own sound: in its panel on the overlay. -->
+          <fieldset class="box" data-for="boss-warnings">
             <legend>sound</legend>
-            <button id="alert-sound" data-keywords="audio chime volume beep mute noise sounds" type="button" class="opt" aria-pressed="false" title="Everything that sounds: each boss warning, the boss turning to you, each hidden cube that comes into view, each world timer alert (🔔), and the action bars' sounds">
+            <button type="button" class="opt" data-sound-widget="boss-warnings" aria-pressed="false" title="The boss warnings' own sound, on or off: everything else that sounds stays as it is">
+              <span class="key">sound</span><span class="state">[on]</span>
+            </button>
+            <div class="line" data-keywords="boss warning cast mechanic sound chime custom file">
+              <span class="key" title="A boss warning: a cast or a mechanic. A cast can have a sound of its own in the boss casts window">boss warning</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="boss" aria-label="The boss warnings' sound"></select><button type="button" data-hear-alert="boss" title="Hear it">[▶]</button></span>
+            </div>
+            <div class="line" data-keywords="boss on you aggro target sound chime custom file">
+              <span class="key" title="The boss you're fighting turns to attack you">boss on you</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="on_you" aria-label="The sound when the boss turns to you"></select><button type="button" data-hear-alert="on_you" title="Hear it">[▶]</button></span>
+            </div>
+            <p class="hint" data-sound-note></p>
+            <p class="hint warn" data-sound-master hidden>alert sound is off for everything (settings → alerts → sound): nothing sounds</p>
+            <p class="hint">Your sound files, the volume and every alert's sound are in settings → alerts → sound.</p>
+          </fieldset>
+          <!-- The hidden cubes' own sound: in its panel on the overlay. -->
+          <fieldset class="box" data-for="cubes">
+            <legend>sound</legend>
+            <button type="button" class="opt" data-sound-widget="cubes" aria-pressed="false" title="The hidden cubes' own sound, on or off: everything else that sounds stays as it is">
+              <span class="key">sound</span><span class="state">[on]</span>
+            </button>
+            <div class="line" data-keywords="hidden cube sound chime custom file">
+              <span class="key" title="A hidden cube comes into view">hidden cube</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="cube" aria-label="The hidden cubes' sound"></select><button type="button" data-hear-alert="cube" title="Hear it">[▶]</button></span>
+            </div>
+            <p class="hint" data-sound-note></p>
+            <p class="hint warn" data-sound-master hidden>alert sound is off for everything (settings → alerts → sound): nothing sounds</p>
+            <p class="hint">Your sound files, the volume and every alert's sound are in settings → alerts → sound.</p>
+          </fieldset>
+          <!-- Sound, for everything: in the settings window. Each widget that sounds has its
+               own part of it (above) in its panel on the overlay. -->
+          <fieldset class="box">
+            <legend>sound</legend>
+            <button id="alert-sound" data-keywords="audio chime volume beep mute noise sounds" type="button" class="opt" aria-pressed="false" title="Everything that sounds: each boss warning, the boss turning to you, each hidden cube that comes into view, each world timer alert (🔔), and the action bars' sounds. Each widget's own sound can be turned off by itself in its ⚙ panel on the overlay">
               <span class="key">alert sound</span><span class="state">[on]</span>
             </button>
             <div class="line" data-keywords="volume loud quiet louder quieter sound audio">
@@ -788,8 +821,8 @@
               <span class="choice" id="sound-files"></span>
             </div>
             <input id="sound-file" type="file" accept=".wav,.mp3,.ogg,.flac,.m4a,audio/*" hidden>
-            <p class="hint" id="sound-note"></p>
-            <p class="hint">A boss cast can have a sound of its own (boss casts), and an action bar one for a skill ready or an effect coming or going (its ⚙ → preferences).</p>
+            <p class="hint" id="sound-note" data-sound-note></p>
+            <p class="hint">Each widget that sounds has its own sound on or off, with its own sounds, in its ⚙ panel on the overlay. A boss cast can have a sound of its own (boss casts), and an action bar one for a skill ready or an effect coming or going (its ⚙ → preferences).</p>
           </fieldset>
           <fieldset class="box" data-for="timers timer-pins">
             <legend>world timers</legend>
@@ -814,6 +847,20 @@
                 <button type="button" data-lead-choice="15" title="15 minutes before">[15m]</button>
               </span>
             </div>
+          </fieldset>
+          <!-- The world timers' own sound: in its panel on the overlay. -->
+          <fieldset class="box" data-for="timers timer-pins">
+            <legend>sound</legend>
+            <button type="button" class="opt" data-sound-widget="timers" aria-pressed="false" title="The world timers' own sound, on or off: everything else that sounds stays as it is">
+              <span class="key">sound</span><span class="state">[on]</span>
+            </button>
+            <div class="line" data-keywords="world timer event field boss bell sound chime custom file">
+              <span class="key" title="A world timer's alert (🔔)">world timer</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="timer" aria-label="The world timers' sound"></select><button type="button" data-hear-alert="timer" title="Hear it">[▶]</button></span>
+            </div>
+            <p class="hint" data-sound-note></p>
+            <p class="hint warn" data-sound-master hidden>alert sound is off for everything (settings → alerts → sound): nothing sounds</p>
+            <p class="hint">Your sound files, the volume and every alert's sound are in settings → alerts → sound.</p>
           </fieldset>
           <fieldset class="box">
             <legend>notices</legend>

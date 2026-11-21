@@ -58,7 +58,7 @@ function hideEmptyTabs() {
   for (const b of document.querySelectorAll("#tabs [data-tab]")) {
     const panel = document.getElementById(`tab-${b.dataset.tab}`);
     const boxes = panel ? [...panel.querySelectorAll(".box")] : [];
-    b.hidden = boxes.length > 0 && boxes.every((x) => x.hasAttribute("data-for") && !x.classList.contains("in-window"));
+    b.hidden = boxes.length > 0 && boxes.every((x) => x.hasAttribute("data-for"));
   }
 }
 
@@ -821,6 +821,7 @@ $("boss-on-you").addEventListener("click", async () => {
 $("alert-sound").addEventListener("click", async () => {
   await invoke("set_alert_sound", { on: !(state && state.alert_sound) });
   refresh();
+  refreshSounds();
 });
 
 // ---------------------------------------------------------------- sound
@@ -831,8 +832,12 @@ let soundsView = null;
 // sound about to be deleted (its [×] asks once more).
 let soundFor = null;
 let soundDeleting = null;
+// The widgets with a sound of their own to turn off, and their alerts (sounds.rs).
+const SOUND_WIDGETS = { "boss-warnings": ["boss", "on_you"], cubes: ["cube"], timers: ["timer"] };
+// What came of a sound being added or chosen: said in every sound box (the window's, and
+// the widget's own in its panel).
 function soundNote(text) {
-  $("sound-note").textContent = text;
+  for (const p of document.querySelectorAll("[data-sound-note]")) p.textContent = text;
 }
 function drawSounds() {
   if (!soundsView) return;
@@ -842,10 +847,26 @@ function drawSounds() {
     b.setAttribute("aria-checked", String(Number(b.dataset.volumeChoice) === soundsView.volume));
   }
   const files = soundsView.files.map((f) => f.name);
+  const off = soundsView.off || [];
   for (const sel of document.querySelectorAll("select[data-sound-alert]")) {
     // (Not under an open list: it would close.)
     if (document.activeElement !== sel) fillSounds(sel, soundsView.alerts[sel.dataset.soundAlert] || "chime", [["chime", "chime"], ["none", "none"]], files, true);
+    // An alert whose widget's own sound is off: said so.
+    const widget = Object.keys(SOUND_WIDGETS).find((w) => SOUND_WIDGETS[w].includes(sel.dataset.soundAlert));
+    const muted = off.includes(widget);
+    const line = sel.closest(".line");
+    line.classList.toggle("muted", muted);
+    const key = line.querySelector(".key");
+    if (!key.dataset.text) key.dataset.text = key.title;
+    key.title = key.dataset.text + (muted ? " · its widget's own sound is off (its ⚙ panel on the overlay)" : "");
   }
+  // Each widget's own sound, in its panel.
+  for (const b of document.querySelectorAll("[data-sound-widget]")) {
+    const on = !off.includes(b.dataset.soundWidget);
+    b.setAttribute("aria-pressed", String(on));
+    b.querySelector(".state").textContent = on ? "[on]" : "[off]";
+  }
+  for (const p of document.querySelectorAll("[data-sound-master]")) p.hidden = soundsView.on !== false;
   const chips = soundsView.files.map((f) => {
     const chip = el("span", "sound-file");
     const name = el("span", "", f.name);
@@ -896,6 +917,14 @@ async function refreshSounds() {
   } catch {
     // Next time, then.
   }
+}
+for (const b of document.querySelectorAll("[data-sound-widget]")) {
+  b.addEventListener("click", async () => {
+    const widget = b.dataset.soundWidget;
+    const on = !!(soundsView && (soundsView.off || []).includes(widget));
+    await invoke("set_widget_sound", { widget, on }).catch((e) => soundNote(String(e)));
+    refreshSounds();
+  });
 }
 for (const b of document.querySelectorAll("[data-volume-choice]")) {
   b.addEventListener("click", async () => {

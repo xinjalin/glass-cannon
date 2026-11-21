@@ -1237,6 +1237,7 @@ fn main() {
             sounds::sound_bytes,
             sounds::set_sound_choice,
             sounds::set_sound_volume,
+            sounds::set_widget_sound,
             sounds::set_boss_skill_sound,
             settings::open_boss_casts,
             collection::collection_icon,

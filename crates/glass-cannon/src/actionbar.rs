@@ -214,12 +214,14 @@ pub struct BarSounds {
     pub ready: String,
     pub gained: String,
     pub ended: String,
+    /// The bar's sounds turned off, as chosen.
+    pub off: bool,
 }
 
 impl Default for BarSounds {
     fn default() -> Self {
         let none = || crate::sounds::NONE.to_string();
-        Self { ready: none(), gained: none(), ended: none() }
+        Self { ready: none(), gained: none(), ended: none(), off: false }
     }
 }
 
@@ -741,12 +743,12 @@ mod tests {
             skills: vec![18_010_340, GAP, 18_010_000, ROW, GAP, 18_020_000],
             effects: vec![5, GAP, 5, 7],
             style: BarStyle { look: "hexagons".into(), icon_size: 900, spacing: 99, opacity: 0, ready: "#A0FF10".into(), cooling: "purple-ish".into(), ..BarStyle::default() },
-            sounds: BarSounds { ready: "Air Horn.wav".into(), gained: "../settings.json".into(), ended: "chime".into() },
+            sounds: BarSounds { ready: "Air Horn.wav".into(), gained: "../settings.json".into(), ended: "chime".into(), off: true },
             ..BarSetup::default()
         }
         .sanitized();
         // A sound: nothing, the chime, or a sound file's name as kept; anything else is none.
-        assert_eq!((s.sounds.ready.as_str(), s.sounds.gained.as_str(), s.sounds.ended.as_str()), ("Air Horn.wav", "none", "chime"));
+        assert_eq!((s.sounds.ready.as_str(), s.sounds.gained.as_str(), s.sounds.ended.as_str(), s.sounds.off), ("Air Horn.wav", "none", "chime", true));
         assert_eq!((s.tracks.as_str(), s.show.as_str()), ("cooldowns", "always"));
         // Variants share a slot; gaps and rows stay, as many as put there.
         assert_eq!(s.skills, [18_010_000, GAP, ROW, GAP, 18_020_000]);
