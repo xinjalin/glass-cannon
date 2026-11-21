@@ -1,16 +1,25 @@
 // The boss casts window: every boss by content, dungeon and name, with the casts the meter
-// has seen it make. Each cast can be renamed, and set to show or not in the boss warnings
-// and the boss timers (auto: the general rule). Names are set with textContent, never
-// innerHTML.
+// has seen it make. Each boss folds: its casts show under its name once it's unfolded. Each
+// cast can be renamed, set to show or not in the boss warnings and the boss timers (auto:
+// the general rule), and given a sound of your own for its warning. Names are set with
+// textContent, never innerHTML.
 
 const POLL_MS = 5000;
 // The content types' tab names.
 const KIND_LABELS = { Sanctuary: "raids", "Field boss": "field bosses", "Dimensional Invasion": "invasions", "Sealed Dungeon": "sealed dungeons" };
+// The largest sound file taken in (bosscasts.rs says the same).
+const MAX_SOUND_BYTES = 2 * 1024 * 1024;
+// The sound list's last choice: pick a file. (No sound's name can start with a plus.)
+const ADD_SOUND = "+";
 
 let data = null;
 let lastKey = "";
 // A cast being renamed: its input stays put while the list refreshes.
 let editing = null;
+// The cast a sound file is being picked for (none: just added to your sounds).
+let soundFor = null;
+// The sound about to be deleted: its [×] asks once more.
+let deleting = null;
 
 function stored(key) {
   try {
@@ -29,10 +38,24 @@ function store(key, value) {
 let kind = stored("boss-casts-kind") || "";
 let show = stored("boss-casts-show") || "fought";
 let query = "";
+// The bosses unfolded, by tab, dungeon and name (remembered); the rest show their name only.
+let open = new Set();
+try {
+  open = new Set(JSON.parse(stored("boss-casts-open") || "[]"));
+} catch {
+  // None, then.
+}
+// The bosses listed now, for [unfold all] and [fold all].
+let listed = [];
 
 const kindLabel = (k) => (KIND_LABELS[k] || k).toLowerCase();
 const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
-const changed = (c) => c.renamed || c.warn != null || c.timer != null;
+const changed = (c) => c.renamed || c.warn != null || c.timer != null || !!c.sound;
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+function shareNote(text) {
+  $("share-note").textContent = text;
+}
 
 // "[auto] [on] [off]" for one setting of a cast; auto says what it does now.
 function choice(label, value, auto, set, title) {
@@ -50,6 +73,60 @@ function choice(label, value, auto, set, title) {
     });
     box.append(b);
   }
+  return box;
+}
+
+// Your sounds as they were decoded here, to hear one.
+const heard = new Map();
+async function hear(name) {
+  if (!name) {
+    chime();
+    return;
+  }
+  let sound = heard.get(name);
+  if (!sound) {
+    sound = await invoke("boss_sound", { name }).then(decodeSound).catch(() => null);
+    if (sound) heard.set(name, sound);
+  }
+  if (!(sound && playSound(sound))) shareNote(`couldn't play ${name}`);
+}
+
+function hearButton(name) {
+  const b = el("button", "", "[▶]");
+  b.type = "button";
+  b.title = "Hear it";
+  b.addEventListener("click", () => hear(name()));
+  return b;
+}
+
+// A cast's warning sound: the chime, one of your sounds, or a file to add.
+function soundChoice(c) {
+  const warns = c.warn ?? c.auto_warn;
+  const box = el("span", "bc-choice bc-sound" + (warns ? "" : " idle"));
+  box.title = warns
+    ? "The sound its warning plays: the chime, or a sound file of your own"
+    : "The sound its warning would play · it isn't warned of now: set warn [on] to hear it";
+  box.append(el("span", "bc-label", "sound"));
+  const sel = el("select");
+  sel.setAttribute("aria-label", "Its warning's sound");
+  const current = c.sound || "";
+  for (const [value, text] of [["", "chime"], ...data.sounds.map((n) => [n, n]), [ADD_SOUND, "add a sound file…"]]) {
+    const o = el("option", "", text);
+    o.value = value;
+    sel.append(o);
+  }
+  sel.value = current;
+  sel.addEventListener("change", async () => {
+    if (sel.value === ADD_SOUND) {
+      sel.value = current;
+      soundFor = c.skill;
+      $("sound-file").click();
+      return;
+    }
+    await invoke("set_boss_skill_sound", { skill: c.skill, sound: sel.value || null }).catch((e) => shareNote(String(e)));
+    await load(true);
+  });
+  box.append(sel, hearButton(() => sel.value));
   return box;
 }
 
@@ -90,7 +167,7 @@ function castRow(c) {
     });
     what.append(name);
   }
-  const facts = [c.cast_ms ? `${secs(c.cast_ms)} cast` : "instant", c.lands_ms ? `lands ${secs(c.lands_ms)} after` : null, `seen ${c.seen}× in ${c.fights} ${c.fights === 1 ? "fight" : "fights"}`, `#${c.skill}`]
+  const facts = [c.cast_ms ? `${secs(c.cast_ms)} cast` : "instant", c.lands_ms ? `lands ${secs(c.lands_ms)} after` : null, `seen ${c.seen}× in ${plural(c.fights, "fight")}`, `#${c.skill}`]
     .filter(Boolean)
     .join(" · ");
   what.append(el("div", "bm-sub note", facts));
@@ -99,6 +176,7 @@ function castRow(c) {
   sets.append(
     choice("warn", c.warn, c.auto_warn, (v) => invoke("set_boss_skill_alert", { skill: c.skill, alert: v }), "In the boss warnings: as it looks (auto), always, or never"),
     choice("timer", c.timer, c.auto_timer ?? c.warn ?? c.auto_warn, (v) => invoke("set_boss_skill_timer", { skill: c.skill, timer: v }), "In the boss timers (its countdown before it comes): as its warning goes (auto), always, or never"),
+    soundChoice(c),
   );
   li.append(sets);
   return li;
@@ -110,9 +188,55 @@ function matches(boss, c) {
   return boss.name.toLowerCase().includes(query) || (c && (c.name || "").toLowerCase().includes(query)) || (c && String(c.skill).includes(query));
 }
 
+// Your sounds, under the list: each to hear or delete, and a file to add.
+function drawSounds() {
+  const used = new Map();
+  for (const c of data.kinds.flatMap((k) => k.places.flatMap((p) => p.bosses.flatMap((b) => b.casts)))) {
+    if (c.sound) used.set(c.sound, (used.get(c.sound) || 0) + 1);
+  }
+  const items = data.sounds.map((name) => {
+    const item = el("span", "bc-sound-file");
+    const n = used.get(name) || 0;
+    const label = el("span", "", name);
+    label.title = n ? `The warning sound of ${plural(n, "cast")}` : "No cast uses it yet";
+    const del = el("button", deleting === name ? "danger" : "", deleting === name ? "[delete?]" : "[×]");
+    del.type = "button";
+    del.title = deleting === name ? "Click again to delete it" : n ? `Delete it: ${plural(n, "cast")} will go back to the chime` : "Delete it";
+    del.addEventListener("click", async () => {
+      if (deleting !== name) {
+        deleting = name;
+        draw(true);
+        setTimeout(() => {
+          if (deleting === name) {
+            deleting = null;
+            draw(true);
+          }
+        }, 4000);
+        return;
+      }
+      deleting = null;
+      heard.delete(name);
+      await invoke("delete_boss_sound", { name }).catch((e) => shareNote(String(e)));
+      await load(true);
+    });
+    item.append(label, hearButton(() => name), del);
+    return item;
+  });
+  const add = el("button", "", "[add a sound]");
+  add.type = "button";
+  add.title = "Pick a sound file (wav, mp3, ogg, flac or m4a, 2 MB at most): a copy is kept with your settings, for any cast's warning";
+  add.addEventListener("click", () => {
+    soundFor = null;
+    $("sound-file").click();
+  });
+  const lead = el("span", "note", data.sounds.length ? "your sounds" : "your sounds · none yet");
+  $("sounds").replaceChildren(lead, ...items, add);
+  $("sound-off").hidden = data.alert_sound !== false;
+}
+
 function draw(force) {
   if (!data) return;
-  const key = JSON.stringify([data, kind, show, query, editing]);
+  const key = JSON.stringify([data, kind, show, query, editing, [...open], deleting]);
   if (!force && key === lastKey) return;
   lastKey = key;
   const kinds = data.kinds;
@@ -125,7 +249,7 @@ function draw(force) {
       b.type = "button";
       b.setAttribute("role", "tab");
       b.setAttribute("aria-selected", String(k.kind === kind));
-      b.title = n ? `${n} ${n === 1 ? "boss" : "bosses"} with casts seen` : "No casts seen yet";
+      b.title = n ? `${plural(n, "boss", "bosses")} with casts seen` : "No casts seen yet";
       b.addEventListener("click", () => {
         kind = k.kind;
         store("boss-casts-kind", kind);
@@ -139,8 +263,11 @@ function draw(force) {
   const all = kinds.flatMap((k) => k.places.flatMap((p) => p.bosses));
   const casts = all.flatMap((b) => b.casts);
   $("count").textContent = `· ${all.filter(fought).length} bosses · ${casts.length} casts · ${casts.filter(changed).length} set`;
+  // A search, or the list of what's changed, shows what it found: every boss unfolded.
+  const found = !!query || show === "changed";
   const k = kinds.find((x) => x.kind === kind);
   const boxes = [];
+  listed = [];
   for (const place of k ? k.places : []) {
     const bosses = [];
     for (const boss of place.bosses) {
@@ -151,17 +278,34 @@ function draw(force) {
         .filter((c) => matches(boss, c))
         .sort((a, b) => Math.max(b.cast_ms, b.lands_ms ? 2500 : 0) - Math.max(a.cast_ms, a.lands_ms ? 2500 : 0) || b.seen - a.seen);
       if (!list.length && !(show === "all" && matches(boss, null))) continue;
-      const sec = el("div", "bc-boss");
-      const head = el("div", "bc-boss-head");
-      head.append(el("span", "bc-boss-name", boss.name));
+      const id = `${kind}/${place.name}/${boss.name}`;
+      listed.push(id);
+      const unfolded = found || open.has(id);
+      const sec = el("div", "bc-boss" + (unfolded ? " open" : ""));
+      const head = el("button", "bc-boss-head");
+      head.type = "button";
+      head.setAttribute("aria-expanded", String(unfolded));
+      head.title = found ? "Unfolded while you search or list what's changed" : unfolded ? "Fold its casts away" : "Unfold its casts";
+      head.append(el("span", "bc-caret", unfolded ? "▾" : "▸"), el("span", "bc-boss-name", boss.name));
       if (boss.modes.length) head.append(el("span", "note", boss.modes.join(" · ")));
+      const set = boss.casts.filter(changed).length;
+      head.append(el("span", "note bc-boss-count", boss.casts.length ? `${plural(boss.casts.length, "cast")}${set ? ` · ${set} set` : ""}` : "no casts yet"));
+      head.addEventListener("click", () => {
+        if (found) return;
+        if (!open.delete(id)) open.add(id);
+        store("boss-casts-open", JSON.stringify([...open]));
+        editing = null;
+        draw(true);
+      });
       sec.append(head);
-      if (list.length) {
-        const ul = el("ul", "bm-list");
-        ul.append(...list.map(castRow));
-        sec.append(ul);
-      } else {
-        sec.append(el("p", "note bc-none", "no casts seen yet: fight it with the meter running"));
+      if (unfolded) {
+        if (list.length) {
+          const ul = el("ul", "bm-list");
+          ul.append(...list.map(castRow));
+          sec.append(ul);
+        } else {
+          sec.append(el("p", "note bc-none", "no casts seen yet: fight it with the meter running"));
+        }
       }
       bosses.push(sec);
     }
@@ -172,9 +316,11 @@ function draw(force) {
     boxes.push(box);
   }
   $("list").replaceChildren(...boxes);
+  $("fold").hidden = found || listed.length === 0;
   $("empty").hidden = boxes.length > 0;
   $("empty").textContent =
     query || show === "changed" ? "nothing matches" : show === "fought" ? `no ${kindLabel(kind)} bosses fought with the meter running yet · [all bosses] lists them` : "no bosses here";
+  drawSounds();
 }
 
 async function load(force) {
@@ -187,10 +333,41 @@ async function load(force) {
   }
 }
 
+// Every boss listed, unfolded or folded.
+$("unfold-all").addEventListener("click", () => {
+  for (const id of listed) open.add(id);
+  store("boss-casts-open", JSON.stringify([...open]));
+  draw(true);
+});
+$("fold-all").addEventListener("click", () => {
+  for (const id of listed) open.delete(id);
+  store("boss-casts-open", JSON.stringify([...open]));
+  editing = null;
+  draw(true);
+});
+
+// A sound file picked: checked that it plays, kept by the app, and set for the cast it was
+// picked for (when it was picked from a cast's list).
+$("sound-file").addEventListener("change", async () => {
+  const file = $("sound-file").files[0];
+  $("sound-file").value = "";
+  const skill = soundFor;
+  soundFor = null;
+  if (!file) return;
+  try {
+    if (file.size > MAX_SOUND_BYTES) throw new Error("that file is too big: 2 MB at most");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!(await decodeSound(bytes))) throw new Error("that isn't a sound file this can play (wav, mp3, ogg, flac or m4a)");
+    const name = await invoke("add_boss_sound", { name: file.name, bytes: Array.from(bytes) });
+    if (skill != null) await invoke("set_boss_skill_sound", { skill, sound: name });
+    shareNote(`added ${name}`);
+    await load(true);
+  } catch (e) {
+    shareNote(e instanceof Error ? e.message : String(e));
+  }
+});
+
 // Sharing a mapping: your names and choices to a file, or someone's file over yours.
-function shareNote(text) {
-  $("share-note").textContent = text;
-}
 $("export").addEventListener("click", async () => {
   try {
     const path = await invoke("export_boss_casts");
@@ -207,6 +384,44 @@ $("import-file").addEventListener("change", async () => {
   try {
     const got = await invoke("import_boss_casts", { json: await file.text() });
     shareNote(`took in ${got.names} name${got.names === 1 ? "" : "s"}, ${got.warns} warning and ${got.timers} timer choice${got.timers === 1 ? "" : "s"}`);
+    await load(true);
+  } catch (e) {
+    shareNote(String(e));
+  }
+});
+
+// Back to the defaults: asks once more, saying what goes.
+let resetAsked = 0;
+function resetButton(asking) {
+  $("reset").textContent = asking ? "[reset: sure?]" : "[reset to defaults]";
+  $("reset").classList.toggle("danger", asking);
+}
+$("reset").addEventListener("click", async () => {
+  if (!data) return;
+  if (!resetAsked) {
+    const casts = data.kinds.flatMap((k) => k.places.flatMap((p) => p.bosses.flatMap((b) => b.casts)));
+    const names = casts.filter((c) => c.renamed).length;
+    const choices = casts.filter((c) => c.warn != null).length + casts.filter((c) => c.timer != null).length;
+    if (!names && !choices) {
+      shareNote("nothing to reset: no cast is named or set");
+      return;
+    }
+    shareNote(`this takes off ${plural(names, "name")} and ${plural(choices, "warning and timer choice")} · a copy is saved to the exports folder first · your sounds stay · click again to reset`);
+    resetButton(true);
+    resetAsked = setTimeout(() => {
+      resetAsked = 0;
+      resetButton(false);
+      shareNote("");
+    }, 6000);
+    return;
+  }
+  clearTimeout(resetAsked);
+  resetAsked = 0;
+  resetButton(false);
+  try {
+    const done = await invoke("reset_boss_casts");
+    shareNote(`reset ${plural(done.names, "name")} and ${plural(done.warns + done.timers, "choice")} · your mapping as it was is in ${done.saved}`);
+    editing = null;
     await load(true);
   } catch (e) {
     shareNote(String(e));

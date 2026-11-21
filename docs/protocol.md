@@ -435,6 +435,18 @@ Nazmun's (2340615) casts show the pattern the meter's boss cast line follows: a 
 (`0x3809`, 1,030 ms), the cast going off on time (`0x3802`), and with it its areas
 (`0x3848`, six at once landing 1.9-2.7 s later). Boss timelines run from the boss's pull
 (its `0x8d21` in combat, or `0x8d52`), so they line up from one fight to the next.
+The target block of a cast (`0x3802`, `0x3809`) is a u8 of flags, the varint target,
+[flags 1: a u32 part], the f32 facing of the caster (degrees), and [flags 2: 3 × f32, a
+position in cm]. The position is the target's, not the caster's (2026-11-21, one night's
+capture): where a mob cast twice within 3 s, it was the same to the centimetre for the same
+target (median of 1,811 pairs) and a median 9 m apart for another target (79 pairs). Of
+the 4,624 mob `0x3802` there, 2,409 carried it; all 463 mob `0x3809` did. A boss cast
+brings no more than this (no byte was left after these fields in any of them): the
+caster, the skill, a cast ID, the target and where it stands, the facing, an attack speed
+(10,000 on 3,400 of the 4,624), a u8 that is 1 or 2, the cooldown, and, with a cast time,
+the time; its areas come apart, in `0x3848` (whose u32 and u16 look like a wave and
+the area's number in the cast: 1,1,1,1,2,2,2,2 and 1 to 8 on one cast of 1236530; not
+checked further).
 The skill list's entries vary in length, and not all are skills; its 30 base skill ids
 (`xxyy0000`) are all of the character's class. The meter uses them for the target frame's
 cast bar, revivals in the deaths tab (and to stop counting a revived player as dead), a

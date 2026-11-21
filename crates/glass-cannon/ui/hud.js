@@ -610,6 +610,7 @@ window.addEventListener("message", (e) => {
     bossAt = performance.now();
     mechanics = m.mechanics || [];
     mechanicSound = !!m.sound;
+    setCastSounds(m.sounds || {});
     if (boss && boss.appearance) applyAppearance(boss.appearance);
   }
 });
@@ -629,32 +630,41 @@ function castName(c, long = true) {
   return `${who} · ${what}`;
 }
 
-// A short two-note chime, once per warning (settings → alert sound).
-let audio = null;
-// The boss warnings' rising pair, the boss turning to you's lower pair, and the hidden
-// cubes' falling one.
-const BOSS_NOTES = [880, 1320];
+// A short two-note chime, once per warning (settings → alert sound; theme.js plays it).
+// Beside the boss warnings' rising pair: the boss turning to you's lower pair, the hidden
+// cubes' falling one, and a world timer's three.
 const ON_YOU_NOTES = [587, 880];
 const CUBE_NOTES = [1568, 1175];
 const TIMER_NOTES = [1047, 1319, 1568];
-function chime(notes = BOSS_NOTES) {
-  try {
-    audio = audio || new AudioContext();
-    const t = audio.currentTime;
-    for (const [i, f] of notes.entries()) {
-      const o = audio.createOscillator();
-      const g = audio.createGain();
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t + i * 0.12);
-      g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.12 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + 0.11);
-      o.connect(g).connect(audio.destination);
-      o.start(t + i * 0.12);
-      o.stop(t + i * 0.12 + 0.12);
-    }
-  } catch {
-    // No sound, then.
+
+// Your own sounds for boss casts' warnings (the boss casts window): each skill's file, and
+// each file once it's been fetched and decoded (null until then, or when it isn't a sound:
+// the chime plays). Fetched as the choices arrive, so a warning never waits for its sound.
+let castSounds = {};
+let castSoundsKey = "{}";
+const castSoundFiles = new Map();
+function setCastSounds(sounds) {
+  const key = JSON.stringify(sounds);
+  if (key === castSoundsKey) return;
+  castSoundsKey = key;
+  castSounds = sounds;
+  const names = new Set(Object.values(sounds));
+  for (const name of [...castSoundFiles.keys()]) if (!names.has(name)) castSoundFiles.delete(name);
+  for (const name of names) {
+    if (castSoundFiles.has(name)) continue;
+    castSoundFiles.set(name, null);
+    invoke("boss_sound", { name })
+      .then(decodeSound)
+      .then((sound) => {
+        if (sound && castSoundFiles.has(name)) castSoundFiles.set(name, sound);
+      })
+      .catch(() => {});
   }
+}
+// A warning's sound: the cast's own where you gave it one, else the chime.
+function warningSound(show) {
+  const own = show.skill == null ? null : castSoundFiles.get(castSounds[show.skill]);
+  if (!(own && playSound(own))) chime(show.notes || BOSS_NOTES);
 }
 
 // Shrinks a line's font until it fits `width` (the box's padding included), down to a
@@ -692,6 +702,8 @@ function mechanicCard(m, elapsed) {
     key: m.key,
     done: "over",
     sound: mechanicSound,
+    // The cast that set it off, when one did: its own sound.
+    skill: m.skill,
   };
 }
 
@@ -711,8 +723,8 @@ function drawWarnings(elapsed) {
     const castLeft = live.cast_left_ms - elapsed;
     const landsLeft = live.lands_left_ms - elapsed;
     const key = `cast:${live.skill}:${boss.castKey}`;
-    if (castLeft > 0) show = { cls: "now", what: "casting", title: castName(live, false), time: `${(castLeft / 1000).toFixed(1)} s`, key };
-    else if (landsLeft > 0) show = { cls: "now lands", what: "lands · move", title: castName(live, false), time: `${(landsLeft / 1000).toFixed(1)} s`, key };
+    if (castLeft > 0) show = { cls: "now", what: "casting", title: castName(live, false), time: `${(castLeft / 1000).toFixed(1)} s`, key, skill: live.skill };
+    else if (landsLeft > 0) show = { cls: "now lands", what: "lands · move", title: castName(live, false), time: `${(landsLeft / 1000).toFixed(1)} s`, key, skill: live.skill };
   }
   // The boss turned to attack you: after what to do and its cast, before what's coming.
   if (!show && turned && turned === onYou.key && performance.now() - onYou.at < ON_YOU_MS) {
@@ -746,7 +758,7 @@ function drawWarnings(elapsed) {
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
-    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) chime(show.notes || BOSS_NOTES);
+    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) warningSound(show);
   }
 }
 

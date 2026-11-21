@@ -14,7 +14,8 @@ colours whatever the theme:
   running, the overlay, how the fight is going or how it ended, your DPS and share, the
   party's, and the history;
 - **the bar**: buttons for the analysis, the overlay's start/stop, the history, the pet
-  map, arranging the overlay (again to save and finish) and the settings;
+  map, the boss casts (the warning sign), arranging the overlay (again to save and finish)
+  and the settings;
 - **the lights** at the top right: minimise, keep on top, and close (which closes the
   app).
 
@@ -73,15 +74,29 @@ finishes. The widgets:
   knows it's a boss by its stagger gauge, and its HP, wipes, casts and warnings work.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down: those worth a warning, unless set otherwise in the boss casts window.
-- **Boss casts** (settings → alerts → boss casts [ set up ]): every boss, by content
+- **Boss casts** (the warning sign on the launcher, or settings → alerts → boss casts
+  [ set up ]): every boss, by content
   (expeditions, transcendence, raids, the arena, sealed dungeons, strongholds, invasions,
   field bosses) and dungeon, with each distinct cast the meter has seen it make (its cast
-  time, when it lands, how often seen), the likeliest mechanics first. Click a cast's name
+  time, when it lands, how often seen), the likeliest mechanics first. Each boss is folded
+  to its name and how many casts it has: click it to unfold its casts (remembered), or
+  **[unfold all]** / **[fold all]** for every boss listed; a search, and **[changed]**,
+  show what they find unfolded. Click a cast's name
   to rename it (anywhere it shows), and set it for the **warnings** and the **timers**:
   **auto** (as the rule above goes: ✓ when it would show), **on** or **off**; the timers on
   auto follow the warnings. **[fought]** lists the bosses with casts seen, **[all
   bosses]** every one (a boss you haven't fought with the meter running has none yet),
-  **[changed]** what you've named or set. **[export]** saves your names and choices (a boss
+  **[changed]** what you've named or set. A cast's **sound** is what its warning plays:
+  the chime, or a sound file of your own. Pick **add a sound file…** from a cast's list (or
+  **[add a sound]** under the list) and choose a wav, mp3, ogg, flac or m4a file of 2 MB at
+  most: a copy is kept in a `sounds` folder beside your settings, and any cast can use it.
+  **[▶]** plays it; **[×]** beside one of your sounds deletes it (it asks once more), and
+  the casts that used it go back to the chime. A cast's sound plays where its warning
+  shows, with **alert sound** on; at most its first 10 seconds. Your sounds stay on your
+  computer: an exported mapping or setup doesn't carry them. **[reset to defaults]** puts
+  every cast back as the app has it: your names and your warning and timer choices go (it
+  asks once more, and saves your mapping to the `exports` folder first, so **[import]**
+  brings it back); your sounds stay. **[export]** saves your names and choices (a boss
   cast mapping) to a file in the `exports` folder beside the app, to share; **[import]** takes one in, its names and
   choices over yours. The app's own defaults come from `gamedata/boss-cast-defaults.json`
   (an exported mapping put there): auto goes by them where they have a choice, and their
