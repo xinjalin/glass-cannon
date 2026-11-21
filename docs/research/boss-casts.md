@@ -232,7 +232,7 @@ a second Bingo at about 25%, and the coloured safe spots to enter in the last se
 | 1803040, 1803041 | Ludra's Trial | Probably the second Trial (guess) |
 | 1803570, 1803571 | Screaming Storm | Ludra, later phases |
 | 1803615 | Judgement of the Distorted Soul | Ludra, later phases |
-| 1802000 to 1802160 (21 IDs) | Attack; 1802153 Blue Light of Destruction | Owner unknown. Ketu's mark puts effects 18021302 and 18020008 on players, whose IDs point at 1802130 and 1802000, so at least some are effect carriers, not casts |
+| 1802000 to 1802160 (21 IDs) | Attack; 1802153 Blue Light of Destruction | Not this raid's: Ferocious Horn Nuakum's (2320910). The app's record has him casting 27 IDs in this range in one fight (2026-11-21; the capture `glass-cannon-test-20261120d\captures\20261121-000908` has it), three of them long: 1802131 (5.5 s, four times), 1802141 (5 s) and 1802154 (3 s). Ketu's mark borrows two of his effects: 18021302 and 18020008 on players, whose IDs point at his 1802130 and 1802000. What each of his casts does is not worked out |
 | 1802220, 1802270 | Nebular Collapse, Supernova Explosion | Owner unknown |
 | 1802430 to 1802504 (18 IDs) | Rapid Slice, Sword Aura Blast, Smite Ground, Chain Blade Rampage, Greatsword Plunge, Whirling Rush, Backstep Slice, Shatter Ground | Another boss, not this raid's (the Reactor's casts are 1802510 to 1802580 and none of them is in our data) |
 
