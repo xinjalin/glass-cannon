@@ -312,26 +312,65 @@ fn mapping(data: &GameData, warn: &BTreeMap<u32, bool>, timer: &BTreeMap<u32, bo
     CastMapping { source: Some(serde_json::json!({ "made_by": "Glass Cannon's boss casts window", "version": env!("CARGO_PKG_VERSION"), "unix_time": made })), casts }
 }
 
-/// Saves your boss cast mapping to a file in the `exports` folder beside the app (as
-/// recordings go to `captures`), named for the time, and shows it in Explorer; its path.
-#[tauri::command]
-pub fn export_boss_casts(app: State<'_, Arc<AppState>>) -> Result<String, String> {
+/// Your mapping as it is now (your names and choices).
+fn your_mapping(app: &AppState) -> CastMapping {
     let (warn, timer) = {
         let s = lock(&app.settings);
         (s.boss_skill_alerts.clone(), s.boss_skill_timers.clone())
     };
-    let m = mapping(&lock(&app.data), &warn, &timer);
+    mapping(&lock(&app.data), &warn, &timer)
+}
+
+/// Saves a mapping to a file in `dir`, named `stem` and the time; the file.
+fn save_mapping(dir: &Path, stem: &str, m: &CastMapping) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("couldn't make {}: {e}", dir.display()))?;
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let path = dir.join(format!("{stem}-{secs}.json"));
+    let json = serde_json::to_vec_pretty(m).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| format!("couldn't save {}: {e}", path.display()))?;
+    Ok(path)
+}
+
+/// Saves your boss cast mapping to a file in the `exports` folder beside the app (as
+/// recordings go to `captures`), named for the time, and shows it in Explorer; its path.
+#[tauri::command]
+pub fn export_boss_casts(app: State<'_, Arc<AppState>>) -> Result<String, String> {
+    let m = your_mapping(&app);
     if m.casts.is_empty() {
         return Err("nothing to export yet: name a cast, or set one to warn or not".into());
     }
-    let dir = app.exe_dir.join("exports");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("couldn't make {}: {e}", dir.display()))?;
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-    let path = dir.join(format!("glass-cannon-boss-casts-{secs}.json"));
-    let json = serde_json::to_vec_pretty(&m).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| format!("couldn't save {}: {e}", path.display()))?;
+    let path = save_mapping(&app.exe_dir.join("exports"), "glass-cannon-boss-casts", &m)?;
     let _ = std::process::Command::new("explorer").arg(format!("/select,{}", path.display())).spawn();
     Ok(path.display().to_string())
+}
+
+/// What a reset took off, and the copy of it saved first.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct ResetDone {
+    pub names: usize,
+    pub warns: usize,
+    pub timers: usize,
+    pub saved: String,
+}
+
+/// Puts every boss cast back to the defaults: your names for them and your warning and
+/// timer choices go (the app's defaults and the general rule decide again). Your mapping
+/// is saved to the `exports` folder first, as [export] would, so [import] brings it back.
+/// The sounds you gave casts aren't part of a mapping: they stay.
+#[tauri::command]
+pub fn reset_boss_casts(app: State<'_, Arc<AppState>>) -> Result<ResetDone, String> {
+    let m = your_mapping(&app);
+    if m.casts.is_empty() {
+        return Err("nothing to reset: no cast is named or set".into());
+    }
+    let saved = save_mapping(&app.exe_dir.join("exports"), "glass-cannon-boss-casts-before-reset", &m)?;
+    let names = lock(&app.data).clear_boss_skill_renames().map_err(|e| format!("{e:#}"))?;
+    let mut s = lock(&app.settings);
+    let (warns, timers) = (s.boss_skill_alerts.len(), s.boss_skill_timers.len());
+    s.boss_skill_alerts.clear();
+    s.boss_skill_timers.clear();
+    s.save(&app.config_dir);
+    Ok(ResetDone { names, warns, timers, saved: saved.display().to_string() })
 }
 
 /// What an import changed.
@@ -472,6 +511,11 @@ mod tests {
         let m = mapping(&data, &[(1_803_200, false)].into(), &BTreeMap::new());
         assert_eq!(m.casts.keys().copied().collect::<Vec<_>>(), [1_803_200]);
         assert_eq!(m.casts[&1_803_200], CastChoice { name: None, warn: Some(false), timer: None });
+        // Saved to a file that reads back as the same mapping (a reset's copy, an export).
+        let path = save_mapping(&dir.join("exports"), "before-reset", &m).unwrap();
+        assert!(path.file_name().unwrap().to_string_lossy().starts_with("before-reset-"));
+        let back: CastMapping = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(back.casts, m.casts);
         fs::remove_dir_all(dir).ok();
     }
 

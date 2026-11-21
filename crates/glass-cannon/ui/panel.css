@@ -802,6 +802,7 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 /* The boss casts window: sharing a mapping. */
 .bc-share { display: flex; align-items: center; gap: 0.4em; margin: 0 0 0.3em; flex-wrap: wrap; }
 .bc-share button { color: var(--accent); }
+.bc-share button.danger { color: var(--bad); }
 .bc-foot { flex-direction: column; align-items: stretch; gap: 0; }
 .bc-foot > p { margin: 0 0 0.3em; }
 .bc-sound-file { display: inline-flex; align-items: baseline; gap: 0.15em; padding: 0 0.3em; border: 1px solid var(--line-faint); border-radius: 0.25em; white-space: nowrap; }

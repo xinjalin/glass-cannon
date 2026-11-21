@@ -93,7 +93,10 @@ finishes. The widgets:
   **[▶]** plays it; **[×]** beside one of your sounds deletes it (it asks once more), and
   the casts that used it go back to the chime. A cast's sound plays where its warning
   shows, with **alert sound** on; at most its first 10 seconds. Your sounds stay on your
-  computer: an exported mapping or setup doesn't carry them. **[export]** saves your names and choices (a boss
+  computer: an exported mapping or setup doesn't carry them. **[reset to defaults]** puts
+  every cast back as the app has it: your names and your warning and timer choices go (it
+  asks once more, and saves your mapping to the `exports` folder first, so **[import]**
+  brings it back); your sounds stay. **[export]** saves your names and choices (a boss
   cast mapping) to a file in the `exports` folder beside the app, to share; **[import]** takes one in, its names and
   choices over yours. The app's own defaults come from `gamedata/boss-cast-defaults.json`
   (an exported mapping put there): auto goes by them where they have a choice, and their

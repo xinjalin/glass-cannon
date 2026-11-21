@@ -390,6 +390,44 @@ $("import-file").addEventListener("change", async () => {
   }
 });
 
+// Back to the defaults: asks once more, saying what goes.
+let resetAsked = 0;
+function resetButton(asking) {
+  $("reset").textContent = asking ? "[reset: sure?]" : "[reset to defaults]";
+  $("reset").classList.toggle("danger", asking);
+}
+$("reset").addEventListener("click", async () => {
+  if (!data) return;
+  if (!resetAsked) {
+    const casts = data.kinds.flatMap((k) => k.places.flatMap((p) => p.bosses.flatMap((b) => b.casts)));
+    const names = casts.filter((c) => c.renamed).length;
+    const choices = casts.filter((c) => c.warn != null).length + casts.filter((c) => c.timer != null).length;
+    if (!names && !choices) {
+      shareNote("nothing to reset: no cast is named or set");
+      return;
+    }
+    shareNote(`this takes off ${plural(names, "name")} and ${plural(choices, "warning and timer choice")} · a copy is saved to the exports folder first · your sounds stay · click again to reset`);
+    resetButton(true);
+    resetAsked = setTimeout(() => {
+      resetAsked = 0;
+      resetButton(false);
+      shareNote("");
+    }, 6000);
+    return;
+  }
+  clearTimeout(resetAsked);
+  resetAsked = 0;
+  resetButton(false);
+  try {
+    const done = await invoke("reset_boss_casts");
+    shareNote(`reset ${plural(done.names, "name")} and ${plural(done.warns + done.timers, "choice")} · your mapping as it was is in ${done.saved}`);
+    editing = null;
+    await load(true);
+  } catch (e) {
+    shareNote(String(e));
+  }
+});
+
 for (const b of document.querySelectorAll("#show [data-show]")) {
   b.addEventListener("click", () => {
     show = b.dataset.show;

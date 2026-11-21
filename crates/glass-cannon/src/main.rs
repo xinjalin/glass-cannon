@@ -1225,6 +1225,7 @@ fn main() {
             bosscasts::set_boss_skill_timer,
             bosscasts::export_boss_casts,
             bosscasts::import_boss_casts,
+            bosscasts::reset_boss_casts,
             bosscasts::add_boss_sound,
             bosscasts::delete_boss_sound,
             bosscasts::boss_sound,

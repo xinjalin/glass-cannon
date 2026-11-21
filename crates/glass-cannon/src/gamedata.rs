@@ -874,6 +874,18 @@ impl GameData {
         self.names.skills.iter().filter(|(id, _)| **id < 10_000_000).map(|(id, n)| (*id, n.clone())).collect()
     }
 
+    /// Takes your names off every boss skill: each goes back to the data's name (players'
+    /// skills you named keep theirs). Saved to names.json. How many there were.
+    pub fn clear_boss_skill_renames(&mut self) -> Result<usize> {
+        let before = self.names.skills.len();
+        self.names.skills.retain(|id, _| *id >= 10_000_000);
+        let cleared = before - self.names.skills.len();
+        if cleared > 0 {
+            self.save_names()?;
+        }
+        Ok(cleared)
+    }
+
     /// Names boss skills (a mapping's), all at once; a name that won't do is skipped. Saved
     /// to names.json. How many were named.
     pub fn rename_skills(&mut self, names: &BTreeMap<u32, String>) -> Result<usize> {
@@ -1470,6 +1482,13 @@ mod tests {
         d.names_path = Some(dir.join("names.json"));
         d.rename_skill(1_803_200, "Big Boom").unwrap();
         assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("Big Boom"));
+        // Your names taken off the boss skills: the label again; a player's skill keeps yours.
+        d.rename_skill(11_100_000, "My Blow").unwrap();
+        assert_eq!(d.clear_boss_skill_renames().unwrap(), 1);
+        assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("raid-wide blast"));
+        assert_eq!(d.skill_meta(11_100_000).0.as_deref(), Some("My Blow"));
+        assert!(d.boss_skill_renames().is_empty());
+        assert_eq!(d.clear_boss_skill_renames().unwrap(), 0);
         fs::remove_dir_all(dir).ok();
     }
 
