@@ -41,6 +41,8 @@
 [hidden] { display: none !important; }
 /* A setting with no effect as the bar is: greyed, and it takes no clicks. */
 .bs-line.off { opacity: 0.38; }
+.bs-sound { display: flex; align-items: center; gap: 0.3em; }
+.bs-sound button { color: var(--accent); }
 .bs-line.off button, .bs-line.off input { cursor: default; pointer-events: none; }
 /* The timer pins' settings: events and field bosses to pin. */
 .tp-list { display: flex; flex-direction: column; gap: 2px; }

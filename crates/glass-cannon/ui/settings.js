@@ -58,7 +58,7 @@ function hideEmptyTabs() {
   for (const b of document.querySelectorAll("#tabs [data-tab]")) {
     const panel = document.getElementById(`tab-${b.dataset.tab}`);
     const boxes = panel ? [...panel.querySelectorAll(".box")] : [];
-    b.hidden = boxes.length > 0 && boxes.every((x) => x.hasAttribute("data-for"));
+    b.hidden = boxes.length > 0 && boxes.every((x) => x.hasAttribute("data-for") && !x.classList.contains("in-window"));
   }
 }
 
@@ -822,6 +822,127 @@ $("alert-sound").addEventListener("click", async () => {
   await invoke("set_alert_sound", { on: !(state && state.alert_sound) });
   refresh();
 });
+
+// ---------------------------------------------------------------- sound
+
+// How loud, what each alert plays, and your sound files (sounds.rs).
+let soundsView = null;
+// The alert a sound file is being picked for (none: just added to your sounds), and the
+// sound about to be deleted (its [×] asks once more).
+let soundFor = null;
+let soundDeleting = null;
+function soundNote(text) {
+  $("sound-note").textContent = text;
+}
+function drawSounds() {
+  if (!soundsView) return;
+  soundVolume = soundsView.volume / 100;
+  for (const b of document.querySelectorAll("[data-volume-choice]")) {
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(Number(b.dataset.volumeChoice) === soundsView.volume));
+  }
+  const files = soundsView.files.map((f) => f.name);
+  for (const sel of document.querySelectorAll("select[data-sound-alert]")) {
+    // (Not under an open list: it would close.)
+    if (document.activeElement !== sel) fillSounds(sel, soundsView.alerts[sel.dataset.soundAlert] || "chime", [["chime", "chime"], ["none", "none"]], files, true);
+  }
+  const chips = soundsView.files.map((f) => {
+    const chip = el("span", "sound-file");
+    const name = el("span", "", f.name);
+    name.title = f.uses ? `Played by ${f.uses} ${f.uses === 1 ? "thing" : "things"}` : "Nothing plays it yet";
+    const play = el("button", "", "[▶]");
+    play.type = "button";
+    play.title = "Hear it";
+    play.addEventListener("click", async () => {
+      if (!(await hearChoice(f.name))) soundNote(`couldn't play ${f.name}`);
+    });
+    const asking = soundDeleting === f.name;
+    const del = el("button", asking ? "danger" : "", asking ? "[delete?]" : "[×]");
+    del.type = "button";
+    del.title = asking ? "Click again to delete it" : f.uses ? `Delete it: what plays it (${f.uses}) goes back to its chime, an action bar to nothing` : "Delete it";
+    del.addEventListener("click", async () => {
+      if (soundDeleting !== f.name) {
+        soundDeleting = f.name;
+        drawSounds();
+        setTimeout(() => {
+          if (soundDeleting === f.name) {
+            soundDeleting = null;
+            drawSounds();
+          }
+        }, 4000);
+        return;
+      }
+      soundDeleting = null;
+      heardSounds.delete(f.name);
+      await invoke("delete_sound", { name: f.name }).catch((e) => soundNote(String(e)));
+      refreshSounds();
+    });
+    chip.append(name, play, del);
+    return chip;
+  });
+  const add = el("button", "", "[add a sound]");
+  add.type = "button";
+  add.title = "Pick a sound file (wav, mp3, ogg, flac or m4a, 2 MB at most): a copy is kept with your settings";
+  add.addEventListener("click", () => {
+    soundFor = null;
+    $("sound-file").click();
+  });
+  $("sound-files").replaceChildren(...(chips.length ? chips : [el("span", "sep", "none yet")]), add);
+}
+async function refreshSounds() {
+  try {
+    soundsView = await invoke("sounds");
+    drawSounds();
+  } catch {
+    // Next time, then.
+  }
+}
+for (const b of document.querySelectorAll("[data-volume-choice]")) {
+  b.addEventListener("click", async () => {
+    await invoke("set_sound_volume", { volume: Number(b.dataset.volumeChoice) }).catch(() => {});
+    await refreshSounds();
+    chime();
+  });
+}
+for (const sel of document.querySelectorAll("select[data-sound-alert]")) {
+  sel.addEventListener("change", async () => {
+    const alert = sel.dataset.soundAlert;
+    if (sel.value === SOUND_ADD) {
+      soundFor = alert;
+      sel.blur();
+      drawSounds();
+      $("sound-file").click();
+      return;
+    }
+    await invoke("set_sound_choice", { alert, sound: sel.value }).catch((e) => soundNote(String(e)));
+    sel.blur();
+    refreshSounds();
+  });
+}
+for (const b of document.querySelectorAll("button[data-hear-alert]")) {
+  b.addEventListener("click", async () => {
+    const alert = b.dataset.hearAlert;
+    const choice = (soundsView && soundsView.alerts[alert]) || "chime";
+    if (!(await hearChoice(choice, CHIMES[alert]))) soundNote(`couldn't play ${choice}`);
+  });
+}
+$("sound-file").addEventListener("change", async () => {
+  const file = $("sound-file").files[0];
+  $("sound-file").value = "";
+  const alert = soundFor;
+  soundFor = null;
+  if (!file) return;
+  try {
+    const name = await addSoundFile(file);
+    if (alert) await invoke("set_sound_choice", { alert, sound: name });
+    soundNote(`added ${name}`);
+  } catch (e) {
+    soundNote(e instanceof Error ? e.message : String(e));
+  }
+  refreshSounds();
+});
+tauri.event.listen("sounds-changed", () => refreshSounds());
+refreshSounds();
 
 $("pet-souls").addEventListener("click", async () => {
   await invoke("set_pet_souls", { on: !(state && state.pet_souls) });

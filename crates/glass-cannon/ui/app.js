@@ -583,7 +583,7 @@ function sendBoss(view) {
         sound: view.alert_sound,
       }
     : null;
-  toHud({ type: "gc-boss", boss: boss && { ...boss, appearance: view.appearance }, mechanics: view.boss_mechanics || [], sound: view.alert_sound, sounds: view.cast_sounds || {} });
+  toHud({ type: "gc-boss", boss: boss && { ...boss, appearance: view.appearance }, mechanics: view.boss_mechanics || [], sound: view.alert_sound, sounds: view.sounds });
 }
 
 // ---------------------------------------------------------------- pet souls

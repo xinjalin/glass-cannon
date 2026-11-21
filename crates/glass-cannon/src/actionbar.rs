@@ -206,6 +206,34 @@ impl BarStyle {
     }
 }
 
+/// What a bar sounds, each "none", "chime" or one of your sound files (settings → sound):
+/// when a skill on it is ready again, when an effect on it comes on you, and when one ends.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct BarSounds {
+    pub ready: String,
+    pub gained: String,
+    pub ended: String,
+}
+
+impl Default for BarSounds {
+    fn default() -> Self {
+        let none = || crate::sounds::NONE.to_string();
+        Self { ready: none(), gained: none(), ended: none() }
+    }
+}
+
+impl BarSounds {
+    fn sanitized(mut self) -> Self {
+        for choice in [&mut self.ready, &mut self.gained, &mut self.ended] {
+            if !crate::sounds::is_choice(choice) {
+                *choice = crate::sounds::NONE.into();
+            }
+        }
+        self
+    }
+}
+
 /// One bar.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -226,6 +254,7 @@ pub struct BarSetup {
     /// A stigma you haven't equipped stays off it.
     pub hide_unequipped: bool,
     pub style: BarStyle,
+    pub sounds: BarSounds,
 }
 
 impl Default for BarSetup {
@@ -239,6 +268,7 @@ impl Default for BarSetup {
             hide_idle: false,
             hide_unequipped: false,
             style: BarStyle::default(),
+            sounds: BarSounds::default(),
         }
     }
 }
@@ -260,6 +290,7 @@ impl BarSetup {
         }
         self.effects = effects;
         self.style = self.style.sanitized();
+        self.sounds = self.sounds.sanitized();
         self
     }
 }
@@ -383,7 +414,29 @@ pub struct BarView {
     pub hide_idle: bool,
     pub in_combat: bool,
     pub style: BarStyle,
+    pub sounds: BarSounds,
+    /// Every buff (or debuff) on you is on it, not only those picked.
+    pub all_effects: bool,
     pub slots: Vec<Slot>,
+    /// Everything on the bar, shown or not, for its sounds.
+    pub watch: Vec<Watch>,
+}
+
+/// One thing on a bar as its sounds go by it: a skill on cooldown, or an effect on you (a
+/// skill on the both bar: its buff running). The bar hears a skill stop cooling (ready),
+/// and an effect come on or go.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Watch {
+    pub id: u32,
+    pub cooling: bool,
+    pub on: bool,
+}
+
+impl Watch {
+    fn of(s: &Slot) -> Option<Self> {
+        let skill = s.kind == "skill";
+        (s.kind != "gap" && s.kind != "row").then_some(Watch { id: s.id, cooling: skill && !s.buff && s.remaining_ms > 0, on: if skill { s.buff } else { s.running } })
+    }
 }
 
 /// Your class, as last seen (your profile).
@@ -426,7 +479,7 @@ fn effect_slot(data: &crate::gamedata::GameData, kind: &'static str, effect: u32
 pub fn action_bar(app: State<'_, Arc<AppState>>, bar: u8) -> BarView {
     let class = class(&app);
     let Some(setup) = setup_of(&app, class, bar) else {
-        return BarView { bar, class, exists: false, tracks: TRACKS[0].into(), hide_idle: false, in_combat: false, style: BarStyle::default(), slots: Vec::new() };
+        return BarView { bar, class, exists: false, tracks: TRACKS[0].into(), hide_idle: false, in_combat: false, style: BarStyle::default(), sounds: BarSounds::default(), all_effects: false, slots: Vec::new(), watch: Vec::new() };
     };
     let now = app.engine.now();
     let (cooldowns, effects, from_player, in_combat, equipped) = {
@@ -509,8 +562,9 @@ pub fn action_bar(app: State<'_, Arc<AppState>>, bar: u8) -> BarView {
             }
         }
     }
+    let watch = slots.iter().filter_map(Watch::of).collect();
     slots.retain(|s| s.shown(&setup.show));
-    BarView { bar, class, exists: true, tracks: setup.tracks.clone(), hide_idle: setup.hide_idle, in_combat, style: setup.style, slots }
+    BarView { bar, class, exists: true, tracks: setup.tracks.clone(), hide_idle: setup.hide_idle, in_combat, style: setup.style, sounds: setup.sounds, all_effects: setup.all_effects, slots, watch }
 }
 
 // ---------------------------------------------------------------- setting a bar up
@@ -687,9 +741,12 @@ mod tests {
             skills: vec![18_010_340, GAP, 18_010_000, ROW, GAP, 18_020_000],
             effects: vec![5, GAP, 5, 7],
             style: BarStyle { look: "hexagons".into(), icon_size: 900, spacing: 99, opacity: 0, ready: "#A0FF10".into(), cooling: "purple-ish".into(), ..BarStyle::default() },
+            sounds: BarSounds { ready: "Air Horn.wav".into(), gained: "../settings.json".into(), ended: "chime".into() },
             ..BarSetup::default()
         }
         .sanitized();
+        // A sound: nothing, the chime, or a sound file's name as kept; anything else is none.
+        assert_eq!((s.sounds.ready.as_str(), s.sounds.gained.as_str(), s.sounds.ended.as_str()), ("Air Horn.wav", "none", "chime"));
         assert_eq!((s.tracks.as_str(), s.show.as_str()), ("cooldowns", "always"));
         // Variants share a slot; gaps and rows stay, as many as put there.
         assert_eq!(s.skills, [18_010_000, GAP, ROW, GAP, 18_020_000]);
@@ -730,6 +787,12 @@ mod tests {
         let cooling = slot("skill", 18_020_000, true, false);
         let buff = slot("buff", 700, true, false);
         let gone = slot("buff", 701, false, true);
+        // For the bar's sounds: a skill cooling (not one showing its buff), an effect on you.
+        let watch = |s: &Slot| Watch::of(s).map(|w| (w.cooling, w.on));
+        let cooling_for = Slot { remaining_ms: 4000, ..slot("skill", 18_020_000, true, false) };
+        let buffed = Slot { remaining_ms: 4000, buff: true, ..slot("skill", 18_030_000, true, false) };
+        assert_eq!((watch(&ready), watch(&cooling_for), watch(&buffed)), (Some((false, false)), Some((true, false)), Some((false, true))));
+        assert_eq!((watch(&buff), watch(&gone), watch(&Slot::mark(GAP))), (Some((false, true)), Some((false, false)), None));
         let shown = |show: &str| [&ready, &cooling, &buff, &gone].iter().filter(|s| s.shown(show)).map(|s| s.id).collect::<Vec<_>>();
         assert_eq!(shown("always"), [18_010_000, 18_020_000, 700, 701]);
         assert_eq!(shown("running"), [18_020_000, 700]);

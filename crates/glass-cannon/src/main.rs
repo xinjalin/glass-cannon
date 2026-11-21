@@ -50,6 +50,7 @@ mod ping;
 mod placement;
 mod runs;
 mod settings;
+mod sounds;
 mod setup;
 mod store;
 mod style;
@@ -288,9 +289,9 @@ struct View {
     /// first: the boss warnings show them before the casts.
     boss_mechanics: Vec<meter_core::mechanics::Alert>,
     alert_sound: bool,
-    /// Your own sounds for boss casts' warnings (the boss casts window): the skill and
-    /// its file.
-    cast_sounds: std::collections::BTreeMap<u32, String>,
+    /// What the alerts play (settings → sound): their volume, each alert's and boss
+    /// cast's sound, and the files to have ready.
+    sounds: sounds::SoundSetup,
     /// Hidden cubes in view.
     cubes: Vec<meter_core::cubes::CubeView>,
     /// Pet souls gained since the last snapshot, with each pet's progress.
@@ -626,6 +627,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     }
     let name_remembered = profile.apply(&mut snap);
     let settings = lock(&app.settings).clone();
+    let sound_setup = sounds::setup(&settings);
     // The boss turning to you, for the boss warnings (settings → boss on you).
     if let Some(enc) = snap.encounter.as_mut().filter(|_| !settings.boss_on_you) {
         enc.boss_on_you_us = None;
@@ -670,7 +672,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
         boss_ahead,
         boss_mechanics,
         alert_sound: settings.alert_sound,
-        cast_sounds: settings.boss_skill_sounds,
+        sounds: sound_setup,
         cubes,
         souls,
         dummy,
@@ -1229,10 +1231,13 @@ fn main() {
             bosscasts::export_boss_casts,
             bosscasts::import_boss_casts,
             bosscasts::reset_boss_casts,
-            bosscasts::add_boss_sound,
-            bosscasts::delete_boss_sound,
-            bosscasts::boss_sound,
-            bosscasts::set_boss_skill_sound,
+            sounds::sounds,
+            sounds::add_sound,
+            sounds::delete_sound,
+            sounds::sound_bytes,
+            sounds::set_sound_choice,
+            sounds::set_sound_volume,
+            sounds::set_boss_skill_sound,
             settings::open_boss_casts,
             collection::collection_icon,
             checklist::checklist,

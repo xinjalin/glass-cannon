@@ -751,11 +751,45 @@
             </button>
             <p class="hint" id="cube-keys-note"></p>
           </fieldset>
-          <fieldset class="box" data-for="boss-warnings boss-timers cubes timers">
+          <!-- Sound: here in the window, and in the panels of the widgets that sound. -->
+          <fieldset class="box in-window" data-for="boss-warnings boss-timers cubes timers">
             <legend>sound</legend>
-            <button id="alert-sound" data-keywords="audio chime volume beep mute noise" type="button" class="opt" aria-pressed="false" title="A chime with each boss warning, each hidden cube that comes into view, and each world timer alert (🔔)">
+            <button id="alert-sound" data-keywords="audio chime volume beep mute noise sounds" type="button" class="opt" aria-pressed="false" title="Everything that sounds: each boss warning, the boss turning to you, each hidden cube that comes into view, each world timer alert (🔔), and the action bars' sounds">
               <span class="key">alert sound</span><span class="state">[on]</span>
             </button>
+            <div class="line" data-keywords="volume loud quiet louder quieter sound audio">
+              <span class="key">volume</span>
+              <span class="choice" role="radiogroup" aria-label="How loud the alerts are">
+                <button type="button" data-volume-choice="10" title="A tenth as loud">[10%]</button>
+                <button type="button" data-volume-choice="25" title="A quarter as loud">[25%]</button>
+                <button type="button" data-volume-choice="50" title="Half as loud">[50%]</button>
+                <button type="button" data-volume-choice="75" title="Three quarters as loud">[75%]</button>
+                <button type="button" data-volume-choice="100" title="As loud as it goes (default)">[100%]</button>
+              </span>
+            </div>
+            <div class="line" data-keywords="boss warning cast mechanic sound chime custom file">
+              <span class="key" title="A boss warning: a cast or a mechanic. A cast can have a sound of its own in the boss casts window">boss warning</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="boss" aria-label="The boss warnings' sound"></select><button type="button" data-hear-alert="boss" title="Hear it">[▶]</button></span>
+            </div>
+            <div class="line" data-keywords="boss on you aggro target sound chime custom file">
+              <span class="key" title="The boss you're fighting turns to attack you">boss on you</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="on_you" aria-label="The sound when the boss turns to you"></select><button type="button" data-hear-alert="on_you" title="Hear it">[▶]</button></span>
+            </div>
+            <div class="line" data-keywords="hidden cube sound chime custom file">
+              <span class="key" title="A hidden cube comes into view">hidden cube</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="cube" aria-label="The hidden cubes' sound"></select><button type="button" data-hear-alert="cube" title="Hear it">[▶]</button></span>
+            </div>
+            <div class="line" data-keywords="world timer event field boss bell sound chime custom file">
+              <span class="key" title="A world timer's alert (🔔)">world timer</span>
+              <span class="choice"><select class="sound-select" data-sound-alert="timer" aria-label="The world timers' sound"></select><button type="button" data-hear-alert="timer" title="Hear it">[▶]</button></span>
+            </div>
+            <div class="line sound-files" data-keywords="sound file upload custom wav mp3 ogg your sounds add delete">
+              <span class="key" title="Sound files of your own: a copy of each is kept with your settings, for anything that sounds to play">your sounds</span>
+              <span class="choice" id="sound-files"></span>
+            </div>
+            <input id="sound-file" type="file" accept=".wav,.mp3,.ogg,.flac,.m4a,audio/*" hidden>
+            <p class="hint" id="sound-note"></p>
+            <p class="hint">A boss cast can have a sound of its own (boss casts), and an action bar one for a skill ready or an effect coming or going (its ⚙ → preferences).</p>
           </fieldset>
           <fieldset class="box" data-for="timers timer-pins">
             <legend>world timers</legend>

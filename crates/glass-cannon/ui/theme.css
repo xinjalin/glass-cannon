@@ -175,6 +175,22 @@
 .c18 { --class: var(--class-18, #abe39c); --class-ink: var(--class-ink-18, #1b0f11); } /* Chanter */
 .c19 { --class: var(--class-19, #f6aa6e); --class-ink: var(--class-ink-19, #1b0f11); } /* Fighter */
 
+/* A list to choose a sound from (settings → sound, a boss cast's, an action bar's). */
+.sound-select {
+  max-width: 11em;
+  font: inherit;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--line-faint);
+  border-radius: 0.25em;
+  padding: 0 0.15em;
+  outline: none;
+  text-overflow: ellipsis;
+}
+.sound-select:focus { border-color: var(--accent); }
+.sound-select option { color: var(--text); background: rgb(var(--tint-rgb)); }
+.sound-select:disabled { color: var(--faint); }
+
 /* ---------------------------------------------------------------- widgets in the overlay */
 
 /* A widget is part of the game's screen, not a window: a frameless rounded panel (no
