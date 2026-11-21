@@ -337,8 +337,21 @@ const DANGER_CAST_MS: u32 = 2500;
 
 /// Whether a boss skill gets a warning: as you marked it (the analysis window's [boss]
 /// tab), else when it marks the ground or takes [`DANGER_CAST_MS`] or more to cast.
-fn dangerous(marks: &std::collections::BTreeMap<u32, bool>, skill: u32, cast_ms: u32, lands_ms: u32) -> bool {
+pub(crate) fn dangerous(marks: &std::collections::BTreeMap<u32, bool>, skill: u32, cast_ms: u32, lands_ms: u32) -> bool {
     marks.get(&skill).copied().unwrap_or(lands_ms > 0 || cast_ms >= DANGER_CAST_MS)
+}
+
+/// Which boss casts are warned of, where it's been said: yours (settings, the boss casts
+/// window), then the app's defaults (boss-cast-defaults.json), then our data's.
+pub(crate) fn cast_marks(app: &AppState, data: &GameData) -> std::collections::BTreeMap<u32, bool> {
+    let mut marks = lock(&app.settings).boss_skill_alerts.clone();
+    for (skill, on) in data.default_cast_warns() {
+        marks.entry(skill).or_insert(on);
+    }
+    for &skill in data.warn_casts() {
+        marks.entry(skill).or_insert(true);
+    }
+    marks
 }
 
 /// The boss casts the meter shows: not routine (cast [`ROUTINE_CASTS`] times or more in
@@ -564,6 +577,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     if data.take_meter_stale() {
         let mut meter = app.engine.meter();
         meter.set_boss_types(data.boss_types());
+        meter.set_shield_bases(data.shield_bases());
         meter.set_mechanics(data.mechanics());
         meter.set_skill_groups(data.skill_groups().clone());
     }
@@ -589,14 +603,7 @@ fn snapshot(app: State<'_, Arc<AppState>>, expanded: Option<Vec<u64>>) -> View {
     let mut boss_next = None;
     let mut boss_ahead = BossAhead::default();
     if let Some(enc) = snap.encounter.as_mut().filter(|e| e.active && e.target_boss) {
-        // Yours, then the app's defaults (boss-cast-defaults.json), then our data's.
-        let mut marks = lock(&app.settings).boss_skill_alerts.clone();
-        for (skill, on) in data.default_cast_warns() {
-            marks.entry(skill).or_insert(on);
-        }
-        for &skill in data.warn_casts() {
-            marks.entry(skill).or_insert(true);
-        }
+        let marks = cast_marks(&app, &data);
         let mut timers = lock(&app.settings).boss_skill_timers.clone();
         for (skill, on) in data.default_cast_timers() {
             timers.entry(skill).or_insert(on);
@@ -1045,6 +1052,7 @@ fn main() {
             meter: Mutex::new({
                 let mut m = Meter::default();
                 m.set_boss_types(data.boss_types());
+                m.set_shield_bases(data.shield_bases());
                 m.set_mechanics(data.mechanics());
                 m.set_skill_groups(data.skill_groups().clone());
                 m

@@ -303,6 +303,19 @@ table.grid {
 .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8em; }
 @media (max-width: 900px) { .pair { grid-template-columns: minmax(0, 1fr); } }
 .grid.others { margin-top: 0.6em; }
+/* The deaths tab: the list and the tally on the left, a death's recap (wider) beside. */
+.deaths-pair { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+@media (max-width: 900px) { .deaths-pair { grid-template-columns: minmax(0, 1fr); } }
+.stack { display: flex; flex-direction: column; gap: 0.8em; min-width: 0; }
+.facts { margin: 0.6em 0 0.2em; }
+.fact { margin: 0.15em 0; display: flex; gap: 0.6em; }
+.fact .key { flex: none; width: 4.5em; }
+.fact span:last-child { white-space: normal; }
+.good { color: var(--ok); }
+.warn-text { color: var(--warn); }
+.bad-text { color: var(--bad); }
+#death-chart { margin: 0.4em 0 0.6em; }
+#death-chart canvas { cursor: crosshair; }
 .flow-note { margin: 0; }
 
 /* ---------------------------------------------------------------- opener */

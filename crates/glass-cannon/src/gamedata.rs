@@ -969,7 +969,10 @@ impl GameData {
             c.skill_name = self.boss_skill_name(c.skill);
         }
         for d in &mut enc.deaths {
-            d.skill_name = skill_name(d.skill);
+            d.skill_name = self.move_name(d.skill);
+            for c in &mut d.casts {
+                c.skill_name = self.boss_skill_name(c.skill);
+            }
             if let Some(name) = mob_name(d.killer_type) {
                 d.killer = Some(name);
             }
@@ -977,7 +980,7 @@ impl GameData {
                 tidy(k);
             }
             for h in d.hits.iter_mut().chain(d.last_heal.as_mut()) {
-                h.skill_name = skill_name(h.skill);
+                h.skill_name = if h.from_type.is_some() { self.move_name(h.skill) } else { skill_name(h.skill) };
                 if let Some(name) = mob_name(h.from_type) {
                     h.from = name;
                 }
@@ -1068,6 +1071,22 @@ impl GameData {
             .0
             .filter(|n| n != "Attack" || self.names.skills.contains_key(&skill))
             .or_else(|| self.mechanics.labels.get(&skill).cloned())
+    }
+
+    /// What a hit taken is called: a player's skill by its name; a mob's as its cast is
+    /// ([`Self::boss_skill_name`]: never the bare "Attack"), and failing that as the cast
+    /// it's of (a cast's damage comes under its own ID or that plus a few: 1803215 is
+    /// 1803210's, and so "orbs + blast around her").
+    pub fn move_name(&self, skill: u32) -> Option<String> {
+        if skill >= PLAYER_SKILL_MIN {
+            return self.resolve_skill(skill).map(|(_, e)| e.name.clone()).filter(|n| !n.is_empty());
+        }
+        self.boss_skill_name(skill).or_else(|| self.boss_skill_name(skill - skill % 10))
+    }
+
+    /// The skills that give shields, by base ID.
+    pub fn shield_bases(&self) -> impl Iterator<Item = u32> + '_ {
+        self.shield_bases.iter().copied()
     }
 
     /// Names a skill (an empty name goes back to the data's name). Saved to names.json.
@@ -1443,6 +1462,11 @@ mod tests {
         // A move the game doesn't name takes our label, until you name it yourself.
         assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("raid-wide blast"));
         assert_eq!(d.skill_meta(1_803_200).0, None, "a label is for the boss's casts only");
+        // A hit taken is called as its cast is: its damage comes under the cast's ID plus a
+        // few. One with no cast named has no name (never the bare "Attack").
+        assert_eq!(d.move_name(1_803_204).as_deref(), Some("raid-wide blast"));
+        assert_eq!((d.move_name(1_803_055), d.move_name(1_803_210)), (None, None));
+        assert_eq!(d.move_name(11_100_048).as_deref(), Some("Ruinous Blow"));
         d.names_path = Some(dir.join("names.json"));
         d.rename_skill(1_803_200, "Big Boom").unwrap();
         assert_eq!(d.boss_skill_name(1_803_200).as_deref(), Some("Big Boom"));

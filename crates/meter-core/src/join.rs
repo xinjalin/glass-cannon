@@ -91,7 +91,7 @@ fn join_views(views: &[EncounterView]) -> EncounterView {
             .scan(0.0, |offset, v| {
                 let at = *offset;
                 *offset += v.duration_s;
-                Some(v.deaths.iter().map(move |d| DeathView { at_s: d.at_s + at, ..d.clone() }))
+                Some(v.deaths.iter().map(move |d| DeathView { at_s: d.at_s + at, t_ms: d.t_ms.map(|t| t + (at * 1000.0) as u32), ..d.clone() }))
             })
             .flatten()
             .collect(),

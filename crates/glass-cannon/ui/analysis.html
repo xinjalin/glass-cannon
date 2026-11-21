@@ -170,19 +170,38 @@
       </section>
 
       <section id="tab-deaths" class="tab" hidden>
-        <div class="pair">
-          <fieldset class="box">
-            <legend>deaths <span class="note">· click one for what led to it</span></legend>
-            <table id="deaths-table" class="grid"></table>
-          </fieldset>
+        <fieldset id="deaths-strip-box" class="box">
+          <legend>the fight <span class="note">· each death, over the boss's HP · along the top, the casts with a cast time or marked ground · click a death</span></legend>
+          <div id="deaths-strip" class="chart">
+            <canvas></canvas>
+            <div class="tooltip" hidden></div>
+          </div>
+        </fieldset>
+        <div class="pair deaths-pair">
+          <div class="stack">
+            <fieldset class="box">
+              <legend>deaths <span class="note">· click one for what led to it</span></legend>
+              <table id="deaths-table" class="grid"></table>
+            </fieldset>
+            <fieldset id="killers-box" class="box">
+              <legend id="killers-legend">what killed</legend>
+              <table id="killers-table" class="grid"></table>
+            </fieldset>
+          </div>
           <fieldset class="box">
             <legend id="recap-legend">recap</legend>
             <div id="recap-tiles" class="tiles"></div>
+            <div id="recap-facts" class="facts"></div>
+            <div id="death-chart" class="chart">
+              <canvas></canvas>
+              <div class="tooltip" hidden></div>
+            </div>
+            <p id="death-chart-note" class="note" hidden>No timeline: this fight was saved before timelines were kept, or their HP wasn't seen.</p>
             <table id="recap-hits" class="grid"></table>
             <p id="recap-heal" class="note"></p>
           </fieldset>
         </div>
-        <p class="note flow-note">From the last time they were at full HP (or the fight's start) to the death: hits taken, healing received, and the killing blow.</p>
+        <p class="note flow-note">The timeline runs from the last time they were at full HP (15 s at least, a minute at most) to the death: their HP in red with any shield over it, hits from the top (the biggest named), heals from the floor, then the boss's casts (red: the one that killed; amber: ones the overlay warns of) and what mobs had put on them. "The same move" counts the other players it reached within 2 s.</p>
       </section>
 
       <section id="tab-boss" class="tab" hidden>
