@@ -277,6 +277,7 @@ pub fn reset_settings(handle: AppHandle, app: State<'_, Arc<AppState>>) {
     s.bars = old.bars;
     s.boss_skill_alerts = old.boss_skill_alerts;
     s.boss_skill_timers = old.boss_skill_timers;
+    s.boss_skill_sounds = old.boss_skill_sounds;
     s.dummy_label = old.dummy_label;
     s.overlay_on = old.overlay_on;
     s.launcher_on_top = old.launcher_on_top;

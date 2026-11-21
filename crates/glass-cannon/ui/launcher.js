@@ -50,6 +50,7 @@ const ACTIONS = {
   checklist: () => invoke("open_checklist").catch(() => {}),
   blackMarket: () => invoke("open_black_market").catch(() => {}),
   collection: () => invoke("open_collection").catch(() => {}),
+  bossCasts: () => invoke("open_boss_casts").catch(() => {}),
 };
 
 // The list's rows: "key - value" on the left, something short on the right. Each is only
@@ -185,6 +186,7 @@ $("attempts").addEventListener("click", ACTIONS.attempts);
 $("checklist").addEventListener("click", ACTIONS.checklist);
 $("black-market").addEventListener("click", ACTIONS.blackMarket);
 $("collection").addEventListener("click", ACTIONS.collection);
+$("boss-casts").addEventListener("click", ACTIONS.bossCasts);
 
 // The Shugo: one of its nyerks, at random (never the same twice running), and a wiggle.
 // An easter egg.

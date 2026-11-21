@@ -37,6 +37,63 @@ function setText(el, text) {
   if (el.textContent !== text) el.textContent = text;
 }
 
+// ---- sounds: the warnings' chime, and a sound file of your own in its place.
+let audio = null;
+// The boss warnings' rising pair.
+const BOSS_NOTES = [880, 1320];
+// A short chime, a note after another (settings → alert sound).
+function chime(notes = BOSS_NOTES) {
+  try {
+    audio = audio || new AudioContext();
+    const t = audio.currentTime;
+    for (const [i, f] of notes.entries()) {
+      const o = audio.createOscillator();
+      const g = audio.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.12 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + 0.11);
+      o.connect(g).connect(audio.destination);
+      o.start(t + i * 0.12);
+      o.stop(t + i * 0.12 + 0.12);
+    }
+  } catch {
+    // No sound, then.
+  }
+}
+
+// A sound file's bytes (as the app gives them, or read from a file) made ready to play;
+// null when they aren't a sound this can play.
+async function decodeSound(bytes) {
+  try {
+    audio = audio || new AudioContext();
+    // (Decoding takes the bytes for itself: a copy of them.)
+    const copy = bytes instanceof ArrayBuffer ? bytes.slice(0) : new Uint8Array(bytes).buffer;
+    return await audio.decodeAudioData(copy);
+  } catch {
+    return null;
+  }
+}
+
+// How loud a sound of your own plays, and the most of it: a warning's sound is short.
+const OWN_SOUND_GAIN = 0.8;
+const OWN_SOUND_MAX_S = 10;
+// Plays a decoded sound; whether it could.
+function playSound(sound) {
+  try {
+    audio = audio || new AudioContext();
+    const from = audio.createBufferSource();
+    from.buffer = sound;
+    const g = audio.createGain();
+    g.gain.value = OWN_SOUND_GAIN;
+    from.connect(g).connect(audio.destination);
+    from.start(0, 0, OWN_SOUND_MAX_S);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const isHexColor = (c) => /^#[0-9a-f]{6}$/i.test(c || "");
 
 // Text in a picked colour on the dark glass is lightened (same hue) to at least this

@@ -27,17 +27,25 @@
         <button type="button" role="tab" data-show="changed" title="The casts you've named or set">[changed]</button>
       </nav>
       <input id="search" class="side-search" type="search" placeholder="search a boss or cast" autocomplete="off" spellcheck="false">
+      <span id="fold" class="bc-fold">
+        <button id="unfold-all" type="button" title="Show every listed boss's casts">[unfold all]</button>
+        <button id="fold-all" type="button" title="Show the listed bosses' names only">[fold all]</button>
+      </span>
     </div>
     <div class="scroll" id="list"></div>
     <p id="empty" class="empty" hidden></p>
-    <div class="history-foot">
+    <div class="history-foot bc-foot">
+      <!-- Your sound files, for casts' warnings. -->
+      <p id="sounds" class="bc-share"></p>
+      <input id="sound-file" type="file" accept=".wav,.mp3,.ogg,.flac,.m4a,audio/*" hidden>
+      <p id="sound-off" class="note" hidden>alert sound is off (settings → sound): warnings play no sound, yours included</p>
       <p class="bc-share">
         <button id="export" type="button" title="Save your cast names and warning and timer choices to a file in the exports folder beside the app, to share">[export]</button>
         <button id="import" type="button" title="Take in a file exported from here: its names and choices go over yours">[import]</button>
         <input id="import-file" type="file" accept=".json,application/json" hidden>
         <span id="share-note" class="note"></span>
       </p>
-      <p class="note">casts come from your fights with the meter running · <b>auto</b> warns of a cast that takes 2.5 s or more or marks the ground, and the timers follow the warnings · click a cast's name to rename it</p>
+      <p class="note">casts come from your fights with the meter running · click a boss to unfold its casts · <b>auto</b> warns of a cast that takes 2.5 s or more or marks the ground, and the timers follow the warnings · click a cast's name to rename it · a cast's <b>sound</b> plays with its warning, in place of the chime</p>
     </div>
   </main>
   <script src="theme.js"></script>

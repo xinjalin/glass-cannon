@@ -174,6 +174,10 @@ pub struct Settings {
     /// shows, false never; the rest go by the warnings'.
     #[serde(default)]
     pub boss_skill_timers: BTreeMap<u32, bool>,
+    /// Your own sound for a boss cast's warning, in place of the chime: a file in the
+    /// `sounds` folder beside the settings (the boss casts window puts them there).
+    #[serde(default)]
+    pub boss_skill_sounds: BTreeMap<u32, String>,
     /// Dungeon bosses' mechanics in the boss warnings (`gamedata/boss-mechanics.json`).
     #[serde(default = "default_true")]
     pub boss_mechanics: bool,

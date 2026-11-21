@@ -671,8 +671,15 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .col-also { margin-left: 0.4em; }
 /* The boss casts window: each boss with its casts, each with its warn and timer choices. */
 .bc-boss + .bc-boss { margin-top: 0.5em; padding-top: 0.35em; border-top: 1px solid var(--line-faint); }
-.bc-boss-head { display: flex; align-items: baseline; gap: 0.6em; }
+.bc-boss-head { display: flex; align-items: baseline; gap: 0.6em; width: 100%; padding: 0.1em 0.2em; border-radius: 0.25em; text-align: left; }
+.bc-boss-head:hover { background: var(--line-faint); }
 .bc-boss-name { color: var(--text); font-weight: 700; }
+.bc-caret { flex: none; width: 0.9em; color: var(--accent); }
+.bc-boss-count { margin-left: auto; white-space: nowrap; }
+.bc-boss.open > .bc-boss-head { margin-bottom: 0.15em; }
+.bc-fold { display: flex; gap: 0.4em; margin-left: auto; }
+.bc-fold[hidden] { display: none; }
+.bc-fold button { color: var(--accent); font-size: 0.9em; }
 .bc-cast { display: flex; align-items: center; gap: 0.6em; padding: 0.25em 0.1em 0.25em 0.5em; }
 .bc-cast + .bc-cast { border-top: 1px solid var(--line-faint); }
 .bc-cast.set { box-shadow: inset 2px 0 0 var(--accent); }
@@ -696,6 +703,21 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bc-choice button:hover { background: var(--line-faint); }
 .bc-choice button[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .bc-none { margin: 0.2em 0 0 0.5em; }
+/* A cast's warning sound: the chime or one of your files, and a button to hear it. */
+.bc-sound select {
+  max-width: 11em;
+  font: inherit;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--line-faint);
+  border-radius: 0.25em;
+  padding: 0 0.15em;
+  outline: none;
+  text-overflow: ellipsis;
+}
+.bc-sound select:focus { border-color: var(--accent); }
+.bc-sound select option { color: var(--text); background: rgb(var(--tint-rgb)); }
+.bc-sound.idle select, .bc-sound.idle button { color: var(--faint); }
 .bm-pet-bar { width: 3em; height: 0.3em; border-radius: 0.15em; background: var(--line-faint); overflow: hidden; }
 .bm-pet-fill { display: block; height: 100%; background: var(--accent-2); }
 .bm-hidden { margin: 0.3em 0.1em 0; }
@@ -780,6 +802,10 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 /* The boss casts window: sharing a mapping. */
 .bc-share { display: flex; align-items: center; gap: 0.4em; margin: 0 0 0.3em; flex-wrap: wrap; }
 .bc-share button { color: var(--accent); }
+.bc-foot { flex-direction: column; align-items: stretch; gap: 0; }
+.bc-foot > p { margin: 0 0 0.3em; }
+.bc-sound-file { display: inline-flex; align-items: baseline; gap: 0.15em; padding: 0 0.3em; border: 1px solid var(--line-faint); border-radius: 0.25em; white-space: nowrap; }
+.bc-sound-file > span { max-width: 14em; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------------------------------------------------------------- timer pins */
 

@@ -102,6 +102,8 @@ pub struct Alert {
     pub left_ms: Option<u32>,
     /// It's over: this is what to do next.
     pub after: bool,
+    /// The boss cast it's for, when a cast set it off (its own sound, where you gave it one).
+    pub skill: Option<u32>,
 }
 
 /// A boss cast, as the meter logged it.
@@ -253,6 +255,7 @@ impl Mechanics {
             priority: m.priority,
             left_ms: m.due_s.and_then(|d| ms_left(start + us(d), n.now_us)).or(left_ms),
             after: false,
+            skill: None,
         };
         // Its follow-up, for a while after it ended.
         let after = |start: u64, end: u64| {
@@ -265,6 +268,7 @@ impl Mechanics {
                 priority: m.priority,
                 left_ms: ms_left(end + us(t.s), n.now_us),
                 after: true,
+                skill: None,
             })
         };
         match &m.when {
@@ -309,7 +313,7 @@ impl Mechanics {
                     Some(end) if end <= n.now_us => after(c.at_us, end),
                     _ => {
                         let casting = (c.cast_ms > 0 && c.fired_us.is_none()).then(|| c.at_us + u64::from(c.cast_ms) * 1000);
-                        Some(alert(c.at_us, ends.or(casting).and_then(|e| ms_left(e, n.now_us)), Vec::new()))
+                        Some(Alert { skill: Some(c.skill), ..alert(c.at_us, ends.or(casting).and_then(|e| ms_left(e, n.now_us)), Vec::new()) })
                     }
                 }
             }
