@@ -282,6 +282,10 @@ pub struct Settings {
     /// match's own messages).
     #[serde(default = "default_true")]
     pub hide_for_arena: bool,
+    /// The overlay steps aside for the game's loading screens (from the game's own
+    /// messages of a map being loaded and entered).
+    #[serde(default = "default_true")]
+    pub hide_for_loading: bool,
     /// No widget takes the mouse while you play, not even the meter, the world timers and
     /// the pet tracker (the others never do); arranging them still does.
     #[serde(default)]

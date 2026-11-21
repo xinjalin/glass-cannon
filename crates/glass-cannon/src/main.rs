@@ -1194,6 +1194,7 @@ fn main() {
             widgets::set_close_with_game,
             widgets::set_hide_for_menus,
             widgets::set_hide_for_arena,
+            widgets::set_hide_for_loading,
             widgets::set_click_through,
             widgets::set_black_market_auto,
             widgets::pet_map,

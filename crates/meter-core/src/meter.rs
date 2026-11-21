@@ -987,6 +987,7 @@ pub struct Meter {
     cubes: crate::cubes::Cubes,
     /// The arena match you're in.
     arena: crate::arena::Arena,
+    loading: crate::loading::Loading,
     /// Your pets' souls.
     pets: crate::pets::Pets,
     /// Your skins and wings.
@@ -1055,6 +1056,7 @@ impl Meter {
             gear: crate::gear::GearBook::default(),
             cubes: crate::cubes::Cubes::default(),
             arena: crate::arena::Arena::default(),
+            loading: crate::loading::Loading::default(),
             pets: crate::pets::Pets::default(),
             collection: crate::collection::Collection::default(),
             positions: crate::positions::Positions::default(),
@@ -1239,6 +1241,11 @@ impl Meter {
         self.arena.screen(now_us)
     }
 
+    /// The game's loading screen is up (see [`crate::loading`]).
+    pub fn loading_screen(&self, now_us: u64) -> bool {
+        self.loading.up(now_us)
+    }
+
     /// How many hidden cube keys you have, when known (see [`crate::cubes::Cubes::keys`]).
     pub fn cube_keys(&self) -> Option<u64> {
         self.cubes.keys()
@@ -1388,6 +1395,7 @@ impl Meter {
         self.cooldowns.feed(ts_us, opcode, payload, self.registry.self_id());
         self.cubes.feed(ts_us, opcode, payload);
         self.arena.feed(ts_us, opcode, payload);
+        self.loading.feed(ts_us, opcode);
         self.pets.feed(opcode, payload);
         self.collection.feed(opcode, payload);
         self.positions.feed(ts_us, opcode, payload, self.registry.self_id());

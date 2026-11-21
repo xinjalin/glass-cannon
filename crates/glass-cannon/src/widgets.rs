@@ -419,6 +419,14 @@ pub fn set_hide_for_arena(app: State<'_, Arc<AppState>>, on: bool) {
     s.save(&app.config_dir);
 }
 
+/// Whether the overlay steps aside for the game's loading screens.
+#[tauri::command]
+pub fn set_hide_for_loading(app: State<'_, Arc<AppState>>, on: bool) {
+    let mut s = lock(&app.settings);
+    s.hide_for_loading = on;
+    s.save(&app.config_dir);
+}
+
 /// Whether the black market window comes up when the merchant is opened in game.
 #[tauri::command]
 pub fn set_black_market_auto(app: State<'_, Arc<AppState>>, on: bool) {

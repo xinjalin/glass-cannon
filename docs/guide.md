@@ -290,6 +290,11 @@ own messages, so nothing on screen is looked at: the widgets go as you arrive, c
 ten seconds after everyone has loaded (while you wait for the gates), go again as the
 match ends and come back once you've left the arena.
 
+**Hide for loading screens** (settings, on by default): the overlay steps aside for the
+game's loading screens too, from the moment the game is told which map to load (or which
+server to move to) until a second and a half after you're on it. These are the game's own
+messages as well, so nothing on screen is looked at.
+
 **Click-through** (settings → overlay, off by default): every click goes through the
 widgets to the game, the meter's, the world timers' and the pet tracker's too. The other
 widgets only show things and always let clicks through. Arranging the widgets still takes

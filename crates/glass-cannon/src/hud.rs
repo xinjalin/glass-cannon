@@ -400,10 +400,15 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                 // they're up (see `meter_core::arena`).
                 let arena_check = shown && !editing && lock(&app.settings).hide_for_arena;
                 let arena = arena_check && app.engine.meter().arena_screen(app.engine.now()).is_some();
-                let map = shown && !editing && (menu || hidden || arena);
+                // The game's loading screen between maps (settings → hide for loading
+                // screens), from the game's own messages too (see `meter_core::loading`).
+                let loading_check = shown && !editing && lock(&app.settings).hide_for_loading;
+                let loading = loading_check && app.engine.meter().loading_screen(app.engine.now());
+                let map = shown && !editing && (menu || hidden || arena || loading);
                 *lock(&app.step_aside) = match () {
                     _ if !map => "",
                     _ if hidden => "hotkey",
+                    _ if loading => "loading",
                     _ if menu => "menu",
                     _ => "arena",
                 };

@@ -24,7 +24,7 @@ pub struct LauncherState {
     overlay_on: bool,
     overlay_showing: bool,
     arranging: bool,
-    /// Why the widgets are stepping aside now: "", "menu", "arena" or "hotkey".
+    /// Why the widgets are stepping aside now: "", "menu", "arena", "loading" or "hotkey".
     step_aside: &'static str,
     /// Its widgets are hidden by the hotkey, and the hotkey's keys.
     hidden: bool,

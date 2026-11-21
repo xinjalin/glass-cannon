@@ -905,6 +905,29 @@ one) moved in the first 10 s after everyone had loaded, the first doing so at 10
 (only mantras' ticks came before), so that's taken as its time. Should a message be
 missed, the fight's start (step 2) or a time limit brings the overlay back.
 
+### Loading screens (2026-11-21)
+
+Worked out from two captures (19 loads: into the world, a dungeon, a raid, arena matches
+and back). Every load goes the same way, and a connection's first map comes the same way as
+any later one:
+
+| opcode   | layout                                              | what                                     |
+| -------- | --------------------------------------------------- | ---------------------------------------- |
+| `0x3616` | u16, then the new server's address as text and its port (not worked out further) | you're being moved to another game server; this connection ends 0.1 s later (`0x4005` `00 00` comes 0.15 s before it on some exits from a dungeon or an arena, not all) |
+| `0xcb02` | 20 bytes                                            | a new connection's first message, 0.35 to 0.6 s after the move |
+| `0x3621` | u32 n, u32 map ID, more (not worked out)            | the map to load (Questlog's PrepareEnterMap): n counts this connection's loads from 1. On a new connection it comes 1.3 to 1.6 s after its first message, behind some 170 messages of your character's state |
+| `0x4002` | u32 map ID, u8                                      | you're on it, 3.3 to 7 s later; only the clock (`0x3600`) comes in between |
+
+A teleport or a dungeon's next part on the same server is `0x3621` and `0x4002` alone. A
+1v1's next round puts you back the same way in 0.75 s.
+
+The overlay steps aside for the loading screen (settings → hide for loading screens;
+`meter_core::loading`): from `0x3616` or `0x3621`, whichever comes first, until 1.5 s
+after `0x4002`. Nothing says when the screen itself goes; an arena match's own "this
+player has loaded" for you (`0xe31c`) came 1.2 to 1.3 s after `0x4002` in both matches,
+so that's taken as its time. A load of under 2 s (a round's re-placing) has no screen to
+wait out, and one with no `0x4002` within a minute is given up.
+
 ## Capturing (how packet-lab and the meter get the traffic)
 
 - **Finding the game:** the Windows connection tables (`GetExtendedTcpTable` /
