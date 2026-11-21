@@ -88,6 +88,8 @@ pub struct SettingsStatus {
     /// The menu check's last results (how X-like and arrow-like the corner was) and their bars.
     menu_checks: Vec<(u8, u8)>,
     menu_share: (u8, u8),
+    /// What the menu check last made of the top of the screen, looking for a window.
+    window_look: Option<crate::menus::WindowLook>,
     /// The global hotkeys.
     hotkeys: Vec<Hotkey>,
 }
@@ -200,6 +202,7 @@ pub fn settings_status(app: State<'_, Arc<AppState>>) -> SettingsStatus {
         party_sort: s.party_sort.clone(),
         menu_checks: lock(&app.menu_checks).iter().copied().collect(),
         menu_share: (crate::menus::X_SCORE as u8, crate::menus::ARROW_SCORE as u8),
+        window_look: *lock(&app.window_look),
         hotkeys: crate::hotkeys::ACTIONS
             .iter()
             .map(|&(action, what, default)| Hotkey {

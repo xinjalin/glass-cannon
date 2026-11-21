@@ -193,6 +193,8 @@ pub struct AppState {
     /// The menu check's last results: how X-like and how arrow-like the top-right corner
     /// was (for the setting's tooltip).
     menu_checks: Mutex<std::collections::VecDeque<(u8, u8)>>,
+    /// What the menu check last made of the top of the screen (a window's close X).
+    window_look: Mutex<Option<menus::WindowLook>>,
     /// The game's window is up, and the overlay is over it (kept by the HUD's watcher).
     game_found: AtomicBool,
     hud_shown: AtomicBool,
@@ -1097,6 +1099,7 @@ fn main() {
         hud_hidden: AtomicBool::new(false),
         step_aside: Mutex::new(""),
         menu_checks: Mutex::new(std::collections::VecDeque::new()),
+        window_look: Mutex::new(None),
         game_found: AtomicBool::new(false),
         hud_shown: AtomicBool::new(false),
         known_players: Mutex::new(Some(known_players)),

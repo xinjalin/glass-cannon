@@ -209,11 +209,24 @@ async function refresh() {
     // cursor up.
     const menuBtn = $("hide-for-menus");
     if (!menuBtn.dataset.text) menuBtn.dataset.text = menuBtn.title;
+    // And what the last look for a window (Attendance…) made of the top of the screen.
+    const win = state.window_look;
+    const winText = !win
+      ? ""
+      : win.found
+        ? "a window's close X on its title bar"
+        : win.ran_out
+          ? "ran out of time"
+          : !win.marks
+            ? "no X-like mark"
+            : `${win.marks} X-like ${win.marks === 1 ? "mark" : "marks"}, none on a title bar` +
+              (win.edges ? ` (the nearest: edges ${win.edges[0]}% and ${win.edges[1]}% straight, ${win.edges[2]}% of it under our widgets; needs 90% and 70%)` : " (no edge long enough could be seen)");
     menuBtn.title =
       menuBtn.dataset.text +
       (state.menu_checks && state.menu_checks.length
         ? `\n\nLast checks (X from ${state.menu_share[0]}, arrow from ${state.menu_share[1]}): ${state.menu_checks.map(([x, a]) => `X ${x} / arrow ${a}`).join(" · ")}`
-        : "");
+        : "") +
+      (winText ? `\n\nLast look for a window: ${winText}` : "");
     drawHotkeys();
     $("arrange-overlay").querySelector(".state").textContent = state.arranging ? "[ done ]" : "[ arrange ]";
     $("arrange-overlay").setAttribute("aria-pressed", String(state.arranging));
