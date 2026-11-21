@@ -26,6 +26,42 @@ let lastKey = "";
 const before = new Map();
 const glowing = new Map();
 
+// The bar's sounds (its ⚙ → preferences): a skill ready again, an effect coming on you,
+// an effect ending. Heard from one look to the next at everything on the bar (shown or
+// not), and played by the overlay; one sound a look, the first of those that's set. Not
+// on the first look, after a break (the overlay was hidden), when the bar became another
+// (your class, what it tracks), or while it's hidden.
+let watched = null;
+let watchedKey = "";
+let watchedAt = 0;
+const WATCH_GAP_MS = 1500;
+function hear(view, hidden) {
+  const now = performance.now();
+  const key = `${view.class}:${view.tracks}:${view.all_effects}`;
+  const state = new Map((view.watch || []).map((w) => [w.id, w]));
+  const before = watched;
+  const follows = before && key === watchedKey && now - watchedAt < WATCH_GAP_MS && !hidden;
+  watched = state;
+  watchedKey = key;
+  watchedAt = now;
+  if (!follows) return;
+  // With every effect on you on the bar, one not listed isn't on you.
+  const off = view.all_effects ? { cooling: false, on: false } : null;
+  const heard = new Set();
+  for (const [id, w] of state) {
+    const was = before.get(id) || off;
+    if (!was) continue;
+    if (was.cooling && !w.cooling && !w.on) heard.add("ready");
+    if (!was.on && w.on) heard.add("gained");
+  }
+  for (const [id, was] of before) {
+    const w = state.get(id) || off;
+    if (w && was.on && !w.on) heard.add("ended");
+  }
+  const what = ["ready", "ended", "gained"].find((k) => heard.has(k) && view.sounds && view.sounds[k] && view.sounds[k] !== "none");
+  if (what) window.parent.postMessage({ type: "gc-sound", choice: view.sounds[what], chime: what }, "*");
+}
+
 // "9", "2.4" (tenths in the last 3 s, if set), "4m".
 function timeText(ms, tenths) {
   if (ms >= 60_000) return `${Math.ceil(ms / 60_000)}m`;
@@ -120,6 +156,8 @@ async function refresh() {
     return;
   }
   const now = performance.now();
+  const hidden = !view.exists || (view.hide_idle && !view.in_combat);
+  hear(view, hidden);
   // Skills that just came off cooldown glow a moment.
   for (const s of view.slots) {
     if (s.kind !== "skill" || s.buff) continue;
@@ -133,7 +171,6 @@ async function refresh() {
   lastKey = key;
   applyStyle(view.style);
   const p = $("panel");
-  const hidden = !view.exists || (view.hide_idle && !view.in_combat);
   const content = view.slots.some((s) => s.kind !== "gap" && s.kind !== "row");
   if ((hidden || !content) && !editing) {
     p.replaceChildren();

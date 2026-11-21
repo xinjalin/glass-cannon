@@ -178,6 +178,13 @@ pub struct Settings {
     /// `sounds` folder beside the settings (the boss casts window puts them there).
     #[serde(default)]
     pub boss_skill_sounds: BTreeMap<u32, String>,
+    /// What each alert plays (`sounds::ALERTS`): "none", or one of your sound files; one
+    /// not here plays its chime.
+    #[serde(default)]
+    pub sounds: BTreeMap<String, String>,
+    /// How loud the alerts are, in percent.
+    #[serde(default = "default_volume")]
+    pub sound_volume: u16,
     /// Dungeon bosses' mechanics in the boss warnings (`gamedata/boss-mechanics.json`).
     #[serde(default = "default_true")]
     pub boss_mechanics: bool,
@@ -342,6 +349,9 @@ fn default_alert_lead() -> u32 {
 }
 fn default_true() -> bool {
     true
+}
+fn default_volume() -> u16 {
+    100
 }
 fn default_widgets() -> Vec<String> {
     ["meter", "boss-warnings", "boss-timers", "cubes"].map(String::from).to_vec()

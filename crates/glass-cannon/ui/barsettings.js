@@ -305,9 +305,27 @@ function drawStyle() {
 
 // ---------------------------------------------------------------- the rest
 
+// Your sound files and whether anything sounds (settings → sound), as last read.
+let soundsView = { on: true, volume: 100, files: [] };
+// Each sound, and what the bar must track to have it.
+const BAR_SOUNDS = { ready: ["cooldowns", "both"], gained: ["buffs", "both", "debuffs"], ended: ["buffs", "both", "debuffs"] };
+
 function drawPrefs() {
   for (const b of $("bs-show").children) press(b, b.dataset.v === view.setup.show);
   toggle($("bs-idle"), view.setup.hide_idle);
+  const files = soundsView.files.map((f) => f.name);
+  const mine = view.setup.sounds || {};
+  for (const sel of document.querySelectorAll("select[data-sound]")) {
+    const k = sel.dataset.sound;
+    // (Not under an open list: it would close.)
+    if (document.activeElement !== sel) fillSounds(sel, mine[k] || "none", [["none", "none"], ["chime", "chime"]], files, false);
+    const line = sel.closest(".bs-line");
+    const why = BAR_SOUNDS[k].includes(view.setup.tracks) ? "" : k === "ready" ? "this bar tracks effects, not skills" : "this bar tracks skills' cooldowns, not effects";
+    line.classList.toggle("off", !!why);
+    for (const c of line.querySelectorAll("select, button")) c.disabled = !!why;
+    line.title = why ? `No effect: ${why}` : "";
+  }
+  $("bs-sound-off").hidden = soundsView.on !== false;
 }
 
 function draw() {
@@ -339,8 +357,13 @@ function draw() {
 
 async function load() {
   try {
-    const [v, widgets] = await Promise.all([invoke("action_bar_setup", { bar: BAR }), invoke("widgets_shown")]);
+    const [v, widgets, snd] = await Promise.all([invoke("action_bar_setup", { bar: BAR }), invoke("widgets_shown"), invoke("sounds").catch(() => null)]);
     shown = (widgets || []).includes(WIDGET_NAME);
+    if (snd && JSON.stringify(snd) !== JSON.stringify(soundsView)) {
+      soundsView = snd;
+      soundVolume = snd.volume / 100;
+      lastLoaded = "";
+    }
     // Not while a list's being dragged, or just after a change.
     if (dragging || Date.now() - changedAt < 1500) return;
     const key = JSON.stringify([v, shown]);
@@ -365,6 +388,16 @@ for (const b of document.querySelectorAll(".bs-tabs [data-tab]")) {
 for (const b of $("bs-tracks").children) b.addEventListener("click", () => view && change({ tracks: b.dataset.v }));
 for (const b of $("bs-show").children) b.addEventListener("click", () => view && change({ show: b.dataset.v }));
 $("bs-idle").addEventListener("click", () => view && change({ hide_idle: !view.setup.hide_idle }));
+for (const sel of document.querySelectorAll("select[data-sound]")) {
+  sel.addEventListener("change", () => view && change({ sounds: { ...view.setup.sounds, [sel.dataset.sound]: sel.value } }));
+}
+for (const b of document.querySelectorAll("button[data-hear]")) {
+  b.addEventListener("click", async () => {
+    const k = b.dataset.hear;
+    const choice = (view && view.setup.sounds && view.setup.sounds[k]) || "none";
+    if (!(await hearChoice(choice, CHIMES[k]))) note(`couldn't play ${choice}`);
+  });
+}
 $("bs-unequipped").addEventListener("click", () => view && change({ hide_unequipped: !view.setup.hide_unequipped }));
 $("bs-all").addEventListener("click", () => view && change({ all_effects: !view.setup.all_effects }));
 $("bs-shown").addEventListener("click", async () => {

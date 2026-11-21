@@ -37,12 +37,23 @@ function setText(el, text) {
   if (el.textContent !== text) el.textContent = text;
 }
 
-// ---- sounds: the warnings' chime, and a sound file of your own in its place.
+// ---- sounds: each alert's chime, and a sound file of your own in its place.
 let audio = null;
-// The boss warnings' rising pair.
-const BOSS_NOTES = [880, 1320];
-// A short chime, a note after another (settings → alert sound).
-function chime(notes = BOSS_NOTES) {
+// How loud everything plays (settings → sound), up to 1.
+let soundVolume = 1;
+// The chimes, a note after another: a boss warning's rising pair, the boss turning to
+// you's lower pair, a hidden cube's falling one and a world timer's three; and an action
+// bar's: a skill ready again, an effect coming on you, an effect ending.
+const CHIMES = {
+  boss: [880, 1320],
+  on_you: [587, 880],
+  cube: [1568, 1175],
+  timer: [1047, 1319, 1568],
+  ready: [988, 1319],
+  gained: [659, 988],
+  ended: [988, 659],
+};
+function chime(notes = CHIMES.boss) {
   try {
     audio = audio || new AudioContext();
     const t = audio.currentTime;
@@ -51,7 +62,7 @@ function chime(notes = BOSS_NOTES) {
       const g = audio.createGain();
       o.frequency.value = f;
       g.gain.setValueAtTime(0.0001, t + i * 0.12);
-      g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.12 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.25 * soundVolume, t + i * 0.12 + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + 0.11);
       o.connect(g).connect(audio.destination);
       o.start(t + i * 0.12);
@@ -75,7 +86,8 @@ async function decodeSound(bytes) {
   }
 }
 
-// How loud a sound of your own plays, and the most of it: a warning's sound is short.
+// How loud a sound of your own plays at full volume, and the most of it: an alert's sound
+// is short.
 const OWN_SOUND_GAIN = 0.8;
 const OWN_SOUND_MAX_S = 10;
 // Plays a decoded sound; whether it could.
@@ -85,13 +97,62 @@ function playSound(sound) {
     const from = audio.createBufferSource();
     from.buffer = sound;
     const g = audio.createGain();
-    g.gain.value = OWN_SOUND_GAIN;
+    g.gain.value = OWN_SOUND_GAIN * soundVolume;
     from.connect(g).connect(audio.destination);
     from.start(0, 0, OWN_SOUND_MAX_S);
     return true;
   } catch {
     return false;
   }
+}
+
+// A sound choice played here (a window's ▶): nothing ("none"), the chime (`notes`), or
+// one of your sound files, fetched and decoded the first time. Whether it could.
+const heardSounds = new Map();
+async function hearChoice(choice, notes) {
+  if (choice === "none") return true;
+  if (!choice || choice === "chime") {
+    chime(notes);
+    return true;
+  }
+  let sound = heardSounds.get(choice);
+  if (!sound) {
+    sound = await window.__TAURI__.core.invoke("sound_bytes", { name: choice }).then(decodeSound).catch(() => null);
+    if (sound) heardSounds.set(choice, sound);
+  }
+  return !!(sound && playSound(sound));
+}
+
+// A sound file picked in a window: checked that it's small enough and plays, then kept by
+// the app (sounds.rs says the same of its size); its name there. Throws saying why not.
+const MAX_SOUND_BYTES = 2 * 1024 * 1024;
+async function addSoundFile(file) {
+  if (file.size > MAX_SOUND_BYTES) throw new Error("that file is too big: 2 MB at most");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!(await decodeSound(bytes))) throw new Error("that isn't a sound file this can play (wav, mp3, ogg, flac or m4a)");
+  try {
+    return await window.__TAURI__.core.invoke("add_sound", { name: file.name, bytes: Array.from(bytes) });
+  } catch (e) {
+    throw new Error(String(e));
+  }
+}
+
+// Fills a <select> with sound choices: `base` ([value, text] pairs: the chime, none…),
+// then your sound files, then (with `add`) a last one that picks a file. A choice of a
+// file that's gone shows as the first of `base`. (No sound's name can be a plus.)
+const SOUND_ADD = "+";
+function fillSounds(sel, current, base, files, add) {
+  const items = [...base, ...files.map((name) => [name, name])];
+  if (add) items.push([SOUND_ADD, "add a sound file…"]);
+  sel.replaceChildren(
+    ...items.map(([value, text]) => {
+      const o = document.createElement("option");
+      o.value = value;
+      o.textContent = text;
+      return o;
+    }),
+  );
+  sel.value = items.some(([value]) => value === current) ? current : base[0][0];
 }
 
 const isHexColor = (c) => /^#[0-9a-f]{6}$/i.test(c || "");

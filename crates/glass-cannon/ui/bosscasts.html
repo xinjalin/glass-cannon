@@ -35,8 +35,7 @@
     <div class="scroll" id="list"></div>
     <p id="empty" class="empty" hidden></p>
     <div class="history-foot bc-foot">
-      <!-- Your sound files, for casts' warnings. -->
-      <p id="sounds" class="bc-share"></p>
+      <!-- A sound file picked from a cast's list (your sounds are kept in settings → sound). -->
       <input id="sound-file" type="file" accept=".wav,.mp3,.ogg,.flac,.m4a,audio/*" hidden>
       <p id="sound-off" class="note" hidden>alert sound is off (settings → sound): warnings play no sound, yours included</p>
       <p class="bc-share">
@@ -46,7 +45,7 @@
         <button id="reset" type="button" title="Put every boss cast back to the defaults: your names for them and your warning and timer choices go. Your mapping is saved to the exports folder first, so [import] brings it back. Your sounds stay">[reset to defaults]</button>
         <span id="share-note" class="note"></span>
       </p>
-      <p class="note">casts come from your fights with the meter running · click a boss to unfold its casts · <b>auto</b> warns of a cast that takes 2.5 s or more or marks the ground, and the timers follow the warnings · click a cast's name to rename it · a cast's <b>sound</b> plays with its warning, in place of the chime</p>
+      <p class="note">casts come from your fights with the meter running · click a boss to unfold its casts · <b>auto</b> warns of a cast that takes 2.5 s or more or marks the ground, and the timers follow the warnings · click a cast's name to rename it · a cast's <b>sound</b> plays with its warning; on <b>default</b> it plays the boss warnings' sound (settings → sound, where your sound files are kept)</p>
     </div>
   </main>
   <script src="theme.js"></script>

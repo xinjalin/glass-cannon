@@ -67,6 +67,7 @@ const SETTINGS_KEYS: &[&str] = &[
     "player_cast",
     "target",
     "alert_sound",
+    "sound_volume",
     "boss_on_you",
     "cubes_need_key",
     "hide_for_menus",
@@ -206,7 +207,11 @@ pub fn import_setup(handle: AppHandle, app: State<'_, Arc<AppState>>, json: Stri
     let (merged, hud, taken) = merged(&lock(&app.settings), &setup, &parts, class)?;
     merged.save(&app.config_dir);
     // Read back as a start would, so anything out of range is put right.
-    let loaded = Settings::load(&app.config_dir);
+    let mut loaded = Settings::load(&app.config_dir);
+    // Its maker's sound files aren't here: what would have played them is as it was made.
+    if crate::sounds::drop_missing(&mut loaded, &app.config_dir) {
+        loaded.save(&app.config_dir);
+    }
     let appearance = loaded.appearance.clone();
     *lock(&app.settings) = loaded;
     // The windows' frames and every page's look, at once.

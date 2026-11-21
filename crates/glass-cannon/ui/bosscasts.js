@@ -7,19 +7,12 @@
 const POLL_MS = 5000;
 // The content types' tab names.
 const KIND_LABELS = { Sanctuary: "raids", "Field boss": "field bosses", "Dimensional Invasion": "invasions", "Sealed Dungeon": "sealed dungeons" };
-// The largest sound file taken in (bosscasts.rs says the same).
-const MAX_SOUND_BYTES = 2 * 1024 * 1024;
-// The sound list's last choice: pick a file. (No sound's name can start with a plus.)
-const ADD_SOUND = "+";
-
 let data = null;
 let lastKey = "";
 // A cast being renamed: its input stays put while the list refreshes.
 let editing = null;
-// The cast a sound file is being picked for (none: just added to your sounds).
+// The cast a sound file is being picked for.
 let soundFor = null;
-// The sound about to be deleted: its [×] asks once more.
-let deleting = null;
 
 function stored(key) {
   try {
@@ -76,48 +69,32 @@ function choice(label, value, auto, set, title) {
   return box;
 }
 
-// Your sounds as they were decoded here, to hear one.
-const heard = new Map();
-async function hear(name) {
-  if (!name) {
-    chime();
-    return;
-  }
-  let sound = heard.get(name);
-  if (!sound) {
-    sound = await invoke("boss_sound", { name }).then(decodeSound).catch(() => null);
-    if (sound) heard.set(name, sound);
-  }
-  if (!(sound && playSound(sound))) shareNote(`couldn't play ${name}`);
-}
-
 function hearButton(name) {
   const b = el("button", "", "[▶]");
   b.type = "button";
   b.title = "Hear it";
-  b.addEventListener("click", () => hear(name()));
+  b.addEventListener("click", async () => {
+    // With no sound of its own: what the boss warnings play.
+    const choice = name() || data.default_sound || "chime";
+    if (!(await hearChoice(choice, CHIMES.boss))) shareNote(`couldn't play ${choice}`);
+  });
   return b;
 }
 
-// A cast's warning sound: the chime, one of your sounds, or a file to add.
+// A cast's warning sound: as the boss warnings go, one of your sounds, or a file to add.
 function soundChoice(c) {
   const warns = c.warn ?? c.auto_warn;
   const box = el("span", "bc-choice bc-sound" + (warns ? "" : " idle"));
   box.title = warns
-    ? "The sound its warning plays: the chime, or a sound file of your own"
+    ? "The sound its warning plays: the boss warnings' (default), or a sound file of your own"
     : "The sound its warning would play · it isn't warned of now: set warn [on] to hear it";
   box.append(el("span", "bc-label", "sound"));
-  const sel = el("select");
+  const sel = el("select", "sound-select");
   sel.setAttribute("aria-label", "Its warning's sound");
   const current = c.sound || "";
-  for (const [value, text] of [["", "chime"], ...data.sounds.map((n) => [n, n]), [ADD_SOUND, "add a sound file…"]]) {
-    const o = el("option", "", text);
-    o.value = value;
-    sel.append(o);
-  }
-  sel.value = current;
+  fillSounds(sel, current, [["", "default"]], data.sounds, true);
   sel.addEventListener("change", async () => {
-    if (sel.value === ADD_SOUND) {
+    if (sel.value === SOUND_ADD) {
       sel.value = current;
       soundFor = c.skill;
       $("sound-file").click();
@@ -188,55 +165,9 @@ function matches(boss, c) {
   return boss.name.toLowerCase().includes(query) || (c && (c.name || "").toLowerCase().includes(query)) || (c && String(c.skill).includes(query));
 }
 
-// Your sounds, under the list: each to hear or delete, and a file to add.
-function drawSounds() {
-  const used = new Map();
-  for (const c of data.kinds.flatMap((k) => k.places.flatMap((p) => p.bosses.flatMap((b) => b.casts)))) {
-    if (c.sound) used.set(c.sound, (used.get(c.sound) || 0) + 1);
-  }
-  const items = data.sounds.map((name) => {
-    const item = el("span", "bc-sound-file");
-    const n = used.get(name) || 0;
-    const label = el("span", "", name);
-    label.title = n ? `The warning sound of ${plural(n, "cast")}` : "No cast uses it yet";
-    const del = el("button", deleting === name ? "danger" : "", deleting === name ? "[delete?]" : "[×]");
-    del.type = "button";
-    del.title = deleting === name ? "Click again to delete it" : n ? `Delete it: ${plural(n, "cast")} will go back to the chime` : "Delete it";
-    del.addEventListener("click", async () => {
-      if (deleting !== name) {
-        deleting = name;
-        draw(true);
-        setTimeout(() => {
-          if (deleting === name) {
-            deleting = null;
-            draw(true);
-          }
-        }, 4000);
-        return;
-      }
-      deleting = null;
-      heard.delete(name);
-      await invoke("delete_boss_sound", { name }).catch((e) => shareNote(String(e)));
-      await load(true);
-    });
-    item.append(label, hearButton(() => name), del);
-    return item;
-  });
-  const add = el("button", "", "[add a sound]");
-  add.type = "button";
-  add.title = "Pick a sound file (wav, mp3, ogg, flac or m4a, 2 MB at most): a copy is kept with your settings, for any cast's warning";
-  add.addEventListener("click", () => {
-    soundFor = null;
-    $("sound-file").click();
-  });
-  const lead = el("span", "note", data.sounds.length ? "your sounds" : "your sounds · none yet");
-  $("sounds").replaceChildren(lead, ...items, add);
-  $("sound-off").hidden = data.alert_sound !== false;
-}
-
 function draw(force) {
   if (!data) return;
-  const key = JSON.stringify([data, kind, show, query, editing, [...open], deleting]);
+  const key = JSON.stringify([data, kind, show, query, editing, [...open]]);
   if (!force && key === lastKey) return;
   lastKey = key;
   const kinds = data.kinds;
@@ -320,12 +251,13 @@ function draw(force) {
   $("empty").hidden = boxes.length > 0;
   $("empty").textContent =
     query || show === "changed" ? "nothing matches" : show === "fought" ? `no ${kindLabel(kind)} bosses fought with the meter running yet · [all bosses] lists them` : "no bosses here";
-  drawSounds();
+  $("sound-off").hidden = data.alert_sound !== false;
 }
 
 async function load(force) {
   try {
     data = await invoke("boss_casts_setup");
+    soundVolume = (data.volume || 100) / 100;
     // Not while a name is being typed: the input would be redrawn under you.
     if (editing === null || force) draw(force);
   } catch {
@@ -355,10 +287,7 @@ $("sound-file").addEventListener("change", async () => {
   soundFor = null;
   if (!file) return;
   try {
-    if (file.size > MAX_SOUND_BYTES) throw new Error("that file is too big: 2 MB at most");
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    if (!(await decodeSound(bytes))) throw new Error("that isn't a sound file this can play (wav, mp3, ogg, flac or m4a)");
-    const name = await invoke("add_boss_sound", { name: file.name, bytes: Array.from(bytes) });
+    const name = await addSoundFile(file);
     if (skill != null) await invoke("set_boss_skill_sound", { skill, sound: name });
     shareNote(`added ${name}`);
     await load(true);

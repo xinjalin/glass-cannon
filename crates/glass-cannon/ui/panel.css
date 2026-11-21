@@ -703,20 +703,7 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bc-choice button:hover { background: var(--line-faint); }
 .bc-choice button[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); text-shadow: none; }
 .bc-none { margin: 0.2em 0 0 0.5em; }
-/* A cast's warning sound: the chime or one of your files, and a button to hear it. */
-.bc-sound select {
-  max-width: 11em;
-  font: inherit;
-  color: var(--accent);
-  background: transparent;
-  border: 1px solid var(--line-faint);
-  border-radius: 0.25em;
-  padding: 0 0.15em;
-  outline: none;
-  text-overflow: ellipsis;
-}
-.bc-sound select:focus { border-color: var(--accent); }
-.bc-sound select option { color: var(--text); background: rgb(var(--tint-rgb)); }
+/* A cast's warning sound (a list as theme.css has it), and a button to hear it. */
 .bc-sound.idle select, .bc-sound.idle button { color: var(--faint); }
 .bm-pet-bar { width: 3em; height: 0.3em; border-radius: 0.15em; background: var(--line-faint); overflow: hidden; }
 .bm-pet-fill { display: block; height: 100%; background: var(--accent-2); }
@@ -805,8 +792,6 @@ body[data-panel="action-bar"] { --ab-ready: #79dcaa; --ab-running: #6aa8f0; --ab
 .bc-share button.danger { color: var(--bad); }
 .bc-foot { flex-direction: column; align-items: stretch; gap: 0; }
 .bc-foot > p { margin: 0 0 0.3em; }
-.bc-sound-file { display: inline-flex; align-items: baseline; gap: 0.15em; padding: 0 0.3em; border: 1px solid var(--line-faint); border-radius: 0.25em; white-space: nowrap; }
-.bc-sound-file > span { max-width: 14em; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------------------------------------------------------------- timer pins */
 

@@ -87,13 +87,9 @@ finishes. The widgets:
   auto follow the warnings. **[fought]** lists the bosses with casts seen, **[all
   bosses]** every one (a boss you haven't fought with the meter running has none yet),
   **[changed]** what you've named or set. A cast's **sound** is what its warning plays:
-  the chime, or a sound file of your own. Pick **add a sound file…** from a cast's list (or
-  **[add a sound]** under the list) and choose a wav, mp3, ogg, flac or m4a file of 2 MB at
-  most: a copy is kept in a `sounds` folder beside your settings, and any cast can use it.
-  **[▶]** plays it; **[×]** beside one of your sounds deletes it (it asks once more), and
-  the casts that used it go back to the chime. A cast's sound plays where its warning
-  shows, with **alert sound** on; at most its first 10 seconds. Your sounds stay on your
-  computer: an exported mapping or setup doesn't carry them. **[reset to defaults]** puts
+  **default** (what the boss warnings play: settings → sound), or one of your sound files;
+  **add a sound file…** in a cast's list takes a new one in, and **[▶]** plays it. A
+  cast's sound plays where its warning shows. **[reset to defaults]** puts
   every cast back as the app has it: your names and your warning and timer choices go (it
   asks once more, and saves your mapping to the `exports` folder first, so **[import]**
   brings it back); your sounds stay. **[export]** saves your names and choices (a boss
@@ -102,6 +98,19 @@ finishes. The widgets:
   (an exported mapping put there): auto goes by them where they have a choice, and their
   names show where you haven't named a cast yourself. The game data doesn't say which casts a boss has,
   so they come from your fights (and the fights already in the history).
+- **Sound** (settings → alerts → sound, and in the ⚙ panels of the widgets that sound):
+  **alert sound** turns everything that sounds on or off, and **volume** sets how loud.
+  Each alert plays its own chime unless you choose otherwise: for a **boss warning**, the
+  **boss on you**, a **hidden cube** and a **world timer**, pick **chime**, **none**, or one
+  of **your sounds**. Your sounds are sound files of your own: **[add a sound]** (or **add a
+  sound file…** in any list) takes a wav, mp3, ogg, flac or m4a file of 2 MB at most and
+  keeps a copy in a `sounds` folder beside your settings, for anything that sounds to
+  play: an alert, a boss cast (the boss casts window) or an action bar (its ⚙ →
+  preferences). **[▶]** plays one; **[×]** deletes it (it asks once more), and what played
+  it goes back to its chime (an action bar: to nothing). A sound of yours plays at most
+  its first 10 seconds. Your sounds stay on your computer: no exported mapping or setup
+  carries them, and a setup taken in from someone else plays chimes where theirs named
+  files you don't have.
 - **hidden cubes**: an alert when a hidden cube (gold or red) comes into view, with a
   sound (settings → alert sound); opened cubes show briefly as taken. It can't say which
   way the cube is: the game never sends your own position as you move (and what your game
@@ -222,7 +231,10 @@ finishes. The widgets:
   red in the last 3); grey icons on cooldown; a glow when ready; the bars' width,
   background and colours (ready, buffs, cooldown); its opacity. Its **preferences**: show
   everything, or only what's running, ready or missing (a buff not on you), and hide out
-  of combat. **[+ add a bar]** adds one (shown at once); **[remove this bar]** takes one away.
+  of combat; and its **sounds**, each nothing, a chime or one of your sound files
+  (settings → sound): when **a skill is ready** again, when **an effect comes on you**, and
+  when **an effect ends** (one sound at a time, and none while the bar is hidden).
+  **[+ add a bar]** adds one (shown at once); **[remove this bar]** takes one away.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used). Settings' **party cooldowns by** lists
   them by player, or by class: each class's skills with who has them, ready first.

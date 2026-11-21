@@ -593,7 +593,11 @@ window.addEventListener("message", (e) => {
   } else if (m.type === "gc-timer-alert") {
     // A world timer's alert (the 🔔): a bell's three notes, rising as it's due, and
     // falling as it starts.
-    chime(m.starting ? [...TIMER_NOTES].reverse() : TIMER_NOTES);
+    alertSound("timer", m.starting ? [...CHIMES.timer].reverse() : CHIMES.timer);
+  } else if (m.type === "gc-sound") {
+    // A widget's own sound (an action bar's): only from one that shows.
+    const frame = [...document.querySelectorAll(".widget iframe")].find((f) => f.contentWindow === e.source);
+    if (sounds.on && frame && !frame.closest(".widget").hidden) playChoice(String(m.choice), CHIMES[m.chime] || CHIMES.boss);
   } else if (m.type === "gc-cubes") {
     drawCubes(m.cubes || [], !!m.sound);
   } else if (m.type === "gc-fade") {
@@ -610,7 +614,7 @@ window.addEventListener("message", (e) => {
     bossAt = performance.now();
     mechanics = m.mechanics || [];
     mechanicSound = !!m.sound;
-    setCastSounds(m.sounds || {});
+    setSounds(m.sounds);
     if (boss && boss.appearance) applyAppearance(boss.appearance);
   }
 });
@@ -630,43 +634,6 @@ function castName(c, long = true) {
   return `${who} · ${what}`;
 }
 
-// A short two-note chime, once per warning (settings → alert sound; theme.js plays it).
-// Beside the boss warnings' rising pair: the boss turning to you's lower pair, the hidden
-// cubes' falling one, and a world timer's three.
-const ON_YOU_NOTES = [587, 880];
-const CUBE_NOTES = [1568, 1175];
-const TIMER_NOTES = [1047, 1319, 1568];
-
-// Your own sounds for boss casts' warnings (the boss casts window): each skill's file, and
-// each file once it's been fetched and decoded (null until then, or when it isn't a sound:
-// the chime plays). Fetched as the choices arrive, so a warning never waits for its sound.
-let castSounds = {};
-let castSoundsKey = "{}";
-const castSoundFiles = new Map();
-function setCastSounds(sounds) {
-  const key = JSON.stringify(sounds);
-  if (key === castSoundsKey) return;
-  castSoundsKey = key;
-  castSounds = sounds;
-  const names = new Set(Object.values(sounds));
-  for (const name of [...castSoundFiles.keys()]) if (!names.has(name)) castSoundFiles.delete(name);
-  for (const name of names) {
-    if (castSoundFiles.has(name)) continue;
-    castSoundFiles.set(name, null);
-    invoke("boss_sound", { name })
-      .then(decodeSound)
-      .then((sound) => {
-        if (sound && castSoundFiles.has(name)) castSoundFiles.set(name, sound);
-      })
-      .catch(() => {});
-  }
-}
-// A warning's sound: the cast's own where you gave it one, else the chime.
-function warningSound(show) {
-  const own = show.skill == null ? null : castSoundFiles.get(castSounds[show.skill]);
-  if (!(own && playSound(own))) chime(show.notes || BOSS_NOTES);
-}
-
 // Shrinks a line's font until it fits `width` (the box's padding included), down to a
 // third of its size; it never wraps.
 function fitLine(el, width) {
@@ -678,6 +645,47 @@ function fitLine(el, width) {
   if (el.scrollWidth > room && room > 0) {
     el.style.fontSize = `${Math.max(full / 3, (full * room) / el.scrollWidth)}px`;
   }
+}
+
+// What the alerts play (settings → sound; the meter's page sends it with each refresh):
+// whether they sound, how loud, each alert's and boss cast's choice, and the sound files
+// in use. Each file is fetched and decoded as it's named, so nothing waits for its sound
+// (null until then, or when it isn't a sound: the chime plays).
+let sounds = { on: false, volume: 100, alerts: {}, casts: {}, files: [] };
+let soundsKey = "";
+const soundFiles = new Map();
+function setSounds(setup) {
+  if (!setup) return;
+  const key = JSON.stringify(setup);
+  if (key === soundsKey) return;
+  soundsKey = key;
+  sounds = setup;
+  soundVolume = Math.max(0.05, Math.min(1, setup.volume / 100));
+  const names = new Set(setup.files);
+  for (const name of [...soundFiles.keys()]) if (!names.has(name)) soundFiles.delete(name);
+  for (const name of names) {
+    if (soundFiles.has(name)) continue;
+    soundFiles.set(name, null);
+    invoke("sound_bytes", { name })
+      .then(decodeSound)
+      .then((sound) => {
+        if (sound && soundFiles.has(name)) soundFiles.set(name, sound);
+      })
+      .catch(() => {});
+  }
+}
+// A choice played: nothing, the chime (`notes`), or one of your sounds (the chime while
+// it isn't ready, or when its file is gone).
+function playChoice(choice, notes) {
+  if (choice === "none") return;
+  const own = choice === "chime" ? null : soundFiles.get(choice);
+  if (!(own && playSound(own))) chime(notes);
+}
+// An alert's sound: a boss cast's own where you gave it one, else as the alert is set
+// (its chime, unless set otherwise).
+function alertSound(alert, notes, skill) {
+  if (!sounds.on) return;
+  playChoice((skill != null && sounds.casts[skill]) || sounds.alerts[alert] || "chime", notes);
 }
 
 // A warning stays this long once it's over, dimmed, so it can be read to the end.
@@ -728,7 +736,7 @@ function drawWarnings(elapsed) {
   }
   // The boss turned to attack you: after what to do and its cast, before what's coming.
   if (!show && turned && turned === onYou.key && performance.now() - onYou.at < ON_YOU_MS) {
-    show = { cls: "now you", what: boss.name || "the boss", title: "on you", time: "", key: `you:${turned}`, done: "", notes: ON_YOU_NOTES };
+    show = { cls: "now you", what: boss.name || "the boss", title: "on you", time: "", key: `you:${turned}`, done: "", alert: "on_you" };
   }
   if (!show && boss) {
     const next = boss.ahead.upcoming.find((c) => c.danger);
@@ -758,7 +766,7 @@ function drawWarnings(elapsed) {
   if (show.key && show.key !== warnedFor) {
     warnedFor = show.key;
     // Only with the warning to see: not while the boss warnings widget is turned off.
-    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) warningSound(show);
+    if ((show.sound ?? boss.sound) && !box.closest(".widget").hidden) alertSound(show.alert || "boss", CHIMES[show.alert || "boss"], show.skill);
   }
 }
 
@@ -800,7 +808,7 @@ let cubesSeen = new Set();
 function drawCubes(cubes, sound) {
   const fresh = cubes.filter((c) => !c.opened && !cubesSeen.has(c.entity));
   cubesSeen = new Set(cubes.map((c) => c.entity));
-  if (fresh.length && sound && !$("cubes").closest(".widget").hidden) chime(CUBE_NOTES);
+  if (fresh.length && sound && !$("cubes").closest(".widget").hidden) alertSound("cube", CHIMES.cube);
   const list = $("cubes");
   const key = JSON.stringify(cubes.map((c) => [c.entity, c.look, c.opened]));
   if (key === list.dataset.key && !fresh.length) return;
