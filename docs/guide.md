@@ -405,7 +405,24 @@ fight; right-click again to close it. Tabs:
 - **healing** and **taken**: who healed whom (heals on allies, and HP a player's hits
   drain back, included) and what hit whom.
 - **deaths**: who died to what, the last hits with HP after each, the healing before, and
-  how long until they were revived.
+  how long until they were revived. A strip across the top shows the whole fight (each
+  death over the boss's HP; click one). For the death picked:
+  - a **timeline** from the last time they were at full HP (15 s at least, a minute at
+    most): their HP with any shield over it, each hit and heal, the boss's casts under it
+    (red: the one that killed; amber: ones the overlay warns of) and what mobs had put on
+    them (a bleed, a knock-down). Hover it for the moment under the pointer;
+  - **the killing blow** (from how much HP, and how far over), the cast it came from and
+    whether the overlay warns of that cast (mark it in the [boss] tab if it doesn't);
+  - **the same move** on everyone else: how many others it hit within 2 s, and how many it
+    reached for nothing (so: avoidable or not);
+  - where they **stood** from the boss (in front of it, beside or behind, when it had cast
+    in the last 15 s: that's where its facing comes from), the boss's HP then, the
+    mechanic going on, who died with them, and how many healers were alive.
+
+  Under the list, **what killed**: deaths by move for this fight, and over the session's
+  fights against the same boss (12 hours either side). A move the game doesn't name shows
+  our label for it or for the cast it's part of, else its number. Fights saved before these
+  were kept have the list and the hits, not the timeline.
 - **boss**: the boss's casts from its pull, with cast times and when their areas landed.
 
 **[copy text]** and **[copy image]** put a summary on the clipboard for Discord.

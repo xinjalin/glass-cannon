@@ -81,10 +81,11 @@ pub fn parse_shields(p: &[u8]) -> Option<(u64, Vec<(u64, u64)>)> {
 }
 
 impl Shields {
-    pub fn feed(&mut self, opcode: u16, payload: &[u8]) {
+    /// Returns whose shields the message was about, if it was about any.
+    pub fn feed(&mut self, opcode: u16, payload: &[u8]) -> Option<u64> {
         match opcode {
             OPCODE_SHIELDS => {
-                let Some((entity, list)) = parse_shields(payload) else { return };
+                let (entity, list) = parse_shields(payload)?;
                 let old = self.by.remove(&entity).unwrap_or_default();
                 let now: HashMap<u64, Shield> = list
                     .into_iter()
@@ -94,33 +95,35 @@ impl Shields {
                 if !now.is_empty() {
                     self.by.insert(entity, now);
                 }
+                Some(entity)
             }
             OPCODE_EFFECT_TICK => {
-                let Some(t) = parse_tick(payload) else { return };
+                let t = parse_tick(payload)?;
                 let key = (t.target, t.instance);
                 if t.damage.is_some() {
                     self.dots.insert(key);
                     self.remove(t.target, t.instance);
-                    return;
+                    return Some(t.target);
                 }
-                let Some(left) = t.left else { return };
+                let left = t.left?;
                 if self.dots.contains(&key) || left == 0 {
                     self.remove(t.target, t.instance);
-                    return;
+                    return Some(t.target);
                 }
                 let on = self.by.entry(t.target).or_default();
                 let skill = t.skill.or_else(|| on.get(&t.instance).and_then(|s| s.skill));
                 on.insert(t.instance, Shield { skill, left });
+                Some(t.target)
             }
             crate::buffs::OPCODE_BUFF_REMOVE => {
-                if let Some((target, instances)) = crate::buffs::parse_remove(payload) {
-                    for inst in instances {
-                        self.remove(target, inst);
-                        self.dots.remove(&(target, inst));
-                    }
+                let (target, instances) = crate::buffs::parse_remove(payload)?;
+                for inst in instances {
+                    self.remove(target, inst);
+                    self.dots.remove(&(target, inst));
                 }
+                Some(target)
             }
-            _ => {}
+            _ => None,
         }
     }
 

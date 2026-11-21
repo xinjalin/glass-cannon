@@ -52,6 +52,20 @@ const AFTER_WIPE_HIT_US: u64 = 5_000_000;
 const AFTER_WIPE_TICK_US: u64 = 30_000_000;
 /// A death recap lists this many of the last hits.
 const RECAP_HITS: usize = 12;
+/// A death's timeline: from the last full HP, but this far back at least and at most.
+const DEATH_WINDOW_MIN_US: u64 = 15_000_000;
+const DEATH_WINDOW_MAX_US: u64 = 60_000_000;
+/// Boss casts from this long before the timeline starts are on it too (one may still be
+/// going on as it starts).
+const DEATH_CASTS_LEAD_US: u64 = 10_000_000;
+/// Hits of a skill this close to the killing hit are the same move, on whoever it reached.
+const SAME_MOVE_US: u64 = 2_000_000;
+/// The cast a killing hit belongs to began at most this long before it.
+const CAUSE_BACK_US: u64 = 20_000_000;
+/// A boss's facing, from its last cast, is trusted this long.
+const FACING_FRESH_US: u64 = 15_000_000;
+/// The most points a death's HP or shield line has.
+const DEATH_POINTS: usize = 400;
 /// Pings kept for the median.
 const PINGS_KEPT: usize = 6;
 /// Damage over this long sets how fast a target is going down (its time to kill).
@@ -282,6 +296,11 @@ struct Encounter {
     deaths: Vec<(u64, Death)>,
     /// Players who came back to life during it: (when, who).
     revived: Vec<(u64, u64)>,
+    /// Mobs' hits players avoided altogether (evaded, resisted, immune): `attacker` is the
+    /// mob, `target` the player, no damage.
+    avoided: Vec<Hit>,
+    /// What only the moment of a death could say, by (when, who).
+    death_notes: HashMap<(u64, u64), DeathNote>,
     /// Your party's players (you too) who did something in it, as the party was then: so
     /// it still shows them after the party breaks up.
     party: HashSet<u64>,
@@ -302,6 +321,8 @@ impl Encounter {
             instance: None,
             deaths: Vec::new(),
             revived: Vec::new(),
+            avoided: Vec::new(),
+            death_notes: HashMap::new(),
             party: HashSet::new(),
             end: None,
         }
@@ -649,6 +670,88 @@ pub struct DeathView {
     /// How long until they were brought back, if it was during the fight.
     #[serde(default)]
     pub revived_after_s: Option<f64>,
+    /// When, on the analysis's timelines: milliseconds from the fight's first counted hit
+    /// (`at_s` is from its first hit of all).
+    #[serde(default)]
+    pub t_ms: Option<u32>,
+    /// The time its timeline covers, up to the death: from the last full HP, 15 s at least
+    /// and a minute at most (0 in fights saved before this, as all that follows is empty).
+    #[serde(default)]
+    pub window_s: f64,
+    #[serde(default)]
+    pub max_hp: Option<u64>,
+    /// Their HP over that time, oldest first (the first point is what it was as it began).
+    #[serde(default)]
+    pub hp: Vec<DeathPoint>,
+    /// The damage their shields could still take, the same way (empty: no shield).
+    #[serde(default)]
+    pub shield: Vec<DeathPoint>,
+    /// Their HP before the killing hit.
+    #[serde(default)]
+    pub hp_before: Option<u64>,
+    /// The bosses' casts over that time.
+    #[serde(default)]
+    pub casts: Vec<DeathCast>,
+    /// The killing move on everyone else: how many other players it damaged, and how many
+    /// it reached for nothing (avoided, or 0 or 1 damage).
+    #[serde(default)]
+    pub also_hit: u8,
+    #[serde(default)]
+    pub also_avoided: u8,
+    /// Where they stood from the boss.
+    #[serde(default)]
+    pub place: Option<DeathPlace>,
+    /// The mechanic going on (its card's title).
+    #[serde(default)]
+    pub mechanic: Option<String>,
+    /// The boss's HP then, as a share of its max.
+    #[serde(default)]
+    pub boss_hp: Option<f32>,
+}
+
+/// A value at a moment before a death (HP, what a shield has left).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct DeathPoint {
+    pub before_s: f32,
+    pub v: u64,
+}
+
+/// A boss's cast on a death's timeline.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DeathCast {
+    /// Seconds before the death it began.
+    pub before_s: f64,
+    pub skill: u32,
+    /// Filled in by the app from its skill table, as `warned`.
+    #[serde(default)]
+    pub skill_name: Option<String>,
+    pub cast_ms: u32,
+    /// How long after it went off it landed, from the areas the game showed (0: none).
+    pub lands_ms: u32,
+    pub areas: u8,
+    pub stopped: bool,
+    /// The overlay warns of this cast (your marks, else its own rule).
+    #[serde(default)]
+    pub warned: bool,
+    /// The killing hit is this cast's.
+    #[serde(default)]
+    pub killed: bool,
+}
+
+/// Where a player stood from the fight's boss as they died.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct DeathPlace {
+    pub distance_m: f32,
+    /// Off the way the boss was facing, in degrees: 0 straight ahead of it, 180 behind
+    /// (None: its facing isn't known, it hadn't cast lately).
+    pub angle: Option<f32>,
+}
+
+/// What only the moment of a death could say.
+#[derive(Debug, Clone, Default)]
+struct DeathNote {
+    place: Option<DeathPlace>,
+    mechanic: Option<String>,
 }
 
 /// One hit (or heal) in a death recap.
@@ -944,6 +1047,12 @@ pub struct Meter {
     died: HashMap<u64, u64>,
     /// Bosses that just wiped you, and when (kept [`AFTER_WIPE_TICK_US`]).
     wiped: HashMap<u64, u64>,
+    /// Which way each boss faced at its last cast, and when.
+    facing: HashMap<u64, (f32, u64)>,
+    /// What players' shields could still take over time: (when, how much), oldest first.
+    shield_log: HashMap<u64, VecDeque<(u64, u64)>>,
+    /// The skills that give shields, by base ID (the game data knows).
+    shield_bases: HashSet<u32>,
     /// When the last boss fight ended in a kill or a wipe: what began before it (a cast, an
     /// effect) is no mechanic to warn of any more.
     mechanics_from_us: u64,
@@ -1035,6 +1144,9 @@ impl Meter {
             combat: HashMap::new(),
             died: HashMap::new(),
             wiped: HashMap::new(),
+            facing: HashMap::new(),
+            shield_log: HashMap::new(),
+            shield_bases: HashSet::new(),
             mechanics_from_us: 0,
             berserk: HashMap::new(),
             pings: VecDeque::new(),
@@ -1088,6 +1200,12 @@ impl Meter {
     /// and in combat the fight waits longer before going idle.
     pub fn set_boss_types(&mut self, types: impl IntoIterator<Item = u32>) {
         self.bosses = types.into_iter().collect();
+    }
+
+    /// Which skills give shields, by base ID (a skill's ID less its last four digits): for
+    /// the shield on a death's timeline.
+    pub fn set_shield_bases(&mut self, bases: impl IntoIterator<Item = u32>) {
+        self.shield_bases = bases.into_iter().collect();
     }
 
     /// Which skill IDs are one skill (see [`crate::skillgroups`]): each player's rows show
@@ -1439,7 +1557,14 @@ impl Meter {
                 }
             }
         }
-        self.shields.feed(opcode, payload);
+        if let Some(who) = self.shields.feed(opcode, payload) {
+            self.log_shield(ts_us, who);
+        }
+        if matches!(opcode, OPCODE_CAST | OPCODE_CAST_START) {
+            if let Some((caster, facing)) = crate::cast::parse_facing(opcode, payload).filter(|(c, _)| self.is_boss(*c)) {
+                self.facing.insert(caster, (facing, ts_us));
+            }
+        }
         // You appear with the buffs already on you (a mantra turned on before you logged in).
         if opcode == crate::entities::OPCODE_SELF_SPAWN {
             self.effects.self_spawn(ts_us, payload);
@@ -1744,6 +1869,8 @@ impl Meter {
                 self.collection.clear();
                 self.positions.clear();
                 self.mechanics.clear();
+                self.facing.clear();
+                self.shield_log.clear();
                 self.pvp.end();
             }
             return;
@@ -1760,6 +1887,11 @@ impl Meter {
             if self.is_player(ev.attacker, ev.skill) {
                 if let Some(t) = self.current.as_mut().and_then(|e| e.targets.get_mut(&ev.target)) {
                     t.players.entry(ev.attacker).or_default().miss(ev.skill);
+                }
+            } else if self.registry.is_self(ev.target) || self.registry.player_name(ev.target).is_some() {
+                // A mob's hit a player avoided: for who else a killing move reached.
+                if let Some(enc) = self.current.as_mut() {
+                    enc.avoided.push(Hit::flow(ts_us, ev.attacker, ev.target, ev.skill, 0));
                 }
             }
             return;
@@ -2079,7 +2211,12 @@ impl Meter {
         self.died.retain(|id, at| ts_us.saturating_sub(*at) < DEATHS_KEPT_US || current.as_ref().is_some_and(|e| e.targets.contains_key(id)));
         // Players the game has named (an unnamed "player" may be a mob we missed the spawn of).
         if self.registry.is_self(d.entity) || self.registry.player_name(d.entity).is_some() {
-            if let Some(enc) = self.current.as_mut() {
+            let note = self.current.as_ref().map(|enc| DeathNote {
+                place: self.place_from_boss(enc, d.entity, ts_us),
+                mechanic: self.mechanics(ts_us).into_iter().find(|a| !a.after).map(|a| a.what),
+            });
+            if let (Some(enc), Some(note)) = (self.current.as_mut(), note) {
+                enc.death_notes.insert((ts_us, d.entity), note);
                 enc.deaths.push((ts_us, d));
             }
             return;
@@ -2558,7 +2695,12 @@ impl Meter {
             total_healing,
             total_taken,
             end: e.end,
-            deaths: e.deaths.iter().filter(|(_, d)| shown(d.entity)).map(|(at, d)| self.death_view(e, *at, d)).collect(),
+            deaths: e
+                .deaths
+                .iter()
+                .filter(|(_, d)| shown(d.entity))
+                .map(|(at, d)| DeathView { t_ms: Some((at.saturating_sub(first) / 1000).min(u64::from(u32::MAX)) as u32), ..self.death_view(e, *at, d) })
+                .collect(),
             berserk_us: main_target.and_then(|t| self.berserk.get(&t)).map(|ms| ms * 1000),
             target_hp: main_target.filter(|_| active).and_then(|t| self.hp.last(t)),
             target_max_hp: main_target.filter(|_| active).and_then(|t| self.hp.max(t)),
@@ -2667,6 +2809,71 @@ impl Meter {
         };
         let taken: Vec<&Hit> = e.taken.iter().filter(|h| h.target == d.entity && (full..=at).contains(&h.ts_us)).collect();
         let healed = e.heals.iter().filter(|h| h.target == d.entity && (full..=at).contains(&h.ts_us)).map(|h| h.damage).sum();
+        // The timeline: from the last full HP, 15 s back at least and a minute at most.
+        let from = full.max(at.saturating_sub(DEATH_WINDOW_MAX_US)).min(at.saturating_sub(DEATH_WINDOW_MIN_US));
+        let line = |samples: Option<&VecDeque<(u64, u64)>>| -> Vec<DeathPoint> {
+            let Some(s) = samples else { return Vec::new() };
+            // What it was as the timeline starts, then each change.
+            let first = s.iter().rev().find(|(t, _)| *t < from).map(|(_, v)| (from, *v));
+            let all: Vec<(u64, u64)> = first.into_iter().chain(s.iter().copied().filter(|(t, _)| (from..=at).contains(t))).collect();
+            // (A long, busy minute: every nth, the last ones always.)
+            let step = all.len().div_ceil(DEATH_POINTS).max(1);
+            let n = all.len();
+            all.iter()
+                .enumerate()
+                .filter(|(i, _)| i % step == 0 || n - i <= 20)
+                .map(|(_, (t, v))| DeathPoint { before_s: secs(*t) as f32, v: *v })
+                .collect()
+        };
+        // The killing hit: the last one of the skill that did it, else the last one.
+        let kill = taken.iter().rev().find(|h| h.skill == d.skill).or(taken.last()).copied();
+        let kill_at = kill.map_or(at, |h| h.ts_us);
+        // That move on everyone else: per player, the most it did to them.
+        let mut reached: HashMap<u64, u64> = HashMap::new();
+        if d.skill != 0 {
+            // (Players only: a summoned spirit takes hits too.)
+            let player = |id: u64| self.registry.is_self(id) || self.registry.player_name(id).is_some();
+            let near = |h: &&Hit| h.skill == d.skill && h.target != d.entity && h.ts_us.abs_diff(kill_at) <= SAME_MOVE_US && player(h.target);
+            for h in e.taken.iter().filter(near).chain(e.avoided.iter().filter(near)) {
+                let most = reached.entry(h.target).or_default();
+                *most = (*most).max(h.damage);
+            }
+        }
+        // The fight's bosses, and the one that counts: the one hit hardest.
+        let bosses: Vec<u64> = e.targets.keys().copied().filter(|t| self.is_boss(*t)).collect();
+        let main_boss = bosses.iter().copied().max_by_key(|b| e.targets.get(b).map_or(0, |t| t.total));
+        // The cast the killing hit is of: its own ID, or the ten it's in (a cast's damage
+        // comes under its ID or that plus a few), the latest before it.
+        let of_kill = |c: &&BossCast| d.skill != 0 && c.skill / 10 == d.skill / 10 && c.at_us <= kill_at && kill_at - c.at_us <= CAUSE_BACK_US;
+        let cause = self
+            .boss_log
+            .iter()
+            .rev()
+            .filter(|c| bosses.contains(&c.caster))
+            .filter(of_kill)
+            .max_by_key(|c| (c.skill == d.skill, c.at_us))
+            .map(|c| (c.at_us, c.skill));
+        let casts = self
+            .boss_log
+            .iter()
+            .filter(|c| bosses.contains(&c.caster) && c.at_us >= from.saturating_sub(DEATH_CASTS_LEAD_US) && c.at_us <= at)
+            .map(|c| DeathCast {
+                before_s: secs(c.at_us),
+                skill: c.skill,
+                skill_name: None,
+                cast_ms: c.cast_ms,
+                lands_ms: c.lands_ms,
+                areas: c.areas,
+                stopped: c.stopped,
+                warned: false,
+                killed: cause == Some((c.at_us, c.skill)),
+            })
+            .collect();
+        let note = e.death_notes.get(&(at, d.entity));
+        let boss_hp = main_boss.and_then(|b| self.hp.entities.get(&b)).filter(|h| h.max > 0).and_then(|h| {
+            let hp = h.samples.iter().rev().find(|(t, _)| *t <= at).map(|(_, v)| *v)?;
+            Some((hp as f64 / h.max as f64).min(1.0) as f32)
+        });
         DeathView {
             entity: d.entity,
             name: self.registry.label(d.entity),
@@ -2686,6 +2893,59 @@ impl Meter {
                 .iter()
                 .find(|(t, who)| *who == d.entity && *t >= at)
                 .map(|(t, _)| (t - at) as f64 / 1e6),
+            t_ms: None,
+            window_s: secs(from),
+            max_hp: hp.map(|h| h.max).filter(|m| *m > 0),
+            hp: line(hp.map(|h| &h.samples)),
+            shield: line(self.shield_log.get(&d.entity)),
+            hp_before: kill.and_then(|k| hp.and_then(|h| h.samples.iter().rev().find(|(t, _)| *t < k.ts_us).map(|(_, v)| *v))),
+            casts,
+            also_hit: reached.values().filter(|most| **most > 1).count().min(255) as u8,
+            also_avoided: reached.values().filter(|most| **most <= 1).count().min(255) as u8,
+            place: note.and_then(|n| n.place),
+            mechanic: note.and_then(|n| n.mechanic.clone()),
+            boss_hp,
+        }
+    }
+
+    /// Where `who` stands from the fight's boss (the one hit hardest that's still alive),
+    /// and off which way it faces: for a death's recap, as it happens.
+    fn place_from_boss(&self, e: &Encounter, who: u64, now_us: u64) -> Option<DeathPlace> {
+        let boss = e
+            .targets
+            .iter()
+            .filter(|(id, _)| self.is_boss(**id) && !self.died.contains_key(*id))
+            .max_by_key(|(_, t)| t.total)
+            .map(|(id, _)| *id)?;
+        let b = self.positions.of(boss)?;
+        let p = match self.registry.is_self(who) {
+            // Yours is known from the hits on you: the one that killed you, here.
+            true => self.positions.me(now_us).filter(|m| m.exact).map(|m| m.pos),
+            false => self.positions.of(who),
+        }?;
+        let (dx, dy) = (p[0] - b[0], p[1] - b[1]);
+        let angle = self.facing.get(&boss).filter(|(_, at)| now_us.saturating_sub(*at) <= FACING_FRESH_US).map(|(facing, _)| {
+            let to_them = dy.atan2(dx).to_degrees();
+            ((to_them - facing + 540.0).rem_euclid(360.0) - 180.0).abs()
+        });
+        // (Positions are in centimetres.)
+        Some(DeathPlace { distance_m: (dx * dx + dy * dy).sqrt() / 100.0, angle })
+    }
+
+    /// Notes what `who`'s shields can still take now, if it changed (players only).
+    fn log_shield(&mut self, ts_us: u64, who: u64) {
+        if !self.registry.is_self(who) && self.registry.player_name(who).is_none() {
+            return;
+        }
+        let bases = &self.shield_bases;
+        let left = self.shields.on(who, &|s| bases.contains(&(s - s % 10_000)));
+        let log = self.shield_log.entry(who).or_default();
+        if log.back().map(|(_, v)| *v) == Some(left) || (log.is_empty() && left == 0) {
+            return;
+        }
+        log.push_back((ts_us, left));
+        while log.front().is_some_and(|(t, _)| ts_us.saturating_sub(*t) > HP_KEEP_US) {
+            log.pop_front();
         }
     }
 
@@ -3802,6 +4062,54 @@ mod tests {
         m.feed(10 * S, state::OPCODE_REVIVED, &encode_varint(15772));
         assert!(!m.died.contains_key(&15772));
         assert_eq!(m.snapshot().encounter.unwrap().deaths[0].revived_after_s, Some(6.0));
+    }
+
+    #[test]
+    fn a_death_has_its_timeline() {
+        let mut m = meter_with_boss();
+        m.feed(0, OPCODE_PLAYER_SPAWN, &spawn(15772, "Pingu"));
+        m.feed(0, OPCODE_PARTY_ROSTER, &roster(&["Pingu", "NeneneTowawa"]));
+        m.set_scope(Scope::Party);
+        m.feed(S, OPCODE_DAMAGE, &hit(BOSS, ME, 18_010_340, 5000));
+        m.feed(S, hp::OPCODE_HP, &hp_update(15772, 9000));
+        m.feed(S, hp::OPCODE_HP, &hp_update(BOSS, 59_850));
+        m.feed(2 * S, OPCODE_DAMAGE, &hit(15772, BOSS, 100_018, 4000));
+        m.feed(2 * S, hp::OPCODE_HP, &hp_update(15772, 5000));
+        // The boss's cast (facing along x), its hits 1.5 s on under its ID plus a few: on
+        // Pingu, who dies of it, on you, and one a third player avoids.
+        m.feed(2 * S + 500_000, crate::cast::OPCODE_CAST_START, &cast_start(BOSS, 100_010, 15772, 1500));
+        // Where Pingu stood as it landed: 10 m in front of the boss.
+        let b = m.positions.of(BOSS).unwrap();
+        let mut notice = encode_varint(BOSS);
+        notice.push(0);
+        notice.extend(encode_varint(15772));
+        notice.extend(100_015u32.to_le_bytes());
+        notice.extend([0; 5]);
+        for v in [b[0] + 1000.0, b[1], b[2]] {
+            notice.extend(v.to_le_bytes());
+        }
+        m.feed(4 * S, 0x3803, &notice);
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(ME, BOSS, 100_015, 3000));
+        m.feed(4 * S, OPCODE_DAMAGE, &hit(15772, BOSS, 100_015, 6000));
+        m.feed(4 * S, hp::OPCODE_HP, &hp_update(15772, 0));
+        m.feed(4 * S, OPCODE_DEATH, &death(15772, 100_015, BOSS));
+        let e = m.snapshot().encounter.unwrap();
+        let d = &e.deaths[0];
+        // 15 s back at least: here, to before the fight.
+        assert_eq!((d.window_s, d.max_hp, d.hp_before), (4.0, Some(9000), Some(5000)));
+        let hp: Vec<_> = d.hp.iter().map(|p| (p.before_s, p.v)).collect();
+        assert_eq!(hp, [(3.0, 9000), (2.0, 5000), (0.0, 0)]);
+        assert!(d.shield.is_empty());
+        let casts: Vec<_> = d.casts.iter().map(|c| (c.before_s, c.skill, c.cast_ms, c.killed)).collect();
+        assert_eq!(casts, [(1.5, 100_010, 1500, true)]);
+        assert_eq!((d.also_hit, d.also_avoided), (1, 0));
+        assert_eq!(d.place, Some(DeathPlace { distance_m: 10.0, angle: Some(0.0) }));
+        assert_eq!(d.boss_hp, Some(0.5));
+        assert_eq!(d.mechanic, None);
+        // A fight saved before all this reads, with none of it.
+        let old = r#"{"entity":1,"name":"x","at_s":1.0,"killer":null,"killer_type":null,"skill":5,"skill_name":null,"time_to_death_s":1.0,"direct":1,"over_time":0,"healed":0,"hits":[],"last_heal":null}"#;
+        let old: DeathView = serde_json::from_str(old).unwrap();
+        assert!(old.hp.is_empty() && old.casts.is_empty() && old.window_s == 0.0 && old.place.is_none());
     }
 
     /// A cast start (0x3809) with a cast time, aimed at `target`.

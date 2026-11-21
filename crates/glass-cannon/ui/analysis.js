@@ -1731,17 +1731,69 @@ function drawBossCasts() {
 // ---------------------------------------------------------------- deaths
 
 let deathPick = 0;
+let deathHover = null;
+let stripHover = null;
+
+// When a death is on the analysis's timelines (ms from the fight's first counted hit).
+const deathMs = (d) => (d.t_ms != null ? d.t_ms : d.at_s * 1000);
+
+// What a mob's move is called: as the recaps, casts and tallies name it (our label for the
+// move, or the cast it's of), else the skill table's unless that's only "Attack".
+function moveName(skill) {
+  for (const d of data.view.deaths || []) {
+    if (d.skill === skill && d.skill_name) return d.skill_name;
+    for (const h of d.hits || []) if (h.skill === skill && h.skill_name) return h.skill_name;
+    for (const c of d.casts || []) if (c.skill === skill && c.skill_name) return c.skill_name;
+  }
+  const row = ((data.killers && data.killers.rows) || []).find((r) => r.skill === skill);
+  if (row && row.name) return row.name;
+  const m = data.skills[skill];
+  return m && m.name && m.name !== "Attack" ? m.name : `#${skill}`;
+}
+
+// The healing classes: Cleric and Chanter.
+const HEALERS = [17, 18];
+// Deaths this close together are one moment.
+const TOGETHER_S = 5;
+
+// What was going on around a death, from the rest of the fight.
+function deathContext(d) {
+  const deaths = data.view.deaths || [];
+  const dead = (id, at) => deaths.some((o) => o.entity === id && o.at_s < at && !(o.revived_after_s != null && o.at_s + o.revived_after_s <= at));
+  const healers = [...data.view.players, ...data.view.healing].filter((p, i, all) => HEALERS.includes(p.class_code) && all.findIndex((q) => q.id === p.id) === i);
+  const cause = (d.casts || []).find((c) => c.killed) || null;
+  const last = (d.hits || [])[(d.hits || []).length - 1] || null;
+  return {
+    together: deaths.filter((o) => o !== d && Math.abs(o.at_s - d.at_s) <= TOGETHER_S).length,
+    healers: healers.length,
+    healersUp: healers.filter((p) => p.id !== d.entity && !dead(p.id, d.at_s)).length,
+    cause,
+    last,
+    overkill: last && d.hp_before != null ? Math.max(0, last.amount - d.hp_before) : null,
+  };
+}
+
+// Where they stood from the boss, in words.
+function placeText(p) {
+  if (!p) return null;
+  const side = p.angle == null ? "" : p.angle <= 60 ? "in front of it" : p.angle >= 120 ? "behind it" : "beside it";
+  return [`${p.distance_m.toFixed(p.distance_m < 10 ? 1 : 0)} m`, side];
+}
 
 function drawDeaths() {
   const deaths = data.view.deaths || [];
   const table = $("deaths-table");
   table.replaceChildren();
+  drawKillers();
   if (!deaths.length) {
     table.append(el("caption", "note", "nobody died in this fight"));
     $("recap-legend").textContent = "recap";
     $("recap-tiles").replaceChildren();
+    $("recap-facts").replaceChildren();
     $("recap-hits").replaceChildren();
     $("recap-heal").textContent = "";
+    $("death-chart").hidden = true;
+    $("deaths-strip-box").hidden = true;
     return;
   }
   deathPick = Math.min(deathPick, deaths.length - 1);
@@ -1757,24 +1809,170 @@ function drawDeaths() {
       el("td", "", `${d.time_to_death_s.toFixed(1)} s`),
       el("td", "", d.revived_after_s != null ? `${d.revived_after_s.toFixed(1)} s` : "–"),
     );
-    tr.addEventListener("click", () => {
-      deathPick = i;
-      drawDeaths();
-    });
+    tr.addEventListener("click", () => pickDeath(i));
     table.append(tr);
   });
+  $("deaths-strip-box").hidden = false;
+  drawDeathStrip();
   drawRecap(deaths[deathPick]);
 }
 
+function pickDeath(i) {
+  deathPick = i;
+  deathHover = null;
+  drawDeaths();
+}
+
+// What killed, most deaths first: in this fight, and over the session's fights against the
+// boss when there are others.
+function drawKillers() {
+  const k = data.killers || { fights: 1, deaths: 0, rows: [] };
+  const table = $("killers-table");
+  table.replaceChildren();
+  const session = k.fights > 1;
+  $("killers-legend").textContent = session ? `what killed · ${k.deaths} deaths in ${k.fights} fights against it` : "what killed";
+  $("killers-box").hidden = !k.rows.length;
+  if (!k.rows.length) return;
+  const head = el("tr");
+  head.append(th("move", null, true), th("this fight"));
+  if (session) head.append(th("session"), th("fights"));
+  table.append(head);
+  const most = Math.max(...k.rows.map((r) => (session ? r.deaths : r.here)), 1);
+  for (const r of k.rows.filter((r) => session || r.here).slice(0, 12)) {
+    const tr = el("tr");
+    const label = el("td", "left bar-cell");
+    const bar = el("div", "bar");
+    bar.style.width = `${((session ? r.deaths : r.here) / most) * 100}%`;
+    label.append(bar, el("span", "", r.skill ? r.name || `#${r.skill}` : "not known"));
+    if (r.skill && r.name) label.title = `#${r.skill}`;
+    tr.append(label, el("td", "", r.here ? String(r.here) : "–"));
+    if (session) tr.append(el("td", "", String(r.deaths)), el("td", "", `${r.fights} of ${k.fights}`));
+    table.append(tr);
+  }
+}
+
+// The fight from end to end: the boss's HP, each death (the picked one bright), and the
+// casts the overlay warns of along the top.
+function drawDeathStrip() {
+  const box = $("deaths-strip");
+  const canvas = box.querySelector("canvas");
+  const deaths = data.view.deaths || [];
+  const { ctx, width, height } = setupCanvas(canvas, 4.6 * fontPx());
+  ctx.clearRect(0, 0, width, height);
+  const fs = fontPx();
+  const left = 0.5 * fs;
+  const right = width - 0.5 * fs;
+  const top = 0.9 * fs;
+  const bottom = height - 1.4 * fs;
+  const end = Math.max(derived.endMs, ...deaths.map(deathMs), 1000);
+  const x = (t) => left + ((right - left) * t) / end;
+  ctx.strokeStyle = css("--line-faint");
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left + 0.5, Math.round(top) + 0.5, right - left - 1, bottom - top);
+  if (derived.hp) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, top, right - left, bottom - top);
+    ctx.clip();
+    drawHpArea(ctx, derived.hp, x, (f) => bottom - (bottom - top) * f, derived.endMs, 0.22, css("--faint"));
+    ctx.restore();
+  }
+  // The boss's casts are timed from the pull, a moment before the first hit.
+  const lead = data.view.boss_now_s != null ? Math.max(0, data.view.boss_now_s - data.view.duration_s) : 0;
+  ctx.fillStyle = css("--warn");
+  for (const c of data.view.boss_casts || []) {
+    if (!(c.cast_ms >= 2500 || c.lands_ms > 0)) continue;
+    const t = (c.at_s - lead) * 1000;
+    if (t >= 0 && t <= end) ctx.fillRect(Math.round(x(t)), top - 0.45 * fs, 2, 0.4 * fs);
+  }
+  ctx.font = canvasFont(0.8);
+  ctx.fillStyle = css("--faint");
+  ctx.textBaseline = "top";
+  const step = timeStep(end, right - left);
+  for (let t = 0; t <= end; t += step) {
+    const near = x(t) > right - 2 * fs;
+    ctx.textAlign = near ? "right" : t ? "center" : "left";
+    ctx.fillText(clock(t), near ? right : x(t), bottom + 3);
+  }
+  // Each death a mark: ones at the same moment side by side would hide each other, so
+  // they stack from the bottom.
+  const marks = deaths.map((d, i) => ({ d, i, x: x(deathMs(d)) }));
+  const lanes = [];
+  for (const m of marks) {
+    let lane = lanes.findIndex((lastX) => m.x - lastX >= 5);
+    if (lane < 0) lane = lanes.length;
+    lanes[lane] = m.x;
+    m.lane = lane;
+  }
+  const laneH = Math.min(1.5 * fs, (bottom - top) / Math.max(1, lanes.length));
+  const hovered = stripHover != null ? marks.reduce((a, m) => (Math.abs(m.x - stripHover) < Math.abs(a.x - stripHover) ? m : a), marks[0]) : null;
+  const near = hovered && Math.abs(hovered.x - stripHover) <= 10 ? hovered : null;
+  for (const m of marks) {
+    const on = m.i === deathPick;
+    ctx.fillStyle = on ? css("--text") : m === near ? css("--accent-2") : css("--bad");
+    const y1 = bottom - m.lane * laneH;
+    ctx.fillRect(Math.round(m.x) - (on ? 1.5 : 1), y1 - laneH + 1, on ? 3 : 2, laneH - 2);
+  }
+  box.dataset.near = near ? String(near.i) : "";
+  const tip = box.querySelector(".tooltip");
+  if (near) {
+    tip.replaceChildren(el("div", "t-head", `${near.d.name} · ${clock(near.d.at_s * 1000)}`), el("div", "", near.d.skill_name || (near.d.skill ? `#${near.d.skill}` : "not known")));
+    tip.hidden = false;
+    placeTooltip(tip, box, near.x, top);
+  } else {
+    tip.hidden = true;
+  }
+  canvas.style.cursor = near ? "pointer" : "";
+}
+
 function drawRecap(d) {
+  const c = deathContext(d);
   $("recap-legend").textContent = `${d.name} at ${clock(d.at_s * 1000)}`;
   const tiles = $("recap-tiles");
   tiles.replaceChildren(
     tile("time to death", `${d.time_to_death_s.toFixed(1)} s`, "since full HP"),
     tile("taken", fmt(d.direct + d.over_time), `${fmt(d.direct)} direct · ${fmt(d.over_time)} over time`),
-    tile("healed", fmt(d.healed), "in that time"),
+    tile("healed", fmt(d.healed), c.healers ? `healers up: ${c.healersUp} of ${c.healers}` : "in that time"),
     tile("revived", d.revived_after_s != null ? `${d.revived_after_s.toFixed(1)} s` : "–", d.revived_after_s != null ? "after the death" : "not in this fight"),
   );
+  if (c.last) {
+    const from = d.hp_before != null ? `from ${fmt(d.hp_before)} HP${c.overkill ? ` · ${fmt(c.overkill)} over` : ""}` : "";
+    tiles.append(tile("killing blow", fmt(c.last.amount), from));
+  }
+  if (d.window_s && d.skill) {
+    const reached = d.also_hit + d.also_avoided;
+    tiles.append(tile("the same move", reached ? `${d.also_hit} hit` : "only them", reached ? `${d.also_avoided} avoided it · of ${reached} others it reached` : "it reached nobody else"));
+  }
+  const place = placeText(d.place);
+  if (place) tiles.append(tile("stood", place[0], place[1] ? `from the boss, ${place[1]}` : "from the boss"));
+  if (d.boss_hp != null || d.mechanic) {
+    tiles.append(tile("the boss", d.boss_hp != null ? `${(d.boss_hp * 100).toFixed(1)}%` : "–", d.mechanic || (c.together ? `${c.together} more died within ${TOGETHER_S} s` : "HP then")));
+  }
+
+  // In words: the move, the cast it came from and whether the overlay warns of it, and
+  // who went with them.
+  const facts = $("recap-facts");
+  facts.replaceChildren();
+  const fact = (label, text, cls) => {
+    const p = el("p", "fact");
+    p.append(el("span", "key", label), el("span", cls || "", text));
+    facts.append(p);
+  };
+  if (c.cause) {
+    const k = c.cause;
+    const what = k.skill_name || `#${k.skill}`;
+    const cast = k.cast_ms ? `a ${(k.cast_ms / 1000).toFixed(1)} s cast` : "no cast time";
+    const marked = k.areas ? ` · ${k.areas} marked ${k.areas === 1 ? "spot" : "spots"}, landing ${(k.lands_ms / 1000).toFixed(1)} s on` : "";
+    fact("from", `${what}, begun ${k.before_s.toFixed(1)} s before · ${cast}${marked}`);
+    fact("warning", k.warned ? "the overlay warns of this cast" : "the overlay doesn't warn of this cast (the [boss] tab can mark it)", k.warned ? "good" : "warn-text");
+  } else if (d.window_s && d.skill) {
+    fact("from", "no boss cast seen for it (a helper's, or one with no cast message)");
+  }
+  if (d.mechanic) fact("during", d.mechanic);
+  if (c.together) fact("with", `${c.together} more ${c.together === 1 ? "death" : "deaths"} within ${TOGETHER_S} s`);
+
+  drawDeathChart(d);
+
   const table = $("recap-hits");
   table.replaceChildren();
   const head = el("tr");
@@ -1798,6 +1996,258 @@ function drawRecap(d) {
   $("recap-heal").textContent = heal
     ? `last heal: ${heal.skill_name || `#${heal.skill}`} from ${heal.from}, ${heal.before_s.toFixed(1)} s before (${fmt(heal.amount)})`
     : "no heals on them in this fight";
+}
+
+// What a death's timeline shows, with times in seconds before the death.
+function deathEvents(d) {
+  const at = deathMs(d);
+  const from = at - d.window_s * 1000;
+  const inWindow = (t) => t >= from - 1 && t <= at + 250;
+  const before = (t) => (at - t) / 1000;
+  const hits = data.taken.filter((h) => h.target === d.entity && inWindow(h.t)).map((h) => ({ s: before(h.t), amount: h.damage, skill: h.skill, from: h.player, dot: (h.flags & 0x20) !== 0 }));
+  const heals = data.heals.filter((h) => h.target === d.entity && inWindow(h.t)).map((h) => ({ s: before(h.t), amount: h.damage, skill: h.skill, from: h.player }));
+  // What mobs put on them (a bleed, a knock-down, a mark): one lane per effect.
+  const lanes = new Map();
+  for (const e of data.effects) {
+    if (e.target !== d.entity || e.end < from || e.start > at || !(e.source in data.mob_types)) continue;
+    // By the name you gave it, else as the move that put it there is called.
+    const own = effectMeta(e.effect);
+    const label = own && own.own && own.name ? own.name : e.skill != null ? moveName(e.skill) : effectLabel(e);
+    if (!lanes.has(label)) lanes.set(label, []);
+    lanes.get(label).push({ from: Math.min(d.window_s, before(e.start)), to: Math.max(0, before(e.end)) });
+  }
+  return { hits, heals, effects: [...lanes].map(([label, spans]) => ({ label, spans })).slice(0, 5) };
+}
+
+// A death's timeline: their HP (and shield) from the last full HP to the death, each hit
+// and heal on it, and under it the boss's casts and what mobs had put on them.
+function drawDeathChart(d) {
+  const box = $("death-chart");
+  box.hidden = !(d.window_s > 0 && (d.hp || []).length);
+  $("death-chart-note").hidden = !box.hidden;
+  if (box.hidden) return;
+  const ev = deathEvents(d);
+  const casts = (d.casts || []).filter((c) => c.before_s <= d.window_s + (c.cast_ms + c.lands_ms) / 1000);
+  // Casts that overlap take a lane each.
+  const castLanes = [];
+  for (const c of casts) {
+    const endS = c.before_s - Math.max(0.6, (c.cast_ms + c.lands_ms) / 1000);
+    let lane = castLanes.findIndex((free) => c.before_s <= free);
+    if (lane < 0) lane = castLanes.length;
+    castLanes[lane] = endS;
+    c.lane = Math.min(lane, 2);
+  }
+  const fs = fontPx();
+  const laneH = 1.35 * fs;
+  const nCast = casts.length ? Math.min(3, castLanes.length) : 0;
+  const plotH = 11 * fs;
+  const top = 1.2 * fs;
+  const height = top + plotH + (nCast ? nCast * laneH + 0.5 * fs : 0) + (ev.effects.length ? ev.effects.length * laneH + 0.5 * fs : 0) + 1.6 * fs;
+  const { ctx, width } = setupCanvas(box.querySelector("canvas"), height);
+  ctx.clearRect(0, 0, width, height);
+  const left = 3.6 * fs;
+  const right = width - 0.9 * fs;
+  const bottom = top + plotH;
+  const span = d.window_s;
+  const x = (s) => right - ((right - left) * Math.max(0, Math.min(span, s))) / span;
+  const shieldAt = (s) => {
+    let v = 0;
+    for (const p of d.shield || []) if (p.before_s >= s) v = p.v;
+    return v;
+  };
+  const max = Math.max(d.max_hp || 0, ...d.hp.map((p) => p.v + shieldAt(p.before_s)), 1);
+  const y = (v) => bottom - (plotH * Math.min(v, max)) / max;
+
+  // Grid: HP in quarters of the max, time every few seconds.
+  ctx.font = canvasFont();
+  ctx.lineWidth = 1;
+  ctx.textBaseline = "middle";
+  for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+    ctx.strokeStyle = css("--line-faint");
+    ctx.beginPath();
+    ctx.moveTo(left, Math.round(y(max * f)) + 0.5);
+    ctx.lineTo(right, Math.round(y(max * f)) + 0.5);
+    ctx.stroke();
+    ctx.fillStyle = css("--faint");
+    ctx.textAlign = "right";
+    ctx.fillText(fmt(max * f), left - 6, y(max * f));
+  }
+  const all = top + plotH + (nCast ? nCast * laneH + 0.5 * fs : 0) + (ev.effects.length ? ev.effects.length * laneH + 0.5 * fs : 0);
+  const step = timeStep(span * 1000, right - left) / 1000;
+  ctx.textBaseline = "top";
+  for (let s = 0; s <= span; s += step) {
+    ctx.fillStyle = css("--faint");
+    ctx.textAlign = s === 0 ? "right" : "center";
+    ctx.fillText(s === 0 ? "death" : `-${s.toFixed(step < 1 ? 1 : 0)} s`, s === 0 ? right : x(s), all + 4);
+  }
+
+  // The shield on top of the HP, then the HP itself: steps, each lasting until the next.
+  const pts = d.hp;
+  const path = (extra) => {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const v = p.v + (extra ? shieldAt(p.before_s) : 0);
+      if (i) ctx.lineTo(x(p.before_s), y(pts[i - 1].v + (extra ? shieldAt(pts[i - 1].before_s) : 0)));
+      else ctx.moveTo(x(p.before_s), y(v));
+      ctx.lineTo(x(p.before_s), y(v));
+    });
+    const lastP = pts[pts.length - 1];
+    ctx.lineTo(x(0), y(lastP.v + (extra ? shieldAt(0) : 0)));
+  };
+  const area = () => {
+    ctx.lineTo(x(0), y(0));
+    ctx.lineTo(x(pts[0].before_s), y(0));
+    ctx.closePath();
+  };
+  if ((d.shield || []).some((p) => p.v > 0)) {
+    path(true);
+    area();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
+    ctx.fill();
+  }
+  path(false);
+  area();
+  ctx.fillStyle = css("--bad");
+  ctx.globalAlpha = 0.3;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  path(false);
+  ctx.strokeStyle = css("--bad");
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+
+  // Heals: a mark rising from the floor. Hits: a mark from the top, the biggest named.
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = css("--ok");
+  for (const h of ev.heals) {
+    ctx.beginPath();
+    ctx.moveTo(Math.round(x(h.s)) + 0.5, bottom);
+    ctx.lineTo(Math.round(x(h.s)) + 0.5, bottom - Math.max(4, (plotH * 0.3 * Math.min(h.amount, max)) / max));
+    ctx.stroke();
+  }
+  ctx.strokeStyle = css("--text");
+  ctx.lineWidth = 1;
+  const lastHit = ev.hits.reduce((a, h) => (!a || h.s <= a.s ? h : a), null);
+  for (const h of ev.hits) {
+    // (The killing blow in red.)
+    ctx.strokeStyle = h === lastHit ? css("--bad") : css("--text");
+    ctx.lineWidth = h === lastHit ? 2 : 1;
+    ctx.globalAlpha = h.dot ? 0.35 : 0.8;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(x(h.s)) + 0.5, top);
+    ctx.lineTo(Math.round(x(h.s)) + 0.5, top + Math.max(4, (plotH * 0.3 * Math.min(h.amount, max)) / max));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  const named = [...ev.hits].sort((a, b) => b.amount - a.amount).slice(0, 5).sort((a, b) => b.s - a.s);
+  ctx.font = canvasFont(0.8);
+  ctx.textBaseline = "bottom";
+  let freeFrom = left;
+  for (const h of named) {
+    const label = `${fmt(h.amount)} ${moveName(h.skill)}`;
+    const w = ctx.measureText(label).width;
+    const lx = Math.max(freeFrom, Math.min(right - w, x(h.s) - w / 2));
+    if (lx + w > right) continue;
+    ctx.fillStyle = css("--muted");
+    ctx.textAlign = "left";
+    ctx.fillText(label, lx, top - 2);
+    freeFrom = lx + w + 0.6 * fs;
+  }
+  // The death.
+  ctx.strokeStyle = css("--text");
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(right, top);
+  ctx.lineTo(right, all);
+  ctx.stroke();
+
+  // The boss's casts: solid while it's cast, lighter until it lands; red the one that
+  // killed, amber the ones the overlay warns of.
+  let ly = bottom + 0.5 * fs;
+  ctx.textBaseline = "middle";
+  ctx.font = canvasFont(0.8);
+  if (nCast) {
+    ctx.fillStyle = css("--faint");
+    ctx.textAlign = "right";
+    ctx.fillText("casts", left - 6, ly + (nCast * laneH) / 2);
+    for (const c of casts) {
+      const colour = c.killed ? css("--bad") : c.warned ? css("--warn") : css("--muted");
+      const yy = ly + c.lane * laneH + 2;
+      const x0 = x(c.before_s);
+      const x1 = x(c.before_s - c.cast_ms / 1000);
+      const x2 = x(c.before_s - (c.cast_ms + c.lands_ms) / 1000);
+      ctx.fillStyle = colour;
+      ctx.globalAlpha = c.stopped ? 0.35 : 0.85;
+      ctx.fillRect(x0, yy, Math.max(3, x1 - x0), laneH - 4);
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(x1, yy, Math.max(0, x2 - x1), laneH - 4);
+      ctx.globalAlpha = 1;
+      c.box = [x0, yy, Math.max(3, x2 - x0), laneH - 4];
+    }
+    // Their names, where there's room after each.
+    const byLane = [0, 1, 2].map((n) => casts.filter((c) => c.lane === n));
+    for (const lane of byLane) {
+      lane.forEach((c, i) => {
+        const label = c.skill_name || `#${c.skill}`;
+        const startX = c.box[0] + c.box[2] + 4;
+        const room = (lane[i + 1] ? lane[i + 1].box[0] : right) - startX - 4;
+        if (ctx.measureText(label).width > room) return;
+        ctx.fillStyle = c.killed ? css("--text") : css("--muted");
+        ctx.textAlign = "left";
+        ctx.fillText(label, startX, c.box[1] + (laneH - 4) / 2);
+      });
+    }
+    ly += nCast * laneH + 0.5 * fs;
+  }
+  for (const e of ev.effects) {
+    ctx.fillStyle = css("--debuff");
+    ctx.globalAlpha = 0.7;
+    let firstX = right;
+    for (const s of e.spans) {
+      const x0 = x(s.from);
+      ctx.fillRect(x0, ly + 2, Math.max(2, x(s.to) - x0), laneH - 4);
+      firstX = Math.min(firstX, x0);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = css("--faint");
+    ctx.textAlign = "right";
+    const label = e.label.length > 22 ? `${e.label.slice(0, 21)}…` : e.label;
+    ctx.fillText(label, Math.max(left - 6, Math.min(firstX - 6, right)), ly + laneH / 2);
+    ly += laneH;
+  }
+
+  // Under the pointer: the time, their HP then, and what happened within a quarter second.
+  const tip = box.querySelector(".tooltip");
+  if (deathHover != null && deathHover >= left && deathHover <= right) {
+    const s = ((right - deathHover) / (right - left)) * span;
+    ctx.strokeStyle = css("--muted");
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(deathHover) + 0.5, top);
+    ctx.lineTo(Math.round(deathHover) + 0.5, all);
+    ctx.stroke();
+    let hp = pts[0].v;
+    for (const p of pts) if (p.before_s >= s) hp = p.v;
+    const row = (label, value, cls) => {
+      const r = el("div", "t-row");
+      r.append(el("span", "", label), el("span", cls || "", value));
+      return r;
+    };
+    tip.replaceChildren(el("div", "t-head", s < 0.05 ? "the death" : `${s.toFixed(1)} s before`), row("hp", `${fmt(hp)}${d.max_hp ? ` · ${Math.round((hp / d.max_hp) * 100)}%` : ""}`));
+    const shield = shieldAt(s);
+    if (shield) tip.append(row("shield", fmt(shield)));
+    const nearS = Math.max(0.25, (span / (right - left)) * 4);
+    for (const h of ev.hits.filter((h) => Math.abs(h.s - s) <= nearS).slice(-6)) tip.append(row(`${moveName(h.skill)}${h.dot ? " (over time)" : ""}`, `-${fmt(h.amount)}`, "bad-text"));
+    for (const h of ev.heals.filter((h) => Math.abs(h.s - s) <= nearS).slice(-4)) tip.append(row(`${skillName(h.skill)} · ${name(h.from)}`, `+${fmt(h.amount)}`, "good"));
+    for (const c of casts.filter((c) => s <= c.before_s && s >= c.before_s - Math.max(0.3, (c.cast_ms + c.lands_ms) / 1000))) {
+      tip.append(row(c.skill_name || `#${c.skill}`, c.cast_ms ? `${(c.cast_ms / 1000).toFixed(1)} s cast${c.warned ? " · warned" : ""}` : c.warned ? "warned" : "cast"));
+    }
+    tip.hidden = false;
+    placeTooltip(tip, box, deathHover, top + 10);
+  } else {
+    tip.hidden = true;
+  }
 }
 
 function selectPlayer(id) {
@@ -1862,6 +2312,35 @@ $("dps-chart").querySelector("canvas").addEventListener("mouseleave", () => {
   dpsHover = null;
   drawDpsChart();
 });
+
+// The deaths tab's two charts: what's under the pointer on a death's timeline; a death
+// picked on the fight's strip.
+{
+  const chart = $("death-chart").querySelector("canvas");
+  chart.addEventListener("mousemove", (e) => {
+    deathHover = e.offsetX;
+    const d = (data.view.deaths || [])[deathPick];
+    if (d) drawDeathChart(d);
+  });
+  chart.addEventListener("mouseleave", () => {
+    deathHover = null;
+    const d = data && (data.view.deaths || [])[deathPick];
+    if (d) drawDeathChart(d);
+  });
+  const strip = $("deaths-strip").querySelector("canvas");
+  strip.addEventListener("mousemove", (e) => {
+    stripHover = e.offsetX;
+    drawDeathStrip();
+  });
+  strip.addEventListener("mouseleave", () => {
+    stripHover = null;
+    if (data) drawDeathStrip();
+  });
+  strip.addEventListener("click", () => {
+    const near = $("deaths-strip").dataset.near;
+    if (near) pickDeath(Number(near));
+  });
+}
 
 for (const k of ["healing", "taken"]) {
   const canvas = $(`${k}-chart`).querySelector("canvas");

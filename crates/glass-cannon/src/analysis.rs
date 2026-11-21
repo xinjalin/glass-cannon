@@ -89,7 +89,53 @@ pub struct AnalysisData {
     live: bool,
     /// When a saved fight ended (ms since the Unix epoch).
     ended_ms: Option<u64>,
+    /// What killed players against this boss over the session: this fight's deaths and
+    /// those of the other fights against it within [`NIGHT_MS`] of it.
+    killers: Killers,
     appearance: Appearance,
+}
+
+/// Fights against the same boss this close in time are one session's.
+const NIGHT_MS: u64 = 12 * 3_600_000;
+
+/// What killed players against a boss, over a session's fights.
+#[derive(Debug, Default, Serialize)]
+struct Killers {
+    /// The fights counted (this one too), and their deaths.
+    fights: usize,
+    deaths: usize,
+    /// Most deaths first.
+    rows: Vec<KillerRow>,
+}
+
+#[derive(Debug, Serialize)]
+struct KillerRow {
+    /// The killing hit's skill, and what the move is called.
+    skill: u32,
+    name: Option<String>,
+    deaths: usize,
+    /// In how many of the fights it killed someone.
+    fights: usize,
+    /// Its deaths in the fight shown.
+    here: usize,
+}
+
+/// Tallies deaths by what killed: `here` is the fight shown, `others` the session's other
+/// fights against the boss.
+fn killers(here: &[meter_core::meter::DeathView], others: &[&[meter_core::meter::DeathView]], name: impl Fn(u32) -> Option<String>) -> Killers {
+    let mut rows: BTreeMap<u32, KillerRow> = BTreeMap::new();
+    for (i, deaths) in std::iter::once(here).chain(others.iter().copied()).enumerate() {
+        let mut seen = std::collections::BTreeSet::new();
+        for d in deaths {
+            let row = rows.entry(d.skill).or_insert_with(|| KillerRow { skill: d.skill, name: name(d.skill), deaths: 0, fights: 0, here: 0 });
+            row.deaths += 1;
+            row.here += usize::from(i == 0);
+            row.fights += usize::from(seen.insert(d.skill));
+        }
+    }
+    let mut rows: Vec<KillerRow> = rows.into_values().collect();
+    rows.sort_by(|a, b| b.deaths.cmp(&a.deaths).then(b.here.cmp(&a.here)).then(a.skill.cmp(&b.skill)));
+    Killers { fights: 1 + others.len(), deaths: rows.iter().map(|r| r.deaths).sum(), rows }
 }
 
 /// Shows the window on a fight and (optionally) a player, or hides it when it's already
@@ -235,6 +281,26 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: O
 
     let data = lock(&app.data);
     data.annotate_view(&mut a.view);
+    // Which of the casts before each death the overlay warns of.
+    let marks = crate::cast_marks(&app, &data);
+    for c in a.view.deaths.iter_mut().flat_map(|d| d.casts.iter_mut()) {
+        c.warned = crate::dangerous(&marks, c.skill, c.cast_ms, c.lands_ms);
+    }
+    // What killed against this boss over the session (the history's other fights against
+    // it; none for a run, whose fights are all in this view already).
+    let killers = {
+        let history = lock(&app.history);
+        let at = ended_ms.unwrap_or_else(crate::hotkeys::now_ms);
+        let others: Vec<&[meter_core::meter::DeathView]> = match a.view.target_type.filter(|_| run_info.is_none()) {
+            Some(boss) => history
+                .newest_first()
+                .filter(|f| f.view.target_type == Some(boss) && Some(f.ended_ms) != ended_ms && f.ended_ms.abs_diff(at) <= NIGHT_MS)
+                .map(|f| f.view.deaths.as_slice())
+                .collect(),
+            None => Vec::new(),
+        };
+        killers(&a.view.deaths, &others, |skill| data.move_name(skill))
+    };
     let mut bosses = Vec::new();
     for (id, type_id) in &a.mob_types {
         if let Some((name, boss)) = data.npc(*type_id) {
@@ -309,6 +375,34 @@ pub fn analysis_data(app: State<'_, Arc<AppState>>, fight: Option<usize>, run: O
         run: run_info,
         live,
         ended_ms,
+        killers,
         appearance,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use meter_core::meter::DeathView;
+
+    fn death(skill: u32) -> DeathView {
+        let json = format!(
+            r#"{{"entity":1,"name":"x","at_s":1.0,"killer":null,"killer_type":null,"skill":{skill},"skill_name":null,"time_to_death_s":1.0,"direct":1,"over_time":0,"healed":0,"hits":[],"last_heal":null}}"#
+        );
+        serde_json::from_str(&json).unwrap()
+    }
+
+    #[test]
+    fn what_killed_over_a_session() {
+        // This fight: two deaths to 7, one to 9. Two more fights: 7 once, 5 twice in one.
+        let here = [death(7), death(9), death(7)];
+        let (a, b) = ([death(7)], [death(5), death(5)]);
+        let k = killers(&here, &[&a, &b], |skill| (skill == 7).then(|| "seven".to_string()));
+        assert_eq!((k.fights, k.deaths), (3, 6));
+        let rows: Vec<_> = k.rows.iter().map(|r| (r.skill, r.name.as_deref(), r.deaths, r.fights, r.here)).collect();
+        assert_eq!(rows, [(7, Some("seven"), 3, 2, 2), (5, None, 2, 1, 0), (9, None, 1, 1, 1)]);
+        // On its own: this fight's.
+        let k = killers(&here, &[], |_| None);
+        assert_eq!((k.fights, k.deaths, k.rows.len()), (1, 3, 2));
+    }
 }
