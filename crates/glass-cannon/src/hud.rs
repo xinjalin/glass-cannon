@@ -384,7 +384,9 @@ pub fn watch<R: Runtime>(handle: AppHandle<R>, app: Arc<AppState>) {
                             let Some(mut top) = crate::menus::read_top((area.left, area.top, w, h)) else { return false };
                             let (ox, _, _) = crate::menus::top_box(w, h);
                             top.blank(&widgets_in_strip(&lock(&app.hud_drawn), f64::from(ox), 0.0));
-                            top.has_window_close(height)
+                            let window = top.window_look(height);
+                            *lock(&app.window_look) = Some(window);
+                            window.found
                         };
                         menus.update(crate::hotkeys::now_ms(), crate::menus::cursor_showing(), &mut look)
                     }
