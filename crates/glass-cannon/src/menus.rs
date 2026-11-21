@@ -40,9 +40,10 @@
 //! below; Force Settings' 138, edges along 100 % and 84 %; 294 gameplay screenshots have
 //! 57 X-like marks, none with an edge along even 60 %. Kept only for that look, as the
 //! corner. Our own widgets lie over the game there, a widget with nothing to show too: the
-//! part of a title bar under one can't be seen, so its edges go by what can (at least 30 %
+//! part of a title bar under one can't be seen, so its edges go by what can (at least 20 %
 //! of their length), and a widget's own border is no edge. (With a box over a third of the
-//! Attendance window's title bar it wasn't found, 2026-11-21.)
+//! Attendance window's title bar it wasn't found, 2026-11-21; on the layout it was reported
+//! from, the boss warnings' box hid 72 % of it.)
 //!
 //! A pop-up over a menu dims the screen, its mark too, past telling, so once seen the menu
 //! stays open until the cursor hides (closing the menu hides it).
@@ -377,7 +378,7 @@ const BAR_REACH: f64 = 0.04;
 const BAR_SPAN: f64 = 0.4;
 /// The least of an edge's length that must be seen (not under one of our widgets) for it to
 /// count.
-const BAR_SEEN: f64 = 0.3;
+const BAR_SEEN: f64 = 0.2;
 
 /// The band across the middle looked over for a pop-up's bar: its width (as a share of the
 /// game's height, centred) and its top and bottom (shares of the height down).
@@ -1139,9 +1140,14 @@ mod tests {
         a.blank(&[(700.0, 190.0, 1102.0, 290.0)]);
         let look = a.window_look(1125.0);
         assert_eq!((look.found, look.marks, look.edges), (true, 1, Some((100, 100, 55))));
+        // Over 72 % of it, as the boss warnings' box was over the Attendance window's: still
+        // enough.
+        let mut a = top(true, true);
+        a.blank(&[(700.0, 190.0, 1178.0, 290.0)]);
+        assert!(a.window_look(1125.0).found);
         // Over all but a sliver: too little to go by.
         let mut a = top(true, true);
-        a.blank(&[(700.0, 190.0, 1200.0, 290.0)]);
+        a.blank(&[(700.0, 190.0, 1230.0, 290.0)]);
         let look = a.window_look(1125.0);
         assert_eq!((look.found, look.marks), (false, 1));
         // A widget's own border is no edge: an X-like mark beside a widget's box (its top
