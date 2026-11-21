@@ -22,6 +22,7 @@ pub mod collection;
 pub mod join;
 pub mod decode;
 pub mod live;
+pub mod loading;
 pub mod mechanics;
 pub mod meter;
 pub mod npcap;

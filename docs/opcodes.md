@@ -8,9 +8,9 @@ Every message type (opcode) in our captures: 428 opcodes, 5,337,612 messages, fr
 
 | | opcodes | messages |
 | --- | ---: | ---: |
-| Decoded and used by the meter | 53 | 2,971,584 |
+| Decoded and used by the meter | 55 | 2,971,701 |
 | Understood, not used yet | 49 | 1,707,170 |
-| Named elsewhere only | 110 | 645,272 |
+| Named elsewhere only | 108 | 645,155 |
 | Unknown | 216 | 13,586 |
 | Named elsewhere, never seen | 17 | 0 |
 
@@ -49,6 +49,8 @@ Every message type (opcode) in our captures: 428 opcodes, 5,337,612 messages, fr
 | `0x9200` | 85 | your party's roster | PartyInfo_NT | Aion2Flow: party member list |
 | `0x3633` | 84 | you appear: your entity, name, character data (login, zone change) | MyCharAppear_NT |  |
 | `0x4002` | 84 | you're on this map (each server connection starts with it) |  | Aion2Flow: state |
+| `0x3621` | 84 | the map to load, before each `0x4002`: the loading screen starts (the overlay steps aside for it) | PrepareEnterMap_NT | Aion2Flow: state; A2Tools: map load |
+| `0x3616` | 33 | you're being moved to another game server (its address): the loading screen starts |  | a2_protocol-research: game server info |
 | `0x970b` | 50 | a member joined the finder group | PartyFinderJoin_NT |  |
 | `0x5100` | 41 | your skills, at login and entering a dungeon | MySkillList_NT |  |
 | `0x922e` | 40 | joining a dungeon's objectives (map event) | MapEventJoin_NT | Aion2Flow: map |
@@ -183,7 +185,6 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x5613` | 97 | 4 | 14.0 |  |  | Aion DPS Meter: an item used |
 | `0x4001` | 86 | 8 | 15.4 |  |  | Aion2Flow: state |
 | `0xe262` | 85 | 6 | 118.0 |  |  | Aion DPS Meter: login block, sent again during play |
-| `0x3621` | 84 | 8 | 46.0 |  | PrepareEnterMap_NT | Aion2Flow: state; A2Tools: map load |
 | `0x3623` | 84 | 8 | 24.0 |  |  | Aion2Flow: map arrival; A2Tools: zone change; a2_protocol-research: zone; Aion DPS Meter: your position after loading; AionMeter: teleport |
 | `0x3649` | 84 | 8 | 847.4 |  | CharAllStats_RS | Aion2Flow: state; A2Tools: all stats; RATmeter: player stats |
 | `0x4301` | 84 | 8 | 1.0 |  |  | Aion DPS Meter: airspace battle state at zone entry (00 = none) |
@@ -222,7 +223,6 @@ Where a row says "ours:", that much was looked at on our captures; the name itse
 | `0x8d33` | 35 | 4 | 25.0 |  | GatherSourceCompleted_NT |  |
 | `0x3611` | 34 | 4 | 276.0 |  |  | a2_protocol-research: server RSA handshake |
 | `0x3615` | 34 | 4 | 296.5 |  | Login_RS | a2_protocol-research: login or server transfer |
-| `0x3616` | 33 | 4 | 27.8 |  |  | a2_protocol-research: game server info |
 | `0xe261` | 30 | 3 | 2.0 |  |  | Aion DPS Meter: right after a `0xe262` |
 | `0x920d` | 29 | 4 | 145.1 |  | PartyAddMember_NT | Aion2Flow: party profile; read now: a member joined your party (confirmed 2026-10-24) |
 | `0x3907` | 28 | 2 | 21.4 |  |  | Aion DPS Meter: one skill's specialization slots; read now: a stigma specced (put on) |

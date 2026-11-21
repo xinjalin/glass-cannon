@@ -71,6 +71,7 @@ const SETTINGS_KEYS: &[&str] = &[
     "cubes_need_key",
     "hide_for_menus",
     "hide_for_arena",
+    "hide_for_loading",
     "click_through",
     "dummy_mode",
     "dummy_run_s",

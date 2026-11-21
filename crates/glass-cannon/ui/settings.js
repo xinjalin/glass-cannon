@@ -197,6 +197,7 @@ async function refresh() {
     setToggle("close-with-game", state.close_with_game);
     setToggle("hide-for-menus", state.hide_for_menus);
     setToggle("hide-for-arena", state.hide_for_arena);
+    setToggle("hide-for-loading", state.hide_for_loading);
     setToggle("click-through", state.click_through);
     setToggle("meter-fit", state.meter_fit);
     setToggle("black-market-auto", state.black_market_auto);
@@ -645,6 +646,11 @@ $("hide-for-menus").addEventListener("click", async () => {
 
 $("hide-for-arena").addEventListener("click", async () => {
   await invoke("set_hide_for_arena", { on: !(state && state.hide_for_arena) });
+  refresh();
+});
+
+$("hide-for-loading").addEventListener("click", async () => {
+  await invoke("set_hide_for_loading", { on: !(state && state.hide_for_loading) });
   refresh();
 });
 
