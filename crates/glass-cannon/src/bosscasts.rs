@@ -76,7 +76,7 @@ pub struct BossCastsView {
     pub kinds: Vec<KindSetup>,
     /// The sound files you've added, by name.
     pub sounds: Vec<String>,
-    /// Warnings sound at all (settings → alert sound).
+    /// Warnings sound at all (the alert sound, and the boss warnings' own).
     pub alert_sound: bool,
     /// What a cast with no sound of its own plays (the boss warnings' sound: "chime",
     /// "none" or one of your files), and how loud, in percent.
@@ -306,7 +306,7 @@ pub fn boss_casts_setup(app: State<'_, Arc<AppState>>) -> BossCastsView {
     let sounds = crate::sounds::sound_files(&app.config_dir);
     sound.retain(|_, name| sounds.contains(name));
     let default_sound = setup.alerts.get("boss").cloned().unwrap_or_else(|| crate::sounds::CHIME.into());
-    BossCastsView { sounds, alert_sound: setup.on, default_sound, volume: setup.volume, ..view(&lock(&app.data), &lock(&app.boss_casts), &warn, &timer, &sound) }
+    BossCastsView { sounds, alert_sound: setup.sounds("boss"), default_sound, volume: setup.volume, ..view(&lock(&app.data), &lock(&app.boss_casts), &warn, &timer, &sound) }
 }
 
 /// Sets a boss skill for the boss timers: always (true), never (false), or as its warning

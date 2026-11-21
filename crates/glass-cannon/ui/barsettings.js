@@ -315,12 +315,13 @@ function drawPrefs() {
   toggle($("bs-idle"), view.setup.hide_idle);
   const files = soundsView.files.map((f) => f.name);
   const mine = view.setup.sounds || {};
+  toggle($("bs-sounds-on"), !mine.off);
   for (const sel of document.querySelectorAll("select[data-sound]")) {
     const k = sel.dataset.sound;
     // (Not under an open list: it would close.)
     if (document.activeElement !== sel) fillSounds(sel, mine[k] || "none", [["none", "none"], ["chime", "chime"]], files, false);
     const line = sel.closest(".bs-line");
-    const why = BAR_SOUNDS[k].includes(view.setup.tracks) ? "" : k === "ready" ? "this bar tracks effects, not skills" : "this bar tracks skills' cooldowns, not effects";
+    const why = mine.off ? "this bar's sounds are off" : BAR_SOUNDS[k].includes(view.setup.tracks) ? "" : k === "ready" ? "this bar tracks effects, not skills" : "this bar tracks skills' cooldowns, not effects";
     line.classList.toggle("off", !!why);
     for (const c of line.querySelectorAll("select, button")) c.disabled = !!why;
     line.title = why ? `No effect: ${why}` : "";
@@ -388,6 +389,7 @@ for (const b of document.querySelectorAll(".bs-tabs [data-tab]")) {
 for (const b of $("bs-tracks").children) b.addEventListener("click", () => view && change({ tracks: b.dataset.v }));
 for (const b of $("bs-show").children) b.addEventListener("click", () => view && change({ show: b.dataset.v }));
 $("bs-idle").addEventListener("click", () => view && change({ hide_idle: !view.setup.hide_idle }));
+$("bs-sounds-on").addEventListener("click", () => view && change({ sounds: { ...view.setup.sounds, off: !(view.setup.sounds && view.setup.sounds.off) } }));
 for (const sel of document.querySelectorAll("select[data-sound]")) {
   sel.addEventListener("change", () => view && change({ sounds: { ...view.setup.sounds, [sel.dataset.sound]: sel.value } }));
 }

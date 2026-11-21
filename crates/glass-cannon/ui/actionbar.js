@@ -44,7 +44,7 @@ function hear(view, hidden) {
   watched = state;
   watchedKey = key;
   watchedAt = now;
-  if (!follows) return;
+  if (!follows || !view.sounds || view.sounds.off) return;
   // With every effect on you on the bar, one not listed isn't on you.
   const off = view.all_effects ? { cooling: false, on: false } : null;
   const heard = new Set();
@@ -58,7 +58,7 @@ function hear(view, hidden) {
     const w = state.get(id) || off;
     if (w && was.on && !w.on) heard.add("ended");
   }
-  const what = ["ready", "ended", "gained"].find((k) => heard.has(k) && view.sounds && view.sounds[k] && view.sounds[k] !== "none");
+  const what = ["ready", "ended", "gained"].find((k) => heard.has(k) && view.sounds[k] && view.sounds[k] !== "none");
   if (what) window.parent.postMessage({ type: "gc-sound", choice: view.sounds[what], chime: what }, "*");
 }
 

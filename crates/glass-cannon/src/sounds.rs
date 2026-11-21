@@ -6,7 +6,8 @@
 //! A sound file you pick (settings → sound) is copied to the `sounds` folder beside the
 //! settings under a cleaned-up name, and anything that sounds can use it. The files are
 //! yours alone: no export carries them. All of it is under one switch (alert sound) and one
-//! volume.
+//! volume; and each widget that sounds can be turned off by itself, in its own settings
+//! beside it on the overlay, where its own sounds are chosen too.
 
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
@@ -27,6 +28,9 @@ pub const CHIME: &str = "chime";
 /// boss turning to you, a hidden cube, and a world timer's alert. Each plays its chime
 /// unless set otherwise.
 pub const ALERTS: [&str; 4] = ["boss", "on_you", "cube", "timer"];
+/// The widgets with alerts of their own, and which: each can be turned off by itself.
+/// (An action bar's sounds are its own setup's: `actionbar::BarSounds`.)
+pub const SOUND_WIDGETS: [(&str, &[&str]); 3] = [("boss-warnings", &["boss", "on_you"]), ("cubes", &["cube"]), ("timers", &["timer"])];
 /// How loud, in percent of full.
 pub const VOLUMES: RangeInclusive<u16> = 5..=100;
 
@@ -174,8 +178,17 @@ pub struct SoundSetup {
     pub alerts: BTreeMap<String, String>,
     /// The boss casts with a sound of their own.
     pub casts: BTreeMap<u32, String>,
+    /// The alerts whose widget's sound is off.
+    pub muted: Vec<String>,
     /// Every sound file in use, to have ready before it's needed.
     pub files: Vec<String>,
+}
+
+impl SoundSetup {
+    /// Whether an alert sounds: the alert sound on, and its widget's own.
+    pub fn sounds(&self, alert: &str) -> bool {
+        self.on && !self.muted.iter().any(|m| m == alert)
+    }
 }
 
 pub fn setup(s: &Settings) -> SoundSetup {
@@ -184,6 +197,7 @@ pub fn setup(s: &Settings) -> SoundSetup {
         volume: s.sound_volume.clamp(*VOLUMES.start(), *VOLUMES.end()),
         alerts: s.sounds.iter().filter(|(k, _)| ALERTS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect(),
         casts: s.boss_skill_sounds.clone(),
+        muted: SOUND_WIDGETS.iter().filter(|(widget, _)| s.sounds_off.contains(*widget)).flat_map(|(_, alerts)| alerts.iter().map(|a| a.to_string())).collect(),
         files: uses(s).into_keys().collect(),
     }
 }
@@ -201,6 +215,8 @@ pub struct SoundsView {
     pub on: bool,
     pub volume: u16,
     pub alerts: BTreeMap<String, String>,
+    /// The widgets whose own sounds are off.
+    pub off: Vec<String>,
     pub files: Vec<SoundFile>,
 }
 
@@ -213,6 +229,7 @@ pub fn sounds(app: State<'_, Arc<AppState>>) -> SoundsView {
         on: setup.on,
         volume: setup.volume,
         alerts: setup.alerts,
+        off: SOUND_WIDGETS.iter().map(|(widget, _)| widget.to_string()).filter(|w| s.sounds_off.contains(w)).collect(),
         files: sound_files(&app.config_dir).into_iter().map(|name| SoundFile { uses: used.get(&name).copied().unwrap_or(0), name }).collect(),
     }
 }
@@ -264,6 +281,26 @@ pub fn set_sound_choice(handle: AppHandle, app: State<'_, Arc<AppState>>, alert:
     s.save(&app.config_dir);
     drop(s);
     let _ = handle.emit("sounds-changed", ());
+    Ok(())
+}
+
+/// Turns a widget's own sounds on or off (the alert sound itself stays as it is).
+#[tauri::command]
+pub fn set_widget_sound(handle: AppHandle, app: State<'_, Arc<AppState>>, widget: String, on: bool) -> Result<(), String> {
+    if !SOUND_WIDGETS.iter().any(|(w, _)| *w == widget) {
+        return Err(format!("{widget} has no sound of its own"));
+    }
+    let mut s = lock(&app.settings);
+    if on {
+        s.sounds_off.remove(&widget);
+    } else {
+        s.sounds_off.insert(widget);
+    }
+    s.save(&app.config_dir);
+    drop(s);
+    let _ = handle.emit("sounds-changed", ());
+    // The world timers' pages say whether their alerts chime.
+    let _ = handle.emit("timer-settings", ());
     Ok(())
 }
 
@@ -353,6 +390,14 @@ mod tests {
         let v = setup(&s);
         assert_eq!(v.volume, 100);
         assert_eq!(v.alerts, [("cube".to_string(), "horn.wav".to_string()), ("timer".to_string(), NONE.to_string())].into());
+        // A widget's own sounds off: its alerts are muted, the others sound.
+        assert!(v.muted.is_empty() && v.sounds("boss") == v.on);
+        s.sounds_off = ["boss-warnings".to_string(), "no such widget".to_string()].into();
+        let off = SoundSetup { on: true, ..setup(&s) };
+        assert_eq!(off.muted, ["boss", "on_you"]);
+        assert!(!off.sounds("boss") && !off.sounds("on_you") && off.sounds("cube") && off.sounds("timer"));
+        assert!(!SoundSetup { on: false, ..off.clone() }.sounds("cube"));
+        s.sounds_off.clear();
         assert_eq!(v.casts.len(), 2);
         // Each file once, whatever uses it; "none" and the chime aren't files.
         assert_eq!(v.files, ["horn.wav", "run.mp3", "x.wav"]);

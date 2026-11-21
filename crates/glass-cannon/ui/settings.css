@@ -318,6 +318,8 @@ legend {
 .sound-file { display: inline-flex; align-items: baseline; gap: 0.1em; padding: 0 0.3em; border: 1px solid var(--line-faint); border-radius: 0.25em; white-space: nowrap; }
 .sound-file > span { max-width: 13em; overflow: hidden; text-overflow: ellipsis; }
 .sound-file button.danger { color: var(--bad); }
+/* An alert whose widget's own sound is off. */
+.line.muted .key, .line.muted .sound-select { color: var(--faint); }
 /* The vitals arcs' settings: a tab each (look, effect, numbers, arcs, cast), so the panel's
    as short as the one showing. The effects: a grid of names, five to a row. */
 .vt-tabs { margin: 0 0 0.3em; }
@@ -481,7 +483,7 @@ kbd {
 
 /* The settings window has no widget settings: those are on the overlay (⚙ while
    arranging), where the sections marked data-for show in each widget's panel. */
-html:not(.framed) [data-for]:not(.in-window),
+html:not(.framed) [data-for],
 html:not(.framed) #subtabs,
 html:not(.framed) .subpanels,
 html:not(.framed) .subtabs-hint { display: none !important; }

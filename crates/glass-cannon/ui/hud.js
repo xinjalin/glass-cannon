@@ -651,7 +651,7 @@ function fitLine(el, width) {
 // whether they sound, how loud, each alert's and boss cast's choice, and the sound files
 // in use. Each file is fetched and decoded as it's named, so nothing waits for its sound
 // (null until then, or when it isn't a sound: the chime plays).
-let sounds = { on: false, volume: 100, alerts: {}, casts: {}, files: [] };
+let sounds = { on: false, volume: 100, alerts: {}, casts: {}, muted: [], files: [] };
 let soundsKey = "";
 const soundFiles = new Map();
 function setSounds(setup) {
@@ -682,9 +682,9 @@ function playChoice(choice, notes) {
   if (!(own && playSound(own))) chime(notes);
 }
 // An alert's sound: a boss cast's own where you gave it one, else as the alert is set
-// (its chime, unless set otherwise).
+// (its chime, unless set otherwise). None with the alert sound off, or its widget's own.
 function alertSound(alert, notes, skill) {
-  if (!sounds.on) return;
+  if (!sounds.on || (sounds.muted || []).includes(alert)) return;
   playChoice((skill != null && sounds.casts[skill]) || sounds.alerts[alert] || "chime", notes);
 }
 

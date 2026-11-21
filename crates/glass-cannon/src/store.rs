@@ -185,6 +185,10 @@ pub struct Settings {
     /// How loud the alerts are, in percent.
     #[serde(default = "default_volume")]
     pub sound_volume: u16,
+    /// The widgets whose own sounds are turned off (`sounds::SOUND_WIDGETS`), with the
+    /// alert sound itself on.
+    #[serde(default)]
+    pub sounds_off: std::collections::BTreeSet<String>,
     /// Dungeon bosses' mechanics in the boss warnings (`gamedata/boss-mechanics.json`).
     #[serde(default = "default_true")]
     pub boss_mechanics: bool,

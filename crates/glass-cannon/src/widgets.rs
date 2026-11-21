@@ -465,7 +465,7 @@ pub struct TimerSettings {
     pub alert_lead_min: u32,
     pub favourites: Vec<String>,
     pub favourites_only: bool,
-    /// Alerts chime (settings → alert sound).
+    /// Alerts chime (the alert sound, and the world timers' own).
     pub alert_sound: bool,
 }
 
@@ -479,7 +479,7 @@ pub fn timer_settings(app: State<'_, Arc<AppState>>) -> TimerSettings {
         alert_lead_min: s.alert_lead_min,
         favourites: s.timer_favourites.clone(),
         favourites_only: s.timer_favourites_only,
-        alert_sound: s.alert_sound,
+        alert_sound: crate::sounds::setup(&s).sounds("timer"),
     }
 }
 

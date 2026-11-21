@@ -98,8 +98,12 @@ finishes. The widgets:
   (an exported mapping put there): auto goes by them where they have a choice, and their
   names show where you haven't named a cast yourself. The game data doesn't say which casts a boss has,
   so they come from your fights (and the fights already in the history).
-- **Sound** (settings → alerts → sound, and in the ⚙ panels of the widgets that sound):
-  **alert sound** turns everything that sounds on or off, and **volume** sets how loud.
+- **Sound** (settings → alerts → sound): **alert sound** turns everything that sounds on
+  or off, and **volume** sets how loud. Each widget that sounds also has a **sound**
+  section of its own in its ⚙ panel on the overlay (the boss warnings, the hidden cubes,
+  the world timers): its own sound **on** or **off**, whatever the others do, and the
+  sounds it plays. A widget's sound plays with both the alert sound and its own on; the
+  settings window dims an alert whose widget's sound is off.
   Each alert plays its own chime unless you choose otherwise: for a **boss warning**, the
   **boss on you**, a **hidden cube** and a **world timer**, pick **chime**, **none**, or one
   of **your sounds**. Your sounds are sound files of your own: **[add a sound]** (or **add a
@@ -233,7 +237,8 @@ finishes. The widgets:
   everything, or only what's running, ready or missing (a buff not on you), and hide out
   of combat; and its **sounds**, each nothing, a chime or one of your sound files
   (settings → sound): when **a skill is ready** again, when **an effect comes on you**, and
-  when **an effect ends** (one sound at a time, and none while the bar is hidden).
+  when **an effect ends** (one sound at a time, and none while the bar is hidden);
+  **this bar's sounds** turns them off and on as chosen.
   **[+ add a bar]** adds one (shown at once); **[remove this bar]** takes one away.
 - **party cooldowns**: your party's long cooldowns and party buffs, ready or time left
   (yours from the start, the others' once used). Settings' **party cooldowns by** lists
