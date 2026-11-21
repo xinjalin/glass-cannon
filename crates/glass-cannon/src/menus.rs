@@ -39,7 +39,10 @@
 //! On a screenshot of the Attendance window its X scores 145, with edges 30 px above and 29
 //! below; Force Settings' 138, edges along 100 % and 84 %; 294 gameplay screenshots have
 //! 57 X-like marks, none with an edge along even 60 %. Kept only for that look, as the
-//! corner.
+//! corner. Our own widgets lie over the game there, a widget with nothing to show too: the
+//! part of a title bar under one can't be seen, so its edges go by what can (at least 30 %
+//! of their length), and a widget's own border is no edge. (With a box over a third of the
+//! Attendance window's title bar it wasn't found, 2026-11-21.)
 //!
 //! A pop-up over a menu dims the screen, its mark too, past telling, so once seen the menu
 //! stays open until the cursor hides (closing the menu hides it).
@@ -372,6 +375,9 @@ const BAR_STRAIGHT: f64 = 0.9;
 const BAR_STRAIGHT_FAINTER: f64 = 0.7;
 const BAR_REACH: f64 = 0.04;
 const BAR_SPAN: f64 = 0.4;
+/// The least of an edge's length that must be seen (not under one of our widgets) for it to
+/// count.
+const BAR_SEEN: f64 = 0.3;
 
 /// The band across the middle looked over for a pop-up's bar: its width (as a share of the
 /// game's height, centred) and its top and bottom (shares of the height down).
@@ -398,6 +404,23 @@ pub struct Area {
     w: usize,
     h: usize,
     luma: Vec<u8>,
+    /// The boxes blanked (our widgets), (left, top, right, bottom) in its pixels.
+    blanked: Vec<(usize, usize, usize, usize)>,
+}
+
+/// What the window check made of the top of the screen (settings → hide for game menus
+/// shows the last one on hover).
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
+pub struct WindowLook {
+    /// A window's close X on its title bar.
+    pub found: bool,
+    /// The X-like marks looked at.
+    pub marks: u16,
+    /// The best title bar among them: its stronger and its fainter edge (percent straight,
+    /// of what was seen), and how much of its length was under our own widgets (percent).
+    pub edges: Option<(u8, u8, u8)>,
+    /// It ran out of time before it had looked everywhere.
+    pub ran_out: bool,
 }
 
 impl Area {
@@ -418,31 +441,60 @@ impl Area {
             for y in t..b {
                 self.luma[y * self.w + l.min(r)..y * self.w + r].fill(0);
             }
+            if l < r && t < b {
+                self.blanked.push((l, t, r, b));
+            }
         }
     }
 
-    /// How much of row `y`, from `x0` to `x1`, is a straight edge (a step in brightness to
-    /// the row two below).
-    fn straight(&self, y: usize, x0: usize, x1: usize) -> f64 {
+    /// Row `y` from `x0` to `x1`: how much of what's seen of it is a straight edge (a step
+    /// in brightness to the row two below), and how much of it is seen. Where either row is
+    /// under one of our widgets it isn't seen: a widget's own border is no edge, and what's
+    /// under it can't be told.
+    fn straight(&self, y: usize, x0: usize, x1: usize) -> (f64, f64) {
         if y + 2 >= self.h || x1 <= x0 {
-            return 0.0;
+            return (0.0, 0.0);
         }
         let (a, b) = (&self.luma[y * self.w..(y + 1) * self.w], &self.luma[(y + 2) * self.w..(y + 3) * self.w]);
-        let n = (x0..x1).filter(|&x| (i32::from(a[x]) - i32::from(b[x])).abs() >= BAR_STEP).count();
-        n as f64 / (x1 - x0) as f64
+        // The stretches of the row under a widget, on this row or the one two below.
+        let covers: Vec<(usize, usize)> = self.blanked.iter().filter(|&&(_, t, _, bt)| (t..bt).contains(&y) || (t..bt).contains(&(y + 2))).map(|&(l, _, r, _)| (l, r)).collect();
+        let (mut seen, mut steps) = (0usize, 0usize);
+        for x in x0..x1 {
+            if covers.iter().any(|&(l, r)| (l..r).contains(&x)) {
+                continue;
+            }
+            seen += 1;
+            steps += usize::from((i32::from(a[x]) - i32::from(b[x])).abs() >= BAR_STEP);
+        }
+        if seen == 0 {
+            return (0.0, 0.0);
+        }
+        (steps as f64 / seen as f64, seen as f64 / (x1 - x0) as f64)
     }
 
-    /// A title bar around (cx, cy): a straight edge above and one below, near, long to the
-    /// left.
-    fn on_title_bar(&self, cx: usize, cy: usize, s: usize, height: f64) -> bool {
+    /// The title bar around (cx, cy), if it's on one: its straightest edge above and below
+    /// (near, long to the left; an edge counts with at least [`BAR_SEEN`] of it seen), and
+    /// how much of the more hidden of the two was seen.
+    fn title_bar(&self, cx: usize, cy: usize, s: usize, height: f64) -> Option<(f64, f64, f64)> {
         let span = (BAR_SPAN * height) as usize;
         let reach = (BAR_REACH * height) as usize;
-        let Some(x0) = cx.checked_sub(2 * s + span) else { return false };
+        let x0 = cx.checked_sub(2 * s + span)?;
         let x1 = cx - 2 * s;
-        let best = |y: &dyn Fn(usize) -> Option<usize>| (s..=reach).filter_map(y).map(|y| self.straight(y, x0, x1)).fold(0.0, f64::max);
+        // The straightest row with enough of it seen (and how much of it was); with none
+        // seen enough, no edge, and the most that was seen of any.
+        let best = |y: &dyn Fn(usize) -> Option<usize>| {
+            let rows: Vec<(f64, f64)> = (s..=reach).filter_map(y).map(|y| self.straight(y, x0, x1)).collect();
+            let most_seen = rows.iter().map(|r| r.1).fold(0.0, f64::max);
+            rows.iter().filter(|r| r.1 >= BAR_SEEN).fold((0.0, most_seen), |m: (f64, f64), v| if v.0 > m.0 { *v } else { m })
+        };
         let above = best(&|d| cy.checked_sub(d));
         let below = best(&|d| Some(cy + d));
-        above.max(below) >= BAR_STRAIGHT && above.min(below) >= BAR_STRAIGHT_FAINTER
+        Some((above.0, below.0, above.1.min(below.1)))
+    }
+
+    /// Whether (cx, cy) is on a title bar: a straight edge above and one below.
+    fn on_title_bar(&self, cx: usize, cy: usize, s: usize, height: f64) -> bool {
+        self.title_bar(cx, cy, s, height).is_some_and(|(above, below, _)| above.max(below) >= BAR_STRAIGHT && above.min(below) >= BAR_STRAIGHT_FAINTER)
     }
 
     /// Row `y`'s longest flat grey stretch: (from, to, its grey), if at least `span` long.
@@ -527,9 +579,17 @@ impl Area {
         (-WINDOW_X_SLACK..=WINDOW_X_SLACK).map(|k| self.at(x, y + f64::from(k))).fold(0.0, f32::max)
     }
 
-    /// A window's close X anywhere in the area: an X-like mark on a title bar. `height`: the
-    /// game picture's height.
-    pub fn has_window_close(&self, height: f64) -> bool {
+    #[cfg(test)]
+    fn has_window_close(&self, height: f64) -> bool {
+        self.window_look(height).found
+    }
+
+    /// Looks for a window's close X anywhere in the area: an X-like mark on a title bar.
+    /// `height`: the game picture's height. Whether there's one, and what it saw on the way.
+    pub fn window_look(&self, height: f64) -> WindowLook {
+        let mut look = WindowLook::default();
+        // Where marks were counted: the points of one mark count once.
+        let mut counted: Vec<(usize, usize)> = Vec::new();
         let (lo, hi) = (((WINDOW_ARM.0 * height).round() as usize).max(5), (WINDOW_ARM.1 * height).round() as usize);
         let q = lo as f64 * 0.6;
         // Between an X's arms it's dark: at most this bright, for its strokes (255 at most)
@@ -540,7 +600,8 @@ impl Area {
         for cy in 4..self.h.saturating_sub(4) {
             // Not in tests, which run many at once unoptimised: they check the looking itself.
             if !cfg!(test) && started.elapsed() > WINDOW_BUDGET {
-                return false;
+                look.ran_out = true;
+                return look;
             }
             for cx in 4..self.w.saturating_sub(4) {
                 let (x, y) = (cx as f64, cy as f64);
@@ -570,15 +631,28 @@ impl Area {
                     }
                     let on = on / n;
                     if on - gap >= WINDOW_X_SCORE && on >= WINDOW_X_BRIGHT {
+                        if !counted.iter().any(|&(mx, my)| mx.abs_diff(cx) <= 2 * hi && my.abs_diff(cy) <= 2 * hi) {
+                            counted.push((cx, cy));
+                            look.marks = look.marks.saturating_add(1);
+                        }
+                        if let Some((above, below, seen)) = self.title_bar(cx, cy, s, height) {
+                            let pct = |v: f64| (v * 100.0).round().clamp(0.0, 100.0) as u8;
+                            let edges = (pct(above.max(below)), pct(above.min(below)), pct(1.0 - seen));
+                            // The best so far: by its fainter edge, then its stronger.
+                            if look.edges.is_none_or(|e| (edges.1, edges.0) > (e.1, e.0)) {
+                                look.edges = Some(edges);
+                            }
+                        }
                         if self.on_title_bar(cx, cy, s, height) {
-                            return true;
+                            look.found = true;
+                            return look;
                         }
                         break;
                     }
                 }
             }
         }
-        false
+        look
     }
 }
 
@@ -591,7 +665,7 @@ pub fn read_top(area: (i32, i32, i32, i32)) -> Option<Area> {
     }
     let px = read_screen(left + x, top, w, h)?;
     let luma = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
-    Some(Area { w: w as usize, h: h as usize, luma })
+    Some(Area { w: w as usize, h: h as usize, luma, blanked: Vec::new() })
 }
 
 /// The band across the middle (see [`BAND_W`]), as brightness.
@@ -603,7 +677,7 @@ pub fn read_band(area: (i32, i32, i32, i32)) -> Option<Area> {
     }
     let px = read_screen(left + x, top + y, w, h)?;
     let luma = px.iter().map(|[r, g, b]| ((u32::from(*r) * 299 + u32::from(*g) * 587 + u32::from(*b) * 114) / 1000) as u8).collect();
-    Some(Area { w: w as usize, h: h as usize, luma })
+    Some(Area { w: w as usize, h: h as usize, luma, blanked: Vec::new() })
 }
 
 /// The band's left and top within the game's picture, its width and height.
@@ -1041,7 +1115,7 @@ mod tests {
                 }
             }
         }
-        Area { w, h, luma }
+        Area { w, h, luma, blanked: Vec::new() }
     }
 
     #[test]
@@ -1054,6 +1128,30 @@ mod tests {
         let mut a = top(true, true);
         a.blank(&[(1300.0, 200.0, 1400.0, 280.0)]);
         assert!(!a.has_window_close(1125.0));
+    }
+
+    #[test]
+    fn a_title_bar_partly_under_our_own_widget() {
+        // The bar's edges run 450 px left of the X. A widget with nothing to show (boss
+        // warnings between fights) over the left 55 % of that, both edges: what's left of
+        // them is straight, and enough.
+        let mut a = top(true, true);
+        a.blank(&[(700.0, 190.0, 1102.0, 290.0)]);
+        let look = a.window_look(1125.0);
+        assert_eq!((look.found, look.marks, look.edges), (true, 1, Some((100, 100, 55))));
+        // Over all but a sliver: too little to go by.
+        let mut a = top(true, true);
+        a.blank(&[(700.0, 190.0, 1200.0, 290.0)]);
+        let look = a.window_look(1125.0);
+        assert_eq!((look.found, look.marks), (false, 1));
+        // A widget's own border is no edge: an X-like mark beside a widget's box (its top
+        // and bottom rows straight lines against the game) is on no title bar.
+        let mut a = top(false, true);
+        a.blank(&[(800.0, 215.0, 1290.0, 262.0)]);
+        assert!(!a.has_window_close(1125.0));
+        // With nothing of ours over it: all of it seen.
+        assert_eq!(top(true, true).window_look(1125.0).edges, Some((100, 100, 0)));
+        assert_eq!(top(false, false).window_look(1125.0), WindowLook::default());
     }
 
     #[test]
@@ -1102,7 +1200,7 @@ mod tests {
                 luma[y * w + x] = 230;
             }
         }
-        Area { w, h, luma }
+        Area { w, h, luma, blanked: Vec::new() }
     }
 
     #[test]
@@ -1156,7 +1254,7 @@ mod tests {
         // everything is bright enough to start an X, and once took a minute to look over.
         let (w, h) = (2408usize, 864usize);
         let luma: Vec<u8> = (0..w * h).map(|i| (190 + ((i as u32).wrapping_mul(2_654_435_761) >> 27)) as u8).collect();
-        let a = Area { w, h, luma };
+        let a = Area { w, h, luma, blanked: Vec::new() };
         let t = std::time::Instant::now();
         assert!(!a.has_window_close(1440.0));
         assert!(t.elapsed() < std::time::Duration::from_secs(1), "took {:?}", t.elapsed());
