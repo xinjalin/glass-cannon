@@ -278,6 +278,28 @@ finishes. The widgets:
   after the others, and with **pins show within** set it's left off until you open its
   map again.
 
+- **farming**: what you've gained since you last reset it, and at what rate: a row an
+  item, with the amount gained and the rate, and the run's time over them. No title, and
+  the widget is as tall as its rows. One small button, **↺** in its top right corner,
+  starts the run over: the first click asks (**reset?**), a second within three seconds
+  does it. Clicks go through the rest of the widget to the game. It lists Abyss Points,
+  Kina (Bound) and Kina to begin with. Everything else about it is set in the panel
+  beside it while the overlay is arranged (**⚙**):
+  - **[show]**: turn the run time, the reset button, the amount gained and the rate on or
+    off each, and
+    **everything gained** to add every other item that went into your inventory this run
+    (souls, materials, gear, other currencies), the most first. The rate is per hour or
+    per minute, over the whole run or only its last 5, 15 or 60 minutes (to see whether a
+    spot pays better now than it did). **[reset]** starts the run over.
+  - **[items]**: the items listed (click one to hide it), what else you gained this run
+    (click one to always list it), and a search by name for any other item. Each shows
+    what the run has of it, how many you have, and what you spent or used.
+
+  A run starts with the first thing you gain and ends with a reset or when the app
+  closes; the time doesn't stop while you stand still. Only gains count toward a rate:
+  what you spend takes nothing off. It reads the game's own count of each stack you
+  carry, so the numbers are exact, and it works wherever you are (the Abyss, a dungeon,
+  gathering, the market).
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every
   area they're found in; a pet whose mobs are in view turns green with how many.

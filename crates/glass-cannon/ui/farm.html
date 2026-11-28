@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" class="widget">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon farming</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<!-- Only rows, and as tall as they are, with a reset in the corner: what shows and which
+     items is set in the panel beside it while the overlay's arranged (farmsettings.html). -->
+<body data-panel="farm" data-fit>
+  <main id="panel">
+    <div id="farm-head" class="farm-head" hidden>
+      <span id="farm-time" class="farm-time"></span>
+      <button id="farm-reset" type="button" class="farm-reset" title="Start the run over (click twice)" aria-label="Reset the run">↺</button>
+    </div>
+    <ol id="list" class="list farm-list"></ol>
+    <p id="more" class="note farm-more" hidden></p>
+  </main>
+  <script src="theme.js"></script>
+  <script src="panel.js"></script>
+  <script src="farm.js"></script>
+</body>
+</html>

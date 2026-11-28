@@ -77,6 +77,11 @@ const SETTINGS_KEYS: &[&str] = &[
     "dummy_mode",
     "dummy_run_s",
     "pet_tracker_nearest",
+    "farm_items",
+    "farm_window_min",
+    "farm_per",
+    "farm_all",
+    "farm_show",
 ];
 
 /// A shared setup, as the file has it: each part there or not.
