@@ -465,9 +465,10 @@ fight; right-click again to close it. Tabs:
 ## History and dungeon runs
 
 The **clock icon** (on the meter or the launcher) opens the history window with the last
-200 boss fights and the last 200 other fights (the newest 50 of each keep their full
-analysis, so short fights don't push out a raid's pulls), dungeon runs, bosses and PvP
-sessions; click a fight to show it on the meter.
+200 boss fights and the last 200 other fights (kept apart, so short fights don't push out
+a raid's pulls), dungeon runs, bosses and PvP sessions; click a fight to show it on the
+meter. Each keeps its full analysis; a fight marked *summary only* was saved by a version
+before 0.42.0, which kept the analysis of the newest 50 only.
 Fights in a dungeon are grouped into **runs** with the dungeon, mode, fight time, bosses,
 damage and, when the game says it was completed, the clear time (✓) and each stage's
 time; your fastest clear and stages of a dungeon and mode get a ★. Right-click a run for

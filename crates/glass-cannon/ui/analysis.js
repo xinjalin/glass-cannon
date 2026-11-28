@@ -1578,6 +1578,9 @@ function drawBuffsPerSkill() {
 function render() {
   drawTabs();
   $("empty").hidden = !!data;
+  // A fight picked from the history whose analysis is gone, rather than no fight at all.
+  $("empty").textContent =
+    selection.fight != null || selection.run ? "this fight's full analysis wasn't kept: only its summary, in the history" : "no fight to analyse yet";
   // With no fight, nothing of the last one stays on show (title, players, targets).
   $("toolbar").hidden = !data;
   $("copy-text").disabled = $("copy-image").disabled = !data;

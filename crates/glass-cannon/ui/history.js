@@ -40,6 +40,12 @@ function fightItem(f, i, inRun) {
   const meta = el("span", "fight-meta", `${where}${dayAndTime(f.ended_ms)} · ${clock(f.duration_s)} · ${players}`);
   const end = endTag(f.end, f.deaths, f.low_hp);
   if (end) meta.append(end);
+  // Saved before every listed fight's analysis was kept (0.42.0): only its summary is left.
+  if (!f.has_details) {
+    const tag = el("span", "no-analysis", " · summary only");
+    tag.title = "This fight's full analysis wasn't kept (only the newest 50 were, before 0.42.0): it shows on the meter, not in the analysis window";
+    meta.append(tag);
+  }
   // Your best against this boss: highest DPS, fastest kill, the wipe that got furthest.
   for (const [on, text, title] of [
     [f.best_dps, "best dps", "Your best DPS against this boss"],
