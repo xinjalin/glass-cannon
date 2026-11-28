@@ -52,7 +52,7 @@ finishes. The widgets:
   They go off on a buff on the boss (Lakshmi's reflect: stop attacking), a debuff on you
   (a bomb or pool to carry away from the party, then "out of the fire") or on an ally (who
   to free, with their name), the boss's cue casts, its stagger check (while the gauge can
-  be broken), and a pool you're standing in: 51 mechanics of 23 bosses in 11 dungeons and
+  be broken), and a pool you're standing in: 56 mechanics of 23 bosses in 11 dungeons and
   raids (`gamedata/boss-mechanics.json`). A few casts that killed the most in our runs
   always warn, though short: in the Ludra raid, Rahu's, Ketu's, the Fusion Reactor's and
   five of Eternal Ludra's (her casts are 1.5 to 2.3 s); in the Corroded Decontamination
@@ -76,10 +76,12 @@ finishes. The widgets:
   knows it's a boss by its stagger gauge, and its HP, wipes, casts and warnings work.
   A mechanic that opens a fixed script counts down to each of its steps in turn, saying
   what comes and what to do (Eternal Ludra's arena closing in: the orbs and tornado lanes,
-  the breath, the lightning on everyone, and the red circle, over 37 s). Terminator
-  Bargott has three countdowns of that kind: to his three shared slams (18.2 s after the
-  cast that opens them), to his numbered rolls and the blast if a bomb is left, and to his
-  time bombs going off; and a card for his bomb phase at half health.
+  the breath, the lightning on everyone, and the red circle, over 37 s). The Corroded
+  Decontamination Facility has five: Terminator Bargott's leap and the three shared slams
+  18.2 s after it, his numbered rolls and the blast if a bomb is left, and his blinding
+  flash; Black Blood Blatt's colour phase (each of its two checks) and his slimes, step by
+  step up to the Wave. Bargott also has cards for his bomb phase at half health, his
+  spinning chains (your own when they're on you) and a puddle under you.
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down: those worth a warning, unless set otherwise in the boss casts window.
 - **Boss casts** (the warning sign on the launcher, or settings → alerts → boss casts
