@@ -1099,6 +1099,8 @@ pub struct Meter {
     loading: crate::loading::Loading,
     /// Your pets' souls.
     pets: crate::pets::Pets,
+    /// What you carry, and how it changes (the farming widget's gains).
+    inventory: crate::inventory::Inventory,
     /// Your skins and wings.
     collection: crate::collection::Collection,
     /// Where the mobs and players in view are, and you.
@@ -1170,6 +1172,7 @@ impl Meter {
             arena: crate::arena::Arena::default(),
             loading: crate::loading::Loading::default(),
             pets: crate::pets::Pets::default(),
+            inventory: crate::inventory::Inventory::default(),
             collection: crate::collection::Collection::default(),
             positions: crate::positions::Positions::default(),
             boss_log: VecDeque::new(),
@@ -1274,6 +1277,17 @@ impl Meter {
     /// Pet souls gained since the last call: each pet's souls now and its next level's.
     pub fn take_soul_gains(&mut self) -> Vec<crate::pets::SoulGain> {
         self.pets.take_gains()
+    }
+
+    /// How what you carry changed since the last call: items and currencies gained and
+    /// spent, oldest first.
+    pub fn take_item_changes(&mut self) -> Vec<crate::inventory::ItemChange> {
+        self.inventory.take_changes()
+    }
+
+    /// What you carry.
+    pub fn inventory(&self) -> &crate::inventory::Inventory {
+        &self.inventory
     }
 
     /// Your pets' levels and souls, for keeping between runs.
@@ -1515,6 +1529,7 @@ impl Meter {
         self.arena.feed(ts_us, opcode, payload);
         self.loading.feed(ts_us, opcode);
         self.pets.feed(opcode, payload);
+        self.inventory.feed(opcode, payload);
         self.collection.feed(opcode, payload);
         self.positions.feed(ts_us, opcode, payload, self.registry.self_id());
         self.gear.feed(opcode, payload);

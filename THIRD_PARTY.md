@@ -35,6 +35,9 @@ numbers and artwork in it are from Aion 2 and belong to NCSOFT. It comes from:
 - The same bundle's items, **no licence**: `gear.json` (3,637 weapons, armour and
   accessories: name, grade and item level, for the gear players wear in the party view's
   tooltips). Only those fields are kept; same terms.
+- The same bundle's items, **no licence**: `items.json` (2,368 materials, consumables and
+  currencies: name, and grade when it isn't Common, for the farming widget). Only those
+  fields are kept; same terms.
 - The same bundle's pets and NPCs, **no licence**: `pets.json` (208 pets' names and genus,
   for the pet soul ticker) and `npc-names.json` (3,719 NPCs' names, for the quest givers,
   merchants and the like that the mob lists don't name). Only names are kept; same terms.

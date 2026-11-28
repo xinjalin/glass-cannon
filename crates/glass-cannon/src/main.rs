@@ -38,6 +38,7 @@ mod bosscasts;
 mod collection;
 mod checklist;
 mod dummy;
+mod farm;
 mod fonts;
 mod game_window;
 mod gamedata;
@@ -214,6 +215,8 @@ pub struct AppState {
     /// Every boss's distinct casts, for the boss casts window.
     boss_casts: Mutex<store::BossCastBook>,
     pets: Mutex<store::PetBook>,
+    /// What you've gained since the farming widget was last reset.
+    farm: Mutex<farm::Farm>,
     /// Each character's skins and wings.
     collection: Mutex<store::CollectionBook>,
     /// Content tickets and Abyss artifacts, as last sent.
@@ -452,6 +455,11 @@ fn pump(app: &AppState) {
             lock(&app.pets).sync(&name, meter.pets());
             lock(&app.collection).sync(&name, meter.collection());
             widgets::untrack_maxed(app, &name, meter.pets());
+        }
+        // What went into (and out of) your inventory, for the farming widget.
+        let gained = meter.take_item_changes();
+        if !gained.is_empty() {
+            lock(&app.farm).add(hotkeys::now_ms(), &gained);
         }
         (meter.take_finished(), known, meter.take_instances(), meter.take_pvp(), meter.take_field_bosses(), contents)
     };
@@ -1113,6 +1121,7 @@ fn main() {
         attempts: Mutex::new(attempts),
         boss_casts: Mutex::new(boss_casts),
         pets: Mutex::new(store::PetBook::load(&config_dir_for_pvp)),
+        farm: Mutex::new(farm::Farm::default()),
         collection: Mutex::new(store::CollectionBook::load(&config_dir_for_pvp)),
         history_placed: AtomicBool::new(false),
         pet_map_placed: AtomicBool::new(false),
@@ -1199,6 +1208,12 @@ fn main() {
             widgets::pet_tracker,
             widgets::set_pet_tracked,
             widgets::set_pet_tracker_nearest,
+            farm::farm_view,
+            farm::farm_reset,
+            farm::set_farm_pinned,
+            farm::set_farm_window,
+            farm::set_farm_per,
+            farm::set_farm_all,
             widgets::compare_dummy_runs,
             widgets::label_dummy_run,
             widgets::delete_dummy_run,

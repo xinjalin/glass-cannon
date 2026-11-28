@@ -8,6 +8,7 @@
 //!   skills.json    { "skills": { "18010340": { "name": "…", "icon": "1801.png" } } }
 //!   npcs.json      { "npcs":   { "2400009":  { "name": "…", "boss": true } } }
 //!   npc-names.json { "npcs":   { "2950865": "Elvida" } }   NPCs the mob lists don't name
+//!   items.json     { "items":  { "930100003": { "name": "Abyss Points", "currency": true } } }  what you farm
 //!   boss-skills.json { "skills": { "1801969": "Abyssal Gaze" } }  the game's names for boss and mob skills
 //!   1801.png …     skill icons
 //!   class_18.webp  class icons, by class code
@@ -51,6 +52,8 @@ const SHOP_ITEMS_FILE: &str = "shop-items.json";
 const WINGS_FILE: &str = "wings.json";
 const PANTHEON_FILE: &str = "pantheon.json";
 const NPC_NAMES_FILE: &str = "npc-names.json";
+/// Materials, consumables and currencies by item ID (`packet-lab item-names`).
+const ITEMS_FILE: &str = "items.json";
 const ITEM_ICONS_FILE: &str = "item-icons.json";
 /// The official skill icons, by base skill (`packet-lab skill-icons`).
 const SKILL_ICONS_FILE: &str = "skill-icons.json";
@@ -157,6 +160,21 @@ struct ItemIconFile {
 struct NpcNameFile {
     #[serde(default)]
     npcs: BTreeMap<u32, String>,
+}
+
+/// What you gather, loot and spend, by item ID, for the farming widget (optional).
+#[derive(Debug, Default, Deserialize)]
+struct ItemFile {
+    #[serde(default)]
+    items: BTreeMap<u32, ItemEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ItemEntry {
+    name: String,
+    /// None for Common.
+    #[serde(default)]
+    grade: Option<String>,
 }
 
 /// Pets' names, by the ID their souls come with (optional).
@@ -470,6 +488,7 @@ pub struct GameData {
     pets: PetFile,
     pet_spawns: PetSpawnFile,
     gear: GearFile,
+    items: ItemFile,
     shop_items: ShopItemFile,
     wings: WingFile,
     pantheon: PantheonFile,
@@ -505,6 +524,7 @@ impl GameData {
             pets: PetFile::default(),
             pet_spawns: PetSpawnFile::default(),
             gear: GearFile::default(),
+            items: ItemFile::default(),
             shop_items: ShopItemFile::default(),
             wings: WingFile::default(),
             pantheon: PantheonFile::default(),
@@ -549,6 +569,7 @@ impl GameData {
                     self.pets = read_json::<PetFile>(&dir.join(PETS_FILE)).unwrap_or_default();
                     self.pet_spawns = read_json::<PetSpawnFile>(&dir.join(PET_SPAWNS_FILE)).unwrap_or_default();
                     self.gear = read_json::<GearFile>(&dir.join(GEAR_FILE)).unwrap_or_default();
+                    self.items = read_json::<ItemFile>(&dir.join(ITEMS_FILE)).unwrap_or_default();
                     self.shop_items = read_json::<ShopItemFile>(&dir.join(SHOP_ITEMS_FILE)).unwrap_or_default();
                     self.wings = read_json::<WingFile>(&dir.join(WINGS_FILE)).unwrap_or_default();
                     self.pantheon = read_json::<PantheonFile>(&dir.join(PANTHEON_FILE)).unwrap_or_default();
@@ -1068,6 +1089,18 @@ impl GameData {
     /// A piece of gear's name, grade and item level.
     pub fn gear(&self, item: u32) -> Option<&GearEntry> {
         self.gear.gear.get(&item)
+    }
+
+    /// An item's name and grade (None for Common, or not known): a material, consumable
+    /// or currency, else a piece of gear, else "Item" and its ID.
+    pub fn item_name(&self, item: u32) -> (String, Option<String>) {
+        if let Some(i) = self.items.items.get(&item) {
+            return (i.name.clone(), i.grade.clone());
+        }
+        match self.gear.gear.get(&item) {
+            Some(g) => (g.name.clone(), g.grade.clone()),
+            None => (format!("Item {item}"), None),
+        }
     }
 
     /// The pet whose souls a mob type gives.

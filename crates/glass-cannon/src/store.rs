@@ -288,6 +288,20 @@ pub struct Settings {
     /// The pet tracker lists every pet you still need, those in view first.
     #[serde(default)]
     pub pet_tracker_nearest: bool,
+    /// The items the farming widget always lists, in order (item IDs; Abyss Points and
+    /// both kinds of Kina until you choose).
+    #[serde(default = "default_farm_items")]
+    pub farm_items: Vec<u32>,
+    /// The stretch its rates are measured over, in minutes (one of
+    /// [`crate::farm::WINDOWS_MIN`]; 0: since the run began).
+    #[serde(default)]
+    pub farm_window_min: u32,
+    /// What its rates are given per: one of [`crate::farm::PER`].
+    #[serde(default = "default_farm_per")]
+    pub farm_per: String,
+    /// It lists everything gained, not only the items above.
+    #[serde(default)]
+    pub farm_all: bool,
     /// Close the app a few seconds after the game closes.
     #[serde(default)]
     pub close_with_game: bool,
@@ -355,6 +369,12 @@ fn default_alert_lead() -> u32 {
 }
 fn default_true() -> bool {
     true
+}
+fn default_farm_items() -> Vec<u32> {
+    crate::farm::DEFAULT_ITEMS.to_vec()
+}
+fn default_farm_per() -> String {
+    crate::farm::PER[0].into()
 }
 fn default_volume() -> u16 {
     100
@@ -779,6 +799,12 @@ impl Settings {
             }
         }
         s.widgets.retain(|w| crate::widgets::WIDGETS.contains(&w.as_str()));
+        if !crate::farm::WINDOWS_MIN.contains(&s.farm_window_min) {
+            s.farm_window_min = 0;
+        }
+        if !crate::farm::PER.contains(&s.farm_per.as_str()) {
+            s.farm_per = default_farm_per();
+        }
         // The rest that a hand-edited file or someone's setup can have out of range: each
         // as its own setting allows (a dummy run's length sizes what's kept of it).
         if !crate::dummy::RUN_LENGTHS.contains(&s.dummy_run_s) {

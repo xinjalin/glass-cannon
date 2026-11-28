@@ -18,6 +18,7 @@ pub mod fieldboss;
 pub mod game;
 pub mod gear;
 pub mod hp;
+pub mod inventory;
 pub mod collection;
 pub mod join;
 pub mod decode;

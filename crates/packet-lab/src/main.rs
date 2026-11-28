@@ -29,6 +29,7 @@ use meter_core::{damage, decode, protocol};
 mod gamedata;
 mod skill_details;
 mod dungeons;
+mod item_names;
 mod npc_names;
 mod pets;
 mod gear;
@@ -243,6 +244,17 @@ enum Cmd {
         /// The scrape's dungeons: a JSON object by dungeon ID
         dungeons: PathBuf,
         #[arg(long, default_value = "gamedata/dungeons.json")]
+        out: PathBuf,
+        /// When the scrape was made (recorded in the file)
+        #[arg(long)]
+        scraped: String,
+    },
+    /// Build gamedata/items.json (names of materials, consumables and currencies by item
+    /// ID, for the farming widget) from a scraped item database
+    ItemNames {
+        /// The scrape's items: a JSON object by item ID
+        items: PathBuf,
+        #[arg(long, default_value = "gamedata/items.json")]
         out: PathBuf,
         /// When the scrape was made (recorded in the file)
         #[arg(long)]
@@ -601,6 +613,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Gear { items, out, scraped } => gear::run(&items, &out, &scraped),
         Cmd::Wings { wings, out, scraped } => wings::run(&wings, &out, &scraped),
         Cmd::Pantheon { pantheon, out, commit } => pantheon::run(&pantheon, &out, &commit),
+        Cmd::ItemNames { items, out, scraped } => item_names::run(&items, &out, &scraped),
         Cmd::NpcNames { npcs, out, scraped } => npc_names::run(&npcs, &out, &scraped),
         Cmd::ShopItems { items, pets, gear, theostones, out, scraped } => shop_items::run(&items, &pets, &gear, &theostones, &out, &scraped),
         Cmd::Theostones { items, skills, out, scraped } => theostones::run(&items, &skills, &out, &scraped),

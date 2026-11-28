@@ -585,6 +585,41 @@ pet's ID is the mob it comes from's kind (1091, Red Spark Ignus, from Fire Templ
 boss). It takes 5 souls to summon, then 25 and 75 for its next two levels (Questlog's table;
 the scraped pet data says "Souls to summon: 5").
 
+### Your inventory, currencies and Abyss Points (confirmed 2026-11-28)
+
+Worked out on our own captures (an Abyss farming run of 418 kills and an hour in town with
+market trades); no other tool's notes had these. Currencies are items: Kina (Bound) is
+930100001, Abyss Points 930100003, Kina 930100031, and the rest of the 9301000xx range.
+
+| opcode | payload | what |
+| --- | --- | --- |
+| `0x5611` | 5 bytes (`10 02`, then a varint near the stack count, `00`), then stacks | everything you carry, at login and with each new game server (215 stacks) |
+| `0x561b` | u8 n, n × (u8 what, u8 has details, a stack, details…) | stacks that changed. What: 0 added, 1 its count changed, 2 removed |
+| `0xffab` | u64 points, u64 4,500,000 | your Abyss Points this week and the weekly cap, at login and with each gain (our reading of the second number) |
+| `0xe273` | u8 0, u64 | a second counter, rising by twice the Abyss Points of each kill (842,439 at the start): not identified |
+
+A stack is u64 ID (its own, kept as its count changes; its fifth and eighth bytes are 0),
+u32 item, u64 count, u8, u8 (a bag and a slot, by the look of them), three zero bytes,
+then a name's length and the name (a crafted piece's maker) and more by the kind of item
+(a piece of gear brings its stats; a timed item its end time, u64 ms). Near the end of a
+plain entry are two bytes that say why it changed, one for a gain and one for a loss
+(a kill's reward 0x0b; loot 0x05; a buy 0x1d; Kina paid 0x1b; a Power Shard used 0x16;
+a soul used 0x26): seen, not relied on.
+
+What follows a stack varies in length and isn't read: stacks are found by shape (the ID's
+two zero bytes, a nine-digit item, a count under 2^40, the three zeros). That finds
+exactly the n stacks each of 2,961 `0x561b` messages says it has, gear and crafted
+pieces among them.
+
+Checked three ways. Over the Abyss run the Abyss Points stack rose by 36,485, and so
+did `0xffab`, kill for kill. A kill sends, in order: `0xe273`, `0xffab`, the Kina (Bound)
+stack, the Abyss Points stack, then any loot (a soul is added and removed a tenth of a
+second later, as it goes to the pet). And the counts the town capture ends with are the
+ones the Abyss capture's `0x5611` opens with (Abyss Points 1,541; Kina (Bound)
+3,140,602; Kina 11,522,489).
+
+Each attack also takes one Power Shard (533460001) off its stack while shards are on.
+
 ### Classes (confirmed)
 
 The first two digits of a player's skill IDs give the class: 11 Gladiator, 12 Templar,

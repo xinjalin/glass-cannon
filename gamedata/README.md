@@ -17,6 +17,7 @@ and artwork are Aion 2 game data and belong to NCSOFT. It comes from these place
 | `places.json` (which Sealed Dungeon, Stronghold or Dimensional Invasion each of their bosses is in, which `dungeons.json` doesn't have) | written by hand from [Legaeon](https://legaeon.co.uk/guides/sealed-dungeons.html)'s Sealed Dungeons list, [aion2data.com](https://aion2data.com/bosses)'s Stronghold Commanders and [ExpCarry](https://expcarry.com/aion-2-dimensional-invasion-guide)'s Dimensional Invasion guide, matched by name to the boss types in `npcs.json` | none (the names are NCSOFT's) |
 | `pets.json` (pets' names and genus, for the pet soul ticker) | the same bundle's pets | none: used without a licence |
 | `gear.json` (weapon, armour and accessory names, grades and item levels, for the gear players wear) | the same bundle's items | none: used without a licence |
+| `items.json` (names of materials, consumables and currencies by item ID, with their grade, for the farming widget) | the same bundle's items | none: used without a licence |
 | `wings.json` (wing names, grades and factions by wing ID, for your collection and the black market's wings) | the same bundle's wings | none: used without a licence |
 | `pantheon.json` (the Pantheon's artworks, statues and colossi by decoration ID: names, sides, stats and icon names, for your collection) | [Aion DPS Meter](https://github.com/SkeeveAN/Aion-DPS-Meter) by SkeeveAN (`Backend/src/data/aion2/pantheon.json`, from the game's text tables) | MIT (`LICENSE-MIT-AionDPSMeter.txt`) |
 | `npc-names.json` (NPCs' names: quest givers, merchants and the like, which the mob lists don't have) | the same bundle's NPCs | none: used without a licence |
@@ -65,6 +66,8 @@ sources aren't named; they're here on the same terms and will be removed on requ
 - NPC names: `packet-lab npc-names <npcs.json> --scraped <date>` from the same kind of
   scrape. They only name types the mob lists in `npcs.json` don't.
 - Gear: `packet-lab gear <items.json> --scraped <date>` from the same kind of scrape.
+- Item names: `packet-lab item-names <items.json> --scraped <date>` from the same kind of
+  scrape: its materials, consumables and currencies, by name and grade only.
 - Pet portraits: `packet-lab pet-icons <pets.json>` from the same kind of scrape (its pets'
   icon names), downloaded from NCSOFT's asset server at 64 px.
 - Black market and gear icons: `packet-lab shop-items <items.json> --scraped <date>` keeps

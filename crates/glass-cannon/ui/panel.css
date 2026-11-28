@@ -259,6 +259,22 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .pet-souls { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pet-near { color: var(--ok); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pet.here .pet-name { color: var(--ok); }
+/* The farming widget: a row an item, its gain and its rate. */
+.farm-head { display: flex; align-items: baseline; gap: 0.5em; padding: 0 0.2em 0.3em; }
+.farm-head b { color: var(--text); }
+.farm-head .note { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.farm-buttons { margin-left: auto; display: flex; gap: 0.3em; flex: none; }
+.farm-buttons button { color: var(--accent); }
+.farm-buttons #farm-all[aria-pressed="true"] { color: var(--ink); background: var(--accent-fill); }
+.farm-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 6.2em; column-gap: 0.7em; align-items: baseline; padding: 0.1em 0.3em; font-variant-numeric: tabular-nums; }
+.farm-row:hover { background: var(--line-faint); }
+.farm-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); }
+.farm-name[class*="grade-"] { color: color-mix(in srgb, var(--grade) 70%, var(--text)); }
+.farm-row:not(.pinned) .farm-name { color: var(--muted); }
+.farm-gained { color: var(--ok); text-align: right; }
+.farm-rate { color: var(--accent); text-align: right; }
+.farm-row.none .farm-gained, .farm-row.none .farm-rate { color: var(--faint); }
+.farm-more { padding: 0.2em 0.3em 0; }
 /* Dummy runs: settings, label averages, a comparison of two runs. */
 .dummy-controls, .dummy-labels { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4em 0.8em; padding: 0.2em 0.3em 0.4em; }
 .dummy-controls button { color: var(--accent); }

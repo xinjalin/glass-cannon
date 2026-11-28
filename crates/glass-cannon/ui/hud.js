@@ -34,6 +34,7 @@ const DEFAULTS = {
   "timer-pins": { x: 0.3, y: 0.06, w: 300, h: 80 },
   timers: { x: 0.015, y: 0.05, w: 330, h: 280 },
   pets: { x: 0.79, y: 0.5, w: 320, h: 230 },
+  farm: { x: 0.79, y: 0.26, w: 320, h: 150 },
 };
 
 // The side widgets: their page, label, whether they take the mouse (the world timers have
@@ -60,6 +61,8 @@ const SIDE_WIDGETS = {
   // No box, as big as what it shows, set up beside it while arranging (⚙).
   "timer-pins": { page: "timerpins.html", label: "timer pins", passive: true, grows: true, bare: true, fitWidth: true, settings: "timerpinsettings.html" },
   pets: { page: "pets.html", label: "pet tracker", passive: false },
+  // Its buttons take the mouse: the stretch its rates go by, [all], [reset].
+  farm: { page: "farm.html", label: "farming", passive: false },
 };
 // The other widgets' settings, beside them while arranging (⚙): their sections of the
 // settings page (settings.html?frame=…), or a page of their own.
@@ -99,6 +102,7 @@ const LABELS = [
   ["timers", "world timers"],
   ["timer-pins", "timer pins"],
   ["pets", "pet tracker"],
+  ["farm", "farming"],
 ];
 // The grids widgets can snap to while arranging (CSS pixels; 0: none), and the default.
 const GRIDS = [0, 8, 16, 32, 64];
