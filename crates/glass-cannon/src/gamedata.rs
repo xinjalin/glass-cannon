@@ -1088,7 +1088,7 @@ impl GameData {
     /// What a hit taken is called: a player's skill by its name; a mob's as its cast is
     /// ([`Self::boss_skill_name`]: never the bare "Attack"), and failing that as the cast
     /// it's of (a cast's damage comes under its own ID or that plus a few: 1803215 is
-    /// 1803210's, and so "orbs + blast around her").
+    /// 1803210's, and so "orbs + tornado lanes").
     pub fn move_name(&self, skill: u32) -> Option<String> {
         if skill >= PLAYER_SKILL_MIN {
             return self.resolve_skill(skill).map(|(_, e)| e.name.clone()).filter(|n| !n.is_empty());

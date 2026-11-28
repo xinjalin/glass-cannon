@@ -136,6 +136,59 @@ Group 1 would settle it the way this report does for Ketu.
 13 attempts on 20 Nov (best 53.3%), 11 saved fights from 13 Nov (best 42.3%). Only three
 of her IDs are in our game data (1803000, 1803010, 1803011).
 
+**The 37 s block that 1803240 opens (2026-11-28).** Inside phase 1's script there is a
+block with no variation at all: in all 26 of its runs in the replayed fights of the 21 Nov
+night, each cast began within 0.1 s of the same moment after 1803240's cast began, and its
+damage landed within a few tenths. The meter now counts down to each step from that cast
+(`ludra.ludra.closing` in `gamedata/boss-mechanics.json`).
+
+| step | cast begins | damage lands | what it is |
+| --- | ---: | ---: | --- |
+| 1803240 | 0 | (1803245 ticks from about +4, rarely) | The outer floor turns deadly and stays so for the block: the arena closes in |
+| 1803210 | +6.9 | +10.0 (1803215) | Orbs to catch, and tornadoes leaving the centre in lanes |
+| 1803120 | +12.5 | +15.3 | The breath, a cone in front of her |
+| 1803250 | +17.9 | +20.4 | Lightning on every player |
+| 1803210 | +21.7 | +24.9 (1803215) | Orbs and tornado lanes again |
+| 1803120 | +27.3 | +30.2 | The breath again |
+| 1803230 | +32.7 | +37.2 to +39.6 (1803235) | The red circle |
+
+The eye mark (effect 12000064) goes on one player 6 to 7 s in (26 of 26) and comes off at
+about +32 in 16 of them, just after the second breath, so it belongs to the breaths. Its
+holder was hit by the breath in 2 of 43 breaths. Seen in the fight (the user, 2026-11-28):
+she aims the breath, a cone, at where the eye's player stands; if that player dies before
+she takes aim, it goes at a random player. So the card tells the eye's holder to keep it
+off the raid, and everyone else to get out of the cone.
+
+The red circle, seen in the fight too (2026-11-28): the centre takes a massive hit, and
+outside the red circle, on the outer floor, there are only small ticks that can be healed
+through. That settles 1803230's safe place, and it fits our positions after all: the
+pulses we counted (1803235, about 5,000 each, on players 18 to 33 m out) are those ticks,
+and the players they missed stood further in. Whether the centre's big hit is in our
+records under an ID of its own is not checked.
+
+What each step is on screen is a lead from a practice trainer made from clear videos
+(angyeety.itch.io/aion2-zikel-practice, `ludra.html`; no licence, so nothing of it is
+copied, and its author says it isn't exact). Its clock minus 2.6 s is seconds after
+1803240's cast begins: with that, its tornado burst (+9.7), breath (+15.1), lightning
+strike (+20.4) and red circle's blast (+36.7) fall within 0.5 s of our damage times. It
+says: the outer floor floods purple and the arena shrinks to about 18 m; twelve tornado
+lanes leave the centre with gaps between them; the breath is a cone of about 100° that
+follows the player with the eye and is set 1.5 s before it fires; a circle about 5 m in
+radius appears under every player 1.2 s before its strike; and for the red circle, which
+fills the inner arena, the outer floor is the safe place (confirmed in the fight, above).
+It corrects three of our rows below: 1803240 is the arena closing, not the tornadoes; the
+"blast around her" that comes with 1803210's orbs is the tornadoes; and 1803230's pulses
+are the outer floor's ticks, the price of standing where it's safe.
+
+Its other page (`zikel.html`) is phase 2's Zikel sequence (our 1803390): four lines 3.9 s
+apart after a 1.5 s lead, 17.1 s in all (we see the next cast 16.4 to 16.5 s after
+1803390, 6 of 6); each line is marked 1.1 s ahead, struck, then safe to stand on while
+everything off it blasts 1.6 s later; rows of pillars then cross the arena from the south,
+west, east and north in turn. Hard mode adds a puddle under each player every 3.7 s. Its
+"colours" mode is the later phase we have no record of: blue players west and red east
+facing her, turning to red north and blue south after the second line. None of that is
+checked against a capture.
+
 **Phase 1 is a script.** Every attempt runs the same order; the only variation is a filler
 around 29 to 40 s (one or two of 1803060, 1803070, 1803080, 1803090, 1803100, 1803110,
 1803130) that moves everything after it by up to 9 s. The usual times, in seconds from the
@@ -209,8 +262,8 @@ a second Bingo at about 25%, and the coloured safe spots to enter in the last se
 | --- | --- |
 | Ludra 1803090 / 1803100 | More casts: 4 hit positions in all (three in front of her, one off to a side) |
 | Ludra 1803221 to 1803224 (in the Trial) | A Trial recorded with a screen recording beside the capture: they have no damage ID of their own to place |
-| The guides' eye attack on Ludra (a large area on a marked player) | Not found: 1803215 is centred on her. Which hit lands on the player with 12000064, 2 to 25 s after it goes on, in a capture where that player does not move away |
-| Ludra 1803230's safe place (inside or outside) | More not-hit positions (11 so far), or one look at the screen |
+| The guides' eye attack on Ludra (a large area on a marked player) | Settled 2026-11-28: it is the breath, 1803120 inside the block 1803240 opens, aimed at the eye's player (seen in the fight; above) |
+| Ludra 1803230's safe place (inside or outside) | Settled 2026-11-28: outside the red circle, on the outer floor (seen in the fight; above) |
 | Ludra 1803260, 1803270 to 1803273, 1803290, 1803350 / 1803370, 1803380, 1803360, 1803275 | A full capture of phase 2 (the saved fights have no helper casts, spawns or positions). One night that gets past the Trial a few times |
 | Ketu 1801964 against 1801965: which orb is red | Likely settled (1801965 red). One look at the screen in a second Gaze would confirm it |
 | Ketu 1801841 against 1801842: which half | Sides of his facing, but which is his left on screen needs one look at a recording |

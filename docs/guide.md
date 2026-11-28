@@ -72,6 +72,9 @@ finishes. The widgets:
   A boss that was already up when the meter started (a raid boss stays up through every
   wipe) shows as **Boss**: the meter never saw its spawn, so it can't name it, but it
   knows it's a boss by its stagger gauge, and its HP, wipes, casts and warnings work.
+  A mechanic that opens a fixed script counts down to each of its steps in turn, saying
+  what comes and what to do (Eternal Ludra's arena closing in: the orbs and tornado lanes,
+  the breath, the lightning on everyone, and the red circle, over 37 s).
 - **boss timers**: the boss's next casts from your last fight against it, as bars counting
   down: those worth a warning, unless set otherwise in the boss casts window.
 - **Boss casts** (the warning sign on the launcher, or settings → alerts → boss casts
