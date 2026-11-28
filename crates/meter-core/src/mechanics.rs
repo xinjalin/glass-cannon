@@ -53,6 +53,30 @@ pub struct Mechanic {
     pub max_s: f64,
     #[serde(default)]
     pub priority: u8,
+    /// A script the cast opens (cast mechanics only): what comes, in order, each so long
+    /// after the cast began. The card shows the next one and counts down to it.
+    #[serde(default)]
+    pub steps: Vec<Step>,
+}
+
+/// One step of a scripted mechanic: when it lands (seconds after the opening cast began),
+/// what it is (the card's first line; the mechanic's own when left out) and what to do.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Step {
+    pub at_s: f64,
+    #[serde(default)]
+    pub what: Option<String>,
+    pub say: String,
+    /// What to do instead while an effect is on you (the mark that aims this step at you).
+    #[serde(default)]
+    pub on_you: Option<OnYou>,
+}
+
+/// A step's other line, for the player an effect is on.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OnYou {
+    pub effect: u32,
+    pub say: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -311,6 +335,24 @@ impl Mechanics {
                 };
                 match ends {
                     Some(end) if end <= n.now_us => after(c.at_us, end),
+                    // A script: the next step still to come, and none once the last has landed.
+                    _ if !m.steps.is_empty() => {
+                        let since = n.now_us.saturating_sub(c.at_us);
+                        let (i, step) = m.steps.iter().enumerate().find(|(_, s)| us(s.at_s) > since)?;
+                        // Aimed at you (its mark is on you now): what you do, not the others.
+                        let yours = step.on_you.as_ref().filter(|o| n.effects.iter().any(|s| s.effect == o.effect && s.end_us.is_none() && n.you == Some(s.target)));
+                        Some(Alert {
+                            // A key a step: each is its own warning.
+                            key: format!("{}:{}:{i}", m.id, c.at_us),
+                            what: step.what.clone().unwrap_or_else(|| m.what.clone()),
+                            say: yours.map_or_else(|| step.say.clone(), |o| o.say.clone()),
+                            who: Vec::new(),
+                            priority: m.priority,
+                            left_ms: ms_left(c.at_us + us(step.at_s), n.now_us),
+                            after: false,
+                            skill: Some(c.skill),
+                        })
+                    }
                     _ => {
                         let casting = (c.cast_ms > 0 && c.fired_us.is_none()).then(|| c.at_us + u64::from(c.cast_ms) * 1000);
                         Some(Alert { skill: Some(c.skill), ..alert(c.at_us, ends.or(casting).and_then(|e| ms_left(e, n.now_us)), Vec::new()) })
@@ -499,6 +541,47 @@ mod tests {
     }
 
     #[test]
+    fn a_cast_that_opens_a_script_counts_down_to_each_step() {
+        let m = book(
+            r#"{"mechanics":[{"id":"script","bosses":[2320401],"when":{"kind":"cast","skills":[40],"until":[99]},
+            "what":"Boss · closing in","say":"it begins",
+            "steps":[{"at_s":4,"say":"move in"},{"at_s":10,"what":"Boss · lanes","say":"stand in a gap"},{"at_s":20.5,"what":"Boss · circles","say":"spread"}],
+            "max_s":25,"priority":90}]}"#,
+        );
+        let open = cast(100 * S, 40, 1500, Some(101 * S + S / 2));
+        let at = |s: f64| alerts(&m, 100 * S + (s * 1e6) as u64, &[], std::slice::from_ref(&open));
+        // The next step, counted down to; a step with no line of its own takes the mechanic's.
+        let a = at(1.0);
+        assert_eq!((a[0].what.as_str(), a[0].say.as_str(), a[0].left_ms, a[0].skill), ("Boss · closing in", "move in", Some(3000), Some(40)));
+        // As one lands the next takes over, each its own warning (a key a step).
+        let (b, c) = (at(4.0), at(12.0));
+        assert_eq!((b[0].what.as_str(), b[0].say.as_str(), b[0].left_ms), ("Boss · lanes", "stand in a gap", Some(6000)));
+        assert_eq!((c[0].say.as_str(), c[0].left_ms), ("spread", Some(8500)));
+        assert!(a[0].key != b[0].key && b[0].key != c[0].key);
+        assert_eq!(at(9.9)[0].key, b[0].key);
+        // Over once the last has landed.
+        assert!(at(20.5).is_empty() && at(24.0).is_empty());
+        // A step aimed at whoever carries a mark: that player is told what they do.
+        let m2 = book(
+            r#"{"mechanics":[{"id":"script","when":{"kind":"cast","skills":[40]},"what":"Boss · breath","say":"-",
+            "steps":[{"at_s":5,"say":"out of the cone","on_you":{"effect":77,"say":"it's on you"}}],"max_s":6,"priority":90}]}"#,
+        );
+        let say = |effects: &[EffectSpan]| alerts(&m2, 102 * S, effects, std::slice::from_ref(&open))[0].say.clone();
+        assert_eq!(say(&[]), "out of the cone");
+        assert_eq!(say(&[span(YOU, 77, 101 * S, None, 0)]), "it's on you");
+        // On someone else, or already gone from you: the others' line.
+        assert_eq!(say(&[span(ALLY, 77, 101 * S, None, 0)]), "out of the cone");
+        assert_eq!(say(&[span(YOU, 77, 100 * S, Some(101 * S), 0)]), "out of the cone");
+        // Cut short by the cast that ends it (the boss went on to something else).
+        let cut = [open, cast(106 * S, 99, 0, Some(106 * S))];
+        assert_eq!(alerts(&m, 105 * S, &[], &cut)[0].say, "stand in a gap");
+        assert!(alerts(&m, 107 * S, &[], &cut).is_empty());
+        // Another boss's cast of that skill isn't hers.
+        let other = CastSeen { caster_type: Some(1), ..open };
+        assert!(alerts(&m, 101 * S, &[], &[other]).is_empty());
+    }
+
+    #[test]
     fn the_shipped_book_reads() {
         let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../gamedata/boss-mechanics.json")).unwrap();
         let b: Book = serde_json::from_str(&text).unwrap();
@@ -507,6 +590,14 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), b.mechanics.len(), "ids are unique");
+        // A script's steps come in order, within how long it shows, and only a cast opens one.
+        for m in b.mechanics.iter().filter(|m| !m.steps.is_empty()) {
+            assert!(matches!(m.when, When::Cast { .. }), "{}: only a cast opens a script", m.id);
+            assert!(m.steps.windows(2).all(|w| w[0].at_s < w[1].at_s), "{}: steps in order", m.id);
+            assert!(m.steps.last().is_some_and(|s| s.at_s <= m.max_s), "{}: steps within max_s", m.id);
+        }
+        let script = b.mechanics.iter().find(|m| m.id == "ludra.ludra.closing").expect("Ludra's phase 1 script");
+        assert_eq!(script.steps.len(), 7);
     }
 }
 
