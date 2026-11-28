@@ -279,11 +279,14 @@ finishes. The widgets:
   map again.
 
 - **farming**: what you've gained since you last reset it, and at what rate: a row an
-  item, with the amount gained and the rate, and the run's time over them. Nothing else:
-  no title and no buttons, and the widget is as tall as its rows. It lists Abyss Points,
-  Kina (Bound) and Kina to begin with. Everything about it is set in the panel beside it
-  while the overlay is arranged (**⚙**):
-  - **[show]**: turn the run time, the amount gained and the rate on or off each, and
+  item, with the amount gained and the rate, and the run's time over them. No title, and
+  the widget is as tall as its rows. One small button, **↺** in its top right corner,
+  starts the run over: the first click asks (**reset?**), a second within three seconds
+  does it. Clicks go through the rest of the widget to the game. It lists Abyss Points,
+  Kina (Bound) and Kina to begin with. Everything else about it is set in the panel
+  beside it while the overlay is arranged (**⚙**):
+  - **[show]**: turn the run time, the reset button, the amount gained and the rate on or
+    off each, and
     **everything gained** to add every other item that went into your inventory this run
     (souls, materials, gear, other currencies), the most first. The rate is per hour or
     per minute, over the whole run or only its last 5, 15 or 60 minutes (to see whether a

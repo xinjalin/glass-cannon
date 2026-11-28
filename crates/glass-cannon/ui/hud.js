@@ -61,8 +61,9 @@ const SIDE_WIDGETS = {
   // No box, as big as what it shows, set up beside it while arranging (⚙).
   "timer-pins": { page: "timerpins.html", label: "timer pins", passive: true, grows: true, bare: true, fitWidth: true, settings: "timerpinsettings.html" },
   pets: { page: "pets.html", label: "pet tracker", passive: false },
-  // Only rows, as tall as they are; set up beside it while arranging (⚙).
-  farm: { page: "farm.html", label: "farming", passive: true, grows: true, settings: "farmsettings.html" },
+  // Only rows, as tall as they are; set up beside it while arranging (⚙). Clicks go
+  // through it to the game, but for its reset button (a hot spot).
+  farm: { page: "farm.html", label: "farming", passive: false, hot: true, grows: true, settings: "farmsettings.html" },
 };
 // The other widgets' settings, beside them while arranging (⚙): their sections of the
 // settings page (settings.html?frame=…), or a page of their own.
@@ -150,6 +151,10 @@ function place() {
 // The app lets the mouse through everywhere but the widgets that take it, so it needs
 // their boxes (in device pixels from the overlay's top left).
 let rectsKey = "";
+// A widget that takes the mouse only on a spot of its own (the farming widget's reset
+// button): the spot, in CSS pixels from the widget's top left, as its page last gave it
+// (gc-hot). None: it takes no clicks at all.
+const hotSpots = {};
 function reportRects() {
   const dpr = window.devicePixelRatio || 1;
   const box = (el) => {
@@ -160,7 +165,17 @@ function reportRects() {
   // arranging): nothing of it to click or put a plate behind.
   const quiet = document.documentElement.classList.contains("quiet-notes") && !editing;
   const shown = [...document.querySelectorAll(".widget:not([hidden])")].filter((el) => !(quiet && el.classList.contains("blank")));
-  const rects = shown.filter((el) => !el.classList.contains("passive")).map(box);
+  const rects = shown
+    .filter((el) => !el.classList.contains("passive"))
+    .map((el) => {
+      // All of it while arranging (to drag it); else only its spot, if it has one now.
+      if (el.dataset.hot === undefined || editing) return box(el);
+      const spot = hotSpots[el.dataset.widget];
+      if (!spot) return null;
+      const r = el.getBoundingClientRect();
+      return { x: (r.left + spot.x) * dpr, y: (r.top + spot.y) * dpr, width: spot.width * dpr, height: spot.height * dpr };
+    })
+    .filter(Boolean);
   // The widgets with a panel get a frosted plate behind it (when frosted is chosen), but
   // not while they're faded.
   const html = document.documentElement.classList;
@@ -507,6 +522,7 @@ function showWidgets(names) {
     el.dataset.widget = name;
     el.dataset.side = "";
     if (w.grows) el.dataset.grows = "";
+    if (w.hot) el.dataset.hot = "";
     if (w.bare) el.dataset.bare = "";
     if (w.fitWidth) el.dataset.fitWidth = "";
     el.dataset.label = w.label;
@@ -575,6 +591,11 @@ window.addEventListener("message", (e) => {
   if (m.type === "gc-empty" && m.widget) {
     const w = document.querySelector(`.widget[data-widget="${CSS.escape(m.widget)}"]`);
     if (w) w.classList.toggle("blank", !!m.empty);
+    reportRects();
+  } else if (m.type === "gc-hot" && m.widget) {
+    // The one spot of the widget that takes the mouse (or none).
+    if (m.rect) hotSpots[m.widget] = m.rect;
+    else delete hotSpots[m.widget];
     reportRects();
   } else if (m.type === "gc-fit" && m.widget) {
     // No height: it's no longer fitted (the meter at the height given it while arranging).

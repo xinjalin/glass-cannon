@@ -40,12 +40,14 @@ const OTHERS: usize = 40;
 /// Items a search of the names gives, at most.
 const FOUND: usize = 20;
 
-/// The parts of the widget that show: the run's time over the rows, and each row's
-/// amount gained and rate (the item's name always does).
+/// The parts of the widget that show: the run's time over the rows, the reset button in
+/// its corner, and each row's amount gained and rate (the item's name always does).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Show {
     #[serde(default = "yes")]
     pub time: bool,
+    #[serde(default = "yes")]
+    pub reset: bool,
     #[serde(default = "yes")]
     pub gained: bool,
     #[serde(default = "yes")]
@@ -58,7 +60,7 @@ fn yes() -> bool {
 
 impl Default for Show {
     fn default() -> Self {
-        Self { time: true, gained: true, rate: true }
+        Self { time: true, reset: true, gained: true, rate: true }
     }
 }
 
@@ -272,12 +274,13 @@ pub fn farm_setup(app: State<'_, Arc<AppState>>) -> FarmSetup {
     setup(&farm, Shown::of(&s), Some(meter.inventory()), &data, now)
 }
 
-/// Shows or hides a part of the widget: "time", "gained" or "rate".
+/// Shows or hides a part of the widget: "time", "reset", "gained" or "rate".
 #[tauri::command]
 pub fn set_farm_show(handle: AppHandle, app: State<'_, Arc<AppState>>, part: String, on: bool) -> Result<(), String> {
     let mut s = lock(&app.settings);
     match part.as_str() {
         "time" => s.farm_show.time = on,
+        "reset" => s.farm_show.reset = on,
         "gained" => s.farm_show.gained = on,
         "rate" => s.farm_show.rate = on,
         _ => return Err(format!("the widget has no part called {part}")),
@@ -424,7 +427,7 @@ mod tests {
         let mut farm = Farm::default();
         let t0 = 1_000_000_000;
         farm.add(t0, &[gain(ABYSS_POINTS, 90, 1631), gain(SOUL, 2, 2), gain(533_460_001, -1, 99)]);
-        let show = Show { time: false, gained: true, rate: false };
+        let show = Show { time: false, reset: true, gained: true, rate: false };
         let s = setup(&farm, Shown { pinned: &[KINA, ABYSS_POINTS], window_min: 15, per: "minute", all: false, show }, None, &data, t0 + MIN);
         // Your items in your order, gained or not; then what else you gained (a shard
         // used is no gain), whether or not the widget lists it.
@@ -436,7 +439,7 @@ mod tests {
         assert_eq!(v.show, show);
         // Settings saved before the parts could be hidden show them all.
         assert_eq!(serde_json::from_str::<Show>("{}").unwrap(), Show::default());
-        assert_eq!(serde_json::from_str::<Show>(r#"{"rate":false}"#).unwrap(), Show { time: true, gained: true, rate: false });
+        assert_eq!(serde_json::from_str::<Show>(r#"{"rate":false}"#).unwrap(), Show { time: true, reset: true, gained: true, rate: false });
     }
 
     #[test]

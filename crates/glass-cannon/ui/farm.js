@@ -1,10 +1,17 @@
 // The farming widget: a row an item, with what you've gained since the last reset and the
-// rate. Nothing else: no title, no buttons, and as tall as its rows. Which items are
-// listed, which parts show (the run's time, the amounts, the rates) and what the rates go
-// by are set in the panel beside it while the overlay's arranged (farmsettings.js).
+// rate, and as tall as its rows. No title; one small button, in the top right corner,
+// resets the run (two clicks: the first asks). Which items are listed, which parts show
+// (the run's time, the reset, the amounts, the rates) and what the rates go by are set
+// in the panel beside it while the overlay's arranged (farmsettings.js).
+//
+// Clicks go through the widget to the game everywhere but on the button: the page tells
+// the overlay where it is (gc-hot).
 
 const POLL_MS = 1000;
+// How long the reset waits for its second click.
+const CONFIRM_MS = 3000;
 let state = null;
+let confirming = null;
 
 // 12,345 below a million (a kill's worth shows), 1.23M and up above.
 function amount(n) {
@@ -36,8 +43,15 @@ function row(r, s) {
 
 function draw() {
   if (!state) return;
+  // The line over the rows: the run's time on the left, the reset on the right; gone
+  // with both hidden.
+  $("farm-head").hidden = !state.show.time && !state.show.reset;
   const time = $("farm-time");
   time.hidden = !state.show.time;
+  const reset = $("farm-reset");
+  reset.hidden = !state.show.reset;
+  reset.classList.toggle("asking", !!confirming);
+  setText(reset, confirming ? "reset?" : "↺");
   // The run's time, and what the rates go by when it isn't the whole run.
   const over = state.window_min ? ` · last ${state.window_min === 60 ? "hour" : `${state.window_min} min`}` : "";
   setText(time, state.elapsed_s == null ? "no gains yet" : `${clock(state.elapsed_s)}${state.show.rate ? over : ""}`);
@@ -56,7 +70,43 @@ function draw() {
   const more = $("more");
   more.hidden = !(state.all && state.more);
   setText(more, `and ${state.more} more`);
+  tellHot();
 }
+
+// Where the reset button is, for the overlay to take the mouse there and nowhere else
+// on the widget (a little past its edges, to be easy to hit).
+let hotSent = "";
+function tellHot() {
+  const b = $("farm-reset");
+  let rect = null;
+  if (state && state.show.reset && b.getClientRects().length) {
+    const r = b.getBoundingClientRect();
+    rect = { x: Math.floor(r.left) - 3, y: Math.floor(r.top) - 3, width: Math.ceil(r.width) + 6, height: Math.ceil(r.height) + 6 };
+  }
+  const key = JSON.stringify(rect);
+  if (key === hotSent) return;
+  hotSent = key;
+  window.parent.postMessage({ type: "gc-hot", widget: "farm", rect }, "*");
+}
+new ResizeObserver(tellHot).observe($("panel"));
+
+// The first click asks, the second (within three seconds) resets: a run isn't lost to a
+// stray click in a fight.
+$("farm-reset").addEventListener("click", async () => {
+  clearTimeout(confirming);
+  if (confirming) {
+    confirming = null;
+    await invoke("farm_reset").catch(() => {});
+    await refresh();
+    // Back to the arrow even if the fresh numbers didn't come.
+    return draw();
+  }
+  confirming = setTimeout(() => {
+    confirming = null;
+    draw();
+  }, CONFIRM_MS);
+  draw();
+});
 
 async function refresh() {
   try {

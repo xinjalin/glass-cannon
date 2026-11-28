@@ -261,7 +261,12 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 .pet.here .pet-name { color: var(--ok); }
 /* The farming widget: a row an item, its gain and its rate; nothing else. */
 body[data-panel="farm"] #panel { padding: 0.35em 0.55em; }
-.farm-time { margin: 0 0 0.15em; color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.farm-head { display: flex; align-items: center; min-height: 1.25em; margin: 0 0 0.1em; }
+.farm-time { color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+/* The reset, in the corner: faint until the cursor's on it, loud while it asks. */
+.farm-reset { margin-left: auto; padding: 0 0.3em; border-radius: 0.3em; color: var(--muted); line-height: 1.2; opacity: 0.7; }
+.farm-reset:hover { opacity: 1; color: var(--accent); background: var(--line-faint); }
+.farm-reset.asking { opacity: 1; color: var(--ink); background: var(--accent-fill); font-size: 0.85em; }
 /* One grid for every row, so the numbers line up and take only the room they need. */
 .farm-list { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 0.9em; }
 .farm-list.cols-2 { grid-template-columns: minmax(0, 1fr) auto; }
