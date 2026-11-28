@@ -599,5 +599,50 @@ mod tests {
         let script = b.mechanics.iter().find(|m| m.id == "ludra.ludra.closing").expect("Ludra's phase 1 script");
         assert_eq!(script.steps.len(), 7);
     }
-}
 
+    #[test]
+    fn the_facilitys_cards_count_down_from_the_casts_that_open_them() {
+        const BARGOTT: u32 = 2_301_208;
+        const BLATT: u32 = 2_301_207;
+        let m = book(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../gamedata/boss-mechanics.json")).unwrap());
+        let player_name = |_: u64| None;
+        // What shows `ms` after `boss` starts casting `skill`: the card's title and the time left.
+        let at = |boss: u32, skill: u32, ms: u64| {
+            let mob_type = move |e: u64| (e == BOSS).then_some(boss);
+            let open = CastSeen { caster_type: Some(boss), ..cast(100 * S, skill, 1500, None) };
+            let now = Now { now_us: 100 * S + ms * 1000, effects: &[], casts: std::slice::from_ref(&open), you: Some(YOU), mob_type: &mob_type, player_name: &player_name };
+            m.alerts(&now).into_iter().map(|a| (a.what, a.left_ms.unwrap_or(0))).collect::<Vec<_>>()
+        };
+        let shows = |got: &[(String, u32)], what: &str, left: u32| got.len() == 1 && got[0].0 == what && got[0].1.abs_diff(left) <= 2;
+        // Bargott's leap, then the shared slams 18.2 s after it started (22 of 22 before
+        // his enrage, 2026-11-28); the card is gone once they have landed.
+        assert!(shows(&at(BARGOTT, 1_803_770, 500), "Bargott · leap to the centre", 1_500));
+        assert!(shows(&at(BARGOTT, 1_803_770, 8_200), "Bargott · three shared slams", 10_000));
+        assert!(at(BARGOTT, 1_803_770, 18_300).is_empty());
+        // The first of the eight rolls 8.3 s after the marks; bombs left go off at 28.4 s.
+        assert!(shows(&at(BARGOTT, 1_803_860, 300), "Bargott · numbered rolls", 8_000));
+        assert!(shows(&at(BARGOTT, 1_803_860, 18_400), "Bargott · bombs left blow up", 10_000));
+        // The flash blinds 2.1 s after its cast starts.
+        assert!(shows(&at(BARGOTT, 1_805_700, 100), "Bargott · blinding flash", 2_000));
+        assert_eq!(at(BARGOTT, 1_803_776, 5_000)[0].0, "Bargott · bomb phase");
+        assert_eq!(at(BARGOTT, 1_805_730, 1_000)[0].0, "Bargott · spinning chains");
+        // Blatt's two colour checks, 7.9 and 14.5 s after the phase opens, and the slimes'
+        // steps up to the Wave.
+        assert!(shows(&at(BLATT, 1_804_568, 2_900), "Blatt · colour phase", 5_000));
+        assert!(shows(&at(BLATT, 1_804_568, 9_500), "Blatt · colour phase", 5_000));
+        assert!(shows(&at(BLATT, 1_804_420, 1_700), "Blatt · four slimes", 5_000));
+        assert!(shows(&at(BLATT, 1_804_420, 17_100), "Blatt · the Wave is next", 1_000));
+        // Another boss casting one of those IDs isn't theirs.
+        assert!(at(LAKSHMI, 1_803_770, 8_200).is_empty() && at(BARGOTT, 1_804_568, 2_900).is_empty());
+
+        // With the chains on you, your card says what you do; a puddle under you says move.
+        let mob_type = |e: u64| (e == BOSS).then_some(BARGOTT);
+        let chains = [span(YOU, 18_057_301, 100 * S, None, 10_000)];
+        let now = Now { now_us: 102 * S, effects: &chains, casts: &[], you: Some(YOU), mob_type: &mob_type, player_name: &player_name };
+        assert_eq!(m.alerts(&now)[0].what, "Bargott · chains on you");
+        let mut m = m;
+        m.on_hit_you(200 * S, 1_803_840);
+        let now = Now { now_us: 200 * S + S / 2, effects: &[], casts: &[], you: Some(YOU), mob_type: &mob_type, player_name: &player_name };
+        assert_eq!((m.alerts(&now)[0].what.as_str(), m.alerts(&now)[0].say.as_str()), ("Bargott · puddle", "move out"));
+    }
+}
