@@ -302,6 +302,9 @@ pub struct Settings {
     /// It lists everything gained, not only the items above.
     #[serde(default)]
     pub farm_all: bool,
+    /// Which of its parts show: the run's time, the amounts gained, the rates.
+    #[serde(default)]
+    pub farm_show: crate::farm::Show,
     /// Close the app a few seconds after the game closes.
     #[serde(default)]
     pub close_with_game: bool,

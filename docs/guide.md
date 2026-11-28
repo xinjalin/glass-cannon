@@ -278,18 +278,25 @@ finishes. The widgets:
   after the others, and with **pins show within** set it's left off until you open its
   map again.
 
-- **farming**: what you've gained since you last reset it, and at what rate. It lists
-  Abyss Points, Kina (Bound) and Kina to begin with: each with how many you gained and
-  the rate, per hour or per minute (**[/h]**). The rate goes by the whole run, or by its
-  last 5, 15 or 60 minutes (**[run]**: click to change), so you can see whether a spot
-  is paying better now than it did. **[all]** lists everything else that went into your
-  inventory this run (souls, materials, gear, other currencies), the most first;
-  right-click an item to pin it, so it's always listed, or to unpin it. Hover a row for
-  how many you have and what you spent or used. A run starts with the first thing you
-  gain and ends with **[reset]** or when the app closes; the time doesn't stop while you
-  stand still. Only gains count toward a rate: what you spend takes nothing off.
-  It reads the game's own count of each stack you carry, so the numbers are exact, and
-  it works wherever you are (the Abyss, a dungeon, gathering, the market).
+- **farming**: what you've gained since you last reset it, and at what rate: a row an
+  item, with the amount gained and the rate, and the run's time over them. Nothing else:
+  no title and no buttons, and the widget is as tall as its rows. It lists Abyss Points,
+  Kina (Bound) and Kina to begin with. Everything about it is set in the panel beside it
+  while the overlay is arranged (**⚙**):
+  - **[show]**: turn the run time, the amount gained and the rate on or off each, and
+    **everything gained** to add every other item that went into your inventory this run
+    (souls, materials, gear, other currencies), the most first. The rate is per hour or
+    per minute, over the whole run or only its last 5, 15 or 60 minutes (to see whether a
+    spot pays better now than it did). **[reset]** starts the run over.
+  - **[items]**: the items listed (click one to hide it), what else you gained this run
+    (click one to always list it), and a search by name for any other item. Each shows
+    what the run has of it, how many you have, and what you spent or used.
+
+  A run starts with the first thing you gain and ends with a reset or when the app
+  closes; the time doesn't stop while you stand still. Only gains count toward a rate:
+  what you spend takes nothing off. It reads the game's own count of each stack you
+  carry, so the numbers are exact, and it works wherever you are (the Abyss, a dungeon,
+  gathering, the market).
 - **pet tracker**: the pets you track (the map's **[+]** beside each pet; search one
   there by name, genus or area) with their level, souls toward the next one and every
   area they're found in; a pet whose mobs are in view turns green with how many.
@@ -350,7 +357,7 @@ server to move to) until a second and a half after you're on it. These are the g
 messages as well, so nothing on screen is looked at.
 
 **Click-through** (settings → overlay, off by default): every click goes through the
-widgets to the game, the meter's, the world timers', the pet tracker's and the farming widget's too. The other
+widgets to the game, the meter's, the world timers' and the pet tracker's too. The other
 widgets only show things and always let clicks through. Arranging the widgets still takes
 the mouse, so they can be moved and resized.
 

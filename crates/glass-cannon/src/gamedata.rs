@@ -1103,6 +1103,27 @@ impl GameData {
         }
     }
 
+    /// Items whose name has `query` in it (two letters or more; any case), `limit` at
+    /// most: those that begin with it first, then by name. Materials, consumables and
+    /// currencies, then gear.
+    pub fn find_items(&self, query: &str, limit: usize) -> Vec<(u32, String, Option<String>)> {
+        let q = query.trim().to_lowercase();
+        if q.chars().count() < 2 {
+            return Vec::new();
+        }
+        let items = self.items.items.iter().map(|(id, i)| (*id, &i.name, &i.grade));
+        let gear = self.gear.gear.iter().filter(|(id, _)| !self.items.items.contains_key(id)).map(|(id, g)| (*id, &g.name, &g.grade));
+        let mut found: Vec<(bool, u32, &String, &Option<String>)> = items
+            .chain(gear)
+            .filter_map(|(id, name, grade)| {
+                let lower = name.to_lowercase();
+                lower.contains(&q).then(|| (!lower.starts_with(&q), id, name, grade))
+            })
+            .collect();
+        found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.2.cmp(b.2)).then_with(|| a.1.cmp(&b.1)));
+        found.into_iter().take(limit).map(|(_, id, name, grade)| (id, name.clone(), grade.clone())).collect()
+    }
+
     /// The pet whose souls a mob type gives.
     pub fn pet_of_mob(&self, mob_type: u32) -> Option<u32> {
         self.pet_spawns.monsters.get(&mob_type).copied()
@@ -1434,6 +1455,27 @@ mod tests {
         let mut v = view_with(Some(2_965_923), &[]);
         d.annotate_view(&mut v);
         assert_eq!((v.target.as_deref(), v.target_type), (Some(UNNAMED), Some(2_965_923)));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn items_are_named_and_found_by_name() {
+        let dir = temp_dir("items");
+        fs::write(dir.join(SKILLS_FILE), r#"{ "skills": { "11100000": { "name": "Ruinous Blow" } } }"#).unwrap();
+        fs::write(dir.join(ITEMS_FILE), r#"{ "items": { "930100003": { "name": "Abyss Points", "currency": true }, "930100001": { "name": "Kina (Bound)" }, "930100031": { "name": "Kina" }, "510000001": { "name": "Refining Stone", "grade": "Unique" } } }"#).unwrap();
+        fs::write(dir.join(GEAR_FILE), r#"{ "gear": { "110120003": { "name": "Kinah Collector's Blade", "grade": "Epic" } } }"#).unwrap();
+        let d = GameData::load_first(vec![dir.clone()]);
+        assert_eq!(d.item_name(930100003), ("Abyss Points".to_string(), None));
+        assert_eq!(d.item_name(510000001), ("Refining Stone".to_string(), Some("Unique".to_string())));
+        // Gear is named by its own list; anything else by its number.
+        assert_eq!(d.item_name(110120003).0, "Kinah Collector's Blade");
+        assert_eq!(d.item_name(7), ("Item 7".to_string(), None));
+        // By name, any case: those that begin with it first, then by name.
+        let names = |q: &str| d.find_items(q, 10).into_iter().map(|(_, n, _)| n).collect::<Vec<_>>();
+        assert_eq!(names("KIN"), ["Kina", "Kina (Bound)", "Kinah Collector's Blade"]);
+        assert_eq!(names("stone"), ["Refining Stone"]);
+        assert_eq!(d.find_items("kin", 2).len(), 2);
+        assert!(names("k").is_empty() && names("  ").is_empty() && names("zzz").is_empty());
         fs::remove_dir_all(dir).ok();
     }
 

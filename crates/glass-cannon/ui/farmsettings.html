@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" class="widget">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glass Cannon farming settings</title>
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="barsettings.css">
+</head>
+<!-- The farming widget's settings, in a panel beside it while the overlay's arranged: what
+     shows, what the rates go by, and which items are listed (farmsettings.js). -->
+<body data-panel="farm-settings">
+  <main id="bs">
+    <nav class="bs-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="show" aria-selected="true">[show]</button>
+      <button type="button" role="tab" data-tab="items" aria-selected="false">[items]</button>
+    </nav>
+
+    <section class="bs-tab" data-tab="show">
+      <div class="bs-line"><span title="How long the run has gone on, over the rows">run time</span><button type="button" class="bs-toggle" data-show="time"></button></div>
+      <div class="bs-line"><span title="How many of each item you gained this run">amount gained</span><button type="button" class="bs-toggle" data-show="gained"></button></div>
+      <div class="bs-line"><span title="Each item's rate">rate</span><button type="button" class="bs-toggle" data-show="rate"></button></div>
+      <div class="bs-line"><span title="Under your items: everything else that went into your inventory this run (souls, materials, gear, other currencies), the most first">everything gained</span><button type="button" class="bs-toggle" id="fs-all"></button></div>
+      <p class="bs-head">rates</p>
+      <div class="bs-line"><span>per</span>
+        <span class="bs-choice" id="fs-per">
+          <button type="button" data-v="hour">[hour]</button>
+          <button type="button" data-v="minute">[minute]</button>
+        </span>
+      </div>
+      <div class="bs-line"><span title="What a rate is measured over: the whole run, or only its last minutes (whether a spot pays better now than it did)">over</span>
+        <span class="bs-choice" id="fs-window">
+          <button type="button" data-v="0" title="Since the run began">[the run]</button>
+          <button type="button" data-v="5">[5 min]</button>
+          <button type="button" data-v="15">[15 min]</button>
+          <button type="button" data-v="60">[1 h]</button>
+        </span>
+      </div>
+      <p class="bs-head">the run</p>
+      <div class="bs-line"><span id="fs-run"></span><span class="bs-choice"><button type="button" id="fs-reset" title="Start the run over: nothing gained, no time gone">[reset]</button></span></div>
+      <p class="bs-note">A run starts with the first thing you gain and ends with [reset] or when the app closes. Only gains count toward a rate: what you spend takes nothing off.</p>
+    </section>
+
+    <section class="bs-tab" data-tab="items" hidden>
+      <p class="bs-head">listed · click to hide</p>
+      <div id="fs-pinned" class="tp-list"></div>
+      <p class="bs-head">gained this run · click to always list</p>
+      <div id="fs-others" class="tp-list"></div>
+      <p class="bs-head">any other item · by name</p>
+      <input id="fs-search" class="fs-search" type="search" placeholder="search items…" autocomplete="off" spellcheck="false" aria-label="Search items by name">
+      <div id="fs-found" class="tp-list"></div>
+    </section>
+  </main>
+  <script src="theme.js"></script>
+  <script src="panel.js"></script>
+  <script src="farmsettings.js"></script>
+</body>
+</html>

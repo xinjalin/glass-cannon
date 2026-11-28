@@ -7,22 +7,13 @@
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="panel.css">
 </head>
-<body data-panel="farm">
+<!-- Only rows, and as tall as they are: what shows and which items is set in the panel
+     beside it while the overlay's arranged (farmsettings.html). -->
+<body data-panel="farm" data-fit>
   <main id="panel">
-    <div class="farm-head">
-      <b>farm</b>
-      <span id="farm-time" class="note" title="Since the first thing you gained after the last reset"></span>
-      <span class="farm-buttons">
-        <button id="farm-window" type="button" title="What the rates are measured over: the whole run, or its last 5, 15 or 60 minutes. Click to change"></button>
-        <button id="farm-per" type="button" title="Rates per hour or per minute. Click to change"></button>
-        <button id="farm-all" type="button" aria-pressed="false" title="Everything you've gained this run, not only your pinned items. Right-click an item to pin or unpin it">[all]</button>
-        <button id="farm-reset" type="button" title="Start the run over: nothing gained, no time gone">[reset]</button>
-      </span>
-    </div>
-    <div class="scroll">
-      <ol id="list" class="list"></ol>
-      <p id="more" class="note farm-more" hidden></p>
-    </div>
+    <p id="farm-time" class="farm-time" hidden></p>
+    <ol id="list" class="list farm-list"></ol>
+    <p id="more" class="note farm-more" hidden></p>
   </main>
   <script src="theme.js"></script>
   <script src="panel.js"></script>

@@ -81,6 +81,7 @@ const SETTINGS_KEYS: &[&str] = &[
     "farm_window_min",
     "farm_per",
     "farm_all",
+    "farm_show",
 ];
 
 /// A shared setup, as the file has it: each part there or not.
