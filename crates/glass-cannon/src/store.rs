@@ -7,8 +7,10 @@
 
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
 use meter_core::meter::{Analysis, EncounterView, FightEnd, Scope, Snapshot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -891,9 +893,11 @@ impl Profile {
     }
 }
 
-/// Fights kept with their full analysis, boss fights and the rest each (the rest of the
-/// history keeps its summary).
-const DETAILS_LIMIT: usize = 50;
+/// Fights kept with their full analysis, boss fights and the rest each: every fight in the
+/// history list. It was the newest 50 until 0.42.0, which left a fight in the list with
+/// nothing to open (a raid night's pulls pushed the night before's out); they're saved
+/// compressed now, about a ninth of the size, so all 200 take less room than 50 did.
+const DETAILS_LIMIT: usize = HISTORY_LIMIT;
 
 const INSTANCES_LIMIT: usize = 500;
 /// PvP sessions kept.
@@ -1123,10 +1127,19 @@ impl Instances {
     }
 }
 
-/// Full analyses of recent fights, one file each in `fights/`, named by when they ended:
-/// `<ms>.boss.json` for a boss fight, `<ms>.json` for the rest.
+/// Full analyses of the fights in the history, one file each in `fights/`, named by when
+/// they ended: `<ms>.boss.json.gz` for a boss fight, `<ms>.json.gz` for the rest (gzipped
+/// JSON). Ones saved before 0.42.0 are plain `.json`, and still read.
 pub struct FightDetails {
     dir: PathBuf,
+}
+
+/// A saved analysis's file name, taken apart: when the fight ended and whether it was a
+/// boss fight. None for anything else in the folder.
+fn saved_fight(name: &str) -> Option<(u64, bool)> {
+    let stem = name.strip_suffix(".gz").unwrap_or(name).strip_suffix(".json")?;
+    let (stamp, boss) = stem.strip_suffix(".boss").map_or((stem, false), |s| (s, true));
+    Some((stamp.parse().ok()?, boss))
 }
 
 impl FightDetails {
@@ -1137,12 +1150,20 @@ impl FightDetails {
     }
 
     fn file(&self, ended_ms: u64, boss: bool) -> PathBuf {
-        self.dir.join(if boss { format!("{ended_ms}.boss.json") } else { format!("{ended_ms}.json") })
+        self.dir.join(if boss { format!("{ended_ms}.boss.json.gz") } else { format!("{ended_ms}.json.gz") })
     }
 
-    /// The fight's file, whichever kind it was saved as.
+    /// The fight's file, whichever kind it was saved as (compressed or, by an older
+    /// version, plain).
     fn path(&self, ended_ms: u64) -> Option<PathBuf> {
-        [true, false].into_iter().map(|boss| self.file(ended_ms, boss)).find(|p| p.is_file())
+        [true, false]
+            .into_iter()
+            .flat_map(|boss| {
+                let gz = self.file(ended_ms, boss);
+                let plain = gz.with_extension("");
+                [gz, plain]
+            })
+            .find(|p| p.is_file())
     }
 
     /// `boss`: the fight was against a boss, kept apart from the rest.
@@ -1150,17 +1171,28 @@ impl FightDetails {
         if fs::create_dir_all(&self.dir).is_err() {
             return;
         }
-        if let Ok(json) = serde_json::to_vec(analysis) {
-            let tmp = self.dir.join(format!("{ended_ms}.json.tmp"));
-            if fs::write(&tmp, json).is_ok() {
-                let _ = fs::rename(&tmp, self.file(ended_ms, boss));
+        let mut gz = GzEncoder::new(Vec::new(), Compression::default());
+        if serde_json::to_writer(&mut gz, analysis).is_ok() {
+            if let Ok(bytes) = gz.finish() {
+                // Not a name `clear` or `prune` take for a fight, should it be left behind.
+                let tmp = self.dir.join(format!("{ended_ms}.tmp"));
+                if fs::write(&tmp, bytes).is_ok() {
+                    let _ = fs::rename(&tmp, self.file(ended_ms, boss));
+                }
             }
         }
         self.prune();
     }
 
     pub fn load(&self, ended_ms: u64) -> Option<Analysis> {
-        serde_json::from_slice(&fs::read(self.path(ended_ms)?).ok()?).ok()
+        let path = self.path(ended_ms)?;
+        let mut bytes = fs::read(&path).ok()?;
+        if path.extension().is_some_and(|e| e == "gz") {
+            let mut json = Vec::new();
+            GzDecoder::new(bytes.as_slice()).read_to_end(&mut json).ok()?;
+            bytes = json;
+        }
+        serde_json::from_slice(&bytes).ok()
     }
 
     pub fn has(&self, ended_ms: u64) -> bool {
@@ -1171,7 +1203,7 @@ impl FightDetails {
     pub fn clear(&self) {
         let Ok(entries) = fs::read_dir(&self.dir) else { return };
         for e in entries.flatten() {
-            if e.file_name().to_str().is_some_and(|n| n.ends_with(".json")) {
+            if e.file_name().to_str().is_some_and(|n| saved_fight(n).is_some()) {
                 let _ = fs::remove_file(e.path());
             }
         }
@@ -1180,18 +1212,17 @@ impl FightDetails {
     /// Keeps the newest [`DETAILS_LIMIT`] boss fights and as many others.
     fn prune(&self) {
         let Ok(entries) = fs::read_dir(&self.dir) else { return };
-        let mut saved: Vec<(u64, bool)> = entries
+        let mut saved: Vec<(u64, bool, PathBuf)> = entries
             .filter_map(|e| {
-                let name = e.ok()?.file_name().into_string().ok()?;
-                let stem = name.strip_suffix(".json")?;
-                let (stamp, boss) = stem.strip_suffix(".boss").map_or((stem, false), |s| (s, true));
-                Some((stamp.parse().ok()?, boss))
+                let e = e.ok()?;
+                let (ended_ms, boss) = saved_fight(e.file_name().to_str()?)?;
+                Some((ended_ms, boss, e.path()))
             })
             .collect();
         saved.sort_unstable();
-        let drop = beyond_limit(&saved, DETAILS_LIMIT, |(_, boss)| *boss);
-        for (&(ended_ms, boss), _) in saved.iter().zip(drop).filter(|(_, d)| *d) {
-            let _ = fs::remove_file(self.file(ended_ms, boss));
+        let drop = beyond_limit(&saved, DETAILS_LIMIT, |(_, boss, _)| *boss);
+        for ((_, _, path), _) in saved.iter().zip(drop).filter(|(_, d)| *d) {
+            let _ = fs::remove_file(path);
         }
     }
 }
@@ -2067,13 +2098,14 @@ mod tests {
         let details = FightDetails::new(&dir);
         fs::create_dir_all(dir.join("fights")).unwrap();
         fs::write(dir.join("fights/7.json"), "{}").unwrap();
+        fs::write(dir.join("fights/8.boss.json.gz"), "").unwrap();
         fs::write(dir.join("fights/notes.txt"), "not ours").unwrap();
-        assert!(details.has(7));
+        assert!(details.has(7) && details.has(8));
         h.clear();
         details.clear();
         assert_eq!(h.len(), 0);
         assert_eq!(History::load(&dir).len(), 0, "gone from disk too");
-        assert!(!details.has(7));
+        assert!(!details.has(7) && !details.has(8));
         assert!(dir.join("fights/notes.txt").exists(), "only analyses are deleted");
 
         // Dungeon runs: the past ones go, the one you're in stays.
@@ -2176,10 +2208,49 @@ mod tests {
         assert!(!details.has(3) && !details.has(4));
         assert!(details.has(5));
         assert_eq!(details.load(DETAILS_LIMIT as u64 + 4), Some(analysis.clone()));
-        assert_eq!(details.load(1), Some(analysis));
-        // A fight saved before boss fights were kept apart still loads.
-        fs::copy(dir.join("fights/5.json"), dir.join("fights/0.json")).unwrap();
-        assert!(details.has(0));
+        assert_eq!(details.load(1), Some(analysis.clone()));
+        assert!(dir.join("fights/1.boss.json.gz").is_file() && dir.join("fights/5.json.gz").is_file(), "saved compressed");
+        assert!(fs::read_dir(dir.join("fights")).unwrap().flatten().all(|e| saved_fight(e.file_name().to_str().unwrap()).is_some()), "nothing else left behind");
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn analyses_saved_plain_by_older_versions_still_load_and_count() {
+        let dir = temp_dir("details-plain");
+        let details = FightDetails::new(&dir);
+        let analysis = Analysis {
+            view: snap(None, Some(18)).encounter.unwrap(),
+            hits: Vec::new(),
+            effects: Vec::new(),
+            names: Default::default(),
+            mob_types: Default::default(),
+            target_hp: Vec::new(),
+            heals: Vec::new(),
+            taken: Vec::new(),
+        };
+        fs::create_dir_all(dir.join("fights")).unwrap();
+        let json = serde_json::to_vec(&analysis).unwrap();
+        // As saved before 0.42.0, a boss fight and another, and one from before boss fights
+        // were kept apart.
+        fs::write(dir.join("fights/1.boss.json"), &json).unwrap();
+        fs::write(dir.join("fights/2.json"), &json).unwrap();
+        assert_eq!(details.load(1), Some(analysis.clone()));
+        assert_eq!(details.load(2), Some(analysis.clone()));
+        assert_eq!(details.load(3), None);
+        // They count toward what's kept, oldest dropped first, whichever way they're saved.
+        for ended_ms in 3..=(DETAILS_LIMIT as u64 + 2) {
+            details.save(ended_ms, &analysis, false);
+        }
+        assert!(details.has(1), "the boss fight stays");
+        assert!(!details.has(2), "the oldest of the rest went");
+        assert!(details.has(3));
+        // A file that isn't an analysis is no fight.
+        fs::write(dir.join("fights/9.json.gz"), "not gzip").unwrap();
+        assert_eq!(details.load(9), None);
+        assert_eq!(saved_fight("12.boss.json.gz"), Some((12, true)));
+        assert_eq!(saved_fight("12.json"), Some((12, false)));
+        assert_eq!(saved_fight("12.tmp"), None);
+        assert_eq!(saved_fight("notes.txt"), None);
         fs::remove_dir_all(dir).ok();
     }
 

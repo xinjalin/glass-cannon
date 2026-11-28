@@ -1191,6 +1191,7 @@ name = "glass-cannon"
 version = "0.41.0"
 dependencies = [
  "anyhow",
+ "flate2",
  "meter-core",
  "serde",
  "serde_json",

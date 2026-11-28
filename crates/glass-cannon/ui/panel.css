@@ -205,6 +205,7 @@ button.link { margin: 0.2em 0 0.4em; color: var(--accent); font-size: 0.85em; }
 }
 .fight-item:hover { background: var(--line-faint); }
 .fight-item.selected { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.fight-item .no-analysis { opacity: 0.7; font-style: italic; }
 .fight-no { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
 .fight-text { display: flex; flex-direction: column; min-width: 0; }
 .fight-what { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
