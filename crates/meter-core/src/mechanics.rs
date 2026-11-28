@@ -599,5 +599,37 @@ mod tests {
         let script = b.mechanics.iter().find(|m| m.id == "ludra.ludra.closing").expect("Ludra's phase 1 script");
         assert_eq!(script.steps.len(), 7);
     }
+
+    #[test]
+    fn bargotts_cards_count_down_from_the_casts_that_open_them() {
+        const BARGOTT: u32 = 2_301_208;
+        let m = book(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../gamedata/boss-mechanics.json")).unwrap());
+        let mob_type = |e: u64| (e == BOSS).then_some(BARGOTT);
+        let player_name = |_: u64| None;
+        // What shows `ms` after he starts casting `skill`: the card's title and the time left.
+        let at = |caster_type: u32, skill: u32, ms: u64| {
+            let open = CastSeen { caster_type: Some(caster_type), ..cast(100 * S, skill, 1500, None) };
+            let now = Now { now_us: 100 * S + ms * 1000, effects: &[], casts: std::slice::from_ref(&open), you: Some(YOU), mob_type: &mob_type, player_name: &player_name };
+            m.alerts(&now).into_iter().map(|a| (a.what, a.left_ms.unwrap_or(0))).collect::<Vec<_>>()
+        };
+        let near = |left: u32, want: u32| left.abs_diff(want) <= 2;
+        // The shared slams land 18.2 s after the cast that opens their chain (22 of 22
+        // before his enrage, 2026-11-28), and the card is gone once they have.
+        let slams = at(BARGOTT, 1_803_770, 8_200);
+        assert_eq!(slams.len(), 1);
+        assert!(slams[0].0 == "Bargott · three shared slams" && near(slams[0].1, 10_000), "{slams:?}");
+        assert!(at(BARGOTT, 1_803_770, 18_300).is_empty());
+        // The numbered rolls start 10.6 s after the marks; bombs left go off at 28.4 s.
+        let rolls = at(BARGOTT, 1_803_860, 600);
+        assert!(rolls[0].0 == "Bargott · numbered rolls" && near(rolls[0].1, 10_000), "{rolls:?}");
+        let left = at(BARGOTT, 1_803_860, 18_400);
+        assert!(left[0].0 == "Bargott · bombs left blow up" && near(left[0].1, 10_000), "{left:?}");
+        // The time bombs go off 13.9 s after their cast.
+        let bombs = at(BARGOTT, 1_805_700, 3_900);
+        assert!(bombs[0].0 == "Bargott · time bombs" && near(bombs[0].1, 10_000), "{bombs:?}");
+        assert_eq!(at(BARGOTT, 1_803_776, 5_000)[0].0, "Bargott · bomb phase");
+        // Another boss casting one of those IDs isn't him.
+        assert!(at(LAKSHMI, 1_803_770, 8_200).is_empty());
+    }
 }
 

@@ -256,6 +256,103 @@ most names are weaker here.
 **Below 42%: never seen.** The guides have the colours (red and blue players kept apart),
 a second Bingo at about 25%, and the coloured safe spots to enter in the last second.
 
+## Corroded Decontamination Facility (map 620011)
+
+Added 2026-11-28, from one night: a first clear, recorded whole
+(`glass-cannon-v0.41.0-windows-x64\captures\20261128-124103`, 137 MB, no gaps on replay) and
+in the app's saved fights. Dungeon key `ErosionPurifier_01`, a Sanctuary, ten players. One
+fight each with the first three bosses, so their rows are thin; seven pulls of 150 to 555 s
+with Terminator Bargott (six wipes and the kill), whose casts never varied in order.
+
+Guides, for what a move is and what to do, both written from the Korean eight-player
+version: AION2 Codex's boss guide (2026-09-29, itself a digest of video captions) and
+Metaroad's raid page (2026-10-21, Bargott only). Where the two differ, the row says so.
+"Likely" below means a guide's HP threshold and mechanic line up with what we recorded.
+
+Across the raid: **a hit of exactly five times the victim's max HP is a kill by design**
+(240,300 on a player with 48,060 HP, 223,590 on 44,718, and so on). Klawfly's 1805840,
+Blatt's 1804430, 1804431 and 1804401, and Bargott's 1803725 after his enrage all do it.
+
+### Surveillance Device (2301216)
+
+One kill, 95 s. Three casts in a fixed 13 s loop: 1243040 (2.5 s cast), 1243050 (2 s),
+1243091 (2.5 s), each a few small hits (about 2,000). The damage that matters is helper
+2920999's 1243100: 119 hits of about 10,300 on 2 players at a time (4 at most), 3 of the
+4 deaths. What it looks like: not known. Around it: Contaminated Sura Battle Mages and
+Soldiers and a Defiled Sura Captain (2301201, 2301202, 2301217).
+
+### Devouring Klawfly (2301209)
+
+One kill, 292 s, 11 deaths.
+
+| cast | what it does (our fight) | cast time | when | confidence |
+| --- | --- | --- | --- | --- |
+| 1805840 | A hit of 5 x max HP on 1 to 2 players: 3 deaths. Guide: at about 75% and 30% numbered players lead his jumps through the debris piles, leaving one, and everyone hides behind it from the blast | 3 s | 75% and 25% HP | likely |
+| 1805820 Unstable Venom Sphere | A 20 s cast, stopped. Guide: at about 50% take the purple orbs one at a time, in an agreed order | 20 s | 49% HP | likely |
+| 1805806, then 1805807 | 16,000 to 19,000 on all ten, 5.35 s after 1805806 starts (2 of 2): 3 deaths | 1.5 s | 35% and 24% | confirmed; what it is: unknown |
+| 1805830 | The raid's only cast with marked ground: 7 areas (5 once), landing 2.85 s later; almost all avoided | none | 4 times | confirmed |
+| 1804750, then 1804756 and helper 2920887's 1804757 | 4,100 a hit on 2 to 5 players, 1.8 s after 1804750: 3 deaths | 1 s | 38% and 22% | confirmed; shape unknown |
+| 1804710, 1804740, 1804700, 1805805 | Hundreds of hits of 1,500 to 2,400: the steady damage | 0 to 1.2 s | throughout | confirmed |
+
+Mobs around him: Detritus (2920890, 2920891: the debris; one hit of 32,974 on 3 players
+from 2920890's 1804785), and Klaw adds (2920973: twelve, 180,000 HP each, six at about
+40% and six at about 15%, each living about 8 s).
+
+### Black Blood Blatt (2301207)
+
+One kill, 292 s, 22 deaths.
+
+| cast | what it does (our fight) | cast time | when | confidence |
+| --- | --- | --- | --- | --- |
+| 1804431, then 1804430 | 5 x max HP on four players, then seven seconds later on the other six: the whole raid dead at 72%, and back up within seconds. Guide: at about 75% red and purple pools to enter in the announced order | 1.1 s | 72% HP | likely (the pools, failed) |
+| 1804432 Fierce Toxic Aura Wave | Guide: four slimes at about 35%, each kept at low health and killed in the cast's last two seconds for a brief dome to stand in. Four Contaminated Slimes (2920951) were up from 28%; their 1804428 hit seven players for 33,000 to 38,000 (3 deaths) | 4 s | 28% HP | likely |
+| 1804420, then helper 2920955's 1804421 | 10,000 to 14,400 on 2 to 5 players, several times over 20 s: 6 deaths | 2 s | 28% | confirmed; shape unknown |
+| 1804401 | 5 x max HP on one player | none | 20% | confirmed; why: unknown |
+| 1804510, 1804580, 1804550, 1804540, 1804570, 1804410 | 1,700 to 2,200 a hit, hundreds of hits: the steady damage | 1 to 2 s | throughout | confirmed |
+
+Mobs: Black Tentacle Lawa (2920861, 2920949, 2920953), Blatt's Tentacles (2920944: 7,209 a
+hit on one player, the guide's imprisonment), Blatt's Crimson Tentacles (2920956).
+
+### Terminator Bargott (2301208)
+
+Seven pulls: wipes at 10%, 45%, 1.4%, 63%, 2.8% and 67%, then the kill in 430 s. 155 deaths.
+244.9 M HP. **He enrages 484 s after the pull** (the game's own timer read 483.9 to 484.1 in
+all seven); three wipes ran past it, and after it 1803725 hits for 5 x max HP.
+
+The first 50 s are the same every pull: 1803705 at 0, the combo (1803660 to 1803690) at 5
+to 12 s, 1803770 at 15, 1803820 at 21, 1805720 at 27, 1803725 at 30, 1803780 at 38, 1805720
+at 49. After that the order holds but the times drift, as phases come by HP.
+
+| cast | what it does (seven pulls) | cast time | when | confidence |
+| --- | --- | --- | --- | --- |
+| 1803770, then 1803820 at +6.0 s, 1805720 at +11.8 s, 1803725 at +14.4 s | The chain is exact (22 of 22 before the enrage) and comes back every 124 to 133 s. 1803770 itself is small ticks on the raid (the guides' poison); helper 2920790's 1803855 lands 5.8 s after it starts, 22,000 to 24,000 on 1 to 6 players (27 deaths) | 2 s | from 15 s | confirmed |
+| 1803725 | Three hits on 9 or 10 players, the first 3.8 s after the cast starts, then at 4.8 and 6.4 s. Each is smaller the more players take it (16,000 to 20,000 on 7 or 8; 8,000 to 12,000 on 9 or 10): shared. Guide: three shared frontal slams, rejoin for them. **60 of the 155 deaths** | 1.8 s | 14.4 s after 1803770 | confirmed; shared: likely |
+| 1803820 | 2,500 on about 4 players | 3 s | 6.0 s after 1803770 | confirmed; what it is: unknown (the guides' flash to turn away from, perhaps) |
+| 1803660, then 1803670, 1803680, 1803690 | An instant cast, then three hits 2.3, 4.7 and 6.15 s later, 1,300 to 1,450 each, with a 4.5 s effect (18036604). Guide: he rolls back, then strikes left, right, front | 1 s (670) | 5 s, then with each cycle | confirmed; the sides: a guide's |
+| 1803860 | Numbered marks on eight players (effects 12000600 to 12000607, 30 s). 1803825 follows at +3.8 s and 1803780 at +6.85 s | 1.3 s | 82% and 27% HP | confirmed |
+| 1803800 | Seven instant casts from 10.6 s after 1803860, 2.4 s apart (11 of 11): the guides' rolls, each through the next numbered player's bomb | none | after 1803860 | confirmed; what each does: a guide's |
+| 1803810, 1803815 | 28.4 s after 1803860, a hit on everyone: 8,000 to 14,400 (1803810, twice) or 16,000 to 29,000 (1803815, 4 times), all ten each time. In the other 5 of the 11 sequences nobody was hit at all: the blast for bombs left over, likely | none | after the rolls | likely |
+| helper 2920790's 1803840 | 6,700 to 9,600 a hit, on one player at a time, several in a row on the same player during the rolls (28 deaths) | | around the rolls | confirmed; what it is: unknown |
+| 1803776, then 1805761 at +4.4 s, 1805710 from +7.3 s | The phase at half health. A target with 8 HP appears and counts down to 0 over about 20 s: the guides' bombs to pick up and throw at him, eight hits needed. 1805710 pulses 15 times, 1.4 s apart | 2 s | 48% to 50% HP | confirmed |
+| 1805700 | 13.9 s later (6 of 6, within 0.1 s) the Time Bombs (2921072, skill 1242865) hit all ten for 27,000 to 33,600. Every 150 to 230 s, first near 115 s | 1.5 s | by time | confirmed |
+| 1803780, then 1803790 and 1803801 | 1.5 s after it starts, hundreds of hits of 1,300 that slow (1803790, effect 18037901), and 1803801 at +3.8 s. Guide: a jump that sends out waves | 1.4 s | every 30 to 50 s | confirmed; the jump: a guide's |
+| 1805740, then 1805741 at +3.15 s | Two casts that always come as a pair | 1.2 s | 4 a fight | confirmed; shape unknown |
+| 1805730, then 1805750 at +4.85 s | A 10 s effect (18057301) on many players from helpers 2920979 | 1 s | 5 a fight | unknown |
+| 1000009 + 1001450 | His stagger gauge emptied | | 33% to 36% HP | confirmed |
+
+Other damage: the Hydraulic Press (2920908, skill 1999100: 20,000 to 24,000 on one player,
+5 deaths). 19 deaths have no killer in the record, 8 of them with no damage at all (the whole
+raid within 3 s, in two pulls): a reset, or a kill the game doesn't send as damage.
+
+**In the data now** (`gamedata/boss-mechanics.json`): 20 labels, 1803725 among the casts
+always warned of, and seven cards (`cdf.`): Bargott's slams (counted down from 1803770),
+numbered rolls, bomb phase and time bombs; Klawfly's Unstable Venom Sphere and deadly
+blast; Blatt's Fierce Toxic Aura Wave.
+
+**Open:** what 1803820, 1803840, 1803855 and the Surveillance Device's 1243100 look like;
+whether 12000600 is the number 1; whether the time bombs' blast can be avoided (all ten
+were hit each time); the deaths with no damage.
+
 ## Seen in captures, still unidentified
 
 | IDs | what would settle it |
